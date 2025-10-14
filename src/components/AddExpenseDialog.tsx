@@ -19,7 +19,7 @@ const expenseSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(100, "Description too long"),
   amount: z.number().positive("Amount must be greater than 0").max(999999.99, "Amount too large"),
   category_id: z.string().uuid("Please select a category"),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}₹/, "Invalid date format"),
+  date: z.string(),
 });
 
 interface Category {
