@@ -132,7 +132,7 @@ export const Dashboard = () => {
               <TrendingDown className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalExpenses.toFixed(2)}</div>
+              <div className="text-2xl font-bold">₹{totalExpenses.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">All time</p>
             </CardContent>
           </Card>
@@ -143,7 +143,7 @@ export const Dashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${thisMonthExpenses.toFixed(2)}</div>
+              <div className="text-2xl font-bold">₹{thisMonthExpenses.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">Current month spending</p>
             </CardContent>
           </Card>
