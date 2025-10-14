@@ -97,7 +97,7 @@ const Index = () => {
       </main>
 
       <footer className="border-t py-8 text-center text-muted-foreground">
-        <p>&copy; 2025 ExpenseTracker. Built with Lovable Cloud.</p>
+        <p>&copy; ExpenseTracker, made by satyam.</p>
       </footer>
     </div>
   );
