@@ -77,7 +77,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
                 <div className="flex items-center gap-3 flex-1">
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `₹{expense.categories.color}20` }}
+                    style={{ backgroundColor: `${expense.categories.color}20` }}
                   >
                     <Icon className="w-5 h-5" style={{ color: expense.categories.color }} />
                   </div>
@@ -92,7 +92,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="font-semibold text-lg text-foreground">
-                    ₹{parseFloat(expense.amount.toString()).toFixed(2)}
+                    ${parseFloat(expense.amount.toString()).toFixed(2)}
                   </span>
                   <Button
                     variant="ghost"
