@@ -23,6 +23,33 @@ interface ExpenseListProps {
 }
 
 export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps) => {
+  const downloadCSV = (data: Expense[]) => {
+    if (!data || data.length === 0) return;
+    const header = ['id', 'description', 'amount', 'date', 'category'];
+    const rows = data.map((e) => {
+      const amount = typeof e.amount === 'number' ? e.amount : parseFloat(String(e.amount) || '0');
+      return [
+        e.id,
+        (e.description ?? '').replace(/"/g, '""'),
+        amount.toFixed(2),
+        e.date ?? '',
+        (e.categories?.name ?? '').replace(/"/g, '""'),
+      ];
+    });
+
+    const csv = [header, ...rows].map((r) => r.map((cell) => `"${cell}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `expenses_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // revoke after a short delay to ensure download started
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   if (isLoading) {
     return (
       <Card className="shadow-card">
@@ -66,6 +93,13 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
   return (
     <Card className="shadow-card">
       <CardContent className="p-0">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="text-lg font-medium">Expenses</h3>
+          <Button onClick={() => downloadCSV(expenses)} variant="outline" size="sm">
+            Download CSV
+          </Button>
+        </div>
+
         <div className="divide-y divide-border">
           {expenses.map((expense) => {
             const Icon = getIcon(expense.categories.icon);
