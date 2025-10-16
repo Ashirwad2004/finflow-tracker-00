@@ -23,16 +23,38 @@ interface ExpenseListProps {
 }
 
 export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps) => {
+  const formatDateForCSV = (d?: string | Date | null) => {
+    if (!d) return '';
+    if (d instanceof Date && !isNaN(d.getTime())) {
+      return d.toISOString().slice(0, 10);
+    }
+    if (typeof d === 'string') {
+      // <-- FIX: Corrected the regular expression here
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+      
+      // try parse then use local Y-M-D components to avoid UTC shift
+      const parsed = new Date(d);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+    }
+    return String(d);
+  };
+
   const downloadCSV = (data: Expense[]) => {
     if (!data || data.length === 0) return;
     const header = ['id', 'description', 'amount', 'date', 'category'];
     const rows = data.map((e) => {
       const amount = typeof e.amount === 'number' ? e.amount : parseFloat(String(e.amount) || '0');
+      const dateStr = formatDateForCSV(e.date);
       return [
         e.id,
         (e.description ?? '').replace(/"/g, '""'),
         amount.toFixed(2),
-        e.date ?? '',
+        dateStr,
         (e.categories?.name ?? '').replace(/"/g, '""'),
       ];
     });
@@ -42,7 +64,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `expenses_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `expenses_${formatDateForCSV(new Date())}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -111,7 +133,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
                 <div className="flex items-center gap-3 flex-1">
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `₹{expense.categories.color}20` }}
+                    style={{ backgroundColor: `${expense.categories.color}20` }}
                   >
                     <Icon className="w-5 h-5" style={{ color: expense.categories.color }} />
                   </div>
