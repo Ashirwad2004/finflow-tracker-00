@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,28 +8,74 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Wallet } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
 
 const emailSchema = z.string().trim().email({ message: "Invalid email address" });
 const passwordSchema = z.string().min(6, { message: "Password must be at least 6 characters" });
 const nameSchema = z.string().trim().min(2, { message: "Name must be at least 2 characters" });
 
 const Auth = () => {
+  const [searchParams] = useSearchParams();
   const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, resetPassword } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is coming from password reset email
+    if (searchParams.get('reset') === 'true') {
+      setIsResettingPassword(true);
+      setIsForgotPassword(false);
+      setIsLogin(false);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (isForgotPassword) {
-        // Handle password reset
+      if (isResettingPassword) {
+        // Handle password update from reset link
+        passwordSchema.parse(newPassword);
+        if (newPassword !== confirmPassword) {
+          toast({
+            title: "Error",
+            description: "Passwords do not match",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
+        const { error } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Password updated!",
+            description: "Your password has been successfully updated.",
+          });
+          setIsResettingPassword(false);
+          setIsLogin(true);
+          navigate("/");
+        }
+      } else if (isForgotPassword) {
+        // Handle password reset request
         emailSchema.parse(email);
         const { error } = await resetPassword(email);
         if (error) {
@@ -120,10 +166,12 @@ const Auth = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">
-            {isForgotPassword ? "Reset Password" : isLogin ? "Welcome Back" : "Create Account"}
+            {isResettingPassword ? "Set New Password" : isForgotPassword ? "Reset Password" : isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
           <CardDescription>
-            {isForgotPassword
+            {isResettingPassword
+              ? "Enter your new password below"
+              : isForgotPassword
               ? "Enter your email to receive a password reset link"
               : isLogin
               ? "Sign in to continue tracking your expenses"
@@ -132,76 +180,107 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && !isForgotPassword && (
-              <div className="space-y-2">
-                <Label htmlFor="displayName">Name</Label>
-                <Input
-                  id="displayName"
-                  type="text"
-                  placeholder="John Doe"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            {!isForgotPassword && (
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
+            {isResettingPassword ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {!isLogin && !isForgotPassword && (
+                  <div className="space-y-2">
+                    <Label htmlFor="displayName">Name</Label>
+                    <Input
+                      id="displayName"
+                      type="text"
+                      placeholder="John Doe"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                {!isForgotPassword && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+              </>
             )}
             <Button
               type="submit"
               className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
               disabled={loading}
             >
-              {loading ? "Loading..." : isForgotPassword ? "Send Reset Link" : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? "Loading..." : isResettingPassword ? "Update Password" : isForgotPassword ? "Send Reset Link" : isLogin ? "Sign In" : "Sign Up"}
             </Button>
           </form>
-          <div className="mt-4 text-center space-y-2">
-            {isLogin && !isForgotPassword && (
+          {!isResettingPassword && (
+            <div className="mt-4 text-center space-y-2">
+              {isLogin && !isForgotPassword && (
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPassword(true)}
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full"
+                >
+                  Forgot password?
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setIsForgotPassword(true)}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setIsForgotPassword(false);
+                }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
               >
-                Forgot password?
+                {isForgotPassword
+                  ? "Back to sign in"
+                  : isLogin
+                  ? "Don't have an account? Sign up"
+                  : "Already have an account? Sign in"}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setIsForgotPassword(false);
-              }}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
-              {isForgotPassword
-                ? "Back to sign in"
-                : isLogin
-                ? "Don't have an account? Sign up"
-                : "Already have an account? Sign in"}
-            </button>
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
