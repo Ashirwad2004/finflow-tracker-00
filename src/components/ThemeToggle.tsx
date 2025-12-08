@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -8,7 +8,7 @@ type ThemeToggleProps = {
   className?: string;
 };
 
-const getPreferredTheme = (): Theme => {
+export const getPreferredTheme = (): Theme => {
   const stored = localStorage.getItem("theme");
   if (stored === "light" || stored === "dark") return stored;
 
@@ -16,7 +16,7 @@ const getPreferredTheme = (): Theme => {
   return "dark";
 };
 
-const applyThemeClass = (theme: Theme) => {
+export const applyThemeClass = (theme: Theme) => {
   const root = document.documentElement;
   root.classList.remove(theme === "dark" ? "light" : "dark");
   root.classList.add(theme);
@@ -49,4 +49,13 @@ export const ThemeToggle = ({ className }: ThemeToggleProps) => {
       {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
     </Button>
   );
+};
+
+// Ensures stored theme is applied on initial load (even when toggle UI isn't rendered)
+export const ThemeInitializer = () => {
+  useLayoutEffect(() => {
+    const initial = getPreferredTheme();
+    applyThemeClass(initial);
+  }, []);
+  return null;
 };
