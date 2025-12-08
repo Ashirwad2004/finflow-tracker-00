@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { Dashboard } from "@/components/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Wallet, TrendingUp, Shield, Zap } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -40,9 +41,12 @@ const Index = () => {
             </div>
             <h1 className="text-2xl font-bold text-foreground">ExpenseTracker</h1>
           </div>
-          <Button onClick={() => navigate("/auth")} className="bg-gradient-primary hover:opacity-90">
-            Get Started
-          </Button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Button onClick={() => navigate("/auth")} className="bg-gradient-primary hover:opacity-90">
+              Get Started
+            </Button>
+          </div>
         </div>
       </header>
 
