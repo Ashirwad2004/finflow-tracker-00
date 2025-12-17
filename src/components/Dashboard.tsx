@@ -8,6 +8,7 @@ import { Plus, LogOut, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { BudgetSection } from "@/components/BudgetSection";
 import { toast } from "@/hooks/use-toast";
 
 export const Dashboard = () => {
@@ -125,7 +126,7 @@ export const Dashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-fade-in">
           <Card className="shadow-card bg-gradient-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
@@ -158,6 +159,8 @@ export const Dashboard = () => {
               <p className="text-xs text-muted-foreground mt-1">Total recorded</p>
             </CardContent>
           </Card>
+
+          <BudgetSection userId={user?.id || ""} thisMonthExpenses={thisMonthExpenses} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
