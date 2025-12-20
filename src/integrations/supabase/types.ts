@@ -130,6 +130,68 @@ export type Database = {
         }
         Relationships: []
       }
+      split_bill_participants: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          is_paid: boolean
+          name: string
+          split_bill_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          is_paid?: boolean
+          name: string
+          split_bill_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          is_paid?: boolean
+          name?: string
+          split_bill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "split_bill_participants_split_bill_id_fkey"
+            columns: ["split_bill_id"]
+            isOneToOne: false
+            referencedRelation: "split_bills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      split_bills: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          total_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          total_amount: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          total_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
