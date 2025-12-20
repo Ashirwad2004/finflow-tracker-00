@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users } from "lucide-react";
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
@@ -15,6 +16,7 @@ export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -167,10 +169,16 @@ export const Dashboard = () => {
           <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Recent Expenses</h2>
-              <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Expense
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => navigate("/split-bills")} size="sm" variant="outline">
+                  <Users className="w-4 h-4 mr-2" />
+                  Split Bills
+                </Button>
+                <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Expense
+                </Button>
+              </div>
             </div>
             <ExpenseList
               expenses={expenses}
