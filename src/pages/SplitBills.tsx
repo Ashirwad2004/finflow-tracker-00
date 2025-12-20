@@ -25,21 +25,7 @@ const SplitBills = () => {
   const [totalAmount, setTotalAmount] = useState("");
   const [participants, setParticipants] = useState<Participant[]>([{ name: "", amount: 0 }]);
 
-  // Redirect to auth if not logged in
-  if (!loading && !user) {
-    navigate("/auth");
-    return null;
-  }
-
-  // Show loading while checking auth
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const { data: splitBills = [], isLoading } = useQuery({
     queryKey: ["split-bills", user?.id],
     queryFn: async () => {
@@ -49,7 +35,7 @@ const SplitBills = () => {
           *,
           split_bill_participants (*)
         `)
-        .eq("user_id", user?.id)
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -63,7 +49,7 @@ const SplitBills = () => {
       const { data: bill, error: billError } = await supabase
         .from("split_bills")
         .insert({
-          user_id: user?.id,
+          user_id: user!.id,
           title,
           total_amount: parseFloat(totalAmount),
         })
@@ -133,6 +119,21 @@ const SplitBills = () => {
       queryClient.invalidateQueries({ queryKey: ["split-bills"] });
     },
   });
+
+  // Redirect to auth if not logged in (after all hooks)
+  if (!loading && !user) {
+    navigate("/auth");
+    return null;
+  }
+
+  // Show loading while checking auth (after all hooks)
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   const handleTotalAmountChange = (value: string) => {
     setTotalAmount(value);
