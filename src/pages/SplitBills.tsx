@@ -17,13 +17,28 @@ interface Participant {
 }
 
 const SplitBills = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [participants, setParticipants] = useState<Participant[]>([{ name: "", amount: 0 }]);
+
+  // Redirect to auth if not logged in
+  if (!loading && !user) {
+    navigate("/auth");
+    return null;
+  }
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   const { data: splitBills = [], isLoading } = useQuery({
     queryKey: ["split-bills", user?.id],
