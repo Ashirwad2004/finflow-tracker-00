@@ -74,7 +74,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
 
   const handleSave = () => {
     const amount = parseFloat(budgetAmount);
-    if (isNaN(amount) || amount <= 0) {
+    if (isNaN(amount) || amount < 0) {
       toast({
         title: "Invalid amount",
         description: "Please enter a valid budget amount.",
@@ -97,7 +97,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
 
   // Check if budget exceeded and show notification
   useEffect(() => {
-    if (budget && !hasNotified) {
+    if (budget && budget.amount > 0 && !hasNotified) {
       const budgetLimit = parseFloat(budget.amount.toString());
       const percentUsed = (thisMonthExpenses / budgetLimit) * 100;
       
@@ -118,9 +118,9 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
     }
   }, [budget, thisMonthExpenses, hasNotified]);
 
-  const budgetLimit = budget ? parseFloat(budget.amount.toString()) : 0;
-  const percentUsed = budgetLimit > 0 ? Math.min((thisMonthExpenses / budgetLimit) * 100, 100) : 0;
-  const isOverBudget = thisMonthExpenses > budgetLimit && budgetLimit > 0;
+  const budgetLimit = budget && budget.amount > 0 ? parseFloat(budget.amount.toString()) : 0;
+  const percentUsed = budgetLimit >= 0 ? Math.min((thisMonthExpenses / budgetLimit) * 100, 100) : 0;
+  const isOverBudget = thisMonthExpenses > budgetLimit && budgetLimit >= 0;
   const remaining = budgetLimit - thisMonthExpenses;
 
   if (isLoading) {
@@ -168,7 +168,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
               </Button>
             </div>
           </div>
-        ) : budget ? (
+        ) : budget && budget.amount > 0 ? (
           <div className="space-y-3">
             <div className="flex justify-between items-baseline">
               <div className="text-2xl font-bold">₹{budgetLimit.toFixed(2)}</div>
