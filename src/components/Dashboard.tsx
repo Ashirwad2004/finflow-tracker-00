@@ -1,20 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users } from "lucide-react";
+import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock } from "lucide-react";
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { BudgetSection } from "@/components/BudgetSection";
+import { RecentlyDeleted } from "@/components/RecentlyDeleted";
 import { toast } from "@/hooks/use-toast";
 
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -71,18 +73,39 @@ export const Dashboard = () => {
 
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
+      // Find the expense to store in recently deleted
+      const expenseToDelete = expenses.find(exp => exp.id === id);
+      
+      // Delete from database
       const { error } = await supabase
         .from("expenses")
         .delete()
         .eq("id", id);
       
       if (error) throw error;
+
+      // Store in localStorage for recently deleted (if found)
+      if (expenseToDelete && user?.id) {
+        const recentlyDeletedKey = `recently_deleted_${user.id}`;
+        const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
+        
+        const deletedItem = {
+          ...expenseToDelete,
+          deleted_at: new Date().toISOString()
+        };
+        
+        existingDeleted.push(deletedItem);
+        localStorage.setItem(recentlyDeletedKey, JSON.stringify(existingDeleted));
+        
+        console.log('Dashboard: Stored deleted expense in localStorage', { key: recentlyDeletedKey, deletedItem, totalItems: existingDeleted.length });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["deleted-expenses"] });
       toast({
-        title: "Expense deleted",
-        description: "The expense has been removed successfully.",
+        title: "Expense moved to recently deleted",
+        description: "The expense has been moved to recently deleted. It will be permanently deleted after 30 days.",
       });
     },
     onError: () => {
@@ -168,23 +191,41 @@ export const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Recent Expenses</h2>
+              <h2 className="text-xl font-semibold">
+                {showRecentlyDeleted ? "Recently Deleted Expenses" : "Recent Expenses"}
+              </h2>
               <div className="flex gap-2">
-                <Button onClick={() => navigate("/split-bills")} size="sm" variant="outline">
-                  <Users className="w-4 h-4 mr-2" />
-                  Split Bills
+                <Button
+                  onClick={() => setShowRecentlyDeleted(!showRecentlyDeleted)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Clock className="w-4 h-4 mr-2" />
+                  {showRecentlyDeleted ? "Show Expenses" : "Recently Deleted"}
                 </Button>
-                <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Expense
-                </Button>
+                {!showRecentlyDeleted && (
+                  <>
+                    <Button onClick={() => navigate("/split-bills")} size="sm" variant="outline">
+                      <Users className="w-4 h-4 mr-2" />
+                      Split Bills
+                    </Button>
+                    <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Expense
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
-            <ExpenseList
-              expenses={expenses}
-              isLoading={isLoading}
-              onDelete={(id) => deleteExpense.mutate(id)}
-            />
+            {showRecentlyDeleted ? (
+              <RecentlyDeleted userId={user?.id || ""} />
+            ) : (
+              <ExpenseList
+                expenses={expenses}
+                isLoading={isLoading}
+                onDelete={(id) => deleteExpense.mutate(id)}
+              />
+            )}
           </div>
 
           <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
