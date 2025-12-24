@@ -190,11 +190,11 @@ export const Dashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
               <h2 className="text-xl font-semibold">
                 {showRecentlyDeleted ? "Recently Deleted Expenses" : "Recent Expenses"}
               </h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => setShowRecentlyDeleted(!showRecentlyDeleted)}
                   size="sm"
