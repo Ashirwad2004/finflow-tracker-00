@@ -177,17 +177,17 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
                 key={expense.id}
                 className="p-4 hover:bg-muted/50 transition-colors"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: `${expense.categories.color}20` }}
                     >
                       <Icon className="w-5 h-5" style={{ color: expense.categories.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground truncate">{expense.description}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-muted-foreground">
                         <span>{expense.categories.name}</span>
                         <span>•</span>
                         <span>{new Date(expense.date).toLocaleDateString()}</span>
@@ -198,7 +198,7 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between sm:justify-end gap-4">
                     <span className="font-semibold text-lg text-foreground">
                       ₹{parseFloat(expense.amount.toString()).toFixed(2)}
                     </span>
@@ -207,7 +207,7 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
                         variant="ghost"
                         size="icon"
                         onClick={() => restoreExpense.mutate(expense)}
-                        className="hover:text-green-600"
+                        className="hover:text-green-600 flex-shrink-0"
                         title="Restore expense"
                       >
                         <RotateCcw className="w-4 h-4" />
@@ -217,7 +217,7 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="hover:text-destructive"
+                            className="hover:text-destructive flex-shrink-0"
                             title="Permanently delete"
                           >
                             <Trash2 className="w-4 h-4" />

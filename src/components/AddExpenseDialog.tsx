@@ -17,7 +17,7 @@ import { z } from "zod";
 
 const expenseSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(100, "Description too long"),
-  amount: z.number().positive("Amount must be greater than 0").max(999999.99, "Amount too large"),
+  amount: z.number().positive("Amount must be greater than 0").max(99999999.99, "Amount too large"),
   category_id: z.string().uuid("Please select a category"),
   date: z.string(),
 });

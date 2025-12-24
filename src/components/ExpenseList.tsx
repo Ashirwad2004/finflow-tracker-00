@@ -128,25 +128,25 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
             return (
               <div
                 key={expense.id}
-                className="p-4 hover:bg-muted/50 transition-colors flex items-center justify-between group"
+                className="p-4 hover:bg-muted/50 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 group"
               >
                 <div className="flex items-center gap-3 flex-1">
                   <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                     style={{ backgroundColor: `${expense.categories.color}20` }}
                   >
                     <Icon className="w-5 h-5" style={{ color: expense.categories.color }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-foreground truncate">{expense.description}</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-muted-foreground">
                       <span>{expense.categories.name}</span>
                       <span>•</span>
                       <span>{new Date(expense.date).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between sm:justify-end gap-4">
                   <span className="font-semibold text-lg text-foreground">
                     ₹{parseFloat(expense.amount.toString()).toFixed(2)}
                   </span>
@@ -154,7 +154,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
                     variant="ghost"
                     size="icon"
                     onClick={() => onDelete(expense.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive flex-shrink-0"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
