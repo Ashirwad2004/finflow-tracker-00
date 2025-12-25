@@ -122,7 +122,7 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] border rounded-none shadow-md animate-in fade-in-0 zoom-in-95 duration-300">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
@@ -133,79 +133,73 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="amount" className="text-right">
-                Amount
-              </Label>
-              <div className="col-span-3">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">₹</span>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="pl-8"
-                    required
-                  />
-                </div>
+          <div className="space-y-3 py-4">
+            <div className="border rounded-none p-3 shadow-sm transition-all duration-200 hover:shadow-lg bg-muted/20">
+              <Label htmlFor="amount">Amount</Label>
+              <div className="relative mt-2">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">₹</span>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="pl-8 rounded-none"
+                  required
+                />
               </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="personName" className="text-right">
-                Person
-              </Label>
-              <div className="col-span-3">
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="personName"
-                    placeholder="John Doe"
-                    value={personName}
-                    onChange={(e) => setPersonName(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                </div>
+            <div className="border rounded-none p-3 shadow-sm transition-all duration-200 hover:shadow-lg bg-muted/20">
+              <Label htmlFor="personName">Person</Label>
+              <div className="relative mt-2">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="personName"
+                  placeholder="John Doe"
+                  value={personName}
+                  onChange={(e) => setPersonName(e.target.value)}
+                  className="pl-10 rounded-none"
+                  required
+                />
               </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="description" className="text-right">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="What was the money lent for?"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="col-span-3"
-                required
-              />
+            <div className="border rounded-none p-3 shadow-sm transition-all duration-200 hover:shadow-lg bg-muted/20">
+              <Label htmlFor="description">Description</Label>
+              <div className="relative mt-2">
+                <Textarea
+                  id="description"
+                  placeholder="What was the money lent for?"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="rounded-none"
+                  required
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="dueDate" className="text-right">
-                Due Date
-              </Label>
-              <Input
-                id="dueDate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="col-span-3"
-              />
+            <div className="border rounded-none p-3 shadow-sm transition-all duration-200 hover:shadow-lg bg-muted/20">
+              <Label htmlFor="dueDate">Due Date</Label>
+              <div className="relative mt-2">
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="rounded-none"
+                />
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Recording..." : "Record Lent Money"}
-            </Button>
-          </DialogFooter>
+          <div className="border rounded-none p-3 shadow-sm transition-all duration-200 hover:shadow-lg bg-muted/20">
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Recording..." : "Record Lent Money"}
+              </Button>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
