@@ -34,6 +34,14 @@ FOR DELETE
 USING (auth.uid() = user_id);
 
 -- Create trigger for automatic timestamp updates
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = TIMEZONE('utc'::text, NOW());
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
 CREATE TRIGGER update_budgets_updated_at
 BEFORE UPDATE ON public.budgets
 FOR EACH ROW
