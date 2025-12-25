@@ -9,6 +9,7 @@ import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock } from "lu
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { LentMoneyDialog } from "@/components/LentMoneyDialog";
 import { BudgetSection } from "@/components/BudgetSection";
 import { RecentlyDeleted } from "@/components/RecentlyDeleted";
 import { toast } from "@/hooks/use-toast";
@@ -16,9 +17,12 @@ import { toast } from "@/hooks/use-toast";
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
   const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  console.log("Dashboard user:", user);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -209,6 +213,10 @@ export const Dashboard = () => {
                       <Users className="w-4 h-4 mr-2" />
                       Split Bills
                     </Button>
+                    <Button onClick={() => setIsLentMoneyDialogOpen(true)} size="sm" variant="outline">
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      Lent Money
+                    </Button>
                     <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
                       <Plus className="w-4 h-4 mr-2" />
                       Add Expense
@@ -239,6 +247,12 @@ export const Dashboard = () => {
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         categories={categories}
+        userId={user?.id || ""}
+      />
+
+      <LentMoneyDialog
+        open={isLentMoneyDialogOpen}
+        onOpenChange={setIsLentMoneyDialogOpen}
         userId={user?.id || ""}
       />
     </div>
