@@ -126,3 +126,45 @@ All colors MUST be HSL.
     background-attachment: fixed;
   }
 }
+
+/* Button glow animations */
+@keyframes button-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.2), 0 0 10px rgba(59, 130, 246, 0.1), 0 0 15px rgba(59, 130, 246, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.2), 0 0 30px rgba(59, 130, 246, 0.1);
+  }
+}
+
+@keyframes button-glow-destructive {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), 0 0 10px rgba(239, 68, 68, 0.1), 0 0 15px rgba(239, 68, 68, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4), 0 0 20px rgba(239, 68, 68, 0.2), 0 0 30px rgba(239, 68, 68, 0.1);
+  }
+}
+
+@keyframes button-glow-outline {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(156, 163, 175, 0.15), 0 0 10px rgba(156, 163, 175, 0.08), 0 0 15px rgba(156, 163, 175, 0.03);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(156, 163, 175, 0.25), 0 0 16px rgba(156, 163, 175, 0.15), 0 0 24px rgba(156, 163, 175, 0.08);
+  }
+}
+
+@layer utilities {
+  .button-glow {
+    animation: button-glow 2s ease-in-out infinite;
+  }
+
+  .button-glow-destructive {
+    animation: button-glow-destructive 2s ease-in-out infinite;
+  }
+
+  .button-glow-outline {
+    animation: button-glow-outline 2s ease-in-out infinite;
+  }
+}
