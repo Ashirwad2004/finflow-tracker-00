@@ -20,7 +20,7 @@ import { TrendingUp, User } from "lucide-react";
 const lentMoneySchema = z.object({
   amount: z.string().min(1, "Amount is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive number"),
   personName: z.string().trim().min(2, "Person name must be at least 2 characters"),
-  description: z.string().trim().min(1, "Description is required"),
+  description: z.string().trim().optional(),
   dueDate: z.string().optional(),
 });
 
@@ -40,6 +40,12 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
 
   console.log("LentMoneyDialog rendered with userId:", userId);
 
+  // Check if user is authenticated
+  if (!userId || userId === "") {
+    console.error("No userId provided to LentMoneyDialog");
+    return null;
+  }
+
   const addLentMoney = useMutation({
     mutationFn: async (data: {
       amount: number;
@@ -48,6 +54,25 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
       dueDate?: string;
     }) => {
       console.log("Adding lent money:", data, "userId:", userId);
+      
+      // Check if user is authenticated
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log("Current session:", session, "Session error:", sessionError);
+      
+      if (!session) {
+        // Try to refresh the session
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        console.log("Refresh session result:", refreshData, "Refresh error:", refreshError);
+        
+        if (!refreshData.session) {
+          throw new Error("User is not authenticated. Please log in again.");
+        }
+      }
+
+      if (sessionError) {
+        throw new Error(`Authentication error: ${sessionError.message}`);
+      }
+
       const { data: result, error } = await supabase
         .from("lent_money")
         .insert({
@@ -55,7 +80,7 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
           amount: data.amount,
           person_name: data.personName,
           description: data.description,
-          due_date: data.dueDate || null,
+          due_date: data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : null,
           status: "pending",
         });
 
@@ -73,9 +98,10 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
     },
     onError: (error) => {
       console.error("Error adding lent money:", error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
       toast({
         title: "Error",
-        description: "Failed to record lent money. Please try again.",
+        description: `Failed to record lent money: ${error.message || 'Unknown error'}. Please try again.`,
         variant: "destructive",
       });
     },
@@ -182,7 +208,6 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="col-span-3"
-                required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

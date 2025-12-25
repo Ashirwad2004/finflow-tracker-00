@@ -213,10 +213,12 @@ export const Dashboard = () => {
                       <Users className="w-4 h-4 mr-2" />
                       Split Bills
                     </Button>
-                    <Button onClick={() => setIsLentMoneyDialogOpen(true)} size="sm" variant="outline">
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      Lent Money
-                    </Button>
+                    {user && (
+                      <Button onClick={() => setIsLentMoneyDialogOpen(true)} size="sm" variant="outline">
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Lent Money
+                      </Button>
+                    )}
                     <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
                       <Plus className="w-4 h-4 mr-2" />
                       Add Expense
@@ -250,11 +252,13 @@ export const Dashboard = () => {
         userId={user?.id || ""}
       />
 
-      <LentMoneyDialog
-        open={isLentMoneyDialogOpen}
-        onOpenChange={setIsLentMoneyDialogOpen}
-        userId={user?.id || ""}
-      />
+      {user && (
+        <LentMoneyDialog
+          open={isLentMoneyDialogOpen}
+          onOpenChange={setIsLentMoneyDialogOpen}
+          userId={user.id}
+        />
+      )}
     </div>
   );
 };
