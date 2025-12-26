@@ -12,6 +12,7 @@ import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { LentMoneyDialog } from "@/components/LentMoneyDialog";
 import { BudgetSection } from "@/components/BudgetSection";
 import { RecentlyDeleted } from "@/components/RecentlyDeleted";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
 export const Dashboard = () => {
@@ -147,10 +148,13 @@ export const Dashboard = () => {
               <p className="text-sm text-muted-foreground">Welcome back, {profile?.display_name || "User"}!</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleSignOut} size="sm">
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="outline" onClick={handleSignOut} size="sm">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
