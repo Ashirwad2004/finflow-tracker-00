@@ -139,12 +139,15 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
     return Math.max(0, diffDays);
   };
 
-  const getIcon = (iconName: string) => {
+  const getIcon = (iconName: string): React.ComponentType<{ className?: string; style?: React.CSSProperties }> => {
     const iconKey = iconName.split('-').map((word: string) =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join('') as keyof typeof LucideIcons;
-    const Icon = LucideIcons[iconKey];
-    return Icon || LucideIcons.Circle;
+    const IconComponent = LucideIcons[iconKey];
+    if (typeof IconComponent === 'function' || (IconComponent && typeof IconComponent === 'object' && 'render' in IconComponent)) {
+      return IconComponent as React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+    }
+    return LucideIcons.Circle;
   };
 
   if (deletedExpenses.length === 0) {

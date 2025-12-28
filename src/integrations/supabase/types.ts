@@ -71,7 +71,6 @@ export type Database = {
           category_id: string
           created_at: string
           date: string
-          deleted_at: string | null
           description: string
           id: string
           updated_at: string
@@ -82,7 +81,6 @@ export type Database = {
           category_id: string
           created_at?: string
           date?: string
-          deleted_at?: string | null
           description: string
           id?: string
           updated_at?: string
@@ -93,7 +91,6 @@ export type Database = {
           category_id?: string
           created_at?: string
           date?: string
-          deleted_at?: string | null
           description?: string
           id?: string
           updated_at?: string
@@ -108,6 +105,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lent_money: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          due_date: string | null
+          id: string
+          person_name: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          person_name: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          person_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -190,42 +223,6 @@ export type Database = {
           id?: string
           title?: string
           total_amount?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      lent_money: {
-        Row: {
-          amount: number
-          created_at: string
-          description: string | null
-          due_date: string | null
-          id: string
-          person_name: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          person_name: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          person_name?: string
-          status?: string
           updated_at?: string
           user_id?: string
         }
