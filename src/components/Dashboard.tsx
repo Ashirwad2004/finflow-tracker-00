@@ -12,6 +12,7 @@ import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { LentMoneyDialog } from "@/components/LentMoneyDialog";
 import { BudgetSection } from "@/components/BudgetSection";
 import { RecentlyDeleted } from "@/components/RecentlyDeleted";
+import { LentMoneySection } from "@/components/LentMoneySection";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
@@ -240,9 +241,12 @@ export const Dashboard = () => {
             )}
           </div>
 
-          <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-            <h2 className="text-xl font-semibold mb-4">Spending by Category</h2>
-            <ExpenseChart expenses={expenses} />
+          <div className="space-y-6 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Spending by Category</h2>
+              <ExpenseChart expenses={expenses} />
+            </div>
+            <LentMoneySection userId={user?.id || ""} />
           </div>
         </div>
       </main>
