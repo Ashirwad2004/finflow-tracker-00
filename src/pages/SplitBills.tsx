@@ -97,13 +97,30 @@ const SplitBills = () => {
   });
 
   const deleteSplitBill = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("split_bills").delete().eq("id", id);
+    mutationFn: async (bill: any) => {
+      const { error } = await supabase.from("split_bills").delete().eq("id", bill.id);
       if (error) throw error;
+
+      // Store in recently deleted
+      const key = `recently_deleted_split_bills_${user!.id}`;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.push({
+        id: bill.id,
+        title: bill.title,
+        total_amount: bill.total_amount,
+        user_id: bill.user_id,
+        participants: bill.split_bill_participants?.map((p: any) => ({
+          name: p.name,
+          amount: p.amount,
+          is_paid: p.is_paid,
+        })) || [],
+        deleted_at: new Date().toISOString(),
+      });
+      localStorage.setItem(key, JSON.stringify(existing));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["split-bills"] });
-      toast({ title: "Bill deleted", description: "Split bill has been removed." });
+      toast({ title: "Bill deleted", description: "Split bill has been moved to recently deleted." });
     },
   });
 
@@ -282,7 +299,7 @@ const SplitBills = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteSplitBill.mutate(bill.id)}
+                      onClick={() => deleteSplitBill.mutate(bill)}
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
