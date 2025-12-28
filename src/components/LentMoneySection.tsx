@@ -88,19 +88,25 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
   });
 
   const deleteLoan = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (loan: LentMoneyRecord) => {
       const { error } = await supabase
         .from("lent_money")
         .delete()
-        .eq("id", id);
+        .eq("id", loan.id);
 
       if (error) throw error;
+
+      // Store in recently deleted
+      const key = `recently_deleted_lent_money_${userId}`;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.push({ ...loan, deleted_at: new Date().toISOString() });
+      localStorage.setItem(key, JSON.stringify(existing));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lent-money"] });
       toast({
         title: "Record deleted",
-        description: "The lent money record has been deleted.",
+        description: "The lent money record has been moved to recently deleted.",
       });
       setDeleteDialogOpen(false);
       setSelectedLoan(null);
@@ -126,7 +132,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
 
   const confirmDelete = () => {
     if (selectedLoan) {
-      deleteLoan.mutate(selectedLoan.id);
+      deleteLoan.mutate(selectedLoan);
     }
   };
 
