@@ -11,13 +11,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
 const expenseSchema = z.object({
-  description: z.string().trim().min(1, "Description is required").max(100, "Description too long"),
-  amount: z.number().positive("Amount must be greater than 0").max(99999999.99, "Amount too large"),
+  description: z.string().trim().min(1, "Description is required"),
+  amount: z.number().positive("Amount must be greater than 0"),
   category_id: z.string().uuid("Please select a category"),
   date: z.string(),
 });
@@ -42,66 +48,98 @@ export const AddExpenseDialog = ({
   categories,
   userId,
 }: AddExpenseDialogProps) => {
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const queryClient = useQueryClient();
 
-  const addExpense = useMutation({
-    mutationFn: async (data: {
-      description: string;
-      amount: number;
-      category_id: string;
-      date: string;
-      user_id: string;
-    }) => {
-      const { error } = await supabase.from("expenses").insert([data]);
+  const [expenses, setExpenses] = useState([
+    {
+      description: "",
+      amount: "",
+      categoryId: "",
+      date: new Date().toISOString().split("T")[0],
+    },
+  ]);
+
+  const addRow = () => {
+    setExpenses([
+      ...expenses,
+      {
+        description: "",
+        amount: "",
+        categoryId: "",
+        date: new Date().toISOString().split("T")[0],
+      },
+    ]);
+  };
+
+  const removeRow = (index: number) => {
+    setExpenses(expenses.filter((_, i) => i !== index));
+  };
+
+  const updateExpense = (
+    index: number,
+    field: string,
+    value: string
+  ) => {
+    const updated = [...expenses];
+    updated[index] = { ...updated[index], [field]: value };
+    setExpenses(updated);
+  };
+
+  const addExpenses = useMutation({
+    mutationFn: async () => {
+      const payload = expenses.map((e) => ({
+        description: e.description,
+        amount: parseFloat(e.amount),
+        category_id: e.categoryId,
+        date: e.date,
+        user_id: userId,
+      }));
+
+      const { error } = await supabase
+        .from("expenses")
+        .insert(payload);
+
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       toast({
-        title: "Expense added!",
-        description: "Your expense has been recorded successfully.",
+        title: "Expenses added",
+        description: `${expenses.length} expense(s) added successfully.`,
       });
-      resetForm();
       onOpenChange(false);
+      setExpenses([
+        {
+          description: "",
+          amount: "",
+          categoryId: "",
+          date: new Date().toISOString().split("T")[0],
+        },
+      ]);
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to add expense. Please try again.",
+        description: error.message || "Failed to add expenses",
         variant: "destructive",
       });
     },
   });
 
-  const resetForm = () => {
-    setDescription("");
-    setAmount("");
-    setCategoryId("");
-    setDate(new Date().toISOString().split("T")[0]);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const validated = expenseSchema.parse({
-        description,
-        amount: parseFloat(amount),
-        category_id: categoryId,
-        date,
+      expenses.forEach((e) => {
+        expenseSchema.parse({
+          description: e.description,
+          amount: parseFloat(e.amount),
+          category_id: e.categoryId,
+          date: e.date,
+        });
       });
 
-      addExpense.mutate({
-        description: validated.description,
-        amount: validated.amount,
-        category_id: validated.category_id,
-        date: validated.date,
-        user_id: userId,
-      });
+      addExpenses.mutate();
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast({
@@ -115,77 +153,115 @@ export const AddExpenseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
+          <DialogTitle>Add Expenses</DialogTitle>
           <DialogDescription>
-            Record a new expense to keep track of your spending.
+            Add multiple expenses at once.
           </DialogDescription>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Input
-              id="description"
-              placeholder="Coffee at Starbucks"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount (₹)</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={categoryId} onValueChange={setCategoryId} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="date">Date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex gap-3 pt-4">
+          {expenses.map((expense, index) => (
+            <div
+              key={index}
+              className="border rounded-lg p-4 space-y-3"
+            >
+              <div className="space-y-1">
+                <Label>Description</Label>
+                <Input
+                  placeholder="Coffee, Taxi, Grocery..."
+                  value={expense.description}
+                  onChange={(e) =>
+                    updateExpense(index, "description", e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Amount (₹)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={expense.amount}
+                  onChange={(e) =>
+                    updateExpense(index, "amount", e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Category</Label>
+                <Select
+                  value={expense.categoryId}
+                  onValueChange={(value) =>
+                    updateExpense(index, "categoryId", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem
+                        key={category.id}
+                        value={category.id}
+                      >
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={expense.date}
+                  onChange={(e) =>
+                    updateExpense(index, "date", e.target.value)
+                  }
+                />
+              </div>
+
+              {expenses.length > 1 && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => removeRow(index)}
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addRow}
+            className="w-full"
+          >
+            + Add another expense
+          </Button>
+
+          <div className="flex gap-3 pt-2">
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
               className="flex-1"
+              onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-gradient-primary hover:opacity-90"
-              disabled={addExpense.isPending}
+              className="flex-1"
+              disabled={addExpenses.isPending}
             >
-              {addExpense.isPending ? "Adding..." : "Add Expense"}
+              {addExpenses.isPending ? "Saving..." : "Save Expenses"}
             </Button>
           </div>
         </form>
