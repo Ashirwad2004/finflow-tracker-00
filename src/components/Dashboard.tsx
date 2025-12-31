@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock, Calculator } from "lucide-react";
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
@@ -13,6 +14,7 @@ import { LentMoneyDialog } from "@/components/LentMoneyDialog";
 import { BudgetSection } from "@/components/BudgetSection";
 import { RecentlyDeleted } from "@/components/RecentlyDeleted";
 import { LentMoneySection } from "@/components/LentMoneySection";
+import { Calculator as CalculatorComponent } from "@/components/calculator";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
@@ -21,6 +23,7 @@ export const Dashboard = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
   const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -150,6 +153,20 @@ export const Dashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Calculator className="w-4 h-4 mr-2" />
+                  Calculator
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Calculator</DialogTitle>
+                </DialogHeader>
+                <CalculatorComponent />
+              </DialogContent>
+            </Dialog>
             <ThemeToggle />
             <Button variant="outline" onClick={handleSignOut} size="sm">
               <LogOut className="w-4 h-4 mr-2" />
