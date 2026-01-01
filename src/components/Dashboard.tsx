@@ -155,9 +155,9 @@ export const Dashboard = () => {
           <div className="flex items-center gap-2">
             <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Calculator className="w-4 h-4 mr-2" />
-                  Calculator
+                <Button variant="outline" size="sm" className="px-2 sm:px-3">
+                  <Calculator className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Calculator</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
