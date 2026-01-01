@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { BillUpload } from "./BillUpload";
 
 const expenseSchema = z.object({
   description: z.string().trim().min(1, "Description is required"),
@@ -42,6 +43,15 @@ interface AddExpenseDialogProps {
   userId: string;
 }
 
+interface ExpenseRow {
+  description: string;
+  amount: string;
+  categoryId: string;
+  date: string;
+  billFile: File | null;
+  billPreview: string | null;
+}
+
 export const AddExpenseDialog = ({
   open,
   onOpenChange,
@@ -50,12 +60,14 @@ export const AddExpenseDialog = ({
 }: AddExpenseDialogProps) => {
   const queryClient = useQueryClient();
 
-  const [expenses, setExpenses] = useState([
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([
     {
       description: "",
       amount: "",
       categoryId: "",
       date: new Date().toISOString().split("T")[0],
+      billFile: null,
+      billPreview: null,
     },
   ]);
 
@@ -67,11 +79,17 @@ export const AddExpenseDialog = ({
         amount: "",
         categoryId: "",
         date: new Date().toISOString().split("T")[0],
+        billFile: null,
+        billPreview: null,
       },
     ]);
   };
 
   const removeRow = (index: number) => {
+    // Revoke object URL to prevent memory leak
+    if (expenses[index].billPreview) {
+      URL.revokeObjectURL(expenses[index].billPreview!);
+    }
     setExpenses(expenses.filter((_, i) => i !== index));
   };
 
@@ -85,15 +103,99 @@ export const AddExpenseDialog = ({
     setExpenses(updated);
   };
 
+  const handleBillDataExtracted = (
+    index: number,
+    data: {
+      merchant_name: string | null;
+      total_amount: number | null;
+      bill_date: string | null;
+      category_suggestion: string | null;
+    }
+  ) => {
+    const updated = [...expenses];
+    
+    if (data.merchant_name) {
+      updated[index].description = data.merchant_name;
+    }
+    if (data.total_amount) {
+      updated[index].amount = data.total_amount.toString();
+    }
+    if (data.bill_date) {
+      updated[index].date = data.bill_date;
+    }
+    if (data.category_suggestion) {
+      // Find matching category
+      const matchedCategory = categories.find(
+        (c) => c.name.toLowerCase() === data.category_suggestion?.toLowerCase()
+      );
+      if (matchedCategory) {
+        updated[index].categoryId = matchedCategory.id;
+      }
+    }
+    
+    setExpenses(updated);
+  };
+
+  const handleFileUploaded = (index: number, file: File, preview: string) => {
+    const updated = [...expenses];
+    // Revoke previous preview URL if exists
+    if (updated[index].billPreview) {
+      URL.revokeObjectURL(updated[index].billPreview!);
+    }
+    updated[index].billFile = file;
+    updated[index].billPreview = preview;
+    setExpenses(updated);
+  };
+
+  const handleClearFile = (index: number) => {
+    const updated = [...expenses];
+    if (updated[index].billPreview) {
+      URL.revokeObjectURL(updated[index].billPreview!);
+    }
+    updated[index].billFile = null;
+    updated[index].billPreview = null;
+    setExpenses(updated);
+  };
+
+  const uploadBillToStorage = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    
+    const { error } = await supabase.storage
+      .from('bills')
+      .upload(fileName, file);
+    
+    if (error) {
+      console.error('Bill upload error:', error);
+      return null;
+    }
+    
+    const { data: urlData } = supabase.storage
+      .from('bills')
+      .getPublicUrl(fileName);
+    
+    return urlData.publicUrl;
+  };
+
   const addExpenses = useMutation({
     mutationFn: async () => {
-      const payload = expenses.map((e) => ({
-        description: e.description,
-        amount: parseFloat(e.amount),
-        category_id: e.categoryId,
-        date: e.date,
-        user_id: userId,
-      }));
+      const payload = await Promise.all(
+        expenses.map(async (e) => {
+          let billUrl = null;
+          if (e.billFile) {
+            billUrl = await uploadBillToStorage(e.billFile);
+          }
+          
+          return {
+            description: e.description,
+            amount: parseFloat(e.amount),
+            category_id: e.categoryId,
+            date: e.date,
+            user_id: userId,
+            bill_url: billUrl,
+          };
+        })
+      );
 
       const { error } = await supabase
         .from("expenses")
@@ -108,16 +210,24 @@ export const AddExpenseDialog = ({
         description: `${expenses.length} expense(s) added successfully.`,
       });
       onOpenChange(false);
+      // Clean up preview URLs
+      expenses.forEach((e) => {
+        if (e.billPreview) {
+          URL.revokeObjectURL(e.billPreview);
+        }
+      });
       setExpenses([
         {
           description: "",
           amount: "",
           categoryId: "",
           date: new Date().toISOString().split("T")[0],
+          billFile: null,
+          billPreview: null,
         },
       ]);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to add expenses",
@@ -130,12 +240,12 @@ export const AddExpenseDialog = ({
     e.preventDefault();
 
     try {
-      expenses.forEach((e) => {
+      expenses.forEach((exp) => {
         expenseSchema.parse({
-          description: e.description,
-          amount: parseFloat(e.amount),
-          category_id: e.categoryId,
-          date: e.date,
+          description: exp.description,
+          amount: parseFloat(exp.amount),
+          category_id: exp.categoryId,
+          date: exp.date,
         });
       });
 
@@ -157,7 +267,7 @@ export const AddExpenseDialog = ({
         <DialogHeader>
           <DialogTitle>Add Expenses</DialogTitle>
           <DialogDescription>
-            Add multiple expenses at once.
+            Upload a bill to auto-fill details or enter manually.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,6 +277,14 @@ export const AddExpenseDialog = ({
               key={index}
               className="border rounded-lg p-4 space-y-3"
             >
+              {/* Bill Upload */}
+              <BillUpload
+                onDataExtracted={(data) => handleBillDataExtracted(index, data)}
+                onFileUploaded={(file, preview) => handleFileUploaded(index, file, preview)}
+                uploadedPreview={expense.billPreview}
+                onClearFile={() => handleClearFile(index)}
+              />
+
               <div className="space-y-1">
                 <Label>Description</Label>
                 <Input
