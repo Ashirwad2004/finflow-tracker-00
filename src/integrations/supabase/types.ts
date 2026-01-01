@@ -68,6 +68,7 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
+          bill_url: string | null
           category_id: string
           created_at: string
           date: string
@@ -78,6 +79,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          bill_url?: string | null
           category_id: string
           created_at?: string
           date?: string
@@ -88,6 +90,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          bill_url?: string | null
           category_id?: string
           created_at?: string
           date?: string
