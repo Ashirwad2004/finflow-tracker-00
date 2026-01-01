@@ -142,36 +142,40 @@ export const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Wallet className="w-6 h-6 text-primary-foreground" />
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">ExpenseTracker</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {profile?.display_name || "User"}!</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">ExpenseTracker</h1>
-              <p className="text-sm text-muted-foreground">Welcome back, {profile?.display_name || "User"}!</p>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="p-2 sm:p-3">
+                    <Calculator className="w-4 h-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Calculator</DialogTitle>
+                  </DialogHeader>
+                  <CalculatorComponent />
+                </DialogContent>
+              </Dialog>
+              <ThemeToggle />
+              <Button variant="outline" onClick={handleSignOut} size="sm" className="hidden sm:flex">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+              <Button variant="outline" onClick={handleSignOut} size="sm" className="sm:hidden p-2">
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="px-2 sm:px-3">
-                  <Calculator className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Calculator</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Calculator</DialogTitle>
-                </DialogHeader>
-                <CalculatorComponent />
-              </DialogContent>
-            </Dialog>
-            <ThemeToggle />
-            <Button variant="outline" onClick={handleSignOut} size="sm">
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
           </div>
         </div>
       </header>
