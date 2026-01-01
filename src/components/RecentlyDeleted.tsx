@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, RotateCcw, Clock, User, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Trash2, RotateCcw, Clock, User, Users, CheckSquare, Square } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -59,6 +60,7 @@ interface RecentlyDeletedProps {
 export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
   const queryClient = useQueryClient();
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   const refreshDeletedItems = useCallback(() => {
     if (userId) {
@@ -100,6 +102,67 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
   useEffect(() => {
     refreshDeletedItems();
   }, [userId, refreshDeletedItems]);
+
+  useEffect(() => {
+    // Clear selected items if they no longer exist in deletedItems
+    const validSelectedItems = selectedItems.filter(itemId => 
+      deletedItems.some(item => `${item.type}-${item.id}` === itemId)
+    );
+    if (validSelectedItems.length !== selectedItems.length) {
+      setSelectedItems(validSelectedItems);
+    }
+  }, [deletedItems, selectedItems]);
+
+  const toggleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const selectAllItems = () => {
+    if (selectedItems.length === deletedItems.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(deletedItems.map(item => `${item.type}-${item.id}`));
+    }
+  };
+
+  const deleteSelectedItems = useMutation({
+    mutationFn: async () => {
+      for (const itemId of selectedItems) {
+        const [type, id] = itemId.split('-');
+        let key = "";
+        if (type === "expense") {
+          key = `recently_deleted_${userId}`;
+        } else if (type === "lent_money") {
+          key = `recently_deleted_lent_money_${userId}`;
+        } else if (type === "split_bill") {
+          key = `recently_deleted_split_bills_${userId}`;
+        }
+
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        const updated = existing.filter((i: any) => i.id !== id);
+        localStorage.setItem(key, JSON.stringify(updated));
+      }
+    },
+    onSuccess: () => {
+      setSelectedItems([]);
+      refreshDeletedItems();
+      toast({ 
+        title: "Items deleted", 
+        description: `${selectedItems.length} items have been permanently removed.` 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete selected items. Please try again.", 
+        variant: "destructive" 
+      });
+    },
+  });
 
   const restoreExpense = useMutation({
     mutationFn: async (expense: DeletedExpense) => {
@@ -298,10 +361,60 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
   return (
     <Card className="shadow-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="w-5 h-5" />
-          Recently Deleted
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Recently Deleted
+          </CardTitle>
+          {deletedItems.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={selectAllItems}
+                className="flex items-center gap-2"
+              >
+                {selectedItems.length === deletedItems.length ? (
+                  <CheckSquare className="w-4 h-4" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {selectedItems.length === deletedItems.length ? 'Deselect All' : 'Select All'}
+              </Button>
+              {selectedItems.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Selected ({selectedItems.length})
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Selected Items</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete {selectedItems.length} selected item{selectedItems.length > 1 ? 's' : ''} from our servers.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteSelectedItems.mutate()}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete {selectedItems.length} Item{selectedItems.length > 1 ? 's' : ''}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border">
@@ -315,6 +428,11 @@ export const RecentlyDeleted = ({ userId }: RecentlyDeletedProps) => {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1">
+                    <Checkbox
+                      checked={selectedItems.includes(`${item.type}-${item.id}`)}
+                      onCheckedChange={() => toggleSelectItem(`${item.type}-${item.id}`)}
+                      className="flex-shrink-0"
+                    />
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: details.iconBg }}
