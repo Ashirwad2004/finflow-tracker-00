@@ -148,19 +148,19 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_group_expenses_group_id"
+            foreignKeyName: "group_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_expenses_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_group_expenses_category_id"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          }
         ]
       }
       group_members: {
@@ -187,12 +187,12 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_group_members_group_id"
+            foreignKeyName: "group_members_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       groups: {
