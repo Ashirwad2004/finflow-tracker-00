@@ -201,6 +201,7 @@ export type Database = {
           created_by: string
           description: string | null
           id: string
+          invite_code: string | null
           name: string
           updated_at: string
         }
@@ -209,6 +210,7 @@ export type Database = {
           created_by: string
           description?: string | null
           id?: string
+          invite_code?: string | null
           name: string
           updated_at?: string
         }
@@ -217,6 +219,7 @@ export type Database = {
           created_by?: string
           description?: string | null
           id?: string
+          invite_code?: string | null
           name?: string
           updated_at?: string
         }
@@ -349,7 +352,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_invite_code: { Args: never; Returns: string }
+      is_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

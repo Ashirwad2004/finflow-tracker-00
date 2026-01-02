@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, ArrowLeft, Edit, Trash2, Users, DollarSign } from "lucide-react";
+import { Plus, ArrowLeft, Edit, Trash2, Users, DollarSign, Link, Copy, Check } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -24,6 +24,8 @@ const GroupDetail = () => {
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [joinUsername, setJoinUsername] = useState("");
 
   // Form states
@@ -303,16 +305,64 @@ const GroupDetail = () => {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" onClick={() => navigate("/groups")}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">{group.name}</h1>
-            {group.description && (
-              <p className="text-muted-foreground mt-1">{group.description}</p>
-            )}
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => navigate("/groups")}>
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">{group.name}</h1>
+              {group.description && (
+                <p className="text-muted-foreground mt-1">{group.description}</p>
+              )}
+            </div>
           </div>
+          
+          {isMember && (
+            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Link className="w-4 h-4 mr-2" />
+                  Invite
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Invite Members</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Share this link with others to invite them to join this group:
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={`${window.location.origin}/join/${group.invite_code}`}
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/join/${group.invite_code}`);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                        toast({
+                          title: "Copied!",
+                          description: "Invite link copied to clipboard",
+                        });
+                      }}
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <div className="bg-muted p-3 rounded-lg">
+                    <p className="text-sm font-medium mb-1">Invite Code</p>
+                    <p className="font-mono text-lg font-bold">{group.invite_code}</p>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Stats Cards */}
