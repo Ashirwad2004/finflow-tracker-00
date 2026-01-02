@@ -164,6 +164,7 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
     },
     onSuccess: () => {
       setSelectedItems([]);
+      setIsDeleteDialogOpen(false);
       refreshDeletedItems();
       toast({
         title: "Deleted",

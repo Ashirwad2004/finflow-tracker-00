@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock, Calculator } from "lucide-react";
+import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock, Calculator, UserPlus } from "lucide-react";
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
@@ -154,6 +154,15 @@ export const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/groups")}
+                className="p-2 sm:p-3"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="hidden sm:inline ml-2">Groups</span>
+              </Button>
               <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="p-2 sm:p-3">
