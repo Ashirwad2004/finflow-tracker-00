@@ -99,6 +99,8 @@ const Auth = () => {
           nameSchema.parse(displayName);
         }
 
+        const redirectTo = searchParams.get('redirect') || '/';
+        
         if (isLogin) {
           const { error } = await signIn(email, password);
           if (error) {
@@ -116,7 +118,7 @@ const Auth = () => {
               });
             }
           } else {
-            navigate("/");
+            navigate(redirectTo);
           }
         } else {
           const { error } = await signUp(email, password, displayName);
@@ -139,7 +141,7 @@ const Auth = () => {
               title: "Account created!",
               description: "You can now start tracking your expenses.",
             });
-            navigate("/");
+            navigate(redirectTo);
           }
         }
       }
