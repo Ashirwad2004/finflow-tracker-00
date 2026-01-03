@@ -256,6 +256,22 @@ const GroupDetail = () => {
 
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
+  
+  // Avatar colors based on username hash
+  const getAvatarColor = (username: string) => {
+    const colors = [
+      'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500',
+      'bg-lime-500', 'bg-green-500', 'bg-emerald-500', 'bg-teal-500',
+      'bg-cyan-500', 'bg-sky-500', 'bg-blue-500', 'bg-indigo-500',
+      'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500',
+    ];
+    let hash = 0;
+    for (let i = 0; i < username.length; i++) {
+      hash = username.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+  
   const memberContributions = members.map(member => {
     const memberExpenses = expenses.filter(exp => exp.user_id === member.user_id);
     const total = memberExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
@@ -263,6 +279,7 @@ const GroupDetail = () => {
       ...member,
       totalExpenses: total,
       expenseCount: memberExpenses.length,
+      avatarColor: getAvatarColor(member.username),
     };
   });
 
@@ -407,31 +424,34 @@ const GroupDetail = () => {
                 Members ({members.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {memberContributions.map((member) => (
-                <div key={member.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback>
-                        {member.username.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{member.username}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {member.expenseCount} expenses
-                      </p>
+            <CardContent className="space-y-3">
+              {memberContributions.map((member) => {
+                const diff = member.totalExpenses - averageContribution;
+                const isPositive = diff > 0;
+                return (
+                  <div key={member.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Avatar className={`w-10 h-10 ${member.avatarColor}`}>
+                        <AvatarFallback className="text-white font-semibold bg-transparent">
+                          {member.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{member.username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {member.expenseCount} {member.expenseCount === 1 ? 'expense' : 'expenses'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-lg">₹{member.totalExpenses.toFixed(2)}</p>
+                      <Badge variant={isPositive ? "default" : diff < 0 ? "destructive" : "secondary"} className="text-xs">
+                        {isPositive ? '+' : ''}₹{diff.toFixed(2)}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">₹{member.totalExpenses.toFixed(2)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {member.totalExpenses > averageContribution ? '+' : ''}
-                      ₹{(member.totalExpenses - averageContribution).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {!isMember && (
                 <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
