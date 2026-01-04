@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Users } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const JoinGroup = () => {
@@ -117,11 +118,21 @@ const JoinGroup = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center space-y-4">
+            <Skeleton className="w-16 h-16 rounded-full mx-auto" />
+            <Skeleton className="h-8 w-40 mx-auto" />
+            <Skeleton className="h-4 w-56 mx-auto" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -181,14 +192,7 @@ const JoinGroup = () => {
                 onClick={handleJoin}
                 disabled={joining}
               >
-                {joining ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Joining...
-                  </>
-                ) : (
-                  "Join Group"
-                )}
+                {joining ? "Joining..." : "Join Group"}
               </Button>
             </>
           )}
