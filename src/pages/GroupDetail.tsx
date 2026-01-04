@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, ArrowLeft, Edit, Trash2, Users, DollarSign, Link, Copy, Check } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, ArrowLeft, Trash2, Users, DollarSign, Link, Copy, Check } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -234,7 +235,7 @@ const GroupDetail = () => {
         .from("group_expenses")
         .delete()
         .eq("id", expenseId)
-        .eq("user_id", user?.id); // Only allow deleting own expenses
+        .eq("user_id", user?.id);
 
       if (error) throw error;
     },
@@ -253,6 +254,34 @@ const GroupDetail = () => {
       });
     },
   });
+
+  const deleteGroup = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("groups")
+        .delete()
+        .eq("id", groupId)
+        .eq("created_by", user?.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Group deleted successfully!",
+      });
+      navigate("/groups");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete group",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isCreator = group?.created_by === user?.id;
 
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
@@ -287,10 +316,78 @@ const GroupDetail = () => {
 
   if (groupLoading || membersLoading || expensesLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading group...</p>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header Skeleton */}
+          <div className="flex items-center gap-4 mb-8">
+            <Skeleton className="h-10 w-10 rounded-md" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          </div>
+
+          {/* Stats Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Members Skeleton */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="w-10 h-10 rounded-full" />
+                      <div className="space-y-1">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <Skeleton className="h-6 w-20 ml-auto" />
+                      <Skeleton className="h-5 w-16 ml-auto" />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Expenses Skeleton */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-10 w-32" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-5 w-48" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                    <Skeleton className="h-6 w-20" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );
@@ -335,51 +432,80 @@ const GroupDetail = () => {
             </div>
           </div>
           
-          {isMember && (
-            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Link className="w-4 h-4 mr-2" />
-                  Invite
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Invite Members</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Share this link with others to invite them to join this group:
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      readOnly
-                      value={`${window.location.origin}/join/${group.invite_code}`}
-                      className="font-mono text-sm"
-                    />
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/join/${group.invite_code}`);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                        toast({
-                          title: "Copied!",
-                          description: "Invite link copied to clipboard",
-                        });
-                      }}
+          <div className="flex items-center gap-2">
+            {isMember && (
+              <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Link className="w-4 h-4 mr-2" />
+                    Invite
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Invite Members</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Share this link with others to invite them to join this group:
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={`${window.location.origin}/join/${group.invite_code}`}
+                        className="font-mono text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/join/${group.invite_code}`);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                          toast({
+                            title: "Copied!",
+                            description: "Invite link copied to clipboard",
+                          });
+                        }}
+                      >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    <div className="bg-muted p-3 rounded-lg">
+                      <p className="text-sm font-medium mb-1">Invite Code</p>
+                      <p className="font-mono text-lg font-bold">{group.invite_code}</p>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {isCreator && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="icon">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Group</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this group? This will permanently delete all expenses and member data. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteGroup.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                  <div className="bg-muted p-3 rounded-lg">
-                    <p className="text-sm font-medium mb-1">Invite Code</p>
-                    <p className="font-mono text-lg font-bold">{group.invite_code}</p>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
+                      Delete Group
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </div>
 
         {/* Stats Cards */}
