@@ -452,13 +452,13 @@ const GroupDetail = () => {
                     <div className="flex gap-2">
                       <Input
                         readOnly
-                        value={`${window.location.origin}/join/${group.invite_code}`}
+                        value={`₹{window.location.origin}/join/₹{group.invite_code}`}
                         className="font-mono text-sm"
                       />
                       <Button
                         variant="outline"
                         onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/join/${group.invite_code}`);
+                          navigator.clipboard.writeText(`₹{window.location.origin}/join/₹{group.invite_code}`);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 2000);
                           toast({
@@ -557,7 +557,7 @@ const GroupDetail = () => {
                 return (
                   <div key={member.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                     <div className="flex items-center gap-3">
-                      <Avatar className={`w-10 h-10 ${member.avatarColor}`}>
+                      <Avatar className={`w-10 h-10 ₹{member.avatarColor}`}>
                         <AvatarFallback className="text-white font-semibold bg-transparent">
                           {member.username.slice(0, 2).toUpperCase()}
                         </AvatarFallback>

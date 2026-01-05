@@ -64,7 +64,7 @@ const JoinGroup = () => {
           title: "Already a member",
           description: "You're already a member of this group",
         });
-        navigate(`/groups/${group.id}`);
+        navigate(`/groups/₹{group.id}`);
       }
     };
 
@@ -73,7 +73,7 @@ const JoinGroup = () => {
 
   const handleJoin = async () => {
     if (!user) {
-      navigate(`/auth?redirect=/join/${inviteCode}`);
+      navigate(`/auth?redirect=/join/₹{inviteCode}`);
       return;
     }
 
@@ -101,10 +101,10 @@ const JoinGroup = () => {
 
       toast({
         title: "Success",
-        description: `You've joined ${group.name}!`,
+        description: `You've joined ₹{group.name}!`,
       });
 
-      navigate(`/groups/${group.id}`);
+      navigate(`/groups/₹{group.id}`);
     } catch (err: any) {
       toast({
         title: "Error",
@@ -171,7 +171,7 @@ const JoinGroup = () => {
               <p className="text-muted-foreground mb-4">
                 Please sign in to join this group
               </p>
-              <Button onClick={() => navigate(`/auth?redirect=/join/${inviteCode}`)}>
+              <Button onClick={() => navigate(`/auth?redirect=/join/₹{inviteCode}`)}>
                 Sign In to Join
               </Button>
             </div>

@@ -121,7 +121,7 @@ const Groups = () => {
         .eq("user_id", user?.id)
         .single();
 
-      const username = profile?.display_name || `user_${user?.id?.slice(0, 8)}`;
+      const username = profile?.display_name || `user_₹{user?.id?.slice(0, 8)}`;
 
       const { error: memberError } = await supabase
         .from("group_members")
@@ -162,7 +162,7 @@ const Groups = () => {
   };
 
   const navigateToGroup = (groupId: string) => {
-    navigate(`/groups/${groupId}`);
+    navigate(`/groups/₹{groupId}`);
   };
 
   if (isLoading) {
