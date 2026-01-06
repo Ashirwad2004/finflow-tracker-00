@@ -247,19 +247,19 @@ const GroupDetail = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => navigate("/groups")}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">{group.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">{group.name}</h1>
             <p className="text-muted-foreground">{group.description}</p>
           </div>
         </div>
 
         {isCreator && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 self-end sm:self-auto">
             <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)}>
               <Link className="w-4 h-4 mr-2" />
               Share
@@ -290,7 +290,7 @@ const GroupDetail = () => {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
         <Card>
           <CardHeader>
             <CardTitle>Total Expenses</CardTitle>
