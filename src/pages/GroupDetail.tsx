@@ -194,6 +194,35 @@ const GroupDetail = () => {
 
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
+      // First, fetch the expense data to save it for recently deleted
+      const { data: expense } = await supabase
+        .from("group_expenses")
+        .select("*, categories(name, color, icon)")
+        .eq("id", id)
+        .single();
+
+      if (expense) {
+        // Save to localStorage for recently deleted
+        const deletedExpenses = JSON.parse(
+          localStorage.getItem(`recently_deleted_${user?.id}`) || "[]"
+        );
+        const deletedItem = {
+          ...expense,
+          group_id: groupId,
+          deleted_at: new Date().toISOString(),
+        };
+        deletedExpenses.unshift(deletedItem);
+        // Keep only last 50 items
+        if (deletedExpenses.length > 50) {
+          deletedExpenses.splice(50);
+        }
+        localStorage.setItem(
+          `recently_deleted_${user?.id}`,
+          JSON.stringify(deletedExpenses)
+        );
+      }
+
+      // Then delete the expense
       await supabase
         .from("group_expenses")
         .delete()
@@ -224,6 +253,34 @@ const GroupDetail = () => {
 
   const deleteGroup = useMutation({
     mutationFn: async () => {
+      // First, fetch the group data to save it for recently deleted
+      const { data: groupData } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("id", groupId)
+        .single();
+
+      if (groupData) {
+        // Save to localStorage for recently deleted
+        const deletedGroups = JSON.parse(
+          localStorage.getItem(`recently_deleted_groups_${user?.id}`) || "[]"
+        );
+        const deletedItem = {
+          ...groupData,
+          deleted_at: new Date().toISOString(),
+        };
+        deletedGroups.unshift(deletedItem);
+        // Keep only last 50 items
+        if (deletedGroups.length > 50) {
+          deletedGroups.splice(50);
+        }
+        localStorage.setItem(
+          `recently_deleted_groups_${user?.id}`,
+          JSON.stringify(deletedGroups)
+        );
+      }
+
+      // Then delete the group
       await supabase
         .from("groups")
         .delete()
@@ -398,6 +455,70 @@ const GroupDetail = () => {
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ADD EXPENSE DIALOG */}
+      <Dialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Expense</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={expenseDescription}
+                onChange={(e) => setExpenseDescription(e.target.value)}
+                placeholder="What did you spend on?"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="amount">Amount</Label>
+              <Input
+                id="amount"
+                type="number"
+                value={expenseAmount}
+                onChange={(e) => setExpenseAmount(e.target.value)}
+                placeholder="0.00"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="date">Date</Label>
+              <Input
+                id="date"
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="category">Category (Optional)</Label>
+              <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={addExpense}
+              className="w-full"
+              disabled={!expenseAmount || !expenseDescription}
+            >
+              Add Expense
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
