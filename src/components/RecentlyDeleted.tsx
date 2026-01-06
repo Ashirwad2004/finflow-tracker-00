@@ -42,6 +42,8 @@ interface DeletedExpense {
   amount: number;
   date: string;
   deleted_at?: string | null;
+  group_id?: string;
+  username?: string;
   categories: {
     id: string;
     name: string;
@@ -76,10 +78,22 @@ interface DeletedSplitBill {
   }[];
 }
 
+interface DeletedGroup {
+  id: string;
+  type: "group";
+  name: string;
+  description: string;
+  created_by: string;
+  deleted_at?: string | null;
+  members_count?: number;
+  expenses_count?: number;
+}
+
 type DeletedItem =
   | DeletedExpense
   | DeletedLentMoney
-  | DeletedSplitBill;
+  | DeletedSplitBill
+  | DeletedGroup;
 
 export const RecentlyDeleted = ({ userId }: { userId: string }) => {
   const queryClient = useQueryClient();
@@ -105,6 +119,7 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
       ...load(`recently_deleted_${userId}`, "expense"),
       ...load(`recently_deleted_lent_money_${userId}`, "lent_money"),
       ...load(`recently_deleted_split_bills_${userId}`, "split_bill"),
+      ...load(`recently_deleted_groups_${userId}`, "group"),
     ];
 
     all.sort(
@@ -150,7 +165,9 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
             ? `recently_deleted_${userId}`
             : type === "lent_money"
             ? `recently_deleted_lent_money_${userId}`
-            : `recently_deleted_split_bills_${userId}`;
+            : type === "split_bill"
+            ? `recently_deleted_split_bills_${userId}`
+            : `recently_deleted_groups_${userId}`;
 
         const existing = JSON.parse(
           localStorage.getItem(storageKey) || "[]"
@@ -176,14 +193,38 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
 
   const handleRestore = (item: DeletedItem) => {
     if (item.type === "expense") {
-      supabase.from("expenses").insert({
+      if (item.group_id) {
+        // Restore group expense
+        supabase.from("group_expenses").insert({
+          group_id: item.group_id,
+          user_id: userId,
+          username: item.username || "Unknown",
+          description: item.description,
+          amount: item.amount,
+          date: item.date,
+          category_id: item.categories?.id,
+        });
+        queryClient.invalidateQueries({ queryKey: ["group-expenses", item.group_id] });
+      } else {
+        // Restore regular expense
+        supabase.from("expenses").insert({
+          description: item.description,
+          amount: item.amount,
+          date: item.date,
+          category_id: item.categories.id,
+          user_id: userId,
+        });
+        queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      }
+    } else if (item.type === "group") {
+      // Restore group
+      supabase.from("groups").insert({
+        name: item.name,
         description: item.description,
-        amount: item.amount,
-        date: item.date,
-        category_id: item.categories.id,
-        user_id: userId,
+        created_by: userId,
+        invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
       });
-      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
     }
 
     const key =
@@ -191,7 +232,9 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
         ? `recently_deleted_${userId}`
         : item.type === "lent_money"
         ? `recently_deleted_lent_money_${userId}`
-        : `recently_deleted_split_bills_${userId}`;
+        : item.type === "split_bill"
+        ? `recently_deleted_split_bills_${userId}`
+        : `recently_deleted_groups_${userId}`;
 
     const existing = JSON.parse(
       localStorage.getItem(key) || "[]"
@@ -278,6 +321,8 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
                 <p className="font-medium">
                   {"title" in item
                     ? item.title
+                    : "name" in item
+                    ? item.name
                     : "person_name" in item
                     ? item.person_name
                     : item.description}
