@@ -191,62 +191,121 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
 
   /* ---------------- RESTORE ---------------- */
 
-  const handleRestore = (item: DeletedItem) => {
-    if (item.type === "expense") {
-      if (item.group_id) {
-        // Restore group expense
-        supabase.from("group_expenses").insert({
-          group_id: item.group_id,
+  const restoreItem = useMutation({
+    mutationFn: async (item: DeletedItem) => {
+      if (item.type === "expense") {
+        if (item.group_id) {
+          // Restore group expense
+          const { error } = await supabase.from("group_expenses").insert({
+            group_id: item.group_id,
+            user_id: userId,
+            username: item.username || "Unknown",
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            category_id: item.categories?.id,
+          });
+          if (error) throw error;
+          queryClient.invalidateQueries({ queryKey: ["group-expenses", item.group_id] });
+        } else {
+          // Restore regular expense
+          const { error } = await supabase.from("expenses").insert({
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            category_id: item.categories.id,
+            user_id: userId,
+          });
+          if (error) throw error;
+          queryClient.invalidateQueries({ queryKey: ["expenses"] });
+        }
+      } else if (item.type === "lent_money") {
+        // Restore lent money
+        const { error } = await supabase.from("lent_money").insert({
           user_id: userId,
-          username: item.username || "Unknown",
-          description: item.description,
           amount: item.amount,
-          date: item.date,
-          category_id: item.categories?.id,
-        });
-        queryClient.invalidateQueries({ queryKey: ["group-expenses", item.group_id] });
-      } else {
-        // Restore regular expense
-        supabase.from("expenses").insert({
+          person_name: item.person_name,
           description: item.description,
-          amount: item.amount,
-          date: item.date,
-          category_id: item.categories.id,
-          user_id: userId,
+          due_date: item.due_date,
+          status: item.status,
         });
-        queryClient.invalidateQueries({ queryKey: ["expenses"] });
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+      } else if (item.type === "split_bill") {
+        // Restore split bill
+        const { data: splitBill, error: splitBillError } = await supabase
+          .from("split_bills")
+          .insert({
+            user_id: userId,
+            title: item.title,
+            total_amount: item.total_amount,
+          })
+          .select()
+          .single();
+
+        if (splitBillError) throw splitBillError;
+
+        // Restore participants if they exist
+        if (item.participants && item.participants.length > 0) {
+          const participants = item.participants.map(participant => ({
+            split_bill_id: splitBill.id,
+            name: participant.name,
+            amount: participant.amount,
+            is_paid: participant.is_paid,
+          }));
+
+          const { error: participantsError } = await supabase
+            .from("split_bill_participants")
+            .insert(participants);
+
+          if (participantsError) throw participantsError;
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["split-bills"] });
+      } else if (item.type === "group") {
+        // Restore group
+        const { error } = await supabase.from("groups").insert({
+          name: item.name,
+          description: item.description,
+          created_by: userId,
+          invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        });
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ["groups"] });
       }
-    } else if (item.type === "group") {
-      // Restore group
-      supabase.from("groups").insert({
-        name: item.name,
-        description: item.description,
-        created_by: userId,
-        invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+
+      // Remove from localStorage only after successful restore
+      const key =
+        item.type === "expense"
+          ? `recently_deleted_${userId}`
+          : item.type === "lent_money"
+          ? `recently_deleted_lent_money_${userId}`
+          : item.type === "split_bill"
+          ? `recently_deleted_split_bills_${userId}`
+          : `recently_deleted_groups_${userId}`;
+
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      localStorage.setItem(
+        key,
+        JSON.stringify(existing.filter((i: any) => i.id !== item.id))
+      );
+    },
+    onSuccess: () => {
+      refreshDeletedItems();
+      toast({ title: "Restored successfully" });
+    },
+    onError: (error) => {
+      console.error("Restore error:", error);
+      toast({
+        title: "Restore failed",
+        description: "An error occurred while restoring the item. Please try again.",
+        variant: "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ["groups"] });
-    }
+    },
+  });
 
-    const key =
-      item.type === "expense"
-        ? `recently_deleted_${userId}`
-        : item.type === "lent_money"
-        ? `recently_deleted_lent_money_${userId}`
-        : item.type === "split_bill"
-        ? `recently_deleted_split_bills_${userId}`
-        : `recently_deleted_groups_${userId}`;
-
-    const existing = JSON.parse(
-      localStorage.getItem(key) || "[]"
-    );
-
-    localStorage.setItem(
-      key,
-      JSON.stringify(existing.filter((i: any) => i.id !== item.id))
-    );
-
-    refreshDeletedItems();
-    toast({ title: "Restored successfully" });
+  const handleRestore = (item: DeletedItem) => {
+    restoreItem.mutate(item);
   };
 
   /* ---------------- UI ---------------- */
