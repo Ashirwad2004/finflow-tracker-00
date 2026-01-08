@@ -39,6 +39,7 @@ import {
   Link,
   Copy,
   Check,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -131,15 +132,78 @@ const GroupDetail = () => {
   const isMember = members.some((m) => m.user_id === user?.id);
   const isCreator = group?.created_by === user?.id;
 
-  /* ---------------- CALCULATIONS ---------------- */
+  /* ---------------- CALCULATIONS & SETTLEMENTS ---------------- */
 
+  // 1. Calculate Total Expenses
   const totalExpenses = expenses.reduce(
     (sum, e) => sum + Number(e.amount || 0),
     0
   );
 
+  // 2. Calculate Average per person
   const averageContribution =
     members.length > 0 ? totalExpenses / members.length : 0;
+
+  // 3. Calculate how much each member paid
+  const memberSpending = members.map((member) => {
+    const paid = expenses
+      .filter((e) => e.user_id === member.user_id)
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+    return { ...member, paid };
+  });
+
+  // 4. Determine Settlements (Who owes whom)
+  const calculateSettlements = () => {
+    // Calculate balances: Paid - Average
+    // Positive balance = They paid more than average (Owed money)
+    // Negative balance = They paid less than average (Owe money)
+    let balances = memberSpending.map((m) => ({
+      ...m,
+      balance: m.paid - averageContribution,
+    }));
+
+    const settlements: { from: string; to: string; amount: number }[] = [];
+
+    // Separate debtors (negative) and creditors (positive)
+    // Sort by magnitude to minimize number of transactions
+    let debtors = balances
+      .filter((b) => b.balance < -0.01)
+      .sort((a, b) => a.balance - b.balance);
+      
+    let creditors = balances
+      .filter((b) => b.balance > 0.01)
+      .sort((a, b) => b.balance - a.balance);
+
+    let i = 0; // debtor index
+    let j = 0; // creditor index
+
+    while (i < debtors.length && j < creditors.length) {
+      let debtor = debtors[i];
+      let creditor = creditors[j];
+
+      // The amount to settle is the minimum of what's owed vs what's receivable
+      let amount = Math.min(Math.abs(debtor.balance), creditor.balance);
+
+      // Create settlement
+      settlements.push({
+        from: debtor.username,
+        to: creditor.username,
+        amount: amount,
+      });
+
+      // Adjust remaining balances
+      debtor.balance += amount;
+      creditor.balance -= amount;
+
+      // Move indices if settled (using small epsilon for float precision)
+      if (Math.abs(debtor.balance) < 0.01) i++;
+      if (creditor.balance < 0.01) j++;
+    }
+
+    return settlements;
+  };
+
+  const settlements = calculateSettlements();
 
   /* ---------------- HELPERS ---------------- */
 
@@ -194,7 +258,6 @@ const GroupDetail = () => {
 
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
-      // First, fetch the expense data to save it for recently deleted
       const { data: expense } = await supabase
         .from("group_expenses")
         .select("*, categories(name, color, icon)")
@@ -202,7 +265,6 @@ const GroupDetail = () => {
         .single();
 
       if (expense) {
-        // Save to localStorage for recently deleted
         const deletedExpenses = JSON.parse(
           localStorage.getItem(`recently_deleted_${user?.id}`) || "[]"
         );
@@ -212,7 +274,6 @@ const GroupDetail = () => {
           deleted_at: new Date().toISOString(),
         };
         deletedExpenses.unshift(deletedItem);
-        // Keep only last 50 items
         if (deletedExpenses.length > 50) {
           deletedExpenses.splice(50);
         }
@@ -222,7 +283,6 @@ const GroupDetail = () => {
         );
       }
 
-      // Then delete the expense
       await supabase
         .from("group_expenses")
         .delete()
@@ -253,7 +313,6 @@ const GroupDetail = () => {
 
   const deleteGroup = useMutation({
     mutationFn: async () => {
-      // First, fetch the group data to save it for recently deleted
       const { data: groupData } = await supabase
         .from("groups")
         .select("*")
@@ -261,7 +320,6 @@ const GroupDetail = () => {
         .single();
 
       if (groupData) {
-        // Save to localStorage for recently deleted
         const deletedGroups = JSON.parse(
           localStorage.getItem(`recently_deleted_groups_${user?.id}`) || "[]"
         );
@@ -270,7 +328,6 @@ const GroupDetail = () => {
           deleted_at: new Date().toISOString(),
         };
         deletedGroups.unshift(deletedItem);
-        // Keep only last 50 items
         if (deletedGroups.length > 50) {
           deletedGroups.splice(50);
         }
@@ -280,7 +337,6 @@ const GroupDetail = () => {
         );
       }
 
-      // Then delete the group
       await supabase
         .from("groups")
         .delete()
@@ -296,8 +352,8 @@ const GroupDetail = () => {
 
   const inviteLink =
     typeof window !== "undefined"
-      ? `${window.location.origin}/join/${group?.invite_code}`
-      : "";
+    ? `${window.location.origin}/join/${group?.invite_code}`
+    : "";
 
   /* ---------------- UI ---------------- */
 
@@ -368,13 +424,43 @@ const GroupDetail = () => {
         </Card>
       </div>
 
+      {/* SETTLEMENTS (WHO PAYS WHO) */}
+      <Card className="mb-8 border-l-4 border-l-primary">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5" /> Suggested Settlements
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {settlements.length === 0 ? (
+            <p className="text-muted-foreground">All settled up! No debts.</p>
+          ) : (
+            settlements.map((s, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-red-500">{s.from}</span>
+                  <span className="text-muted-foreground">owes</span>
+                  <span className="font-semibold text-green-500">{s.to}</span>
+                </div>
+                <div className="flex items-center font-bold">
+                   ₹{s.amount.toFixed(2)}
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
       {/* MEMBERS */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Members</CardTitle>
+          <CardTitle>Members & Contribution</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {members.map((m) => (
+          {memberSpending.map((m) => (
             <div
               key={m.id}
               className="flex justify-between items-center p-3 bg-muted rounded-lg"
@@ -385,7 +471,16 @@ const GroupDetail = () => {
                     {m.username.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <span>{m.username}</span>
+                <div>
+                    <div className="font-medium">{m.username}</div>
+                    <div className="text-xs text-muted-foreground">Paid: ₹{m.paid.toFixed(2)}</div>
+                </div>
+              </div>
+              <div className={`text-sm font-bold ${m.paid - averageContribution >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {m.paid - averageContribution >= 0 
+                  ? `+ receives ₹${(m.paid - averageContribution).toFixed(2)}` 
+                  : `- owes ₹${Math.abs(m.paid - averageContribution).toFixed(2)}`
+                }
               </div>
             </div>
           ))}
@@ -525,5 +620,4 @@ const GroupDetail = () => {
     </div>
   );
 };
-
 export default GroupDetail;
