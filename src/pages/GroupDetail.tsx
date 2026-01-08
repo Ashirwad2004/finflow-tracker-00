@@ -35,7 +35,7 @@ import {
   ArrowLeft,
   Trash2,
   Users,
-  DollarSign,
+  IndianRupee, // Changed from DollarSign
   Link,
   Copy,
   Check,
@@ -428,7 +428,8 @@ const GroupDetail = () => {
       <Card className="mb-8 border-l-4 border-l-primary">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5" /> Suggested Settlements
+            {/* UPDATED: Using IndianRupee icon here */}
+            <IndianRupee className="w-5 h-5" /> Suggested Settlements
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
