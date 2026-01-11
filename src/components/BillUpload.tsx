@@ -100,11 +100,12 @@ export const BillUpload = ({
           description: "Data has been auto-filled. Please review and edit if needed.",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('OCR error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to scan bill. Please enter details manually.";
       toast({
         title: "Scan failed",
-        description: error.message || "Failed to scan bill. Please enter details manually.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

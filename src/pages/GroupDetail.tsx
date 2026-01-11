@@ -35,11 +35,13 @@ import {
   ArrowLeft,
   Trash2,
   Users,
-  IndianRupee, // Changed from DollarSign
+  IndianRupee,
   Link,
   Copy,
   Check,
   ArrowRight,
+  FileDown, // Added FileDown icon
+  Loader2,  // Added Loader icon
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -53,6 +55,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+// --- NEW IMPORTS ---
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const GroupDetail = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -65,6 +70,7 @@ const GroupDetail = () => {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [joinUsername, setJoinUsername] = useState("");
+  const [isExporting, setIsExporting] = useState(false); // Export loading state
 
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseDescription, setExpenseDescription] = useState("");
@@ -154,23 +160,18 @@ const GroupDetail = () => {
 
   // 4. Determine Settlements (Who owes whom)
   const calculateSettlements = () => {
-    // Calculate balances: Paid - Average
-    // Positive balance = They paid more than average (Owed money)
-    // Negative balance = They paid less than average (Owe money)
-    let balances = memberSpending.map((m) => ({
+    const balances = memberSpending.map((m) => ({
       ...m,
       balance: m.paid - averageContribution,
     }));
 
     const settlements: { from: string; to: string; amount: number }[] = [];
 
-    // Separate debtors (negative) and creditors (positive)
-    // Sort by magnitude to minimize number of transactions
-    let debtors = balances
+    const debtors = balances
       .filter((b) => b.balance < -0.01)
       .sort((a, b) => a.balance - b.balance);
       
-    let creditors = balances
+    const creditors = balances
       .filter((b) => b.balance > 0.01)
       .sort((a, b) => b.balance - a.balance);
 
@@ -178,11 +179,10 @@ const GroupDetail = () => {
     let j = 0; // creditor index
 
     while (i < debtors.length && j < creditors.length) {
-      let debtor = debtors[i];
-      let creditor = creditors[j];
+      const debtor = debtors[i];
+      const creditor = creditors[j];
 
-      // The amount to settle is the minimum of what's owed vs what's receivable
-      let amount = Math.min(Math.abs(debtor.balance), creditor.balance);
+      const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
 
       // Create settlement
       settlements.push({
@@ -204,6 +204,106 @@ const GroupDetail = () => {
   };
 
   const settlements = calculateSettlements();
+
+  /* ---------------- PDF EXPORT FUNCTION ---------------- */
+  
+  const handleExportPDF = () => {
+    if (!group || expenses.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There are no expenses to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const doc = new jsPDF();
+
+      // -- Title Section --
+      doc.setFontSize(20);
+      doc.text(group.name, 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Exported on: ${new Date().toLocaleDateString()}`, 14, 28);
+      
+      // -- Summary Section --
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text(`Total Expenses: Rs. ${totalExpenses.toFixed(2)}`, 14, 40);
+      doc.text(`Average Per Person: Rs. ${averageContribution.toFixed(2)}`, 14, 46);
+
+      let currentY = 55;
+
+      // -- Settlements Table --
+      if (settlements.length > 0) {
+        doc.setFontSize(14);
+        doc.text("Suggested Settlements", 14, currentY);
+        currentY += 5;
+
+        const settlementRows = settlements.map(s => [
+          s.from,
+          "owes",
+          s.to,
+          `Rs. ${s.amount.toFixed(2)}`
+        ]);
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [["From", "Action", "To", "Amount"]],
+          body: settlementRows,
+          theme: 'striped',
+          headStyles: { fillColor: [66, 66, 66] },
+        });
+
+        // Update currentY to below the table we just drew
+        const lastTable = (doc as typeof doc & { lastAutoTable: { finalY: number } }).lastAutoTable;
+        currentY = lastTable.finalY + 15;
+      }
+
+      // -- Expenses Table --
+      doc.setFontSize(14);
+      doc.text("Expense Details", 14, currentY);
+      currentY += 5;
+
+      const expenseRows = expenses.map(e => [
+        new Date(e.date).toLocaleDateString(),
+        e.description,
+        e.categories?.name || "General",
+        e.username,
+        `Rs. ${Number(e.amount).toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Date", "Description", "Category", "Paid By", "Amount"]],
+        body: expenseRows,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+
+      // Save PDF
+      doc.save(`${group.name.replace(/\s+/g, '_')}_expenses.pdf`);
+
+      toast({
+        title: "Success",
+        description: "Expense report downloaded successfully.",
+      });
+
+    } catch (error) {
+      console.error("PDF Export Error:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not generate the PDF file.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   /* ---------------- HELPERS ---------------- */
 
@@ -371,35 +471,51 @@ const GroupDetail = () => {
           </div>
         </div>
 
-        {isCreator && (
-          <div className="flex gap-2 self-end sm:self-auto">
-            <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)}>
-              <Link className="w-4 h-4 mr-2" />
-              Share
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="icon">
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Group</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action is irreversible.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => deleteGroup.mutate()}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
+        <div className="flex gap-2 self-end sm:self-auto flex-wrap">
+          {/* --- NEW: PDF Export Button --- */}
+          <Button 
+            variant="outline" 
+            onClick={handleExportPDF} 
+            disabled={isExporting || expenses.length === 0}
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileDown className="w-4 h-4 mr-2" />
+            )}
+            Report
+          </Button>
+
+          {isCreator && (
+            <>
+              <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)}>
+                <Link className="w-4 h-4 mr-2" />
+                Share
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="icon">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Group</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action is irreversible.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deleteGroup.mutate()}>
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+        </div>
       </div>
 
       {/* STATS */}
