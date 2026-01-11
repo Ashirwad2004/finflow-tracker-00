@@ -21,9 +21,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
-import { User, Calendar, CheckCircle, Clock, AlertCircle, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { 
+  User, 
+  Calendar, 
+  CheckCircle, 
+  Clock, 
+  AlertCircle, 
+  MoreVertical, 
+  Pencil, 
+  Trash2,
+  FileDown, // Import FileDown icon
+  Loader2   // Import Loader icon
+} from "lucide-react";
 import { format } from "date-fns";
 import { EditLentMoneyDialog } from "./EditLentMoneyDialog";
+import jsPDF from "jspdf"; // Import jsPDF
+import autoTable from "jspdf-autotable"; // Import autoTable
 
 interface LentMoneySectionProps {
   userId: string;
@@ -46,6 +59,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<LentMoneyRecord | null>(null);
+  const [isExporting, setIsExporting] = useState(false); // State for export loading
 
   const { data: lentMoney = [], isLoading } = useQuery({
     queryKey: ["lent-money", userId],
@@ -61,6 +75,67 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
     },
     enabled: !!userId,
   });
+
+  // --- NEW: Handle PDF Export ---
+  const handleExportPDF = () => {
+    if (!lentMoney || lentMoney.length === 0) {
+      toast({
+        title: "No data",
+        description: "There are no records to export.",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const doc = new jsPDF();
+
+      // Title
+      doc.setFontSize(18);
+      doc.text("Lent Money Report", 14, 22);
+      doc.setFontSize(11);
+      doc.text(`Generated on: ${format(new Date(), "MMM d, yyyy")}`, 14, 30);
+
+      // Prepare data for table
+      const tableBody = lentMoney.map((record) => [
+        format(new Date(record.created_at), "MMM d, yyyy"), // Date
+        record.person_name, // Person
+        record.description, // Description
+        `Rs. ${record.amount}`, // Amount
+        record.due_date ? format(new Date(record.due_date), "MMM d, yyyy") : "No Due Date", // Due Date
+        record.status.toUpperCase(), // Status
+      ]);
+
+      // Generate Table
+      autoTable(doc, {
+        head: [["Date Created", "Person", "Description", "Amount", "Due Date", "Status"]],
+        body: tableBody,
+        startY: 35,
+        theme: "grid",
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [66, 66, 66] },
+      });
+
+      // Save File
+      doc.save(`lent_money_records_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+
+      toast({
+        title: "Success",
+        description: "Lent money report downloaded successfully.",
+      });
+    } catch (error) {
+      console.error("PDF Export Error:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not generate the PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const markAsRepaid = useMutation({
     mutationFn: async (id: string) => {
@@ -169,15 +244,34 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
       <Card className="shadow-card">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Lent Money
-            </CardTitle>
-            {pendingLoans.length > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                ₹{totalPending.toFixed(2)} pending
-              </Badge>
-            )}
+            <div className="flex items-center gap-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Lent Money
+              </CardTitle>
+              {pendingLoans.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  ₹{totalPending.toFixed(2)} pending
+                </Badge>
+              )}
+            </div>
+            
+            {/* --- NEW: PDF Export Button --- */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportPDF}
+              disabled={isExporting || lentMoney.length === 0}
+              className="h-8"
+            >
+              {isExporting ? (
+                <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+              ) : (
+                <FileDown className="w-3.5 h-3.5 mr-2" />
+              )}
+              Export PDF
+            </Button>
+            
           </div>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Trash2, Users, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Users, Check, X, FileDown } from "lucide-react"; // Added FileDown icon
 import { toast } from "@/hooks/use-toast";
+import jsPDF from "jspdf"; // Import jsPDF
+import autoTable from "jspdf-autotable"; // Import autoTable
 
 interface Participant {
   name: string;
@@ -24,6 +26,7 @@ const SplitBills = () => {
   const [title, setTitle] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [participants, setParticipants] = useState<Participant[]>([{ name: "", amount: 0 }]);
+  const [isExporting, setIsExporting] = useState(false); // State for export loading
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const { data: splitBills = [], isLoading } = useQuery({
@@ -43,6 +46,88 @@ const SplitBills = () => {
     },
     enabled: !!user,
   });
+
+  // --- NEW: PDF Export Function ---
+  const handleExportPDF = () => {
+    if (!splitBills || splitBills.length === 0) {
+      toast({
+        title: "No data",
+        description: "There are no bills to export.",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const doc = new jsPDF();
+
+      // 1. Add Title and Date
+      doc.setFontSize(18);
+      doc.text("Split Bills Report", 14, 22);
+      
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+
+      // 2. Prepare Data for Table
+      // We flatten the data so every participant row shows which bill it belongs to
+      const tableRows: any[] = [];
+
+      splitBills.forEach((bill: any) => {
+        if (bill.split_bill_participants) {
+          bill.split_bill_participants.forEach((p: any) => {
+            tableRows.push([
+              new Date(bill.created_at).toLocaleDateString(), // Date
+              bill.title, // Bill Title
+              `Rs. ${bill.total_amount}`, // Total Bill Amount
+              p.name, // Participant Name
+              `Rs. ${p.amount}`, // Share Amount
+              p.is_paid ? "Paid" : "Pending" // Status
+            ]);
+          });
+        }
+      });
+
+      // 3. Generate Table
+      autoTable(doc, {
+        head: [["Date", "Bill Title", "Total Bill", "Participant", "Share", "Status"]],
+        body: tableRows,
+        startY: 35,
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [66, 66, 66] }, // Dark grey header
+        // Highlight 'Pending' in red text
+        didParseCell: function(data) {
+            if (data.section === 'body' && data.column.index === 5) {
+                if (data.cell.raw === 'Pending') {
+                    data.cell.styles.textColor = [220, 53, 69]; // Red
+                } else {
+                    data.cell.styles.textColor = [25, 135, 84]; // Green
+                }
+            }
+        }
+      });
+
+      // 4. Save
+      doc.save(`split_bills_${new Date().toISOString().split('T')[0]}.pdf`);
+
+      toast({
+        title: "Success",
+        description: "Your PDF report has been downloaded.",
+      });
+    } catch (error) {
+      console.error("Export Error:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const createSplitBill = useMutation({
     mutationFn: async () => {
@@ -201,83 +286,96 @@ const SplitBills = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-xl font-semibold">Your Split Bills</h2>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                New Split Bill
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create Split Bill</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div>
-                  <Label htmlFor="title">Bill Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Dinner at restaurant"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="amount">Total Amount (₹)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="0.00"
-                    value={totalAmount}
-                    onChange={(e) => handleTotalAmountChange(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <Label>Participants</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addParticipant}>
-                      <Plus className="w-3 h-3 mr-1" />
-                      Add
-                    </Button>
-                  </div>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {participants.map((participant, index) => (
-                      <div key={index} className="flex gap-2 items-center">
-                        <Input
-                          placeholder="Name"
-                          value={participant.name}
-                          onChange={(e) => updateParticipantName(index, e.target.value)}
-                          className="flex-1"
-                        />
-                        <span className="text-sm text-muted-foreground w-20 text-right">
-                          ₹{participant.amount.toFixed(2)}
-                        </span>
-                        {participants.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeParticipant(index)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <Button
-                  onClick={() => createSplitBill.mutate()}
-                  disabled={!title || !totalAmount || participants.every(p => !p.name.trim())}
-                  className="w-full"
-                >
-                  Create Split Bill
+          
+          <div className="flex items-center gap-2">
+            {/* --- NEW: Export PDF Button --- */}
+            <Button 
+              variant="outline" 
+              onClick={handleExportPDF} 
+              disabled={isExporting || splitBills.length === 0}
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              {isExporting ? "Exporting..." : "Export PDF"}
+            </Button>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Split Bill
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Create Split Bill</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div>
+                    <Label htmlFor="title">Bill Title</Label>
+                    <Input
+                      id="title"
+                      placeholder="e.g., Dinner at restaurant"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="amount">Total Amount (₹)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={totalAmount}
+                      onChange={(e) => handleTotalAmountChange(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <Label>Participants</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={addParticipant}>
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {participants.map((participant, index) => (
+                        <div key={index} className="flex gap-2 items-center">
+                          <Input
+                            placeholder="Name"
+                            value={participant.name}
+                            onChange={(e) => updateParticipantName(index, e.target.value)}
+                            className="flex-1"
+                          />
+                          <span className="text-sm text-muted-foreground w-20 text-right">
+                            ₹{participant.amount.toFixed(2)}
+                          </span>
+                          {participants.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeParticipant(index)}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => createSplitBill.mutate()}
+                    disabled={!title || !totalAmount || participants.every(p => !p.name.trim())}
+                    className="w-full"
+                  >
+                    Create Split Bill
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {isLoading ? (
