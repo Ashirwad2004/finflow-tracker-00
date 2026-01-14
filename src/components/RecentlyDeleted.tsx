@@ -8,18 +8,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Trash2,
   RotateCcw,
   Clock,
-  User,
-  Users,
   CheckSquare,
   Square,
+  Loader2,
 } from "lucide-react";
-import * as LucideIcons from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -34,7 +31,6 @@ import {
 } from "@/components/ui/alert-dialog";
 
 /* ---------------- TYPES ---------------- */
-
 interface DeletedExpense {
   id: string;
   type: "expense";
@@ -99,11 +95,11 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
   const queryClient = useQueryClient();
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   /* ---------------- HELPERS ---------------- */
 
-  const getKey = (item: DeletedItem) =>
-    `${item.type}|${item.id}`;
+  const getKey = (item: DeletedItem) => `${item.type}|${item.id}`;
 
   /* ---------------- LOAD ---------------- */
 
@@ -111,9 +107,10 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
     if (!userId) return;
 
     const load = (key: string, type: any) =>
-      JSON.parse(localStorage.getItem(key) || "[]").map(
-        (i: any) => ({ ...i, type })
-      );
+      JSON.parse(localStorage.getItem(key) || "[]").map((i: any) => ({
+        ...i,
+        type,
+      }));
 
     const all = [
       ...load(`recently_deleted_${userId}`, "expense"),
@@ -138,10 +135,8 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
   /* ---------------- SELECT ---------------- */
 
   const toggleSelectItem = (key: string) => {
-    setSelectedItems(prev =>
-      prev.includes(key)
-        ? prev.filter(i => i !== key)
-        : [...prev, key]
+    setSelectedItems((prev) =>
+      prev.includes(key) ? prev.filter((i) => i !== key) : [...prev, key]
     );
   };
 
@@ -169,9 +164,7 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
             ? `recently_deleted_split_bills_${userId}`
             : `recently_deleted_groups_${userId}`;
 
-        const existing = JSON.parse(
-          localStorage.getItem(storageKey) || "[]"
-        );
+        const existing = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
         localStorage.setItem(
           storageKey,
@@ -191,62 +184,130 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
 
   /* ---------------- RESTORE ---------------- */
 
-  const handleRestore = (item: DeletedItem) => {
-    if (item.type === "expense") {
-      if (item.group_id) {
-        // Restore group expense
-        supabase.from("group_expenses").insert({
-          group_id: item.group_id,
-          user_id: userId,
-          username: item.username || "Unknown",
+  const handleRestore = async (item: DeletedItem) => {
+    setRestoringId(item.id);
+    let error = null;
+
+    try {
+      // --- 1. Expense Restoration ---
+      if (item.type === "expense") {
+        if (item.group_id) {
+          const { error: err } = await supabase.from("group_expenses").insert({
+            group_id: item.group_id,
+            user_id: userId,
+            username: item.username || "Unknown",
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            category_id: item.categories?.id || null,
+          });
+          error = err;
+          if (!err)
+            queryClient.invalidateQueries({
+              queryKey: ["group-expenses", item.group_id],
+            });
+        } else {
+          const { error: err } = await supabase.from("expenses").insert({
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            category_id: item.categories?.id || null,
+            user_id: userId,
+          });
+          error = err;
+          if (!err) queryClient.invalidateQueries({ queryKey: ["expenses"] });
+        }
+      } 
+      
+      // --- 2. Group Restoration ---
+      else if (item.type === "group") {
+        const { error: err } = await supabase.from("groups").insert({
+          name: item.name,
           description: item.description,
-          amount: item.amount,
-          date: item.date,
-          category_id: item.categories?.id,
+          created_by: userId,
+          invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
         });
-        queryClient.invalidateQueries({ queryKey: ["group-expenses", item.group_id] });
-      } else {
-        // Restore regular expense
-        supabase.from("expenses").insert({
-          description: item.description,
-          amount: item.amount,
-          date: item.date,
-          category_id: item.categories.id,
+        error = err;
+        if (!err) queryClient.invalidateQueries({ queryKey: ["groups"] });
+      } 
+      
+      // --- 3. Lent Money Restoration (NEW LOGIC) ---
+      else if (item.type === "lent_money") {
+        const { error: err } = await supabase.from("lent_money").insert({
           user_id: userId,
+          amount: item.amount,
+          person_name: item.person_name,
+          description: item.description,
+          due_date: item.due_date || null,
+          status: item.status || "pending",
         });
-        queryClient.invalidateQueries({ queryKey: ["expenses"] });
+        error = err;
+        if (!err) queryClient.invalidateQueries({ queryKey: ["lent-money"] });
       }
-    } else if (item.type === "group") {
-      // Restore group
-      supabase.from("groups").insert({
-        name: item.name,
-        description: item.description,
-        created_by: userId,
-        invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+
+      // --- 4. Split Bill Restoration (Added for completeness) ---
+      else if (item.type === "split_bill") {
+         // First create the bill
+         const { data: bill, error: billError } = await supabase
+           .from("split_bills")
+           .insert({
+             user_id: userId,
+             title: item.title,
+             total_amount: item.total_amount
+           })
+           .select()
+           .single();
+         
+         if (billError) {
+           error = billError;
+         } else if (bill && item.participants) {
+           // Restore participants if bill creation succeeded
+           const participantsToInsert = item.participants.map(p => ({
+             split_bill_id: bill.id,
+             name: p.name,
+             amount: p.amount,
+             is_paid: p.is_paid
+           }));
+           const { error: partError } = await supabase
+             .from("split_bill_participants")
+             .insert(participantsToInsert);
+           error = partError;
+         }
+         if (!error) queryClient.invalidateQueries({ queryKey: ["split-bills"] });
+      }
+
+      // Check if any error occurred during the process
+      if (error) throw error;
+
+      // --- Cleanup LocalStorage ---
+      const key =
+        item.type === "expense"
+          ? `recently_deleted_${userId}`
+          : item.type === "lent_money"
+          ? `recently_deleted_lent_money_${userId}`
+          : item.type === "split_bill"
+          ? `recently_deleted_split_bills_${userId}`
+          : `recently_deleted_groups_${userId}`;
+
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+
+      localStorage.setItem(
+        key,
+        JSON.stringify(existing.filter((i: any) => i.id !== item.id))
+      );
+
+      refreshDeletedItems();
+      toast({ title: "Restored successfully" });
+    } catch (err: any) {
+      console.error("Restore failed:", err);
+      toast({
+        title: "Restore Failed",
+        description: err.message || "Could not restore the item.",
+        variant: "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ["groups"] });
+    } finally {
+      setRestoringId(null);
     }
-
-    const key =
-      item.type === "expense"
-        ? `recently_deleted_${userId}`
-        : item.type === "lent_money"
-        ? `recently_deleted_lent_money_${userId}`
-        : item.type === "split_bill"
-        ? `recently_deleted_split_bills_${userId}`
-        : `recently_deleted_groups_${userId}`;
-
-    const existing = JSON.parse(
-      localStorage.getItem(key) || "[]"
-    );
-
-    localStorage.setItem(
-      key,
-      JSON.stringify(existing.filter((i: any) => i.id !== item.id))
-    );
-
-    refreshDeletedItems();
-    toast({ title: "Restored successfully" });
   };
 
   /* ---------------- UI ---------------- */
@@ -283,9 +344,7 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Delete selected items?
-                      </AlertDialogTitle>
+                      <AlertDialogTitle>Delete selected items?</AlertDialogTitle>
                       <AlertDialogDescription>
                         This action is permanent.
                       </AlertDialogDescription>
@@ -293,9 +352,7 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={() =>
-                          deleteSelectedItems.mutate()
-                        }
+                        onClick={() => deleteSelectedItems.mutate()}
                       >
                         Delete
                       </AlertDialogAction>
@@ -309,38 +366,51 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
       </CardHeader>
 
       <CardContent className="divide-y">
-        {deletedItems.map(item => {
-          const key = getKey(item);
-          return (
-            <div key={key} className="flex items-center gap-3 p-4">
-              <Checkbox
-                checked={selectedItems.includes(key)}
-                onCheckedChange={() => toggleSelectItem(key)}
-              />
-              <div className="flex-1">
-                <p className="font-medium">
-                  {"title" in item
-                    ? item.title
-                    : "name" in item
-                    ? item.name
-                    : "person_name" in item
-                    ? item.person_name
-                    : item.description}
-                </p>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {item.type.replace("_", " ")}
-                </p>
+        {deletedItems.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Trash is empty
+          </div>
+        ) : (
+          deletedItems.map((item) => {
+            const key = getKey(item);
+            const isRestoring = restoringId === item.id;
+
+            return (
+              <div key={key} className="flex items-center gap-3 p-4">
+                <Checkbox
+                  checked={selectedItems.includes(key)}
+                  onCheckedChange={() => toggleSelectItem(key)}
+                />
+                <div className="flex-1">
+                  <p className="font-medium">
+                    {"title" in item
+                      ? item.title
+                      : "name" in item
+                      ? item.name
+                      : "person_name" in item
+                      ? item.person_name
+                      : item.description}
+                  </p>
+                  <p className="text-sm text-muted-foreground capitalize">
+                    {item.type.replace("_", " ")}
+                  </p>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleRestore(item)}
+                  disabled={isRestoring}
+                >
+                  {isRestoring ? (
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4 text-green-600" />
+                  )}
+                </Button>
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => handleRestore(item)}
-              >
-                <RotateCcw className="w-4 h-4 text-green-600" />
-              </Button>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </CardContent>
     </Card>
   );
