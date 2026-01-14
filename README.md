@@ -1,5 +1,19 @@
 # Welcome to expense tracker
 
+## Features
+
+- **Expense Tracking**: Add, edit, and delete regular expenses with categories
+- **Party-wise Transactions**: Track transactions with specific parties (people, shops, clients) using a dedicated button
+  - Mark transactions as "Received" (party gave you money) or "Payable" (you owe money to party)
+  - View net balance for each party
+  - Access transaction history for each party
+- **Bill Upload**: Upload and scan bills for automatic data extraction (works for both regular expenses and party transactions)
+- **Budget Management**: Set monthly budgets and track spending
+- **Lent Money Tracking**: Keep track of money lent to others
+- **Split Bills**: Split expenses among friends
+- **Group Expenses**: Manage shared expenses with groups
+- **Recently Deleted**: Restore accidentally deleted items within 30 days
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/9ead9071-c587-4332-bd9b-04cc6e586777

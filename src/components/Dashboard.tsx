@@ -10,17 +10,20 @@ import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock, Calculato
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { AddPartyTransactionDialog } from "@/components/AddPartyTransactionDialog";
 import { LentMoneyDialog } from "@/components/LentMoneyDialog";
 import { BudgetSection } from "@/components/BudgetSection";
 import { RecentlyDeleted } from "@/components/RecentlyDeleted";
 import { LentMoneySection } from "@/components/LentMoneySection";
 import { Calculator as CalculatorComponent } from "@/components/calculator";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PartyWiseSection } from "@/components/PartyWiseSection";
 import { toast } from "@/hooks/use-toast";
 
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isPartyTransactionDialogOpen, setIsPartyTransactionDialogOpen] = useState(false);
   const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
   const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -252,6 +255,10 @@ export const Dashboard = () => {
                       <TrendingUp className="w-4 h-4 mr-2" />
                       Lent Money
                     </Button>
+                    <Button onClick={() => setIsPartyTransactionDialogOpen(true)} size="sm" variant="outline">
+                      <Wallet className="w-4 h-4 mr-2" />
+                      Party Transaction
+                    </Button>
                     <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
                       <Plus className="w-4 h-4 mr-2" />
                       Add Expense
@@ -277,6 +284,7 @@ export const Dashboard = () => {
               <ExpenseChart expenses={expenses} />
             </div>
             <LentMoneySection userId={user?.id || ""} />
+            <PartyWiseSection userId={user?.id || ""} />
           </div>
         </div>
       </main>
@@ -291,6 +299,13 @@ export const Dashboard = () => {
       <LentMoneyDialog
         open={isLentMoneyDialogOpen}
         onOpenChange={setIsLentMoneyDialogOpen}
+        userId={user?.id || ""}
+      />
+
+      <AddPartyTransactionDialog
+        open={isPartyTransactionDialogOpen}
+        onOpenChange={setIsPartyTransactionDialogOpen}
+        categories={categories}
         userId={user?.id || ""}
       />
     </div>

@@ -74,6 +74,8 @@ export type Database = {
           date: string
           description: string
           id: string
+          party: string | null
+          transaction_type: string | null
           updated_at: string
           user_id: string
         }
@@ -85,6 +87,8 @@ export type Database = {
           date?: string
           description: string
           id?: string
+          party?: string | null
+          transaction_type?: string | null
           updated_at?: string
           user_id: string
         }
@@ -96,6 +100,8 @@ export type Database = {
           date?: string
           description?: string
           id?: string
+          party?: string | null
+          transaction_type?: string | null
           updated_at?: string
           user_id?: string
         }

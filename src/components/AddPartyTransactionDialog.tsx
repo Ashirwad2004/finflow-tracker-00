@@ -22,10 +22,12 @@ import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { BillUpload } from "./BillUpload";
 
-const expenseSchema = z.object({
+const partyTransactionSchema = z.object({
   description: z.string().trim().min(1, "Description is required"),
   amount: z.number().positive("Amount must be greater than 0"),
   category_id: z.string().uuid("Please select a category"),
+  party: z.string().trim().min(1, "Party name is required"),
+  transaction_type: z.enum(["received", "payable"], "Please select transaction type"),
   date: z.string(),
 });
 
@@ -36,35 +38,39 @@ interface Category {
   icon: string;
 }
 
-interface AddExpenseDialogProps {
+interface AddPartyTransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categories: Category[];
   userId: string;
 }
 
-interface ExpenseRow {
+interface PartyTransactionRow {
   description: string;
   amount: string;
   categoryId: string;
+  party: string;
+  transactionType: string;
   date: string;
   billFile: File | null;
   billPreview: string | null;
 }
 
-export const AddExpenseDialog = ({
+export const AddPartyTransactionDialog = ({
   open,
   onOpenChange,
   categories,
   userId,
-}: AddExpenseDialogProps) => {
+}: AddPartyTransactionDialogProps) => {
   const queryClient = useQueryClient();
 
-  const [expenses, setExpenses] = useState<ExpenseRow[]>([
+  const [transactions, setTransactions] = useState<PartyTransactionRow[]>([
     {
       description: "",
       amount: "",
       categoryId: "",
+      party: "",
+      transactionType: "",
       date: new Date().toISOString().split("T")[0],
       billFile: null,
       billPreview: null,
@@ -72,12 +78,14 @@ export const AddExpenseDialog = ({
   ]);
 
   const addRow = () => {
-    setExpenses([
-      ...expenses,
+    setTransactions([
+      ...transactions,
       {
         description: "",
         amount: "",
         categoryId: "",
+        party: "",
+        transactionType: "",
         date: new Date().toISOString().split("T")[0],
         billFile: null,
         billPreview: null,
@@ -87,20 +95,20 @@ export const AddExpenseDialog = ({
 
   const removeRow = (index: number) => {
     // Revoke object URL to prevent memory leak
-    if (expenses[index].billPreview) {
-      URL.revokeObjectURL(expenses[index].billPreview!);
+    if (transactions[index].billPreview) {
+      URL.revokeObjectURL(transactions[index].billPreview!);
     }
-    setExpenses(expenses.filter((_, i) => i !== index));
+    setTransactions(transactions.filter((_, i) => i !== index));
   };
 
-  const updateExpense = (
+  const updateTransaction = (
     index: number,
     field: string,
     value: string
   ) => {
-    const updated = [...expenses];
+    const updated = [...transactions];
     updated[index] = { ...updated[index], [field]: value };
-    setExpenses(updated);
+    setTransactions(updated);
   };
 
   const handleBillDataExtracted = (
@@ -112,8 +120,8 @@ export const AddExpenseDialog = ({
       category_suggestion: string | null;
     }
   ) => {
-    const updated = [...expenses];
-    
+    const updated = [...transactions];
+
     if (data.merchant_name) {
       updated[index].description = data.merchant_name;
     }
@@ -132,70 +140,69 @@ export const AddExpenseDialog = ({
         updated[index].categoryId = matchedCategory.id;
       }
     }
-    
-    setExpenses(updated);
+
+    setTransactions(updated);
   };
 
   const handleFileUploaded = (index: number, file: File, preview: string) => {
-    const updated = [...expenses];
+    const updated = [...transactions];
     // Revoke previous preview URL if exists
     if (updated[index].billPreview) {
       URL.revokeObjectURL(updated[index].billPreview!);
     }
     updated[index].billFile = file;
     updated[index].billPreview = preview;
-    setExpenses(updated);
+    setTransactions(updated);
   };
 
   const handleClearFile = (index: number) => {
-    const updated = [...expenses];
+    const updated = [...transactions];
     if (updated[index].billPreview) {
       URL.revokeObjectURL(updated[index].billPreview!);
     }
     updated[index].billFile = null;
     updated[index].billPreview = null;
-    setExpenses(updated);
+    setTransactions(updated);
   };
 
   const uploadBillToStorage = async (file: File): Promise<string | null> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    
+
     const { error } = await supabase.storage
       .from('bills')
       .upload(fileName, file);
-    
+
     if (error) {
       console.error('Bill upload error:', error);
       return null;
     }
-    
+
     const { data: urlData } = supabase.storage
       .from('bills')
       .getPublicUrl(fileName);
-    
+
     return urlData.publicUrl;
   };
 
-  const addExpenses = useMutation({
+  const addPartyTransactions = useMutation({
     mutationFn: async () => {
       const payload = await Promise.all(
-        expenses.map(async (e) => {
+        transactions.map(async (t) => {
           let billUrl = null;
-          if (e.billFile) {
-            billUrl = await uploadBillToStorage(e.billFile);
+          if (t.billFile) {
+            billUrl = await uploadBillToStorage(t.billFile);
           }
-          
+
           return {
-            description: e.description,
-            amount: parseFloat(e.amount),
-            category_id: e.categoryId,
-            date: e.date,
+            description: t.description,
+            amount: parseFloat(t.amount),
+            category_id: t.categoryId,
+            date: t.date,
             user_id: userId,
             bill_url: billUrl,
-            // party and transaction_type are now handled by separate Party Transaction dialog
-            // party: e.party || null,
-            // transaction_type: e.transactionType || null,
+            party: t.party,
+            transaction_type: t.transactionType,
           };
         })
       );
@@ -208,34 +215,35 @@ export const AddExpenseDialog = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["party-balances"] });
       toast({
-        title: "Expenses added",
-        description: `${expenses.length} expense(s) added successfully.`,
+        title: "Party transactions added",
+        description: `${transactions.length} party transaction(s) added successfully.`,
       });
       onOpenChange(false);
       // Clean up preview URLs
-      expenses.forEach((e) => {
-        if (e.billPreview) {
-          URL.revokeObjectURL(e.billPreview);
+      transactions.forEach((t) => {
+        if (t.billPreview) {
+          URL.revokeObjectURL(t.billPreview);
         }
       });
-      setExpenses([
+      setTransactions([
         {
           description: "",
           amount: "",
           categoryId: "",
+          party: "",
+          transactionType: "",
           date: new Date().toISOString().split("T")[0],
           billFile: null,
           billPreview: null,
-          party: "",
-          transactionType: "",
         },
       ]);
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to add expenses",
+        description: error.message || "Failed to add party transactions",
         variant: "destructive",
       });
     },
@@ -245,16 +253,18 @@ export const AddExpenseDialog = ({
     e.preventDefault();
 
     try {
-      expenses.forEach((exp) => {
-        expenseSchema.parse({
-          description: exp.description,
-          amount: parseFloat(exp.amount),
-          category_id: exp.categoryId,
-          date: exp.date,
+      transactions.forEach((trans) => {
+        partyTransactionSchema.parse({
+          description: trans.description,
+          amount: parseFloat(trans.amount),
+          category_id: trans.categoryId,
+          party: trans.party,
+          transaction_type: trans.transactionType,
+          date: trans.date,
         });
       });
 
-      addExpenses.mutate();
+      addPartyTransactions.mutate();
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast({
@@ -270,14 +280,14 @@ export const AddExpenseDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Expenses</DialogTitle>
+          <DialogTitle>Add Party Transaction</DialogTitle>
           <DialogDescription>
-            Upload a bill to auto-fill details or enter manually.
+            Record transactions with parties (people, shops, clients). Upload a bill to auto-fill details.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {expenses.map((expense, index) => (
+          {transactions.map((transaction, index) => (
             <div
               key={index}
               className="border rounded-lg p-4 space-y-3"
@@ -286,17 +296,17 @@ export const AddExpenseDialog = ({
               <BillUpload
                 onDataExtracted={(data) => handleBillDataExtracted(index, data)}
                 onFileUploaded={(file, preview) => handleFileUploaded(index, file, preview)}
-                uploadedPreview={expense.billPreview}
+                uploadedPreview={transaction.billPreview}
                 onClearFile={() => handleClearFile(index)}
               />
 
               <div className="space-y-1">
                 <Label>Description</Label>
                 <Input
-                  placeholder="Coffee, Taxi, Grocery..."
-                  value={expense.description}
+                  placeholder="What was this transaction for?"
+                  value={transaction.description}
                   onChange={(e) =>
-                    updateExpense(index, "description", e.target.value)
+                    updateTransaction(index, "description", e.target.value)
                   }
                 />
               </div>
@@ -306,9 +316,9 @@ export const AddExpenseDialog = ({
                 <Input
                   type="number"
                   step="0.01"
-                  value={expense.amount}
+                  value={transaction.amount}
                   onChange={(e) =>
-                    updateExpense(index, "amount", e.target.value)
+                    updateTransaction(index, "amount", e.target.value)
                   }
                 />
               </div>
@@ -316,9 +326,9 @@ export const AddExpenseDialog = ({
               <div className="space-y-1">
                 <Label>Category</Label>
                 <Select
-                  value={expense.categoryId}
+                  value={transaction.categoryId}
                   onValueChange={(value) =>
-                    updateExpense(index, "categoryId", value)
+                    updateTransaction(index, "categoryId", value)
                   }
                 >
                   <SelectTrigger>
@@ -338,18 +348,46 @@ export const AddExpenseDialog = ({
               </div>
 
               <div className="space-y-1">
-                <Label>Date</Label>
+                <Label>Party (Person/Shop/Client)</Label>
                 <Input
-                  type="date"
-                  value={expense.date}
+                  placeholder="John Doe, Walmart, Client ABC..."
+                  value={transaction.party}
                   onChange={(e) =>
-                    updateExpense(index, "date", e.target.value)
+                    updateTransaction(index, "party", e.target.value)
                   }
                 />
               </div>
 
+              <div className="space-y-1">
+                <Label>Transaction Type</Label>
+                <Select
+                  value={transaction.transactionType}
+                  onValueChange={(value) =>
+                    updateTransaction(index, "transactionType", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select transaction type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="received">Received (Party gave money to me)</SelectItem>
+                    <SelectItem value="payable">Payable (I have to pay money to party)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-              {expenses.length > 1 && (
+              <div className="space-y-1">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={transaction.date}
+                  onChange={(e) =>
+                    updateTransaction(index, "date", e.target.value)
+                  }
+                />
+              </div>
+
+              {transactions.length > 1 && (
                 <Button
                   type="button"
                   variant="destructive"
@@ -368,7 +406,7 @@ export const AddExpenseDialog = ({
             onClick={addRow}
             className="w-full"
           >
-            + Add another expense
+            + Add another party transaction
           </Button>
 
           <div className="flex gap-3 pt-2">
@@ -383,9 +421,9 @@ export const AddExpenseDialog = ({
             <Button
               type="submit"
               className="flex-1"
-              disabled={addExpenses.isPending}
+              disabled={addPartyTransactions.isPending}
             >
-              {addExpenses.isPending ? "Saving..." : "Save Expenses"}
+              {addPartyTransactions.isPending ? "Saving..." : "Save Transactions"}
             </Button>
           </div>
         </form>

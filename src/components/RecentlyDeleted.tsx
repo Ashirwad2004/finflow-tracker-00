@@ -40,6 +40,8 @@ interface DeletedExpense {
   deleted_at?: string | null;
   group_id?: string;
   username?: string;
+  party?: string | null;
+  transaction_type?: string | null;
   categories: {
     id: string;
     name: string;
@@ -213,6 +215,8 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
             date: item.date,
             category_id: item.categories?.id || null,
             user_id: userId,
+            party: item.party || null,
+            transaction_type: item.transaction_type || null,
           });
           error = err;
           if (!err) queryClient.invalidateQueries({ queryKey: ["expenses"] });

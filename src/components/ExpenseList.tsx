@@ -16,6 +16,8 @@ interface Expense {
   amount: number;
   date: string;
   bill_url?: string | null;
+  party?: string | null;
+  transaction_type?: string | null;
   categories: {
     id: string;
     name: string;
@@ -54,7 +56,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
 
   const downloadCSV = (data: Expense[]) => {
     if (!data || data.length === 0) return;
-    const header = ['id', 'description', 'amount', 'date', 'category'];
+    const header = ['id', 'description', 'amount', 'date', 'category', 'party', 'transaction_type'];
     const rows = data.map((e) => {
       const amount = typeof e.amount === 'number' ? e.amount : parseFloat(String(e.amount) || '0');
       const dateStr = formatDateForCSV(e.date);
@@ -64,6 +66,8 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
         amount.toFixed(2),
         dateStr,
         (e.categories?.name ?? '').replace(/"/g, '""'),
+        (e.party ?? '').replace(/"/g, '""'),
+        e.transaction_type ?? '',
       ];
     });
 
@@ -166,6 +170,24 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
                         <span>{expense.categories.name}</span>
                         <span>•</span>
                         <span>{new Date(expense.date).toLocaleDateString()}</span>
+                        {expense.party && (
+                          <>
+                            <span>•</span>
+                            <span className="font-medium text-foreground">{expense.party}</span>
+                          </>
+                        )}
+                        {expense.transaction_type && (
+                          <>
+                            <span>•</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              expense.transaction_type === 'received' 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                            }`}>
+                              {expense.transaction_type === 'received' ? 'Received' : 'Payable'}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
