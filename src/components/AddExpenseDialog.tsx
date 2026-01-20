@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
@@ -35,6 +35,7 @@ import {
   AlertCircle,
   ChevronRight,
   IndianRupee,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -181,7 +182,7 @@ export const AddExpenseDialog = ({
     setExpenses(updated);
   };
 
-  // --- Submission Logic (Same as before) ---
+  // --- Submission Logic ---
   const uploadBillToStorage = async (file: File): Promise<string | null> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -246,22 +247,33 @@ export const AddExpenseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] w-[95vw] h-[90vh] sm:h-[600px] p-0 gap-0 overflow-hidden flex flex-col sm:flex-row rounded-2xl border-0 shadow-2xl bg-background">
+      {/* Mobile: w-full h-[100dvh] (full screen, no rounding)
+        Desktop: fixed width/height, rounded corners, shadow 
+      */}
+      <DialogContent className="max-w-full w-full h-[100dvh] sm:h-[650px] sm:max-w-[900px] p-0 gap-0 flex flex-col sm:flex-row rounded-none sm:rounded-2xl border-0 sm:border shadow-none sm:shadow-2xl bg-background overflow-hidden">
         
-        {/* === LEFT SIDEBAR (Navigation) === */}
-        <div className="w-full sm:w-[280px] bg-muted/30 border-r flex flex-col h-[140px] sm:h-auto">
-          <div className="p-4 border-b bg-background/50 backdrop-blur">
+        {/* === LEFT SIDEBAR / TOP NAV === */}
+        <div className="w-full sm:w-[280px] bg-muted/30 border-b sm:border-b-0 sm:border-r flex flex-col shrink-0">
+          
+          {/* Header Area */}
+          <div className="p-4 border-b bg-background/50 backdrop-blur flex justify-between items-start">
             <DialogHeader className="text-left space-y-1">
               <DialogTitle>Add Expenses</DialogTitle>
               <DialogDescription className="text-xs">
                 {expenses.length} item{expenses.length !== 1 ? 's' : ''} total
               </DialogDescription>
             </DialogHeader>
+            {/* Mobile Close Button (Visible only on mobile/tablet) */}
+            <Button variant="ghost" size="icon" className="h-6 w-6 sm:hidden -mt-1 -mr-2" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
-          <ScrollArea className="flex-1 sm:h-full">
-            {/* Mobile: Horizontal, Desktop: Vertical */}
-            <div className="flex sm:flex-col p-2 gap-2">
+          <ScrollArea className="w-full whitespace-nowrap sm:whitespace-normal">
+            {/* Mobile: Horizontal Flex (row)
+              Desktop: Vertical Flex (col) 
+            */}
+            <div className="flex sm:flex-col p-2 gap-2 w-max sm:w-full">
               {expenses.map((expense, index) => {
                 const isValid = isValidRow(expense);
                 const isActive = activeTab === index;
@@ -271,21 +283,23 @@ export const AddExpenseDialog = ({
                     key={expense.id}
                     onClick={() => setActiveTab(index)}
                     className={cn(
-                      "group relative flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border select-none min-w-[160px] sm:min-w-0",
+                      "group relative flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border select-none",
+                      // Mobile: fixed width card. Desktop: full width
+                      "w-[160px] sm:w-full",
                       isActive 
                         ? "bg-background border-primary/50 shadow-sm ring-1 ring-primary/10" 
                         : "bg-transparent border-transparent hover:bg-muted/50"
                     )}
                   >
-                    {/* Status Icon */}
+                    {/* Number Badge */}
                     <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                      "w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full flex items-center justify-center shrink-0 transition-colors",
                       isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     )}>
                       {index + 1}
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 text-left">
                       <p className={cn("text-sm font-medium truncate leading-none mb-1", !expense.description && "text-muted-foreground italic")}>
                         {expense.description || "New Item"}
                       </p>
@@ -294,16 +308,17 @@ export const AddExpenseDialog = ({
                       </p>
                     </div>
 
-                    {/* Validation Indicator */}
-                    <div className="text-muted-foreground/30">
-                       {isValid ? <CheckCircle2 className="w-4 h-4 text-green-500/70" /> : <AlertCircle className="w-4 h-4 text-amber-500/70" />}
+                    {/* Validation Icon */}
+                    <div className="absolute top-2 right-2 sm:static sm:top-auto sm:right-auto text-muted-foreground/30">
+                        {isValid ? <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-green-500/70" /> : <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500/70" />}
                     </div>
 
-                    {/* Delete Button (Hover Only on Desktop) */}
+                    {/* Delete Button (Visible on hover for desktop, or separate action for mobile could be added) */}
                     {expenses.length > 1 && (
                       <button
                         onClick={(e) => removeRow(e, index)}
-                        className="opacity-0 group-hover:opacity-100 sm:absolute sm:right-2 sm:top-1/2 sm:-translate-y-1/2 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-all"
+                        className="hidden sm:group-hover:block sm:absolute sm:right-2 sm:top-1/2 sm:-translate-y-1/2 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-all"
+                        title="Remove item"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -314,34 +329,36 @@ export const AddExpenseDialog = ({
               
               <Button
                 variant="ghost"
-                className="w-full justify-start gap-2 text-muted-foreground hover:text-primary border border-dashed border-transparent hover:border-primary/20"
+                className="h-auto py-3 sm:py-2 px-4 justify-center sm:justify-start gap-2 text-muted-foreground hover:text-primary border border-dashed border-muted-foreground/20 hover:border-primary/50 bg-muted/10 sm:bg-transparent rounded-lg sm:w-full"
                 onClick={addRow}
               >
-                <Plus className="w-4 h-4" /> Add Another
+                <Plus className="w-4 h-4" /> <span className="whitespace-nowrap">Add</span>
               </Button>
             </div>
+            <ScrollBar orientation="horizontal" className="sm:hidden" />
           </ScrollArea>
         </div>
 
         {/* === RIGHT PANEL (Active Form) === */}
-        <div className="flex-1 flex flex-col min-w-0 bg-background h-full">
+        <div className="flex-1 flex flex-col min-w-0 bg-background h-full overflow-hidden">
           
-          {/* Form Content */}
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-md mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-300" key={currentExpense.id}>
+          {/* Form Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="max-w-md mx-auto space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-right-4 duration-300" key={currentExpense.id}>
               
               {/* Hero Input: Amount */}
-              <div className="space-y-4 text-center">
+              <div className="space-y-4 text-center mt-2 sm:mt-0">
                  <Label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
                    Expense Amount
                  </Label>
                  <div className="relative inline-block w-full">
-                    <IndianRupee className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-8 text-muted-foreground/30" />
+                    <IndianRupee className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/30" />
                     <Input 
                        type="number"
                        step="0.01"
                        placeholder="0.00"
-                       className="text-center text-5xl font-bold h-20 border-0 border-b-2 border-muted focus-visible:ring-0 focus-visible:border-primary rounded-none px-8 placeholder:text-muted-foreground/20"
+                       // Smaller font on mobile to prevent overflow/zooming issues
+                       className="text-center text-4xl sm:text-5xl font-bold h-16 sm:h-20 border-0 border-b-2 border-muted focus-visible:ring-0 focus-visible:border-primary rounded-none px-8 placeholder:text-muted-foreground/20 bg-transparent"
                        value={currentExpense.amount}
                        onChange={(e) => updateExpense("amount", e.target.value)}
                        autoFocus
@@ -350,21 +367,21 @@ export const AddExpenseDialog = ({
               </div>
 
               {/* Main Fields */}
-              <div className="grid gap-5">
+              <div className="grid gap-4 sm:gap-5">
                  
                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
-                      <Receipt className="w-3.5 h-3.5" /> Description
-                    </Label>
-                    <Input
+                   <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                     <Receipt className="w-3.5 h-3.5" /> Description
+                   </Label>
+                   <Input
                        placeholder="What is this for?"
                        className="bg-muted/10"
                        value={currentExpense.description}
                        onChange={(e) => updateExpense("description", e.target.value)}
-                    />
+                   />
                  </div>
 
-                 <div className="grid grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
                         <Tag className="w-3.5 h-3.5" /> Category
@@ -374,7 +391,7 @@ export const AddExpenseDialog = ({
                         onValueChange={(val) => updateExpense("categoryId", val)}
                       >
                         <SelectTrigger className="bg-muted/10">
-                          <SelectValue placeholder="Select" />
+                          <SelectValue placeholder="Select Category" />
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map((c) => (
@@ -395,7 +412,7 @@ export const AddExpenseDialog = ({
                       </Label>
                       <Input 
                         type="date"
-                        className="bg-muted/10"
+                        className="bg-muted/10 block w-full"
                         value={currentExpense.date}
                         onChange={(e) => updateExpense("date", e.target.value)}
                       />
@@ -405,7 +422,7 @@ export const AddExpenseDialog = ({
 
               {/* Bill Upload Section */}
               <Separator />
-              <div>
+              <div className="pb-4"> {/* Padding bottom for mobile scroll */}
                 <Label className="text-xs font-semibold text-muted-foreground uppercase mb-3 block">
                   Attachment
                 </Label>
@@ -421,18 +438,32 @@ export const AddExpenseDialog = ({
           </div>
 
           {/* Footer Actions */}
-          <DialogFooter className="p-4 border-t bg-background flex items-center justify-between sm:justify-between gap-4">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="p-4 border-t bg-background flex-row items-center gap-3 sm:justify-between shrink-0">
+            {/* Hidden on mobile to save space, rely on top Close button */}
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="hidden sm:inline-flex">
               Cancel
             </Button>
             
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-3 w-full sm:w-auto">
+              {/* Show delete button on mobile in footer since hover isn't available */}
+              {expenses.length > 1 && (
+                 <Button 
+                   variant="outline" 
+                   size="icon"
+                   onClick={(e) => removeRow(e, activeTab)}
+                   className="sm:hidden shrink-0 border-destructive/50 text-destructive"
+                 >
+                   <Trash2 className="w-4 h-4" />
+                 </Button>
+              )}
+
               <Button 
                 variant="outline" 
                 onClick={addRow}
                 className="flex-1 sm:flex-none"
               >
-                Add Another
+                <Plus className="w-4 h-4 mr-1 sm:hidden" />
+                <span className="sm:inline">Add Another</span>
               </Button>
               <Button 
                 onClick={handleSubmit} 
@@ -442,7 +473,10 @@ export const AddExpenseDialog = ({
                 {addExpensesMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <>Save All ({expenses.length}) <ChevronRight className="w-4 h-4 ml-1 opacity-50" /></>
+                  <span className="flex items-center justify-center gap-1">
+                    Save <span className="hidden sm:inline">All</span> ({expenses.length})
+                    <ChevronRight className="w-4 h-4 opacity-50" />
+                  </span>
                 )}
               </Button>
             </div>

@@ -137,7 +137,7 @@ export const BillUpload = ({
       {!uploadedPreview ? (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+          className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 sm:p-6 text-center cursor-pointer hover:border-primary/50 transition-colors bg-background/50"
         >
           <input
             ref={fileInputRef}
@@ -145,55 +145,68 @@ export const BillUpload = ({
             accept=".jpg,.jpeg,.png,.pdf"
             onChange={handleFileSelect}
             className="hidden"
+            aria-label="Upload bill image or PDF"
           />
-          <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Click to upload bill image or PDF
+          <div className="bg-muted/50 rounded-full w-12 h-12 mx-auto flex items-center justify-center mb-3">
+            <Upload className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium text-foreground">
+            Click to upload bill
           </p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             JPG, PNG, PDF (max 10MB)
           </p>
         </div>
       ) : (
         <div className="relative border rounded-lg p-3 bg-muted/30">
           <div className="flex items-center gap-3">
-            {uploadedPreview.endsWith('.pdf') ? (
-              <div className="w-16 h-16 bg-muted rounded flex items-center justify-center">
-                <FileText className="h-8 w-8 text-muted-foreground" />
-              </div>
-            ) : (
-              <img
-                src={uploadedPreview}
-                alt="Bill preview"
-                className="w-16 h-16 object-cover rounded"
-              />
-            )}
-            <div className="flex-1">
-              <p className="text-sm font-medium">Bill uploaded</p>
-              {isScanning ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Scanning bill...
+            {/* Thumbnail */}
+            <div className="shrink-0">
+              {uploadedPreview.endsWith('.pdf') ? (
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded flex items-center justify-center border">
+                  <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  Data extracted successfully
+                <img
+                  src={uploadedPreview}
+                  alt="Bill preview"
+                  className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded border"
+                />
+              )}
+            </div>
+
+            {/* Content - min-w-0 prevents flex child from overflowing */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">Bill uploaded</p>
+              {isScanning ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                  <span className="truncate">Scanning...</span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground truncate">
+                  Data extracted
                 </p>
               )}
             </div>
-            <div className="flex gap-1">
+
+            {/* Actions */}
+            <div className="flex gap-0 sm:gap-1 shrink-0">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8 sm:h-9 sm:w-9"
                 onClick={() => setPreviewOpen(true)}
               >
                 <Eye className="h-4 w-4" />
+                <span className="sr-only">View</span>
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8 sm:h-9 sm:w-9 text-muted-foreground hover:text-destructive"
                 onClick={() => {
                   onClearFile();
                   if (fileInputRef.current) {
@@ -202,6 +215,7 @@ export const BillUpload = ({
                 }}
               >
                 <X className="h-4 w-4" />
+                <span className="sr-only">Remove</span>
               </Button>
             </div>
           </div>
@@ -210,17 +224,27 @@ export const BillUpload = ({
 
       {/* Full preview dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] p-4 sm:p-6 overflow-hidden flex flex-col rounded-lg">
           <DialogHeader>
             <DialogTitle>Bill Preview</DialogTitle>
           </DialogHeader>
-          {uploadedPreview && (
-            <img
-              src={uploadedPreview}
-              alt="Bill full preview"
-              className="w-full rounded-lg"
-            />
-          )}
+          <div className="flex-1 overflow-auto mt-2 rounded-md border bg-muted/20">
+            {uploadedPreview && (
+              uploadedPreview.endsWith('.pdf') ? (
+                <iframe
+                  src={uploadedPreview}
+                  className="w-full h-[50vh] sm:h-[60vh]"
+                  title="Bill PDF"
+                />
+              ) : (
+                <img
+                  src={uploadedPreview}
+                  alt="Bill full preview"
+                  className="w-full h-auto object-contain"
+                />
+              )
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
