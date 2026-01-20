@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, Eye } from "lucide-react";
+import { Trash2, FileText, Eye, FileDown } from "lucide-react"; // Added FileDown
 import * as LucideIcons from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +81,60 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  // --- NEW PDF FUNCTION ---
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+
+    // Add Title
+    doc.setFontSize(18);
+    doc.text("Expense Report", 14, 22);
+
+    // Add Date info
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    // Define columns
+    const tableColumn = ["Description", "Category", "Date", "Amount"];
+    
+    // Define rows
+    const tableRows = expenses.map(expense => {
+      const amount = typeof expense.amount === 'number' 
+        ? expense.amount 
+        : parseFloat(String(expense.amount) || '0');
+      
+      return [
+        expense.description,
+        expense.categories.name,
+        new Date(expense.date).toLocaleDateString(),
+        `Rs. ${amount.toFixed(2)}` // Using "Rs." to avoid currency font issues
+      ];
+    });
+
+    // Generate table
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 35,
+      theme: 'grid',
+      styles: {
+        fontSize: 10,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [41, 41, 41], // Dark gray header to match UI
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      columnStyles: {
+        3: { halign: 'right' } // Align amount to the right
+      }
+    });
+
+    // Save the PDF
+    doc.save(`expenses_${formatDateForCSV(new Date())}.pdf`);
+  };
+
   if (isLoading) {
     return (
       <Card className="shadow-card">
@@ -127,9 +183,18 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
         <CardContent className="p-0">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <h3 className="text-lg font-medium">Expenses</h3>
-            <Button onClick={() => downloadCSV(expenses)} variant="outline" size="sm">
-              Download CSV
-            </Button>
+            
+            {/* BUTTONS GROUP */}
+            <div className="flex gap-2">
+              <Button onClick={downloadPDF} variant="outline" size="sm" className="gap-2">
+                <FileDown className="h-4 w-4" />
+                PDF
+              </Button>
+              <Button onClick={() => downloadCSV(expenses)} variant="outline" size="sm">
+                CSV
+              </Button>
+            </div>
+            
           </div>
 
           <div className="divide-y divide-border">
