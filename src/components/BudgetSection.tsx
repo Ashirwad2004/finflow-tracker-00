@@ -1,28 +1,54 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Target, Edit2, Check, X, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Target, 
+  Edit2, 
+  Check, 
+  X, 
+  AlertTriangle, 
+  TrendingUp, 
+  ShieldAlert, 
+  Wallet 
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+/* ---------------- UTILS ---------------- */
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
 interface BudgetSectionProps {
   userId: string;
   thisMonthExpenses: number;
 }
 
+/* ---------------- COMPONENT ---------------- */
+
 export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [budgetAmount, setBudgetAmount] = useState("");
-  const [hasNotified, setHasNotified] = useState(false);
+  const [budgetInput, setBudgetInput] = useState("");
   const queryClient = useQueryClient();
 
-  const currentMonth = new Date();
-  currentMonth.setDate(1);
-  const monthString = currentMonth.toISOString().split('T')[0];
+  // Memoize date to prevent recalc on render
+  const monthString = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split("T")[0];
+  }, []);
 
+  /* --- DATA FETCHING --- */
   const { data: budget, isLoading } = useQuery({
     queryKey: ["budget", userId, monthString],
     queryFn: async () => {
@@ -32,16 +58,16 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
         .eq("user_id", userId)
         .eq("month", monthString)
         .maybeSingle();
-      
       if (error) throw error;
       return data;
     },
     enabled: !!userId,
   });
 
+  /* --- MUTATIONS --- */
   const saveBudget = useMutation({
     mutationFn: async (amount: number) => {
-      if (budget) {
+      if (budget?.id) {
         const { error } = await supabase
           .from("budgets")
           .update({ amount })
@@ -57,138 +83,170 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       setIsEditing(false);
-      setHasNotified(false);
       toast({
-        title: "Budget saved",
-        description: "Your monthly budget has been updated.",
+        title: "Budget Updated",
+        description: "Your monthly spending limit has been set.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error(error);
       toast({
-        title: "Error",
-        description: "Failed to save budget. Please try again.",
+        title: "Update Failed",
+        description: "Could not save your budget. Please try again.",
         variant: "destructive",
       });
     },
   });
 
+  /* --- HANDLERS --- */
   const handleSave = () => {
-    const amount = parseFloat(budgetAmount);
+    const amount = parseFloat(budgetInput);
     if (isNaN(amount) || amount < 0) {
-      toast({
-        title: "Invalid amount",
-        description: "Please enter a valid budget amount.",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid Amount", description: "Please enter a positive number.", variant: "destructive" });
       return;
     }
     saveBudget.mutate(amount);
   };
 
-  const handleEdit = () => {
-    setBudgetAmount(budget?.amount?.toString() || "");
+  const startEditing = () => {
+    setBudgetInput(budget?.amount?.toString() || "");
     setIsEditing(true);
   };
 
-  const handleCancel = () => {
-    setIsEditing(false);
-    setBudgetAmount("");
-  };
+  /* --- CALCULATIONS --- */
+  const budgetLimit = budget?.amount ?? 0;
+  const percentage = budgetLimit > 0 ? (thisMonthExpenses / budgetLimit) * 100 : 0;
+  const isOverBudget = thisMonthExpenses > budgetLimit && budgetLimit > 0;
+  const remaining = Math.max(0, budgetLimit - thisMonthExpenses);
 
-  // Check if budget exceeded and show notification
-  useEffect(() => {
-    if (budget && budget.amount > 0 && !hasNotified) {
-      const budgetLimit = parseFloat(budget.amount.toString());
-      const percentUsed = (thisMonthExpenses / budgetLimit) * 100;
-      
-      if (thisMonthExpenses > budgetLimit) {
-        toast({
-          title: "Budget Exceeded! 🚨",
-          description: `You've exceeded your monthly budget by ₹${(thisMonthExpenses - budgetLimit).toFixed(2)}`,
-          variant: "destructive",
-        });
-        setHasNotified(true);
-      } else if (percentUsed >= 80) {
-        toast({
-          title: "Budget Warning ⚠️",
-          description: `You've used ${percentUsed.toFixed(0)}% of your monthly budget.`,
-        });
-        setHasNotified(true);
-      }
-    }
-  }, [budget, thisMonthExpenses, hasNotified]);
+  // Determine UI State based on percentage
+  const statusColor = useMemo(() => {
+    if (isOverBudget) return "text-destructive";
+    if (percentage >= 85) return "text-orange-500";
+    return "text-primary";
+  }, [isOverBudget, percentage]);
 
-  const budgetLimit = budget && budget.amount > 0 ? parseFloat(budget.amount.toString()) : 0;
-  const percentUsed = budgetLimit >= 0 ? Math.min((thisMonthExpenses / budgetLimit) * 100, 100) : 0;
-  const isOverBudget = thisMonthExpenses > budgetLimit && budgetLimit >= 0;
-  const remaining = budgetLimit - thisMonthExpenses;
+  const progressColor = useMemo(() => {
+    if (isOverBudget) return "bg-destructive";
+    if (percentage >= 85) return "bg-orange-500";
+    return "bg-primary";
+  }, [isOverBudget, percentage]);
 
+  /* --- RENDER --- */
   if (isLoading) {
-    return (
-      <Card className="shadow-card bg-gradient-card">
-        <CardContent className="p-6">
-          <div className="animate-pulse h-20 bg-muted rounded" />
-        </CardContent>
-      </Card>
-    );
+    return <BudgetSkeleton />;
   }
 
   return (
-    <Card className={`shadow-card bg-gradient-card ${isOverBudget ? 'border-destructive border-2' : ''}`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Target className="h-4 w-4" />
-          Monthly Budget
-          {isOverBudget && <AlertTriangle className="h-4 w-4 text-destructive" />}
-        </CardTitle>
+    <Card className="shadow-sm border-muted-foreground/10 overflow-hidden relative">
+      {/* Background decoration */}
+      <div className={cn("absolute top-0 left-0 w-1 h-full", progressColor.replace("bg-", "bg-opacity-50 bg-"))} />
+
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <div className="space-y-1">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Target className="w-4 h-4 text-muted-foreground" />
+            Monthly Budget
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
+          </CardDescription>
+        </div>
+        
         {!isEditing && (
-          <Button variant="ghost" size="sm" onClick={handleEdit}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={startEditing}>
             <Edit2 className="h-4 w-4" />
           </Button>
         )}
       </CardHeader>
+
       <CardContent>
         {isEditing ? (
-          <div className="space-y-3">
-            <Input
-              type="number"
-              placeholder="Enter budget amount"
-              value={budgetAmount}
-              onChange={(e) => setBudgetAmount(e.target.value)}
-              className="text-lg"
-            />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSave} disabled={saveBudget.isPending}>
-                <Check className="h-4 w-4 mr-1" />
-                Save
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-1" />
+          <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-muted-foreground">₹</span>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={budgetInput}
+                onChange={(e) => setBudgetInput(e.target.value)}
+                className="pl-7 font-mono text-lg"
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>
                 Cancel
               </Button>
+              <Button size="sm" onClick={handleSave} disabled={saveBudget.isPending}>
+                {saveBudget.isPending ? "Saving..." : "Save Budget"}
+              </Button>
             </div>
           </div>
-        ) : budget && budget.amount > 0 ? (
-          <div className="space-y-3">
-            <div className="flex justify-between items-baseline">
-              <div className="text-2xl font-bold">₹{budgetLimit.toFixed(2)}</div>
-              <span className={`text-sm ${isOverBudget ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>
-                {isOverBudget ? `Over by ₹${Math.abs(remaining).toFixed(2)}` : `₹${remaining.toFixed(2)} left`}
-              </span>
+        ) : budgetLimit > 0 ? (
+          <div className="space-y-5">
+            {/* Stats Row */}
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Spent</p>
+                <div className="flex items-baseline gap-1">
+                  <span className={cn("text-2xl font-bold tabular-nums", statusColor)}>
+                    {formatCurrency(thisMonthExpenses)}
+                  </span>
+                  <span className="text-sm text-muted-foreground font-medium">
+                    / {formatCurrency(budgetLimit)}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">
+                  {isOverBudget ? "Exceeded" : "Remaining"}
+                </p>
+                <p className={cn("text-lg font-semibold tabular-nums", isOverBudget ? "text-destructive" : "text-foreground")}>
+                  {isOverBudget ? "+" : ""}{formatCurrency(Math.abs(budgetLimit - thisMonthExpenses))}
+                </p>
+              </div>
             </div>
-            <Progress 
-              value={percentUsed} 
-              className={`h-2 ${isOverBudget ? '[&>div]:bg-destructive' : percentUsed >= 80 ? '[&>div]:bg-yellow-500' : ''}`}
-            />
-            <p className="text-xs text-muted-foreground">
-              {percentUsed.toFixed(0)}% of budget used this month
-            </p>
+
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <Progress 
+                value={Math.min(percentage, 100)} 
+                className="h-2.5 bg-secondary" 
+                // We override the internal indicator color via CSS class injection or inline style if needed, 
+                // but shadcn's progress usually takes 'bg-primary'. 
+                // To force color: create a wrapper or use utility classes on the indicator if exposed.
+                // Assuming standard Shadcn Progress structure:
+                indicatorClassName={progressColor}
+              />
+              <div className="flex justify-between items-center text-xs">
+                <span className={cn("font-medium", statusColor)}>
+                  {percentage.toFixed(0)}% used
+                </span>
+                {isOverBudget && (
+                  <span className="flex items-center gap-1 text-destructive font-semibold animate-pulse">
+                    <ShieldAlert className="w-3 h-3" /> Budget Exceeded
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="text-center py-2">
-            <p className="text-muted-foreground text-sm mb-3">No budget set for this month</p>
-            <Button size="sm" onClick={() => setIsEditing(true)}>
-              Set Budget
+          /* Empty State */
+          <div className="flex flex-col items-center justify-center py-4 gap-3 text-center">
+            <div className="bg-muted p-3 rounded-full">
+              <Wallet className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">No budget set</p>
+              <p className="text-xs text-muted-foreground max-w-[200px] mx-auto">
+                Set a monthly limit to track your savings goals effectively.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={startEditing} className="mt-2">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Set Monthly Goal
             </Button>
           </div>
         )}
@@ -196,3 +254,20 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
     </Card>
   );
 };
+
+/* ---------------- SKELETON LOADER ---------------- */
+
+const BudgetSkeleton = () => (
+  <Card className="shadow-sm border-muted-foreground/10">
+    <CardHeader className="pb-2">
+      <Skeleton className="h-4 w-[120px]" />
+    </CardHeader>
+    <CardContent className="space-y-4">
+      <div className="flex justify-between">
+        <Skeleton className="h-8 w-[100px]" />
+        <Skeleton className="h-8 w-[80px]" />
+      </div>
+      <Skeleton className="h-3 w-full rounded-full" />
+    </CardContent>
+  </Card>
+);

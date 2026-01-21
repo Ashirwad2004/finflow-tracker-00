@@ -18,8 +18,12 @@ import {
   Square,
   Loader2,
   AlertCircle,
+  Receipt,
+  Users,
+  HandCoins,
+  Wallet,
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 /* ---------------- TYPES ---------------- */
 
@@ -41,7 +46,7 @@ type ItemType = "expense" | "lent_money" | "split_bill" | "group";
 interface BaseDeletedItem {
   id: string;
   type: ItemType;
-  deleted_at: string; // Enforce deleted_at existence
+  deleted_at: string;
 }
 
 interface DeletedExpense extends BaseDeletedItem {
@@ -51,12 +56,7 @@ interface DeletedExpense extends BaseDeletedItem {
   date: string;
   group_id?: string;
   username?: string;
-  categories?: {
-    id: string;
-    name: string;
-    color: string;
-    icon: string;
-  };
+  categories?: { id: string; name: string; color: string; icon: string };
 }
 
 interface DeletedLentMoney extends BaseDeletedItem {
@@ -74,11 +74,7 @@ interface DeletedSplitBill extends BaseDeletedItem {
   title: string;
   total_amount: number;
   user_id: string;
-  participants?: {
-    name: string;
-    amount: number;
-    is_paid: boolean;
-  }[];
+  participants?: { name: string; amount: number; is_paid: boolean }[];
 }
 
 interface DeletedGroup extends BaseDeletedItem {
@@ -86,68 +82,101 @@ interface DeletedGroup extends BaseDeletedItem {
   name: string;
   description: string;
   created_by: string;
-  members_count?: number;
 }
 
 type DeletedItem = DeletedExpense | DeletedLentMoney | DeletedSplitBill | DeletedGroup;
 
+/* ---------------- UTILS ---------------- */
+
+const safeJSONParse = <T,>(key: string, fallback: T): T => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch (error) {
+    console.warn(`Error parsing localStorage key "${key}":`, error);
+    return fallback;
+  }
+};
+
+// Updated to use Indian Locale (en-IN) for Rupee symbol and formatting
+const formatCurrency = (amount: number, currency: string = "INR") => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: currency,
+    maximumFractionDigits: 0, // Keeps numbers clean (e.g., ₹500 instead of ₹500.00)
+  }).format(amount);
+};
+
 /* ---------------- STORAGE HOOK ---------------- */
 
 const useTrashStorage = (userId: string) => {
-  const getStorageKey = (type: ItemType) => {
-    switch (type) {
-      case "expense": return `recently_deleted_${userId}`;
-      case "lent_money": return `recently_deleted_lent_money_${userId}`;
-      case "split_bill": return `recently_deleted_split_bills_${userId}`;
-      case "group": return `recently_deleted_groups_${userId}`;
-    }
-  };
+  const getStorageKey = useCallback((type: ItemType) => {
+    const keys: Record<ItemType, string> = {
+      expense: `recently_deleted_${userId}`,
+      lent_money: `recently_deleted_lent_money_${userId}`,
+      split_bill: `recently_deleted_split_bills_${userId}`,
+      group: `recently_deleted_groups_${userId}`,
+    };
+    return keys[type];
+  }, [userId]);
 
   const getAllDeletedItems = useCallback((): DeletedItem[] => {
     if (!userId) return [];
-    
+
     const load = <T extends DeletedItem>(type: ItemType): T[] => {
-      try {
-        const items = JSON.parse(localStorage.getItem(getStorageKey(type)) || "[]");
-        return items.map((i: any) => ({ ...i, type, deleted_at: i.deleted_at || new Date().toISOString() }));
-      } catch (e) {
-        console.error(`Error parsing ${type} storage`, e);
-        return [];
-      }
+      const items = safeJSONParse<any[]>(getStorageKey(type), []);
+      return items.map((i) => ({
+        ...i,
+        type,
+        deleted_at: i.deleted_at || new Date().toISOString(),
+      }));
     };
 
-    return [
+    const allItems = [
       ...load<DeletedExpense>("expense"),
       ...load<DeletedLentMoney>("lent_money"),
       ...load<DeletedSplitBill>("split_bill"),
       ...load<DeletedGroup>("group"),
-    ].sort((a, b) => new Date(b.deleted_at).getTime() - new Date(a.deleted_at).getTime());
-  }, [userId]);
+    ];
 
-  const removePermanently = (itemsToRemove: { id: string; type: ItemType }[]) => {
-    // Group by type to minimize localStorage writes
-    const types = ["expense", "lent_money", "split_bill", "group"] as ItemType[];
-    
+    // Sort by most recently deleted
+    return allItems.sort((a, b) => 
+      new Date(b.deleted_at).getTime() - new Date(a.deleted_at).getTime()
+    );
+  }, [userId, getStorageKey]);
+
+  const removePermanently = useCallback((itemsToRemove: { id: string; type: ItemType }[]) => {
+    const types: ItemType[] = ["expense", "lent_money", "split_bill", "group"];
+
     types.forEach((type) => {
-      const idsToRemoveForType = itemsToRemove
+      const idsToRemove = itemsToRemove
         .filter((i) => i.type === type)
         .map((i) => i.id);
 
-      if (idsToRemoveForType.length > 0) {
+      if (idsToRemove.length > 0) {
         const key = getStorageKey(type);
-        const existing = JSON.parse(localStorage.getItem(key) || "[]");
-        const updated = existing.filter((i: any) => !idsToRemoveForType.includes(i.id));
+        const existing = safeJSONParse<BaseDeletedItem[]>(key, []);
+        const updated = existing.filter((i) => !idsToRemove.includes(i.id));
         localStorage.setItem(key, JSON.stringify(updated));
       }
     });
-  };
+  }, [getStorageKey]);
 
   return { getAllDeletedItems, removePermanently };
 };
 
-/* ---------------- COMPONENT ---------------- */
+/* ---------------- MAIN COMPONENT ---------------- */
 
-export const RecentlyDeleted = ({ userId }: { userId: string }) => {
+interface RecentlyDeletedProps {
+  userId: string;
+  currencyCode?: string;
+  onClose?: () => void; // Optional: If used in a modal/drawer
+}
+
+// Default currencyCode updated to "INR"
+export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: RecentlyDeletedProps) => {
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getAllDeletedItems, removePermanently } = useTrashStorage(userId);
   
@@ -155,15 +184,15 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  // Initial Load
+  // Load items on mount
   useEffect(() => {
     setDeletedItems(getAllDeletedItems());
   }, [getAllDeletedItems]);
 
-  const refreshList = () => {
+  const refreshList = useCallback(() => {
     setDeletedItems(getAllDeletedItems());
-    setSelectedIds(new Set()); // Clear selection on refresh
-  };
+    setSelectedIds(new Set());
+  }, [getAllDeletedItems]);
 
   /* ---------------- SELECTION LOGIC ---------------- */
 
@@ -196,7 +225,10 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
     },
     onSuccess: () => {
       refreshList();
-      toast({ title: "Permanently Deleted", description: "Selected items have been removed." });
+      toast({ 
+        title: "Permanently Deleted", 
+        description: "Items have been removed from history." 
+      });
     },
   });
 
@@ -205,34 +237,39 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
     let error: any = null;
 
     try {
-      // 1. RESTORE EXPENSE
       if (item.type === "expense") {
-        if (item.group_id) {
-          const { error: err } = await supabase.from("group_expenses").insert({
-            group_id: item.group_id,
-            user_id: userId,
-            username: item.username || "Unknown",
-            description: item.description,
-            amount: item.amount,
-            date: item.date,
-            category_id: item.categories?.id || null,
-          });
-          error = err;
-          if (!err) queryClient.invalidateQueries({ queryKey: ["group-expenses", item.group_id] });
-        } else {
-          const { error: err } = await supabase.from("expenses").insert({
-            description: item.description,
-            amount: item.amount,
-            date: item.date,
-            category_id: item.categories?.id || null,
-            user_id: userId,
-          });
-          error = err;
-          if (!err) queryClient.invalidateQueries({ queryKey: ["expenses"] });
+        const payload = item.group_id
+          ? {
+              group_id: item.group_id,
+              user_id: userId,
+              username: item.username || "Unknown",
+              description: item.description,
+              amount: item.amount,
+              date: item.date,
+              category_id: item.categories?.id || null,
+            }
+          : {
+              description: item.description,
+              amount: item.amount,
+              date: item.date,
+              category_id: item.categories?.id || null,
+              user_id: userId,
+            };
+
+        const table = item.group_id ? "group_expenses" : "expenses";
+        const { error: err } = await supabase.from(table).insert(payload);
+        
+        // Handle Foreign Key Error (e.g., Group no longer exists)
+        if (err?.code === "23503") {
+          throw new Error("Cannot restore: The group this expense belonged to no longer exists.");
         }
+        if (err) throw err;
+        
+        queryClient.invalidateQueries({ 
+          queryKey: item.group_id ? ["group-expenses", item.group_id] : ["expenses"] 
+        });
       } 
       
-      // 2. RESTORE GROUP
       else if (item.type === "group") {
         const { error: err } = await supabase.from("groups").insert({
           name: item.name,
@@ -240,11 +277,10 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
           created_by: userId,
           invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
         });
-        error = err;
-        if (!err) queryClient.invalidateQueries({ queryKey: ["groups"] });
+        if (err) throw err;
+        queryClient.invalidateQueries({ queryKey: ["groups"] });
       } 
       
-      // 3. RESTORE LENT MONEY
       else if (item.type === "lent_money") {
         const { error: err } = await supabase.from("lent_money").insert({
           user_id: userId,
@@ -254,47 +290,43 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
           due_date: item.due_date,
           status: item.status || "pending",
         });
-        error = err;
-        if (!err) queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+        if (err) throw err;
+        queryClient.invalidateQueries({ queryKey: ["lent-money"] });
       } 
       
-      // 4. RESTORE SPLIT BILL
       else if (item.type === "split_bill") {
-        // Transaction-like behavior via sequential awaits
         const { data: bill, error: billError } = await supabase
           .from("split_bills")
-          .insert({
-            user_id: userId,
-            title: item.title,
-            total_amount: item.total_amount
-          })
+          .insert({ user_id: userId, title: item.title, total_amount: item.total_amount })
           .select()
           .single();
 
         if (billError) throw billError;
 
-        if (bill && item.participants && item.participants.length > 0) {
-           const { error: partError } = await supabase
+        if (bill && item.participants?.length) {
+          const { error: partError } = await supabase
             .from("split_bill_participants")
             .insert(
-              item.participants.map(p => ({
+              item.participants.map((p) => ({
                 split_bill_id: bill.id,
                 name: p.name,
                 amount: p.amount,
-                is_paid: p.is_paid
+                is_paid: p.is_paid,
               }))
             );
-            if (partError) throw partError;
+          if (partError) throw partError;
         }
         queryClient.invalidateQueries({ queryKey: ["split-bills"] });
       }
 
-      if (error) throw error;
-
-      // Success: Remove from storage
+      // Success
       removePermanently([{ id: item.id, type: item.type }]);
       refreshList();
-      toast({ title: "Restored successfully", description: "Item has been moved back to your active list." });
+      toast({ 
+        title: "Restored successfully", 
+        description: "Item moved back to active list.",
+        variant: "default" 
+      });
 
     } catch (err: any) {
       console.error("Restore failed:", err);
@@ -308,76 +340,92 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
     }
   };
 
-  /* ---------------- UI RENDER ---------------- */
+  /* ---------------- UI HELPERS ---------------- */
 
   const hasItems = deletedItems.length > 0;
   const isAllSelected = hasItems && selectedIds.size === deletedItems.length;
 
   return (
     <Card className="w-full h-full flex flex-col shadow-sm border-dashed">
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-center">
+      <CardHeader className="pb-3 space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-lg">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               <Clock className="w-5 h-5 text-muted-foreground" />
-              Bin / History
+              History & Bin
             </CardTitle>
-            <CardDescription>
-              Items are stored locally. Restoring adds them back to the database.
+            <CardDescription className="text-xs md:text-sm">
+              Manage locally stored deleted items.
             </CardDescription>
           </div>
 
           {hasItems && (
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={toggleAll}>
+            <div className="flex w-full sm:w-auto gap-2">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={toggleAll}
+                className="flex-1 sm:flex-none"
+              >
                 {isAllSelected ? <CheckSquare className="w-4 h-4 mr-1" /> : <Square className="w-4 h-4 mr-1" />}
-                {isAllSelected ? "Deselect All" : "Select All"}
+                <span className="sr-only sm:not-sr-only">{isAllSelected ? "Deselect" : "Select All"}</span>
+                <span className="sm:hidden">{isAllSelected ? "None" : "All"}</span>
               </Button>
 
-              {selectedIds.size > 0 && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="destructive">
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Delete ({selectedIds.size})
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete permanently?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. These items will be removed from your local history forever.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive hover:bg-destructive/90">
-                        Delete Forever
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    disabled={selectedIds.size === 0}
+                    className="flex-1 sm:flex-none"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete {selectedIds.size > 0 && `(${selectedIds.size})`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. These items will be permanently removed from your local history.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => deleteMutation.mutate()} 
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      Delete Forever
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 p-0 overflow-hidden">
-        <ScrollArea className="h-[500px] px-6">
+      <CardContent className="flex-1 p-0 overflow-hidden relative">
+        <ScrollArea className="h-[60vh] sm:h-[500px] px-4 md:px-6">
           {!hasItems ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+            <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-muted-foreground gap-3">
               <div className="bg-muted p-4 rounded-full">
-                <Trash2 className="w-8 h-8 opacity-50" />
+                <Trash2 className="w-8 h-8 opacity-40" />
               </div>
-              <p>Your trash bin is empty.</p>
+              <div className="text-center">
+                <p className="font-medium">No deleted items</p>
+                <p className="text-sm opacity-70">Items deleted recently will appear here.</p>
+              </div>
             </div>
           ) : (
-            <div className="space-y-1 py-2">
+            <div className="space-y-2 py-2 pb-6">
               {deletedItems.map((item) => (
                 <DeletedItemRow
-                  key={`${item.type}|${item.id}`}
+                  key={getKey(item)}
                   item={item}
+                  currencyCode={currencyCode}
                   isSelected={selectedIds.has(getKey(item))}
                   isRestoring={restoringId === item.id}
                   onToggle={() => toggleSelect(getKey(item))}
@@ -396,92 +444,124 @@ export const RecentlyDeleted = ({ userId }: { userId: string }) => {
 
 const DeletedItemRow = ({
   item,
+  currencyCode,
   isSelected,
   isRestoring,
   onToggle,
   onRestore,
 }: {
   item: DeletedItem;
+  currencyCode: string;
   isSelected: boolean;
   isRestoring: boolean;
   onToggle: () => void;
   onRestore: () => void;
 }) => {
-  const getItemDetails = (item: DeletedItem) => {
+  const getMetadata = (item: DeletedItem) => {
     switch (item.type) {
       case "expense":
         return {
           title: item.description,
           subtitle: `Expense • ${new Date(item.date).toLocaleDateString()}`,
           amount: item.amount,
-          icon: item.categories?.icon || "💸",
+          icon: <Wallet className="w-4 h-4" />,
+          color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
         };
       case "lent_money":
         return {
           title: item.person_name,
           subtitle: `Lent • ${item.description || "No desc"}`,
           amount: item.amount,
-          icon: "🤝",
+          icon: <HandCoins className="w-4 h-4" />,
+          color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
         };
       case "split_bill":
         return {
           title: item.title,
           subtitle: "Split Bill",
           amount: item.total_amount,
-          icon: "🧾",
+          icon: <Receipt className="w-4 h-4" />,
+          color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
         };
       case "group":
         return {
           title: item.name,
-          subtitle: `Group • ${item.description || "No desc"}`,
+          subtitle: "Group",
           amount: null,
-          icon: "👥",
+          icon: <Users className="w-4 h-4" />,
+          color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
         };
       default:
-        return { title: "Unknown", subtitle: "Unknown", amount: 0, icon: "?" };
+        return { title: "Item", subtitle: "", amount: 0, icon: <AlertCircle />, color: "bg-gray-100" };
     }
   };
 
-  const { title, subtitle, amount, icon } = getItemDetails(item);
+  const { title, subtitle, amount, icon, color } = getMetadata(item);
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${isSelected ? "bg-accent/50 border-primary/50" : "hover:bg-muted/50"}`}>
-      <Checkbox checked={isSelected} onCheckedChange={onToggle} />
+    <div 
+      className={cn(
+        "group flex items-center gap-3 p-3 rounded-lg border transition-all duration-200",
+        isSelected 
+          ? "bg-primary/5 border-primary/50 shadow-sm" 
+          : "hover:bg-muted/60 bg-card border-border/60"
+      )}
+    >
+      <Checkbox 
+        checked={isSelected} 
+        onCheckedChange={onToggle}
+        className="mt-0.5"
+        aria-label={`Select ${title}`}
+      />
       
-      <div className="w-8 h-8 flex items-center justify-center bg-muted rounded text-lg">
-        {icon}
+      <div className={cn("w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-md", color)}>
+        {item.type === "expense" && item.categories?.icon ? (
+          <span className="text-lg leading-none">{item.categories.icon}</span>
+        ) : (
+          icon
+        )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{title}</p>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 capitalize">
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <p className="font-medium text-sm truncate leading-tight">{title}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <Badge 
+            variant="secondary" 
+            className="text-[10px] px-1.5 py-0 h-4 capitalize font-normal tracking-wide"
+          >
             {item.type.replace("_", " ")}
           </Badge>
-          <span className="text-xs text-muted-foreground truncate">{subtitle}</span>
+          <span className="text-xs text-muted-foreground truncate hidden sm:inline-block">
+            {subtitle}
+          </span>
         </div>
       </div>
 
-      {amount !== null && (
-        <div className="text-sm font-semibold whitespace-nowrap">
-           {amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-        </div>
-      )}
-
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-8 w-8 hover:bg-green-100 hover:text-green-700 dark:hover:bg-green-900/30"
-        onClick={onRestore}
-        disabled={isRestoring}
-        title="Restore item"
-      >
-        {isRestoring ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <RotateCcw className="w-4 h-4" />
+      <div className="flex items-center gap-3 sm:gap-4">
+        {amount !== null && (
+          <div className="text-sm font-semibold whitespace-nowrap tabular-nums">
+             {formatCurrency(amount, currencyCode)}
+          </div>
         )}
-      </Button>
+
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 dark:hover:text-green-400 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent row click if we add row-click logic later
+            onRestore();
+          }}
+          disabled={isRestoring}
+          aria-label={`Restore ${title}`}
+        >
+          {isRestoring ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RotateCcw className="w-4 h-4" />
+          )}
+        </Button>
+      </div>
     </div>
   );
 };

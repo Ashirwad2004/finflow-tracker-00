@@ -23,7 +23,7 @@ import {
   FileText,
   Loader2 
 } from "lucide-react";
-import { cn } from "@/lib/utils"; // Assuming you have a cn utility, typical in shadcn
+import { cn } from "@/lib/utils"; 
 
 const lentMoneySchema = z.object({
   amount: z.string().min(1, "Amount is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive number"),
@@ -125,41 +125,45 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] w-[95%] rounded-2xl p-0 gap-0 overflow-hidden border shadow-xl bg-background/95 backdrop-blur-xl">
+      {/* 1. max-h-[90vh]: Prevents dialog from being taller than the screen.
+         2. overflow-y-auto: Allows scrolling inside the dialog on small screens if keyboard pops up.
+         3. w-[95%] sm:w-full: Takes up almost full width on mobile, but respects max-width on desktop.
+      */}
+      <DialogContent className="sm:max-w-[480px] w-[95%] max-h-[90vh] overflow-y-auto rounded-2xl p-0 gap-0 border shadow-xl bg-background/95 backdrop-blur-xl">
         
-        {/* Header Section */}
-        <div className="bg-muted/30 p-6 pb-8 border-b">
+        {/* Header Section - Reduced padding on mobile */}
+        <div className="bg-muted/30 p-5 sm:p-6 pb-6 sm:pb-8 border-b">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-primary">
-              <div className="p-2 bg-primary/10 rounded-full">
-                <TrendingUp className="w-5 h-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold text-primary">
+              <div className="p-1.5 sm:p-2 bg-primary/10 rounded-full">
+                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
               </div>
               Record Lent Money
             </DialogTitle>
-            <DialogDescription className="text-base pt-1">
+            <DialogDescription className="text-sm sm:text-base pt-1">
               Who are you lending money to today?
             </DialogDescription>
           </DialogHeader>
 
           {/* Hero Amount Input */}
-          <div className="mt-8 flex justify-center">
-            <div className="relative w-full max-w-[280px]">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold text-muted-foreground/50">
+          <div className="mt-6 sm:mt-8 flex justify-center">
+            <div className="relative w-full max-w-[240px] sm:max-w-[280px]">
+              <span className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 text-2xl sm:text-3xl font-bold text-muted-foreground/50">
                 ₹
               </span>
               <Input
                 id="amount"
                 type="number"
                 step="0.01"
-                placeholder="0.00"
+                placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="h-20 pl-10 text-center text-4xl font-bold border-0 bg-transparent shadow-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
+                // Responsive font size: text-3xl on mobile, text-4xl on desktop
+                className="h-16 sm:h-20 pl-8 sm:pl-10 text-center text-3xl sm:text-4xl font-bold border-0 bg-transparent shadow-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
                 autoFocus
                 required
               />
-              {/* Underline animation or visual indicator */}
-              <div className="h-1 w-full bg-muted rounded-full mt-2 overflow-hidden">
+              <div className="h-1 w-full bg-muted rounded-full mt-1 sm:mt-2 overflow-hidden">
                 <div 
                   className="h-full bg-primary transition-all duration-300" 
                   style={{ width: amount ? "100%" : "0%" }}
@@ -167,16 +171,17 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
               </div>
             </div>
           </div>
-          <p className="text-center text-sm text-muted-foreground mt-2">Enter amount</p>
+          <p className="text-center text-xs sm:text-sm text-muted-foreground mt-2">Enter amount</p>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        {/* Form Body - Responsive padding and stacking */}
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 sm:space-y-5">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Stacks on mobile (grid-cols-1), side-by-side on tablet+ (grid-cols-2) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             {/* Person Input */}
-            <div className="space-y-2">
-              <Label htmlFor="personName" className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="personName" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
                 Lending To
               </Label>
               <div className="relative group">
@@ -186,16 +191,16 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
                   placeholder="e.g. John Doe"
                   value={personName}
                   onChange={(e) => setPersonName(e.target.value)}
-                  className="pl-10 h-11 bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg"
+                  className="pl-10 h-10 sm:h-11 bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg text-sm sm:text-base"
                   required
                 />
               </div>
             </div>
 
             {/* Date Input */}
-            <div className="space-y-2">
-              <Label htmlFor="dueDate" className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-                Due Date (Optional)
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="dueDate" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                Due Date <span className="text-muted-foreground/50 lowercase">(optional)</span>
               </Label>
               <div className="relative group">
                 <CalendarIcon className="absolute left-3 top-3 w-4 h-4 text-muted-foreground transition-colors group-hover:text-primary group-focus-within:text-primary" />
@@ -204,15 +209,15 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="pl-10 h-11 bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg"
+                  className="pl-10 h-10 sm:h-11 bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg text-sm sm:text-base"
                 />
               </div>
             </div>
           </div>
 
           {/* Description Input */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="description" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
               Description
             </Label>
             <div className="relative group">
@@ -222,26 +227,26 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
                 placeholder="What is this for? (e.g. Dinner, Rent)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="pl-10 min-h-[80px] resize-none bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg py-2.5"
+                className="pl-10 min-h-[80px] sm:min-h-[90px] resize-none bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg py-2.5 text-sm sm:text-base"
                 required
               />
             </div>
           </div>
 
-          {/* Footer Actions */}
-          <DialogFooter className="gap-3 sm:gap-2 pt-4">
+          {/* Footer Actions - Stack buttons on very small screens if needed, otherwise flex */}
+          <DialogFooter className="gap-3 sm:gap-2 pt-2 sm:pt-4 flex-col sm:flex-row">
             <Button 
               type="button" 
               variant="ghost" 
               onClick={handleClose}
-              className="w-full sm:w-auto hover:bg-muted"
+              className="w-full sm:w-auto hover:bg-muted order-2 sm:order-1"
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
               disabled={loading} 
-              className="w-full sm:w-auto min-w-[140px] rounded-lg shadow-lg shadow-primary/20"
+              className="w-full sm:w-auto min-w-[140px] rounded-lg shadow-lg shadow-primary/20 order-1 sm:order-2"
             >
               {loading ? (
                 <>

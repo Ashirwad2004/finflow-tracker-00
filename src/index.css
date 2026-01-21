@@ -2,169 +2,189 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
+    /* Base Colors - Clean & Professional */
     --background: 230 65% 99%;
-    --foreground: 231 34% 14%;
+    --foreground: 222 47% 11%; /* Darker, higher contrast text */
 
     --card: 0 0% 100%;
-    --card-foreground: 231 34% 14%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 231 34% 14%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 278 88% 63%;
-    --primary-foreground: 0 0% 100%;
+    /* Brand Color - Vivid Purple */
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 196 84% 94%;
-    --secondary-foreground: 215 27% 22%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11.2%;
 
-    --muted: 220 24% 95%;
-    --muted-foreground: 225 20% 42%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 36 100% 64%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11.2%;
 
-    --destructive: 354 80% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-    --success: 148 62% 42%;
-    --success-foreground: 0 0% 100%;
-
-    --border: 228 30% 88%;
-    --input: 228 30% 88%;
-    --ring: 278 88% 63%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%; /* Matches Primary */
 
     --radius: 0.75rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(282 88% 63%) 0%, hsl(207 92% 61%) 50%, hsl(36 100% 64%) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(206 86% 95%) 50%, hsl(187 100% 94%) 100%);
-    --shadow-elevated: 0 10px 35px -12px hsl(210 90% 40% / 0.35);
-    --shadow-card: 0 6px 20px -10px hsl(230 34% 20% / 0.16);
-
-    --sidebar-background: 228 50% 98%;
-
-    --sidebar-foreground: 231 34% 14%;
-
-    --sidebar-primary: 278 88% 63%;
-
-    --sidebar-primary-foreground: 0 0% 100%;
-
-    --sidebar-accent: 196 84% 94%;
-
-    --sidebar-accent-foreground: 215 27% 22%;
-
-    --sidebar-border: 228 30% 88%;
-
-    --sidebar-ring: 282 88% 63%;
+    /* Modern Gradients using variables */
+    --gradient-primary: linear-gradient(135deg, hsl(262 83% 58%) 0%, hsl(290 80% 60%) 100%);
+    --gradient-glass: linear-gradient(145deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 100%);
+    
+    /* Shadows - Softer & multilayered */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   }
 
   .dark {
-    --background: 237 24% 10%;
-    --foreground: 216 33% 96%;
+    /* Dark Mode - Deep & Rich (Not just grey) */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
 
-    --card: 240 22% 16%;
-    --card-foreground: 216 33% 96%;
+    --card: 222 47% 11%; /* Seamless cards */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 240 22% 16%;
-    --popover-foreground: 216 33% 96%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 278 88% 63%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 263 70% 50%; /* Slightly adjusted for dark mode contrast */
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 230 24% 18%;
-    --secondary-foreground: 216 33% 96%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 228 18% 22%;
-    --muted-foreground: 223 15% 70%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 36 100% 64%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 354 70% 50%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
 
-    --success: 148 62% 40%;
-    --success-foreground: 0 0% 100%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 263 70% 50%;
 
-    --border: 232 18% 24%;
-    --input: 232 18% 24%;
-    --ring: 278 88% 63%;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(282 88% 63%) 0%, hsl(210 93% 60%) 50%, hsl(229, 64%, 26%) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(240 22% 16%) 0%, hsl(240 30% 20%) 50%, hsl(195 60% 22%) 100%);
-    --shadow-elevated: 0 12px 40px -18px hsl(210 90% 60% / 0.45);
-    --shadow-card: 0 8px 24px -14px hsl(0 0% 0% / 0.55);
-    --sidebar-background: 237 24% 10%;
-    --sidebar-foreground: 216 33% 96%;
-    --sidebar-primary: 278 88% 63%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 230 24% 18%;
-    --sidebar-accent-foreground: 216 33% 96%;
-    --sidebar-border: 232 18% 24%;
-    --sidebar-ring: 282 88% 63%;
+    --gradient-glass: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.4) 100%);
   }
 }
 
 @layer base {
   * {
     @apply border-border;
-    transition: background-color 220ms ease, color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  }
+
+  /* Improved Typography Rendering */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
     @apply bg-background text-foreground;
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(circle at 15% 20%, hsla(282, 62%, 23%, 0.18), transparent 28%),
-      radial-gradient(circle at 85% 0%, hsla(0, 0%, 0%, 0.2), transparent 26%),
-      radial-gradient(circle at 20% 80%, hsla(256, 58%, 17%, 0.18), transparent 32%);
-    background-attachment: fixed;
+    position: relative;
+    min-height: 100vh;
+    overflow-x: hidden;
   }
-}
 
-/* Button glow animations */
-@keyframes button-glow {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(59, 130, 246, 0.2), 0 0 10px rgba(59, 130, 246, 0.1), 0 0 15px rgba(59, 130, 246, 0.05);
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
   }
-  50% {
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.2), 0 0 30px rgba(59, 130, 246, 0.1);
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
-}
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50 transition-colors;
+  }
 
-@keyframes button-glow-destructive {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), 0 0 10px rgba(239, 68, 68, 0.1), 0 0 15px rgba(239, 68, 68, 0.05);
+  /* Selection Color */
+  ::selection {
+    @apply bg-primary/20 text-primary;
   }
-  50% {
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4), 0 0 20px rgba(239, 68, 68, 0.2), 0 0 30px rgba(239, 68, 68, 0.1);
-  }
-}
-
-@keyframes button-glow-outline {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(156, 163, 175, 0.15), 0 0 10px rgba(156, 163, 175, 0.08), 0 0 15px rgba(156, 163, 175, 0.03);
-  }
-  50% {
-    box-shadow: 0 0 8px rgba(156, 163, 175, 0.25), 0 0 16px rgba(156, 163, 175, 0.15), 0 0 24px rgba(156, 163, 175, 0.08);
+  
+  /* Modern Focus States */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
 @layer utilities {
-  .button-glow {
-    animation: button-glow 2s ease-in-out infinite;
+  /* Modern Background Glow 
+    Use this class on a div behind your content or on the body 
+  */
+  .bg-mesh {
+    background-color: hsla(var(--background));
+    background-image: 
+        radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+        radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+  }
+  
+  .dark .bg-mesh {
+     background-image: 
+        radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+        radial-gradient(at 50% 100%, hsla(225,39%,25%,1) 0, transparent 50%), 
+        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
   }
 
-  .button-glow-destructive {
-    animation: button-glow-destructive 2s ease-in-out infinite;
+  /* Glassmorphism Utility */
+  .glass {
+    @apply bg-background/60 backdrop-blur-lg border border-white/10 shadow-lg;
+  }
+  
+  .dark .glass {
+    @apply bg-background/60 border-white/5;
   }
 
-  .button-glow-outline {
-    animation: button-glow-outline 2s ease-in-out infinite;
+  /* Smooth Transitions Utility (Apply only where needed) */
+  .animate-fast {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  /* Modern Button Glow - Subtle & Performance Optimized */
+  .glow-hover {
+    @apply relative overflow-hidden transition-all duration-300;
+  }
+  
+  .glow-hover::after {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: radial-gradient(circle at center, hsl(var(--primary) / 0.15) 0%, transparent 70%);
+  }
+  
+  .glow-hover:hover::after {
+    @apply opacity-100;
   }
 }
+
+/* Ambient Background Animation 
+   Better performance than fixed background attachment
+*/
+.ambient-bg::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background-image: 
+    radial-gradient(circle at 15% 50%, hsl(var(--primary) / 0.08), transparent 25%), 
+    radial-gradient(circle at 85% 30%, hsl(220 80% 50% / 0.08), transparent 25%);
+  filter: blur(40px);
+  pointer-events: none;
+}   
