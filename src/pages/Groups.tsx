@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Users, ArrowRight, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { AppLayout } from "@/components/AppLayout";
 
 // 1. LIST OF EMOJIS TO ASSIGN
 const AVATAR_EMOJIS = [
