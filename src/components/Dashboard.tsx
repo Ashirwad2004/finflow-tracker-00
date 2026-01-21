@@ -1,33 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock, Calculator, UserPlus } from "lucide-react";
-import { ExpenseList } from "@/components/ExpenseList";
-import { ExpenseChart } from "@/components/ExpenseChart";
+import { LogOut, Settings, Calculator } from "lucide-react";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { LentMoneyDialog } from "@/components/LentMoneyDialog";
-import { BudgetSection } from "@/components/BudgetSection";
-import { RecentlyDeleted } from "@/components/RecentlyDeleted";
-import { LentMoneySection } from "@/components/LentMoneySection";
 import { Calculator as CalculatorComponent } from "@/components/calculator";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
+import { FloatingActionMenu, type MenuOption } from "@/components/FloatingActionMenu";
+import { BalanceRing } from "@/components/BalanceRing";
+import { ContentSection } from "@/components/ContentSection";
+import { MinimalExpenseList } from "@/components/MinimalExpenseList";
+import { MinimalLentSection } from "@/components/MinimalLentSection";
+import { motion } from "framer-motion";
 
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
-  const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [activeMenuOption, setActiveMenuOption] = useState<MenuOption | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-
-  console.log("Dashboard user:", user);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -37,30 +35,20 @@ export const Dashboard = () => {
         .select("*")
         .eq("user_id", user?.id)
         .single();
-      
       if (error) throw error;
       return data;
     },
     enabled: !!user,
   });
 
-  const { data: expenses = [], isLoading } = useQuery({
+  const { data: expenses = [], isLoading: expensesLoading } = useQuery({
     queryKey: ["expenses", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("expenses")
-        .select(`
-          *,
-          categories (
-            id,
-            name,
-            color,
-            icon
-          )
-        `)
+        .select(`*, categories (id, name, color, icon)`)
         .eq("user_id", user?.id)
         .order("date", { ascending: false });
-      
       if (error) throw error;
       return data;
     },
@@ -74,63 +62,73 @@ export const Dashboard = () => {
         .from("categories")
         .select("*")
         .order("name");
-      
       if (error) throw error;
       return data;
     },
   });
 
+  // Get current month's budget
+  const monthString = (() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split("T")[0];
+  })();
+
+  const { data: budget } = useQuery({
+    queryKey: ["budget", user?.id, monthString],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budgets")
+        .select("*")
+        .eq("user_id", user?.id)
+        .eq("month", monthString)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
-      // Find the expense to store in recently deleted
       const expenseToDelete = expenses.find(exp => exp.id === id);
-      
-      // Delete from database
       const { error } = await supabase
         .from("expenses")
         .delete()
         .eq("id", id);
-      
       if (error) throw error;
 
-      // Store in localStorage for recently deleted (if found)
       if (expenseToDelete && user?.id) {
         const recentlyDeletedKey = `recently_deleted_${user.id}`;
         const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
-        
-        const deletedItem = {
-          ...expenseToDelete,
-          deleted_at: new Date().toISOString()
-        };
-        
-        existingDeleted.push(deletedItem);
+        existingDeleted.push({ ...expenseToDelete, deleted_at: new Date().toISOString() });
         localStorage.setItem(recentlyDeletedKey, JSON.stringify(existingDeleted));
-        
-        console.log('Dashboard: Stored deleted expense in localStorage', { key: recentlyDeletedKey, deletedItem, totalItems: existingDeleted.length });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["deleted-expenses"] });
       toast({
-        title: "Expense moved to recently deleted",
-        description: "The expense has been moved to recently deleted. It will be permanently deleted after 30 days.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete expense. Please try again.",
-        variant: "destructive",
+        title: "Expense deleted",
+        description: "The expense has been moved to recently deleted.",
       });
     },
   });
+
+  const handleMenuSelect = (option: MenuOption) => {
+    if (option === "add") {
+      setIsAddDialogOpen(true);
+    } else if (option === "groups") {
+      navigate("/groups");
+    } else {
+      setActiveMenuOption(option);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
   };
 
-  const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
+  // Calculate this month's expenses
   const thisMonthExpenses = expenses
     .filter(exp => {
       const expDate = new Date(exp.date);
@@ -139,148 +137,137 @@ export const Dashboard = () => {
     })
     .reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
 
+  const budgetLimit = budget?.amount ?? 0;
+
+  const renderContent = () => {
+    switch (activeMenuOption) {
+      case "transactions":
+        return (
+          <MinimalExpenseList
+            expenses={expenses}
+            isLoading={expensesLoading}
+            onDelete={(id) => deleteExpense.mutate(id)}
+          />
+        );
+      case "lent":
+        return <MinimalLentSection userId={user?.id || ""} />;
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card shadow-sm">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      {/* Ambient background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl" />
+      </div>
+
+      {/* Header - Minimal */}
+      <header className="relative z-10 border-b border-slate-800/50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
+          <div className="flex items-center justify-between">
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                <span className="text-xl font-bold text-white">₹</span>
               </div>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">ExpenseTracker</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {profile?.display_name || "User"}!</p>
+              <div>
+                <h1 className="text-lg font-semibold text-white">ExpenseTracker</h1>
+                <p className="text-xs text-slate-500">
+                  {profile?.display_name ? `Hey, ${profile.display_name}` : "Welcome back"}
+                </p>
               </div>
-            </div>
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate("/groups")}
-                className="p-2 sm:p-3"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span className="hidden sm:inline ml-2">Groups</span>
-              </Button>
+            </motion.div>
+
+            <div className="flex items-center gap-2">
               <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="p-2 sm:p-3">
-                    <Calculator className="w-4 h-4" />
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white">
+                    <Calculator className="w-5 h-5" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="bg-slate-900 border-slate-700">
                   <DialogHeader>
-                    <DialogTitle>Calculator</DialogTitle>
+                    <DialogTitle className="text-slate-100">Calculator</DialogTitle>
                   </DialogHeader>
                   <CalculatorComponent />
                 </DialogContent>
               </Dialog>
               <ThemeToggle />
-              <Button variant="outline" onClick={handleSignOut} size="sm" className="hidden sm:flex">
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
-              <Button variant="outline" onClick={handleSignOut} size="sm" className="sm:hidden p-2">
-                <LogOut className="w-4 h-4" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSignOut}
+                className="text-slate-400 hover:text-white"
+              >
+                <LogOut className="w-5 h-5" />
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-fade-in">
-          <Card className="shadow-card bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <TrendingDown className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₹{totalExpenses.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">All time</p>
-            </CardContent>
-          </Card>
+      {/* Main Content */}
+      <main className="relative z-10 container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          {/* Balance Ring - Center Stage */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex justify-center mb-12"
+          >
+            <BalanceRing
+              balance={thisMonthExpenses}
+              budgetLimit={budgetLimit}
+            />
+          </motion.div>
 
-          <Card className="shadow-card bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">This Month</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₹{thisMonthExpenses.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Current month spending</p>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-card bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{expenses.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Total recorded</p>
-            </CardContent>
-          </Card>
-
-          <BudgetSection userId={user?.id || ""} thisMonthExpenses={thisMonthExpenses} />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-              <h2 className="text-xl font-semibold">
-                {showRecentlyDeleted ? "Recently Deleted Expenses" : "Recent Expenses"}
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => setShowRecentlyDeleted(!showRecentlyDeleted)}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Clock className="w-4 h-4 mr-2" />
-                  {showRecentlyDeleted ? "Show Expenses" : "Recently Deleted"}
-                </Button>
-                {!showRecentlyDeleted && (
-                  <>
-                    <Button onClick={() => navigate("/split-bills")} size="sm" variant="outline">
-                      <Users className="w-4 h-4 mr-2" />
-                      Split Bills
-                    </Button>
-                    <Button onClick={() => setIsLentMoneyDialogOpen(true)} size="sm" variant="outline">
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      Lent Money
-                    </Button>
-                    <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Expense
-                    </Button>
-                  </>
-                )}
-              </div>
+          {/* Quick Stats */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="grid grid-cols-2 gap-4 mb-8"
+          >
+            <div className="p-4 rounded-2xl bg-slate-800/30 border border-slate-700/30">
+              <p className="text-xs text-slate-500 uppercase tracking-wider">Total Transactions</p>
+              <p className="text-2xl font-bold text-white mt-1">{expenses.length}</p>
             </div>
-            {showRecentlyDeleted ? (
-              <RecentlyDeleted userId={user?.id || ""} />
-            ) : (
-              <ExpenseList
-                expenses={expenses}
-                isLoading={isLoading}
-                onDelete={(id) => deleteExpense.mutate(id)}
-              />
-            )}
-          </div>
-
-          <div className="space-y-6 animate-fade-in" style={{ animationDelay: "0.2s" }}>
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Spending by Category</h2>
-              <ExpenseChart expenses={expenses} />
+            <div className="p-4 rounded-2xl bg-slate-800/30 border border-slate-700/30">
+              <p className="text-xs text-slate-500 uppercase tracking-wider">Monthly Limit</p>
+              <p className="text-2xl font-bold text-white mt-1">
+                {budgetLimit > 0 ? `₹${budgetLimit.toLocaleString("en-IN")}` : "Not Set"}
+              </p>
             </div>
-            <LentMoneySection userId={user?.id || ""} />
-          </div>
+          </motion.div>
+
+          {/* Dynamic Content Area */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-slate-900/50 rounded-3xl border border-slate-800/50 p-6 backdrop-blur-sm"
+          >
+            <ContentSection activeOption={activeMenuOption}>
+              {renderContent()}
+            </ContentSection>
+          </motion.div>
         </div>
       </main>
 
+      {/* Floating Action Menu */}
+      <FloatingActionMenu
+        onSelect={handleMenuSelect}
+        activeOption={activeMenuOption}
+      />
+
+      {/* Dialogs */}
       <AddExpenseDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
