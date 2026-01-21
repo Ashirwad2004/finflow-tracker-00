@@ -211,15 +211,15 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
 
             {/* Progress Bar */}
             <div className="space-y-2">
-            <div className="relative">
               <Progress 
                 value={Math.min(percentage, 100)} 
-                className={cn("h-2.5 bg-secondary [&>div]:transition-all", 
-                  isOverBudget && "[&>div]:bg-destructive",
-                  percentage >= 85 && !isOverBudget && "[&>div]:bg-orange-500"
-                )}
+                className="h-2.5 bg-secondary" 
+                // We override the internal indicator color via CSS class injection or inline style if needed, 
+                // but shadcn's progress usually takes 'bg-primary'. 
+                // To force color: create a wrapper or use utility classes on the indicator if exposed.
+                // Assuming standard Shadcn Progress structure:
+                indicatorClassName={progressColor}
               />
-            </div>
               <div className="flex justify-between items-center text-xs">
                 <span className={cn("font-medium", statusColor)}>
                   {percentage.toFixed(0)}% used
