@@ -2,16 +2,16 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Trash2, Users, Check, X, FileDown } from "lucide-react"; // Added FileDown icon
+import { Plus, Trash2, Users, Check, X, FileDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import jsPDF from "jspdf"; // Import jsPDF
-import autoTable from "jspdf-autotable"; // Import autoTable
+import { AppLayout } from "@/components/AppLayout";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Participant {
   name: string;
@@ -20,7 +20,6 @@ interface Participant {
 
 const SplitBills = () => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -222,11 +221,7 @@ const SplitBills = () => {
     },
   });
 
-  // Redirect to auth if not logged in (after all hooks)
-  if (!loading && !user) {
-    navigate("/auth");
-    return null;
-  }
+  // Redirect handled by ProtectedRoute wrapper
 
   // Show loading while checking auth (after all hooks)
   if (loading) {
@@ -267,25 +262,15 @@ const SplitBills = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Users className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Split Bills</h1>
-              <p className="text-sm text-muted-foreground">Split expenses with friends</p>
-            </div>
+    <AppLayout>
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Split Bills</h1>
+            <p className="text-muted-foreground">Divide expenses among friends</p>
           </div>
         </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-xl font-semibold">Your Split Bills</h2>
           
@@ -438,8 +423,8 @@ const SplitBills = () => {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
