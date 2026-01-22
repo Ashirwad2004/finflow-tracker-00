@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppLayout } from "@/components/AppLayout";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ const AllExpenses = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
-  const { data: expenses = [], isLoading } = useQuery({
+  const { data: expenses = [], isLoading, refetch } = useQuery({
     queryKey: ["expenses", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -45,6 +46,14 @@ const AllExpenses = () => {
     },
     enabled: !!user,
   });
+
+  const handleRefresh = async () => {
+    await refetch();
+    toast({
+      title: "Refreshed",
+      description: "Expenses updated successfully.",
+    });
+  };
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -123,8 +132,9 @@ const AllExpenses = () => {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+      <PullToRefresh onRefresh={handleRefresh}>
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+          {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">All Expenses</h1>
@@ -270,7 +280,8 @@ const AllExpenses = () => {
             )}
           </CardContent>
         </Card>
-      </div>
+        </div>
+      </PullToRefresh>
 
       <AddExpenseDialog
         open={isAddDialogOpen}
