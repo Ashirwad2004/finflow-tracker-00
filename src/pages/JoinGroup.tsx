@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Link2, Copy } from "lucide-react";
+import { Users, Copy, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const JoinGroup = () => {
@@ -26,14 +26,10 @@ const JoinGroup = () => {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
 
-  /* ---------------- INVITE LINK ---------------- */
-
   const inviteLink = useMemo(() => {
     if (!inviteCode) return "";
     return `${window.location.origin}/join/${inviteCode}`;
   }, [inviteCode]);
-
-  /* ---------------- FETCH GROUP ---------------- */
 
   useEffect(() => {
     const fetchGroup = async () => {
@@ -62,8 +58,6 @@ const JoinGroup = () => {
     fetchGroup();
   }, [inviteCode]);
 
-  /* ---------------- CHECK MEMBERSHIP ---------------- */
-
   useEffect(() => {
     const checkMembership = async () => {
       if (!user || !group) return;
@@ -86,8 +80,6 @@ const JoinGroup = () => {
 
     checkMembership();
   }, [user, group, navigate]);
-
-  /* ---------------- JOIN GROUP ---------------- */
 
   const handleJoin = async () => {
     if (!group) return;
@@ -134,8 +126,6 @@ const JoinGroup = () => {
     }
   };
 
-  /* ---------------- COPY LINK ---------------- */
-
   const copyInviteLink = async () => {
     try {
       await navigator.clipboard.writeText(inviteLink);
@@ -152,11 +142,9 @@ const JoinGroup = () => {
     }
   };
 
-  /* ---------------- LOADING ---------------- */
-
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-4">
             <Skeleton className="w-16 h-16 rounded-full mx-auto" />
@@ -172,17 +160,15 @@ const JoinGroup = () => {
     );
   }
 
-  /* ---------------- ERROR ---------------- */
-
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-6">
-            <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invalid Invite</h2>
-            <p className="text-muted-foreground mb-6">{error}</p>
-            <Button onClick={() => navigate("/groups")}>
+          <CardContent className="pt-6 px-4">
+            <Users className="w-12 h-12 sm:w-16 sm:h-16 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-lg sm:text-xl font-semibold mb-2">Invalid Invite</h2>
+            <p className="text-sm sm:text-base text-muted-foreground mb-6">{error}</p>
+            <Button onClick={() => navigate("/groups")} className="w-full sm:w-auto">
               Go to Groups
             </Button>
           </CardContent>
@@ -191,34 +177,41 @@ const JoinGroup = () => {
     );
   }
 
-  /* ---------------- UI ---------------- */
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <Users className="w-16 h-16 text-primary mx-auto mb-4" />
-          <CardTitle className="text-2xl">Join Group</CardTitle>
-          <p className="text-muted-foreground">
-            You've been invited to join <strong>{group.name}</strong>
+        <CardHeader className="text-center px-4 sm:px-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate(-1)} 
+            className="absolute left-4 top-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <Users className="w-12 h-12 sm:w-16 sm:h-16 text-primary mx-auto mb-4" />
+          <CardTitle className="text-xl sm:text-2xl">Join Group</CardTitle>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            You've been invited to join <strong className="text-foreground">{group.name}</strong>
           </p>
           {group.description && (
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-2 line-clamp-2">
               {group.description}
             </p>
           )}
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-4 sm:px-6">
           {/* INVITE LINK */}
           <div>
-            <Label>Invite Link</Label>
+            <Label className="text-sm">Invite Link</Label>
             <div className="flex gap-2 mt-1">
-              <Input value={inviteLink} readOnly />
+              <Input value={inviteLink} readOnly className="text-xs sm:text-sm" />
               <Button
                 variant="outline"
                 size="icon"
                 onClick={copyInviteLink}
+                className="flex-shrink-0"
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -226,8 +219,8 @@ const JoinGroup = () => {
           </div>
 
           {!user ? (
-            <div className="text-center">
-              <p className="text-muted-foreground mb-4">
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Please sign in to join this group
               </p>
               <Button
@@ -242,7 +235,7 @@ const JoinGroup = () => {
           ) : (
             <>
               <div>
-                <Label htmlFor="username">
+                <Label htmlFor="username" className="text-sm">
                   Choose your display name
                 </Label>
                 <Input
