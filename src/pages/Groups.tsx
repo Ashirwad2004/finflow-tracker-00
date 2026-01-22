@@ -23,9 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Users, ArrowRight, Sparkles } from "lucide-react";
+import { Plus, Users, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/AppLayout";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 const AVATAR_EMOJIS = [
   "🦊", "🐼", "🐸", "🦁", "🐯", "🐨", "🐷", "🦄", "🐙", "🐵",
@@ -121,6 +122,14 @@ const Groups = () => {
   const getGroupMembers = (groupId: string) => 
     allMembers.filter((m) => m.group_id === groupId);
 
+  const handleRefresh = async () => {
+    await refetch();
+    toast({
+      title: "Refreshed",
+      description: "Groups updated successfully.",
+    });
+  };
+
   const createGroup = async () => {
     if (!newGroupName.trim()) {
       toast({
@@ -200,11 +209,12 @@ const Groups = () => {
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-6xl">
-        {isLoading ? (
-          <GroupsSkeleton />
-        ) : (
-          <>
+      <PullToRefresh onRefresh={handleRefresh}>
+        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-6xl">
+          {isLoading ? (
+            <GroupsSkeleton />
+          ) : (
+            <>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Groups</h1>
@@ -335,10 +345,11 @@ const Groups = () => {
                   );
                 })}
               </div>
-            )}
-          </>
-        )}
-      </div>
+              )}
+            </>
+          )}
+        </div>
+      </PullToRefresh>
     </AppLayout>
   );
 };
