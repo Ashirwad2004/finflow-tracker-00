@@ -36,8 +36,10 @@ import {
   ChevronRight,
   IndianRupee,
   X,
+  Wand2 // Added Wand2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SmartExpenseInput } from "./SmartExpenseInput";
 
 /* ---------------- SCHEMAS & TYPES ---------------- */
 
@@ -81,7 +83,7 @@ export const AddExpenseDialog = ({
   userId,
 }: AddExpenseDialogProps) => {
   const queryClient = useQueryClient();
-  
+
   // State
   const [activeTab, setActiveTab] = useState(0);
   const [expenses, setExpenses] = useState<ExpenseRow[]>([
@@ -125,7 +127,7 @@ export const AddExpenseDialog = ({
 
   const removeRow = (e: React.MouseEvent, index: number) => {
     e.stopPropagation(); // Prevent tab switching when clicking delete
-    
+
     if (expenses.length === 1) {
       toast({ title: "Cannot delete last item", variant: "destructive" });
       return;
@@ -137,7 +139,7 @@ export const AddExpenseDialog = ({
 
     const newExpenses = expenses.filter((_, i) => i !== index);
     setExpenses(newExpenses);
-    
+
     // Adjust active tab if necessary
     if (activeTab >= index && activeTab > 0) {
       setActiveTab(activeTab - 1);
@@ -150,10 +152,33 @@ export const AddExpenseDialog = ({
     setExpenses(updated);
   };
 
+  // AI Logic
+  const handleSmartParse = (data: { amount: string; description: string; categoryName?: string }) => {
+    const updated = [...expenses];
+    const current = updated[activeTab];
+
+    if (data.amount) current.amount = data.amount;
+    if (data.description) current.description = data.description;
+
+    if (data.categoryName) {
+      const matchedCategory = categories.find(c =>
+        c.name.toLowerCase() === data.categoryName!.toLowerCase()
+      );
+      if (matchedCategory) {
+        current.categoryId = matchedCategory.id;
+        toast({
+          title: "AI Magic ✨",
+          description: `Auto-selected category: ${matchedCategory.name}`,
+        });
+      }
+    }
+    setExpenses(updated);
+  };
+
   const handleBillData = (data: any) => {
     const updated = [...expenses];
     const current = updated[activeTab];
-    
+
     if (data.merchant_name) current.description = data.merchant_name;
     if (data.total_amount) current.amount = data.total_amount.toString();
     if (data.bill_date) current.date = data.bill_date;
@@ -242,7 +267,7 @@ export const AddExpenseDialog = ({
   };
 
   /* ---------------- UI ---------------- */
-  
+
   const currentExpense = expenses[activeTab];
 
   return (
@@ -251,10 +276,10 @@ export const AddExpenseDialog = ({
         Desktop: fixed width/height, rounded corners, shadow 
       */}
       <DialogContent className="max-w-full w-full h-[100dvh] sm:h-[650px] sm:max-w-[900px] p-0 gap-0 flex flex-col sm:flex-row rounded-none sm:rounded-2xl border-0 sm:border shadow-none sm:shadow-2xl bg-background overflow-hidden">
-        
+
         {/* === LEFT SIDEBAR / TOP NAV === */}
         <div className="w-full sm:w-[280px] bg-muted/30 border-b sm:border-b-0 sm:border-r flex flex-col shrink-0">
-          
+
           {/* Header Area */}
           <div className="p-4 border-b bg-background/50 backdrop-blur flex justify-between items-start">
             <DialogHeader className="text-left space-y-1">
@@ -277,7 +302,7 @@ export const AddExpenseDialog = ({
               {expenses.map((expense, index) => {
                 const isValid = isValidRow(expense);
                 const isActive = activeTab === index;
-                
+
                 return (
                   <div
                     key={expense.id}
@@ -286,8 +311,8 @@ export const AddExpenseDialog = ({
                       "group relative flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border select-none",
                       // Mobile: fixed width card. Desktop: full width
                       "w-[160px] sm:w-full",
-                      isActive 
-                        ? "bg-background border-primary/50 shadow-sm ring-1 ring-primary/10" 
+                      isActive
+                        ? "bg-background border-primary/50 shadow-sm ring-1 ring-primary/10"
                         : "bg-transparent border-transparent hover:bg-muted/50"
                     )}
                   >
@@ -310,7 +335,7 @@ export const AddExpenseDialog = ({
 
                     {/* Validation Icon */}
                     <div className="absolute top-2 right-2 sm:static sm:top-auto sm:right-auto text-muted-foreground/30">
-                        {isValid ? <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-green-500/70" /> : <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500/70" />}
+                      {isValid ? <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-green-500/70" /> : <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500/70" />}
                     </div>
 
                     {/* Delete Button (Visible on hover for desktop, or separate action for mobile could be added) */}
@@ -326,7 +351,7 @@ export const AddExpenseDialog = ({
                   </div>
                 );
               })}
-              
+
               <Button
                 variant="ghost"
                 className="h-auto py-3 sm:py-2 px-4 justify-center sm:justify-start gap-2 text-muted-foreground hover:text-primary border border-dashed border-muted-foreground/20 hover:border-primary/50 bg-muted/10 sm:bg-transparent rounded-lg sm:w-full"
@@ -341,83 +366,103 @@ export const AddExpenseDialog = ({
 
         {/* === RIGHT PANEL (Active Form) === */}
         <div className="flex-1 flex flex-col min-w-0 bg-background h-full overflow-hidden">
-          
+
           {/* Form Content - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="max-w-md mx-auto space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-right-4 duration-300" key={currentExpense.id}>
-              
+
+              {/* AI Smart Input Section */}
+              <div className="mb-4">
+                <Label className="text-xs font-semibold text-violet-500 mb-1.5 flex items-center gap-1 uppercase tracking-wide">
+                  <Wand2 className="w-3 h-3" /> AI Smart Fill
+                </Label>
+                <SmartExpenseInput onParse={handleSmartParse} categories={categories} />
+                <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
+                  Try typing: "Lunch 250" or "Taxi 400"
+                </p>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground font-semibold">Or fill details manually</span>
+                </div>
+              </div>
+
               {/* Hero Input: Amount */}
               <div className="space-y-4 text-center mt-2 sm:mt-0">
-                 <Label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
-                   Expense Amount
-                 </Label>
-                 <div className="relative inline-block w-full">
-                    <IndianRupee className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/30" />
-                    <Input 
-                       type="number"
-                       step="0.01"
-                       placeholder="0.00"
-                       // Smaller font on mobile to prevent overflow/zooming issues
-                       className="text-center text-4xl sm:text-5xl font-bold h-16 sm:h-20 border-0 border-b-2 border-muted focus-visible:ring-0 focus-visible:border-primary rounded-none px-8 placeholder:text-muted-foreground/20 bg-transparent"
-                       value={currentExpense.amount}
-                       onChange={(e) => updateExpense("amount", e.target.value)}
-                       autoFocus
-                    />
-                 </div>
+                <Label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
+                  Expense Amount
+                </Label>
+                <div className="relative inline-block w-full">
+                  <IndianRupee className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/30" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    // Smaller font on mobile to prevent overflow/zooming issues
+                    className="text-center text-4xl sm:text-5xl font-bold h-16 sm:h-20 border-0 border-b-2 border-muted focus-visible:ring-0 focus-visible:border-primary rounded-none px-8 placeholder:text-muted-foreground/20 bg-transparent"
+                    value={currentExpense.amount}
+                    onChange={(e) => updateExpense("amount", e.target.value)}
+                    autoFocus
+                  />
+                </div>
               </div>
 
               {/* Main Fields */}
               <div className="grid gap-4 sm:gap-5">
-                 
-                 <div className="space-y-2">
-                   <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
-                     <Receipt className="w-3.5 h-3.5" /> Description
-                   </Label>
-                   <Input
-                       placeholder="What is this for?"
-                       className="bg-muted/10"
-                       value={currentExpense.description}
-                       onChange={(e) => updateExpense("description", e.target.value)}
-                   />
-                 </div>
 
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
-                        <Tag className="w-3.5 h-3.5" /> Category
-                      </Label>
-                      <Select
-                        value={currentExpense.categoryId}
-                        onValueChange={(val) => updateExpense("categoryId", val)}
-                      >
-                        <SelectTrigger className="bg-muted/10">
-                          <SelectValue placeholder="Select Category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                               <div className="flex items-center gap-2">
-                                  <span className="w-2 h-2 rounded-full" style={{backgroundColor: c.color}} />
-                                  {c.name}
-                               </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                    <Receipt className="w-3.5 h-3.5" /> Description
+                  </Label>
+                  <Input
+                    placeholder="What is this for?"
+                    className="bg-muted/10 h-12"
+                    value={currentExpense.description}
+                    onChange={(e) => updateExpense("description", e.target.value)}
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
-                        <CalendarDays className="w-3.5 h-3.5" /> Date
-                      </Label>
-                      <Input 
-                        type="date"
-                        className="bg-muted/10 block w-full"
-                        value={currentExpense.date}
-                        onChange={(e) => updateExpense("date", e.target.value)}
-                      />
-                    </div>
-                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                      <Tag className="w-3.5 h-3.5" /> Category
+                    </Label>
+                    <Select
+                      value={currentExpense.categoryId}
+                      onValueChange={(val) => updateExpense("categoryId", val)}
+                    >
+                      <SelectTrigger className="bg-muted/10 h-12">
+                        <SelectValue placeholder="Select Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                              {c.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                      <CalendarDays className="w-3.5 h-3.5" /> Date
+                    </Label>
+                    <Input
+                      type="date"
+                      className="bg-muted/10 h-12 block w-full"
+                      value={currentExpense.date}
+                      onChange={(e) => updateExpense("date", e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Bill Upload Section */}
@@ -427,10 +472,10 @@ export const AddExpenseDialog = ({
                   Attachment
                 </Label>
                 <BillUpload
-                    onDataExtracted={handleBillData}
-                    onFileUploaded={handleFileUpload}
-                    uploadedPreview={currentExpense.billPreview}
-                    onClearFile={handleClearFile}
+                  onDataExtracted={handleBillData}
+                  onFileUploaded={handleFileUpload}
+                  uploadedPreview={currentExpense.billPreview}
+                  onClearFile={handleClearFile}
                 />
               </div>
 
@@ -443,30 +488,30 @@ export const AddExpenseDialog = ({
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="hidden sm:inline-flex">
               Cancel
             </Button>
-            
+
             <div className="flex gap-3 w-full sm:w-auto">
               {/* Show delete button on mobile in footer since hover isn't available */}
               {expenses.length > 1 && (
-                 <Button 
-                   variant="outline" 
-                   size="icon"
-                   onClick={(e) => removeRow(e, activeTab)}
-                   className="sm:hidden shrink-0 border-destructive/50 text-destructive"
-                 >
-                   <Trash2 className="w-4 h-4" />
-                 </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={(e) => removeRow(e, activeTab)}
+                  className="sm:hidden shrink-0 border-destructive/50 text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               )}
 
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={addRow}
                 className="flex-1 sm:flex-none"
               >
                 <Plus className="w-4 h-4 mr-1 sm:hidden" />
                 <span className="sm:inline">Add Another</span>
               </Button>
-              <Button 
-                onClick={handleSubmit} 
+              <Button
+                onClick={handleSubmit}
                 className="flex-1 sm:flex-none min-w-[120px]"
                 disabled={addExpensesMutation.isPending}
               >

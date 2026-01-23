@@ -23,7 +23,7 @@ export const BorrowedMoneyParties = ({ userId, onAddTransaction }: BorrowedMoney
         queryKey: ["borrowed-money-parties", userId],
         queryFn: async () => {
             const { data, error } = await supabase
-                .from("borrowed_money")
+                .from("borrowed_money" as any)
                 .select("*")
                 .eq("user_id", userId)
                 .eq("status", "pending")
@@ -31,10 +31,12 @@ export const BorrowedMoneyParties = ({ userId, onAddTransaction }: BorrowedMoney
 
             if (error) throw error;
 
+            const typedData = data as any[];
+
             // Group by person_name
             const partyMap = new Map<string, PartyStats>();
 
-            data.forEach((record) => {
+            typedData.forEach((record) => {
                 const name = record.person_name.trim(); // Normalize name
                 const current = partyMap.get(name) || {
                     personName: name,
