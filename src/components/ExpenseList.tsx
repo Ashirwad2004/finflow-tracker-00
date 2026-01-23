@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, Eye, FileDown } from "lucide-react"; // Added FileDown
+import { Trash2, FileText, Eye, FileDown } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -11,6 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+// 1. Add Alert Dialog Imports for safety
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Expense {
   id: string;
@@ -30,9 +42,10 @@ interface ExpenseListProps {
   expenses: Expense[];
   isLoading: boolean;
   onDelete: (id: string) => void;
+  onDeleteAll: () => void; // 2. Add new prop here
 }
 
-export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps) => {
+export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: ExpenseListProps) => {
   const [billPreviewUrl, setBillPreviewUrl] = useState<string | null>(null);
 
   const formatDateForCSV = (d?: string | Date | null) => {
@@ -81,23 +94,18 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  // --- NEW PDF FUNCTION ---
   const downloadPDF = () => {
     const doc = new jsPDF();
 
-    // Add Title
     doc.setFontSize(18);
     doc.text("Expense Report", 14, 22);
 
-    // Add Date info
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
 
-    // Define columns
     const tableColumn = ["Description", "Category", "Date", "Amount"];
     
-    // Define rows
     const tableRows = expenses.map(expense => {
       const amount = typeof expense.amount === 'number' 
         ? expense.amount 
@@ -107,11 +115,10 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
         expense.description,
         expense.categories.name,
         new Date(expense.date).toLocaleDateString(),
-        `Rs. ${amount.toFixed(2)}` // Using "Rs." to avoid currency font issues
+        `Rs. ${amount.toFixed(2)}`
       ];
     });
 
-    // Generate table
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
@@ -122,16 +129,15 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
         cellPadding: 3,
       },
       headStyles: {
-        fillColor: [41, 41, 41], // Dark gray header to match UI
+        fillColor: [41, 41, 41],
         textColor: 255,
         fontStyle: 'bold',
       },
       columnStyles: {
-        3: { halign: 'right' } // Align amount to the right
+        3: { halign: 'right' }
       }
     });
 
-    // Save the PDF
     doc.save(`expenses_${formatDateForCSV(new Date())}.pdf`);
   };
 
@@ -181,11 +187,40 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
     <>
       <Card className="shadow-card">
         <CardContent className="p-0">
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-border gap-4">
             <h3 className="text-lg font-medium">Expenses</h3>
             
             {/* BUTTONS GROUP */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {/* 3. New Delete All Button with Confirmation */}
+              {expenses.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20">
+                      <Trash2 className="h-4 w-4" />
+                      Delete All
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete all {expenses.length} expenses from your list.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={onDeleteAll} 
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Yes, Delete All
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
               <Button onClick={downloadPDF} variant="outline" size="sm" className="gap-2">
                 <FileDown className="h-4 w-4" />
                 PDF
@@ -194,7 +229,6 @@ export const ExpenseList = ({ expenses, isLoading, onDelete }: ExpenseListProps)
                 CSV
               </Button>
             </div>
-            
           </div>
 
           <div className="divide-y divide-border">

@@ -8,6 +8,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,19 +16,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus,
   ArrowLeft,
@@ -38,6 +32,9 @@ import {
   Check,
   FileDown,
   Loader2,
+  Receipt,
+  Users,
+  PieChart
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -54,57 +51,38 @@ import {
 import { AppLayout } from "@/components/AppLayout";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { GroupExpenseDialog } from "@/components/GroupExpenseDialog";
+
+// Types
+interface Expense {
+  id: string;
+  amount: number;
+  description: string;
+  date: string;
+  user_id: string;
+  username: string;
+  category_id?: string;
+  split_data?: string[] | null; // Array of user_ids involved
+  categories?: { name: string; color: string; icon: string };
+}
+
+interface Member {
+  user_id: string;
+  username: string;
+  joined_at: string;
+}
 
 const GroupDetailSkeleton = () => (
-  <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
-    <div className="flex flex-col gap-4 mb-6 sm:mb-8">
-      <div className="flex items-center gap-3 sm:gap-4">
-        <Skeleton className="h-10 w-10" />
-        <div className="space-y-2 flex-1">
-          <Skeleton className="h-7 w-48" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        <Skeleton className="h-9 w-24" />
-        <Skeleton className="h-9 w-20" />
-      </div>
+  <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl space-y-6">
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-4 w-32" />
     </div>
-
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
-      {[1, 2, 3].map((i) => (
-        <Card key={i}>
-          <CardHeader className="pb-2">
-            <Skeleton className="h-4 w-24" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-8 w-20" />
-          </CardContent>
-        </Card>
-      ))}
+    <Skeleton className="h-10 w-full" />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Skeleton className="h-64 w-full" />
+      <Skeleton className="h-64 w-full" />
     </div>
-
-    <Card className="mb-6 sm:mb-8">
-      <CardHeader>
-        <Skeleton className="h-6 w-48" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-14 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-
-    <Card className="mb-6 sm:mb-8">
-      <CardHeader>
-        <Skeleton className="h-6 w-40" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
-      </CardContent>
-    </Card>
   </div>
 );
 
@@ -119,12 +97,7 @@ const GroupDetail = () => {
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseDescription, setExpenseDescription] = useState("");
-  const [expenseDate, setExpenseDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-  const [expenseCategory, setExpenseCategory] = useState("");
+  // --- QUERIES ---
 
   const { data: group, isLoading: groupLoading } = useQuery({
     queryKey: ["group", groupId],
@@ -149,7 +122,7 @@ const GroupDetail = () => {
         .select("*")
         .eq("group_id", groupId)
         .order("joined_at");
-      return data || [];
+      return data as Member[] || [];
     },
   });
 
@@ -159,10 +132,13 @@ const GroupDetail = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("group_expenses")
-        .select("*, categories(name)")
+        .select("*, categories(name, color, icon)")
         .eq("group_id", groupId)
         .order("date", { ascending: false });
-      return data || [];
+
+      // Parse split_data if it's a string, though supabase client usually gives JSON
+      // Safety check if we need manual parsing, but Supabase JS client handles JSON types automatically
+      return data as Expense[] || [];
     },
   });
 
@@ -174,39 +150,66 @@ const GroupDetail = () => {
     },
   });
 
+  // --- HELPERS ---
+
   const isMember = members.some((m) => m.user_id === user?.id);
   const isCreator = group?.created_by === user?.id;
+  const currentMember = members.find(m => m.user_id === user?.id);
 
-  const totalExpenses = expenses.reduce(
-    (sum, e) => sum + Number(e.amount || 0),
-    0
-  );
+  // --- SETTLEMENT LOGIC (UPDATED) ---
 
-  const averageContribution =
-    members.length > 0 ? totalExpenses / members.length : 0;
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-  const memberSpending = members.map((member) => {
-    const paid = expenses
-      .filter((e) => e.user_id === member.user_id)
-      .reduce((sum, e) => sum + Number(e.amount), 0);
-    return { ...member, paid };
-  });
+  // Revised calculation using split_data
+  const calculateBalances = () => {
+    // Initialize balances map: userId -> number (positive = owed to them, negative = they owe)
+    const balances: Record<string, number> = {};
+    members.forEach(m => balances[m.user_id] = 0);
+
+    expenses.forEach(expense => {
+      const payerId = expense.user_id;
+      const amount = Number(expense.amount);
+
+      // Credit the payer
+      balances[payerId] = (balances[payerId] || 0) + amount;
+
+      // Determine who splits this
+      let involvedUserIds: string[] = [];
+
+      if (expense.split_data && Array.isArray(expense.split_data) && expense.split_data.length > 0) {
+        involvedUserIds = expense.split_data;
+      } else {
+        // Default: Split among ALL members at the time (simplified to current members)
+        involvedUserIds = members.map(m => m.user_id);
+      }
+
+      // Filter out invalid users just in case
+      involvedUserIds = involvedUserIds.filter(id => members.some(m => m.user_id === id));
+
+      if (involvedUserIds.length > 0) {
+        const amountPerPerson = amount / involvedUserIds.length;
+        involvedUserIds.forEach(userId => {
+          balances[userId] = (balances[userId] || 0) - amountPerPerson;
+        });
+      }
+    });
+
+    return members.map(m => ({
+      ...m,
+      balance: balances[m.user_id] || 0
+    }));
+  };
+
+  const memberBalances = calculateBalances();
 
   const calculateSettlements = () => {
-    const balances = memberSpending.map((m) => ({
-      ...m,
-      balance: m.paid - averageContribution,
-    }));
-
     const settlements: { from: string; to: string; amount: number }[] = [];
 
-    const debtors = balances
-      .filter((b) => b.balance < -0.01)
-      .sort((a, b) => a.balance - b.balance);
-      
-    const creditors = balances
-      .filter((b) => b.balance > 0.01)
-      .sort((a, b) => b.balance - a.balance);
+    // Deep copy to avoid mutating state ref
+    const balances = memberBalances.map(m => ({ ...m }));
+
+    const debtors = balances.filter(b => b.balance < -0.01).sort((a, b) => a.balance - b.balance);
+    const creditors = balances.filter(b => b.balance > 0.01).sort((a, b) => b.balance - a.balance);
 
     let i = 0;
     let j = 0;
@@ -215,6 +218,7 @@ const GroupDetail = () => {
       const debtor = debtors[i];
       const creditor = creditors[j];
 
+      // Amount to settle is min of what debtor owes and what creditor is owed
       const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
 
       settlements.push({
@@ -234,224 +238,97 @@ const GroupDetail = () => {
   };
 
   const settlements = calculateSettlements();
+  const myBalance = memberBalances.find(m => m.user_id === user?.id)?.balance || 0;
 
-  const handleExportPDF = () => {
-    if (!group || expenses.length === 0) {
-      toast({
-        title: "No Data",
-        description: "There are no expenses to export.",
-        variant: "destructive",
-      });
-      return;
-    }
+  // --- ACTIONS ---
 
-    setIsExporting(true);
-
-    try {
-      const doc = new jsPDF();
-
-      doc.setFontSize(20);
-      doc.text(group.name, 14, 22);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Exported on: ${new Date().toLocaleDateString()}`, 14, 28);
-      
-      doc.setFontSize(12);
-      doc.setTextColor(0);
-      doc.text(`Total Expenses: Rs. ${totalExpenses.toFixed(2)}`, 14, 40);
-      doc.text(`Average Per Person: Rs. ${averageContribution.toFixed(2)}`, 14, 46);
-
-      let currentY = 55;
-
-      if (settlements.length > 0) {
-        doc.setFontSize(14);
-        doc.text("Suggested Settlements", 14, currentY);
-        currentY += 5;
-
-        const settlementRows = settlements.map(s => [
-          s.from,
-          "owes",
-          s.to,
-          `Rs. ${s.amount.toFixed(2)}`
-        ]);
-
-        autoTable(doc, {
-          startY: currentY,
-          head: [["From", "Action", "To", "Amount"]],
-          body: settlementRows,
-          theme: 'striped',
-          headStyles: { fillColor: [66, 66, 66] },
-        });
-
-        const lastTable = (doc as typeof doc & { lastAutoTable: { finalY: number } }).lastAutoTable;
-        currentY = lastTable.finalY + 15;
+  const deleteExpense = useMutation({
+    mutationFn: async (id: string) => {
+      // Logic for soft delete / tracking recently deleted (simplified from original)
+      const expense = expenses.find(e => e.id === id);
+      if (expense) {
+        const deletedExpenses = JSON.parse(localStorage.getItem(`recently_deleted_${user?.id}`) || "[]");
+        deletedExpenses.unshift({ ...expense, group_id: groupId, deleted_at: new Date().toISOString() });
+        localStorage.setItem(`recently_deleted_${user?.id}`, JSON.stringify(deletedExpenses.slice(0, 50)));
       }
 
-      doc.setFontSize(14);
-      doc.text("Expense Details", 14, currentY);
-      currentY += 5;
+      await supabase.from("group_expenses").delete().eq("id", id).eq("user_id", user?.id);
+    },
+    onSuccess: () => {
+      toast({ title: "Expense deleted" });
+      queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+    }
+  });
 
-      const expenseRows = expenses.map(e => [
-        new Date(e.date).toLocaleDateString(),
-        e.description,
-        e.categories?.name || "General",
-        e.username,
-        `Rs. ${Number(e.amount).toFixed(2)}`
-      ]);
+  const deleteGroup = useMutation({
+    mutationFn: async () => {
+      // Soft delete tracking
+      if (group) {
+        const deletedGroups = JSON.parse(localStorage.getItem(`recently_deleted_groups_${user?.id}`) || "[]");
+        deletedGroups.unshift({ ...group, deleted_at: new Date().toISOString() });
+        localStorage.setItem(`recently_deleted_groups_${user?.id}`, JSON.stringify(deletedGroups.slice(0, 50)));
+      }
+      await supabase.from("groups").delete().eq("id", groupId).eq("created_by", user?.id);
+    },
+    onSuccess: () => navigate("/groups"),
+  });
 
+  const handleExportPDF = () => {
+    // ... Existing PDF logic kept mostly same, updated for new list
+    if (!group || expenses.length === 0) return;
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(22);
+      doc.text(group.name, 14, 20);
+      doc.setFontSize(10);
+      doc.text(`Exported: ${new Date().toLocaleDateString()}`, 14, 26);
+
+      let currentY = 40;
+
+      // Settlements
+      if (settlements.length > 0) {
+        doc.setFontSize(14);
+        doc.text("Settlements", 14, 35);
+        autoTable(doc, {
+          startY: 40,
+          head: [["From", "To", "Amount"]],
+          body: settlements.map(s => [s.from, s.to, s.amount.toFixed(2)]),
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+
+      // Expenses
+      doc.text("Transactions", 14, currentY);
       autoTable(doc, {
-        startY: currentY,
-        head: [["Date", "Description", "Category", "Paid By", "Amount"]],
-        body: expenseRows,
-        theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185] },
+        startY: currentY + 5,
+        head: [["Date", "Description", "Paid By", "Amount", "Split Mode"]],
+        body: expenses.map(e => [
+          new Date(e.date).toLocaleDateString(),
+          e.description,
+          e.username,
+          e.amount.toFixed(2),
+          e.split_data ? `${e.split_data.length} ppl` : 'Everyone'
+        ])
       });
-
-      doc.save(`${group.name.replace(/\s+/g, '_')}_expenses.pdf`);
-
-      toast({
-        title: "Success",
-        description: "Expense report downloaded successfully.",
-      });
-
-    } catch (error) {
-      console.error("PDF Export Error:", error);
-      toast({
-        title: "Export Failed",
-        description: "Could not generate the PDF file.",
-        variant: "destructive"
-      });
+      doc.save(`${group.name}_report.pdf`);
+      toast({ title: "Report downloaded" });
+    } catch {
+      toast({ title: "Export failed", variant: "destructive" });
     } finally {
       setIsExporting(false);
     }
   };
 
-  const avatarColors = [
-    "bg-red-500",
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-purple-500",
-    "bg-pink-500",
-    "bg-orange-500",
-  ];
-
-  const avatarColor = (name: string) =>
-    avatarColors[name.charCodeAt(0) % avatarColors.length];
-
-  const addExpense = async () => {
-    if (!expenseAmount || !expenseDescription) return;
-
-    const member = members.find((m) => m.user_id === user?.id);
-    if (!member) return;
-
-    await supabase.from("group_expenses").insert({
-      group_id: groupId,
-      user_id: user?.id,
-      username: member.username,
-      amount: Number(expenseAmount),
-      description: expenseDescription,
-      date: expenseDate,
-      category_id: expenseCategory || null,
-    });
-
-    toast({ title: "Expense added" });
-    setIsAddExpenseOpen(false);
-    setExpenseAmount("");
-    setExpenseDescription("");
-    setExpenseCategory("");
-    queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
-  };
-
-  const deleteExpense = useMutation({
-    mutationFn: async (id: string) => {
-      const { data: expense } = await supabase
-        .from("group_expenses")
-        .select("*, categories(name, color, icon)")
-        .eq("id", id)
-        .single();
-
-      if (expense) {
-        const deletedExpenses = JSON.parse(
-          localStorage.getItem(`recently_deleted_${user?.id}`) || "[]"
-        );
-        const deletedItem = {
-          ...expense,
-          group_id: groupId,
-          deleted_at: new Date().toISOString(),
-        };
-        deletedExpenses.unshift(deletedItem);
-        if (deletedExpenses.length > 50) {
-          deletedExpenses.splice(50);
-        }
-        localStorage.setItem(
-          `recently_deleted_${user?.id}`,
-          JSON.stringify(deletedExpenses)
-        );
-      }
-
-      await supabase
-        .from("group_expenses")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user?.id);
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] }),
-  });
-
   const copyInviteLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      toast({
-        title: "Link copied",
-        description: "Invite link copied to clipboard",
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to copy invite link",
-        variant: "destructive",
-      });
-    }
+    const link = `${window.location.origin}/join/${group?.invite_code}`;
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    toast({ title: "Link copied" });
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const deleteGroup = useMutation({
-    mutationFn: async () => {
-      const { data: groupData } = await supabase
-        .from("groups")
-        .select("*")
-        .eq("id", groupId)
-        .single();
-
-      if (groupData) {
-        const deletedGroups = JSON.parse(
-          localStorage.getItem(`recently_deleted_groups_${user?.id}`) || "[]"
-        );
-        const deletedItem = {
-          ...groupData,
-          deleted_at: new Date().toISOString(),
-        };
-        deletedGroups.unshift(deletedItem);
-        if (deletedGroups.length > 50) {
-          deletedGroups.splice(50);
-        }
-        localStorage.setItem(
-          `recently_deleted_groups_${user?.id}`,
-          JSON.stringify(deletedGroups)
-        );
-      }
-
-      await supabase
-        .from("groups")
-        .delete()
-        .eq("id", groupId)
-        .eq("created_by", user?.id);
-    },
-    onSuccess: () => navigate("/groups"),
-  });
+  // --- RENDER ---
 
   if (groupLoading || membersLoading || expensesLoading) {
     return (
@@ -461,70 +338,56 @@ const GroupDetail = () => {
     );
   }
 
-  const inviteLink =
-    typeof window !== "undefined"
-    ? `${window.location.origin}/join/${group?.invite_code}`
-    : "";
+  const avatarColors = ["bg-red-500", "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-pink-500"];
+  const getAvatarColor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length];
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-5xl h-full flex flex-col">
+
         {/* HEADER */}
-        <div className="flex flex-col gap-4 mb-6 sm:mb-8">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <Button variant="outline" size="icon" onClick={() => navigate("/groups")} className="flex-shrink-0 mt-1">
-              <ArrowLeft className="w-4 h-4" />
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex items-start gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/groups")} className="-ml-2">
+              <ArrowLeft className="w-5 h-5" />
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">{group?.name}</h1>
-              {group?.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2">{group.description}</p>
-              )}
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-bold truncate">{group?.name}</h1>
+                <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium">
+                  {members.length} members
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{group?.description || "No description"}</p>
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleExportPDF} 
-              disabled={isExporting || expenses.length === 0}
-              className="text-xs sm:text-sm"
-            >
-              {isExporting ? (
-                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 animate-spin" />
-              ) : (
-                <FileDown className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-              )}
-              <span className="hidden xs:inline">Report</span>
-              <span className="xs:hidden">PDF</span>
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {/* Action Buttons */}
+            <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isExporting}>
+              {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
+              PDF
             </Button>
 
             {isCreator && (
               <>
-                <Button variant="outline" size="sm" onClick={() => setIsInviteDialogOpen(true)} className="text-xs sm:text-sm">
-                  <Link className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                  Share
+                <Button variant="outline" size="sm" onClick={() => setIsInviteDialogOpen(true)}>
+                  <Link className="w-4 h-4 mr-2" /> Invite
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" className="text-xs sm:text-sm">
-                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Delete</span>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="w-4 h-4 mr-2" /> Delete
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent className="mx-4 sm:mx-auto max-w-md">
+                  <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Group</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action is irreversible. All expenses and data will be lost.
-                      </AlertDialogDescription>
+                      <AlertDialogTitle>Delete Group?</AlertDialogTitle>
+                      <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                      <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => deleteGroup.mutate()} className="w-full sm:w-auto">
-                        Delete
-                      </AlertDialogAction>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => deleteGroup.mutate()}>Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -533,235 +396,189 @@ const GroupDetail = () => {
           </div>
         </div>
 
-        {/* STATS */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
-          <Card>
-            <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6">
-              <p className="text-sm sm:text-xl font-bold">₹{totalExpenses.toFixed(0)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Members</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6">
-              <p className="text-sm sm:text-xl font-bold">{members.length}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Avg/Person</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6">
-              <p className="text-sm sm:text-xl font-bold">₹{averageContribution.toFixed(0)}</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* TABS Layout for content */}
+        <Tabs defaultValue="overview" className="flex-1 flex flex-col">
+          <TabsList className="w-full grid grid-cols-2 mb-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="expenses">Expenses ({expenses.length})</TabsTrigger>
+          </TabsList>
 
-        {/* SETTLEMENTS */}
-        <Card className="mb-6 sm:mb-8 border-l-4 border-l-primary">
-          <CardHeader className="pb-3 px-4 sm:px-6">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <IndianRupee className="w-4 h-4 sm:w-5 sm:h-5" /> Settlements
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 px-4 sm:px-6">
-            {settlements.length === 0 ? (
-              <p className="text-sm text-muted-foreground">All settled up! No debts.</p>
-            ) : (
-              settlements.map((s, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-muted/50 rounded-lg gap-2"
-                >
-                  <div className="flex items-center gap-1 sm:gap-2 text-sm flex-wrap">
-                    <span className="font-semibold text-red-500">{s.from}</span>
-                    <span className="text-muted-foreground">→</span>
-                    <span className="font-semibold text-green-500">{s.to}</span>
-                  </div>
-                  <div className="font-bold text-sm sm:text-base">
-                    ₹{s.amount.toFixed(2)}
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+          {/* OVERVIEW TAB */}
+          <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
 
-        {/* MEMBERS */}
-        <Card className="mb-6 sm:mb-8">
-          <CardHeader className="pb-3 px-4 sm:px-6">
-            <CardTitle className="text-base sm:text-lg">Members & Contribution</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 sm:space-y-3 px-4 sm:px-6">
-            {memberSpending.map((m) => (
-              <div
-                key={m.id}
-                className="flex justify-between items-center p-3 bg-muted rounded-lg gap-2"
-              >
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  <Avatar className={`${avatarColor(m.username)} w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0`}>
-                    <AvatarFallback className="text-white text-xs sm:text-sm">
-                      {m.username.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm sm:text-base truncate">{m.username}</div>
-                    <div className="text-xs text-muted-foreground">Paid: ₹{m.paid.toFixed(0)}</div>
-                  </div>
-                </div>
-                <div className={`text-xs sm:text-sm font-bold flex-shrink-0 ${m.paid - averageContribution >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                  {m.paid - averageContribution >= 0 
-                    ? `+₹${(m.paid - averageContribution).toFixed(0)}` 
-                    : `-₹${Math.abs(m.paid - averageContribution).toFixed(0)}`
-                  }
-                </div>
+            {/* My Balance Card */}
+            <Card className="bg-gradient-primary text-primary-foreground border-0 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <IndianRupee className="w-32 h-32" />
               </div>
-            ))}
-          </CardContent>
-        </Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="text-primary-foreground/80">My Position</CardDescription>
+                <CardTitle className="text-4xl font-bold flex items-center">
+                  {myBalance > 0 ? "+" : ""}{Number(myBalance).toFixed(0)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm opacity-90">
+                  {myBalance > 0.01
+                    ? "You are owed money overall."
+                    : myBalance < -0.01
+                      ? "You owe money to the group."
+                      : "You are all settled up!"}
+                </p>
+              </CardContent>
+            </Card>
 
-        {/* EXPENSES */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 sm:px-6">
-            <CardTitle className="text-base sm:text-lg">Expenses</CardTitle>
-            {isMember && (
-              <Button size="sm" onClick={() => setIsAddExpenseOpen(true)} className="text-xs sm:text-sm">
-                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" /> 
-                <span className="hidden xs:inline">Add Expense</span>
-                <span className="xs:hidden">Add</span>
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3 px-4 sm:px-6">
-            {expenses.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No expenses yet. Add your first expense!</p>
-            ) : (
-              expenses.map((e) => (
-                <div
-                  key={e.id}
-                  className="flex justify-between items-start sm:items-center border p-3 sm:p-4 rounded-lg gap-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm sm:text-base truncate">{e.description}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">
-                      {e.username} • {new Date(e.date).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <span className="font-bold text-sm sm:text-base">₹{Number(e.amount).toFixed(0)}</span>
-                    {e.user_id === user?.id && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="w-8 h-8"
-                        onClick={() => deleteExpense.mutate(e.id)}
-                      >
-                        <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
+            {/* Settlements */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <PieChart className="w-5 h-5 opacity-70" /> Suggested Settlements
+              </h3>
+              {settlements.length === 0 ? (
+                <Card className="p-6 text-center text-muted-foreground border-dashed">
+                  <Check className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  No debts pending.
+                </Card>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {settlements.map((s, i) => (
+                    <Card key={i} className="flex items-center justify-between p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9 border-2 border-background">
+                          <AvatarFallback className={getAvatarColor(s.from)}></AvatarFallback>
+                        </Avatar>
+                        <div className="text-sm">
+                          <span className="font-semibold">{s.from === currentMember?.username ? "You" : s.from}</span>
+                          <span className="text-muted-foreground mx-1">owes</span>
+                          <span className="font-semibold">{s.to === currentMember?.username ? "You" : s.to}</span>
+                        </div>
+                      </div>
+                      <div className="font-bold text-red-500">₹{s.amount.toFixed(0)}</div>
+                    </Card>
+                  ))}
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </div>
 
-        {/* INVITE DIALOG */}
-        <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-          <DialogContent className="mx-4 sm:mx-auto max-w-md">
-            <DialogHeader>
-              <DialogTitle>Share Group Invite Link</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Share this link with others to invite them to join your group.
-              </p>
-              <div className="flex gap-2">
-                <Input value={inviteLink} readOnly className="text-xs sm:text-sm" />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={copyInviteLink}
-                  className="flex-shrink-0"
-                >
-                  {copied ? (
-                    <Check className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
+            {/* Members Balances List */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Users className="w-5 h-5 opacity-70" /> Member Balances
+              </h3>
+              <Card>
+                <CardContent className="p-0">
+                  {memberBalances.map((m, idx) => (
+                    <div key={m.user_id} className={`flex items-center justify-between p-4 ${idx !== members.length - 1 ? 'border-b' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className={`${getAvatarColor(m.username)} text-white`}>
+                            {m.username.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{m.username}</span>
+                      </div>
+                      <span className={`font-bold ${m.balance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {m.balance >= 0 ? "+" : ""}{m.balance.toFixed(0)}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* EXPENSES TAB */}
+          <TabsContent value="expenses" className="space-y-4 animate-in fade-in slide-in-from-bottom-2 h-full">
+            <div className="flex justify-between items-center bg-muted/30 p-3 rounded-lg">
+              <div className="text-sm text-muted-foreground">
+                Total spent: <span className="text-foreground font-bold">₹{totalExpenses.toFixed(0)}</span>
+              </div>
+              {isMember && (
+                <Button onClick={() => setIsAddExpenseOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Expense
                 </Button>
-              </div>
+              )}
             </div>
-          </DialogContent>
-        </Dialog>
 
-        {/* ADD EXPENSE DIALOG */}
-        <Dialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
-          <DialogContent className="mx-4 sm:mx-auto max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add Expense</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={expenseDescription}
-                  onChange={(e) => setExpenseDescription(e.target.value)}
-                  placeholder="What did you spend on?"
-                  className="mt-1"
-                />
+            {expenses.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Receipt className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p>No expenses yet.</p>
               </div>
-              <div>
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  value={expenseAmount}
-                  onChange={(e) => setExpenseAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="mt-1"
-                />
+            ) : (
+              <div className="space-y-3 pb-20">
+                {expenses.map((expense) => {
+                  const involvedCount = expense.split_data ? expense.split_data.length : members.length;
+                  return (
+                    <Card key={expense.id} className="group overflow-hidden hover:border-primary/50 transition-colors">
+                      <CardContent className="p-4 flex gap-4">
+                        {/* Date Box */}
+                        <div className="flex flex-col items-center justify-center bg-muted rounded-lg w-16 h-16 shrink-0 border">
+                          <span className="text-xs text-muted-foreground uppercase font-bold">
+                            {new Date(expense.date).toLocaleString('default', { month: 'short' })}
+                          </span>
+                          <span className="text-xl font-bold">
+                            {new Date(expense.date).getDate()}
+                          </span>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-semibold truncate pr-2">{expense.description}</h4>
+                            <span className="font-bold whitespace-nowrap">₹{expense.amount.toFixed(0)}</span>
+                          </div>
+                          <div className="flex justify-between items-end mt-1">
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <div className="flex items-center gap-1">
+                                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-medium">
+                                  Paid by {expense.username}
+                                </span>
+                              </div>
+                              <div>
+                                For: {expense.split_data ? `${involvedCount} people` : "Everyone"}
+                              </div>
+                            </div>
+
+                            {expense.user_id === user?.id && (
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                onClick={() => deleteExpense.mutate(expense.id)}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
-              <div>
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={expenseDate}
-                  onChange={(e) => setExpenseDate(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="category">Category (Optional)</Label>
-                <Select value={expenseCategory} onValueChange={setExpenseCategory}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={addExpense}
-                className="w-full"
-                disabled={!expenseAmount || !expenseDescription}
-              >
-                Add Expense
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* DIALOGS */}
+        <GroupExpenseDialog
+          open={isAddExpenseOpen}
+          onOpenChange={setIsAddExpenseOpen}
+          groupId={groupId!}
+          members={members}
+          categories={categories}
+          userId={user?.id!}
+          currentMemberUsername={currentMember?.username}
+        />
+
+        <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Invite Friends</DialogTitle></DialogHeader>
+            <div className="flex gap-2">
+              <Input value={`${window.location.origin}/join/${group?.invite_code}`} readOnly />
+              <Button onClick={copyInviteLink}>
+                {copied ? <Check /> : <Copy />}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
+
       </div>
     </AppLayout>
   );

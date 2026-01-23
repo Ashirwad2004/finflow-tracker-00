@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Delete, Divide, Minus, Plus, X, Equal, RotateCcw } from "lucide-react";
 
 export const Calculator = () => {
   const [display, setDisplay] = useState("0");
@@ -36,16 +37,11 @@ export const Calculator = () => {
 
   const calculate = (firstValue: number, secondValue: number, operation: string) => {
     switch (operation) {
-      case "+":
-        return firstValue + secondValue;
-      case "-":
-        return firstValue - secondValue;
-      case "*":
-        return firstValue * secondValue;
-      case "/":
-        return firstValue / secondValue;
-      default:
-        return secondValue;
+      case "+": return firstValue + secondValue;
+      case "-": return firstValue - secondValue;
+      case "*": return firstValue * secondValue;
+      case "/": return firstValue / secondValue;
+      default: return secondValue;
     }
   };
 
@@ -85,140 +81,152 @@ export const Calculator = () => {
     }
   };
 
+  // Helper to visualize the correct icon
+  const getOpIcon = (op: string) => {
+    switch (op) {
+      case "/": return <Divide className="h-4 w-4" />;
+      case "*": return <X className="h-4 w-4" />;
+      case "-": return <Minus className="h-4 w-4" />;
+      case "+": return <Plus className="h-4 w-4" />;
+      default: return op;
+    }
+  };
+
+  // Common button styles for animation and shape
+  const btnBase = "h-16 text-xl rounded-2xl transition-all duration-200 active:scale-90 hover:shadow-md border-0";
+
   return (
-    <Card className="w-full max-w-sm mx-auto">
-      <CardHeader>
-        <CardTitle className="text-center">Calculator</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4">
-          <div className="text-right text-2xl font-mono overflow-hidden">
-            {display}
+    <div className="flex items-center justify-center min-h-[500px] p-4 bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 rounded-3xl">
+      <Card className="w-full max-w-[320px] shadow-2xl border-0 bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl rounded-3xl overflow-hidden ring-1 ring-black/5 dark:ring-white/10">
+        <CardContent className="p-5">
+          {/* Display Screen */}
+          <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl mb-6 shadow-inner relative flex flex-col items-end justify-end h-32 transition-colors">
+            
+            {/* History / Previous Operation */}
+            <div className="text-gray-400 dark:text-gray-500 text-sm font-medium h-6 flex items-center gap-1">
+              {previousValue !== null && (
+                <>
+                  {parseFloat(previousValue.toFixed(7))} 
+                  {operation && <span className="text-primary">{getOpIcon(operation)}</span>}
+                </>
+              )}
+            </div>
+            
+            {/* Main Numbers */}
+            <div className="text-4xl font-bold tracking-tight text-gray-800 dark:text-gray-100 break-all">
+              {display}
+            </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-4 gap-2">
-          {/* Row 1 */}
-          <Button
-            variant="outline"
-            onClick={clear}
-            className="col-span-2"
-          >
-            Clear
-          </Button>
-          <Button
-            variant="outline"
-            onClick={backspace}
-          >
-            ⌫
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputOperation("/")}
-          >
-            ÷
-          </Button>
+          {/* Keypad */}
+          <div className="grid grid-cols-4 gap-3">
+            
+            {/* Utility Row */}
+            <Button
+              variant="ghost"
+              onClick={clear}
+              className={`${btnBase} col-span-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30`}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+            
+            <Button
+              variant="ghost"
+              onClick={backspace}
+              className={`${btnBase} text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800`}
+            >
+              <Delete className="h-5 w-5" />
+            </Button>
+            
+            <Button
+              variant="secondary"
+              onClick={() => inputOperation("/")}
+              className={`${btnBase} bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400`}
+            >
+              <Divide className="h-6 w-6" />
+            </Button>
 
-          {/* Row 2 */}
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("7")}
-          >
-            7
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("8")}
-          >
-            8
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("9")}
-          >
-            9
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputOperation("*")}
-          >
-            ×
-          </Button>
+            {/* Row 7-9 */}
+            {["7", "8", "9"].map((num) => (
+              <Button
+                key={num}
+                variant="outline"
+                onClick={() => inputNumber(num)}
+                className={`${btnBase} bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50`}
+              >
+                {num}
+              </Button>
+            ))}
+            <Button
+              variant="secondary"
+              onClick={() => inputOperation("*")}
+              className={`${btnBase} bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400`}
+            >
+              <X className="h-6 w-6" />
+            </Button>
 
-          {/* Row 3 */}
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("4")}
-          >
-            4
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("5")}
-          >
-            5
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("6")}
-          >
-            6
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputOperation("-")}
-          >
-            −
-          </Button>
+            {/* Row 4-6 */}
+            {["4", "5", "6"].map((num) => (
+              <Button
+                key={num}
+                variant="outline"
+                onClick={() => inputNumber(num)}
+                className={`${btnBase} bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50`}
+              >
+                {num}
+              </Button>
+            ))}
+            <Button
+              variant="secondary"
+              onClick={() => inputOperation("-")}
+              className={`${btnBase} bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400`}
+            >
+              <Minus className="h-6 w-6" />
+            </Button>
 
-          {/* Row 4 */}
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("1")}
-          >
-            1
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("2")}
-          >
-            2
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("3")}
-          >
-            3
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => inputOperation("+")}
-          >
-            +
-          </Button>
+            {/* Row 1-3 */}
+            {["1", "2", "3"].map((num) => (
+              <Button
+                key={num}
+                variant="outline"
+                onClick={() => inputNumber(num)}
+                className={`${btnBase} bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50`}
+              >
+                {num}
+              </Button>
+            ))}
+            <Button
+              variant="secondary"
+              onClick={() => inputOperation("+")}
+              className={`${btnBase} bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400`}
+            >
+              <Plus className="h-6 w-6" />
+            </Button>
 
-          {/* Row 5 */}
-          <Button
-            variant="outline"
-            onClick={() => inputNumber("0")}
-            className="col-span-2"
-          >
-            0
-          </Button>
-          <Button
-            variant="outline"
-            onClick={inputDecimal}
-          >
-            .
-          </Button>
-          <Button
-            variant="default"
-            onClick={performCalculation}
-          >
-            =
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+            {/* Bottom Row */}
+            <Button
+              variant="outline"
+              onClick={() => inputNumber("0")}
+              className={`${btnBase} col-span-2 bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50`}
+            >
+              0
+            </Button>
+            <Button
+              variant="outline"
+              onClick={inputDecimal}
+              className={`${btnBase} bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 font-bold`}
+            >
+              .
+            </Button>
+            <Button
+              onClick={performCalculation}
+              className={`${btnBase} bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 dark:shadow-none`}
+            >
+              <Equal className="h-6 w-6" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

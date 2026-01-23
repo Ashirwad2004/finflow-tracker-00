@@ -47,36 +47,36 @@
   }
 
   .dark {
-    /* Dark Mode - Deep & Rich (Not just grey) */
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    /* Dark Mode - Deep & Rich (Premium) */
+    --background: 240 10% 4%; /* Very deep almost black violet */
+    --foreground: 0 0% 98%;
 
-    --card: 222 47% 11%; /* Seamless cards */
-    --card-foreground: 210 40% 98%;
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 10% 6%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 263 70% 50%; /* Slightly adjusted for dark mode contrast */
-    --primary-foreground: 210 40% 98%;
+    --primary: 265 89% 66%; /* Vibrant Violet */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 6% 15%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 6% 15%;
+    --muted-foreground: 240 5% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 265 89% 66%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 263 70% 50%;
+    --border: 240 6% 15%;
+    --input: 240 6% 15%;
+    --ring: 265 89% 66%;
 
-    --gradient-glass: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.4) 100%);
+    --gradient-glass: linear-gradient(145deg, rgba(20, 20, 25, 0.9) 0%, rgba(10, 10, 15, 0.8) 100%);
   }
 }
 
