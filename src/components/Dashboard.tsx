@@ -18,6 +18,8 @@ import { Calculator as CalculatorComponent } from "@/components/calculator";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
+import { AiInsights } from "@/components/AiInsights";
+
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -29,6 +31,8 @@ export const Dashboard = () => {
 
   console.log("Dashboard user:", user);
 
+  // ... (queries)
+
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
@@ -37,7 +41,7 @@ export const Dashboard = () => {
         .select("*")
         .eq("user_id", user?.id)
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -60,7 +64,7 @@ export const Dashboard = () => {
         `)
         .eq("user_id", user?.id)
         .order("date", { ascending: false });
-      
+
       if (error) throw error;
       return data;
     },
@@ -74,38 +78,40 @@ export const Dashboard = () => {
         .from("categories")
         .select("*")
         .order("name");
-      
+
       if (error) throw error;
       return data;
     },
   });
 
+  // ... (delete mutation and other logic) ...
+
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
       // Find the expense to store in recently deleted
       const expenseToDelete = expenses.find(exp => exp.id === id);
-      
+
       // Delete from database
       const { error } = await supabase
         .from("expenses")
         .delete()
         .eq("id", id);
-      
+
       if (error) throw error;
 
       // Store in localStorage for recently deleted (if found)
       if (expenseToDelete && user?.id) {
         const recentlyDeletedKey = `recently_deleted_${user.id}`;
         const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
-        
+
         const deletedItem = {
           ...expenseToDelete,
           deleted_at: new Date().toISOString()
         };
-        
+
         existingDeleted.push(deletedItem);
         localStorage.setItem(recentlyDeletedKey, JSON.stringify(existingDeleted));
-        
+
         console.log('Dashboard: Stored deleted expense in localStorage', { key: recentlyDeletedKey, deletedItem, totalItems: existingDeleted.length });
       }
     },
@@ -190,6 +196,10 @@ export const Dashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <AiInsights expenses={expenses} categories={categories} />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-fade-in">
           <Card className="shadow-card bg-gradient-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -267,6 +277,7 @@ export const Dashboard = () => {
                 expenses={expenses}
                 isLoading={isLoading}
                 onDelete={(id) => deleteExpense.mutate(id)}
+                onDeleteAll={() => { }}
               />
             )}
           </div>
