@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,17 +13,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { 
-  TrendingUp, 
-  User, 
-  CalendarIcon, 
-  Banknote, 
+import {
+  TrendingUp,
+  User,
+  CalendarIcon,
+  Banknote,
   FileText,
-  Loader2 
+  Loader2,
+  ChevronsUpDown,
+  Check
 } from "lucide-react";
-import { cn } from "@/lib/utils"; 
+import { cn } from "@/lib/utils";
 
 const lentMoneySchema = z.object({
   amount: z.string().min(1, "Amount is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive number"),
@@ -36,15 +51,42 @@ interface LentMoneyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
+  defaultPersonName?: string;
 }
 
-export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogProps) => {
+export const LentMoneyDialog = ({ open, onOpenChange, userId, defaultPersonName = "" }: LentMoneyDialogProps) => {
   const [amount, setAmount] = useState("");
-  const [personName, setPersonName] = useState("");
+  const [personName, setPersonName] = useState(defaultPersonName);
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(false);
+  const [openCombobox, setOpenCombobox] = useState(false);
+
+  // Sync prop changes to state
+  useEffect(() => {
+    if (open) {
+      setPersonName(defaultPersonName);
+    }
+  }, [defaultPersonName, open]);
+
   const queryClient = useQueryClient();
+
+  // Fetch unique person names for autocomplete
+  const { data: existingParties = [] } = useQuery({
+    queryKey: ["parties-list", userId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("lent_money")
+        .select("person_name")
+        .eq("user_id", userId);
+
+      if (!data) return [];
+      // Deduplicate names
+      const uniqueNames = Array.from(new Set(data.map(d => d.person_name)));
+      return uniqueNames.sort();
+    },
+    enabled: open && !!userId, // Only fetch when dialog opens
+  });
 
   const addLentMoney = useMutation({
     mutationFn: async (data: {
@@ -69,6 +111,7 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+      queryClient.invalidateQueries({ queryKey: ["lent-money-parties"] }); // Refresh parties view too
       toast({
         title: "Success",
         description: `Recorded ₹${amount} lent to ${personName}.`,
@@ -125,13 +168,8 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* 1. max-h-[90vh]: Prevents dialog from being taller than the screen.
-         2. overflow-y-auto: Allows scrolling inside the dialog on small screens if keyboard pops up.
-         3. w-[95%] sm:w-full: Takes up almost full width on mobile, but respects max-width on desktop.
-      */}
       <DialogContent className="sm:max-w-[480px] w-[95%] max-h-[90vh] overflow-y-auto rounded-2xl p-0 gap-0 border shadow-xl bg-background/95 backdrop-blur-xl">
-        
-        {/* Header Section - Reduced padding on mobile */}
+
         <div className="bg-muted/30 p-5 sm:p-6 pb-6 sm:pb-8 border-b">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold text-primary">
@@ -145,7 +183,6 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
             </DialogDescription>
           </DialogHeader>
 
-          {/* Hero Amount Input */}
           <div className="mt-6 sm:mt-8 flex justify-center">
             <div className="relative w-full max-w-[240px] sm:max-w-[280px]">
               <span className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 text-2xl sm:text-3xl font-bold text-muted-foreground/50">
@@ -158,14 +195,13 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
                 placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                // Responsive font size: text-3xl on mobile, text-4xl on desktop
                 className="h-16 sm:h-20 pl-8 sm:pl-10 text-center text-3xl sm:text-4xl font-bold border-0 bg-transparent shadow-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
                 autoFocus
                 required
               />
               <div className="h-1 w-full bg-muted rounded-full mt-1 sm:mt-2 overflow-hidden">
-                <div 
-                  className="h-full bg-primary transition-all duration-300" 
+                <div
+                  className="h-full bg-primary transition-all duration-300"
                   style={{ width: amount ? "100%" : "0%" }}
                 />
               </div>
@@ -174,30 +210,77 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
           <p className="text-center text-xs sm:text-sm text-muted-foreground mt-2">Enter amount</p>
         </div>
 
-        {/* Form Body - Responsive padding and stacking */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 sm:space-y-5">
-          
-          {/* Stacks on mobile (grid-cols-1), side-by-side on tablet+ (grid-cols-2) */}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            {/* Person Input */}
-            <div className="space-y-1.5 sm:space-y-2">
+            {/* Person Autocomplete */}
+            <div className="space-y-1.5 sm:space-y-2 flex flex-col">
               <Label htmlFor="personName" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
                 Lending To
               </Label>
-              <div className="relative group">
-                <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground transition-colors group-hover:text-primary group-focus-within:text-primary" />
-                <Input
-                  id="personName"
-                  placeholder="e.g. John Doe"
-                  value={personName}
-                  onChange={(e) => setPersonName(e.target.value)}
-                  className="pl-10 h-10 sm:h-11 bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg text-sm sm:text-base"
-                  required
-                />
+              {/* Person Input + History Selection */}
+              <div className="space-y-1.5 sm:space-y-2 flex flex-col">
+                <Label htmlFor="personName" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                  Lending To
+                </Label>
+                <div className="relative flex gap-2">
+                  <div className="relative flex-1 group">
+                    <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground transition-colors group-hover:text-primary group-focus-within:text-primary" />
+                    <Input
+                      id="personName"
+                      placeholder="e.g. John Doe"
+                      value={personName}
+                      onChange={(e) => setPersonName(e.target.value)}
+                      className="pl-10 h-10 sm:h-11 bg-muted/20 border-muted-foreground/20 focus:bg-background transition-all rounded-lg text-sm sm:text-base"
+                      required
+                    />
+                  </div>
+
+                  <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 bg-muted/20 border-muted-foreground/20"
+                        title="Select from history"
+                      >
+                        <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0" align="end">
+                      <Command>
+                        <CommandInput placeholder="Search history..." />
+                        <CommandList>
+                          <CommandEmpty className="py-2 text-sm text-center text-muted-foreground">No recent parties.</CommandEmpty>
+                          <CommandGroup heading="Recent">
+                            {existingParties.map((party) => (
+                              <CommandItem
+                                key={party}
+                                value={party}
+                                onSelect={(currentValue) => {
+                                  // Use the displayed value (party) instead of currentValue (which might be lowercased)
+                                  setPersonName(party);
+                                  setOpenCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    personName === party ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {party}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
 
-            {/* Date Input */}
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="dueDate" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
                 Due Date <span className="text-muted-foreground/50 lowercase">(optional)</span>
@@ -215,7 +298,6 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
             </div>
           </div>
 
-          {/* Description Input */}
           <div className="space-y-1.5 sm:space-y-2">
             <Label htmlFor="description" className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground font-semibold">
               Description
@@ -233,19 +315,18 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId }: LentMoneyDialogP
             </div>
           </div>
 
-          {/* Footer Actions - Stack buttons on very small screens if needed, otherwise flex */}
           <DialogFooter className="gap-3 sm:gap-2 pt-2 sm:pt-4 flex-col sm:flex-row">
-            <Button 
-              type="button" 
-              variant="ghost" 
+            <Button
+              type="button"
+              variant="ghost"
               onClick={handleClose}
               className="w-full sm:w-auto hover:bg-muted order-2 sm:order-1"
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              disabled={loading} 
+            <Button
+              type="submit"
+              disabled={loading}
               className="w-full sm:w-auto min-w-[140px] rounded-lg shadow-lg shadow-primary/20 order-1 sm:order-2"
             >
               {loading ? (
