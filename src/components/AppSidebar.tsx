@@ -1,8 +1,8 @@
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  Users, 
-  Wallet, 
+import {
+  LayoutDashboard,
+  Receipt,
+  Users,
+  Wallet,
   HandCoins,
   Clock,
   Calculator,
@@ -22,39 +22,45 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calculator as CalculatorComponent } from "@/components/calculator";
 
 const menuItems = [
-  { 
-    title: "Dashboard", 
-    path: "/", 
+  {
+    title: "Dashboard",
+    path: "/",
     icon: LayoutDashboard,
     description: "Overview & stats"
   },
-  { 
-    title: "All Expenses", 
-    path: "/expenses", 
+  {
+    title: "All Expenses",
+    path: "/expenses",
     icon: Receipt,
     description: "View all transactions"
   },
-  { 
-    title: "Groups", 
-    path: "/groups", 
+  {
+    title: "Groups",
+    path: "/groups",
     icon: Users,
     description: "Shared expenses"
   },
-  { 
-    title: "Split Bills", 
-    path: "/split-bills", 
+  {
+    title: "Split Bills",
+    path: "/split-bills",
     icon: Wallet,
     description: "Divide costs"
   },
-  { 
-    title: "Lent Money", 
-    path: "/lent-money", 
+  {
+    title: "Lent Money",
+    path: "/lent-money",
     icon: HandCoins,
     description: "Track loans"
   },
-  { 
-    title: "Recently Deleted", 
-    path: "/recently-deleted", 
+  {
+    title: "Borrowed Money",
+    path: "/borrowed-money",
+    icon: HandCoins,
+    description: "Track debts"
+  },
+  {
+    title: "Recently Deleted",
+    path: "/recently-deleted",
     icon: Clock,
     description: "Recover expenses"
   },
@@ -78,7 +84,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         .select("*")
         .eq("user_id", user?.id)
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -86,7 +92,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   });
 
   return (
-    <aside 
+    <aside
       className={cn(
         "h-screen sticky top-0 flex flex-col border-r bg-card transition-all duration-300",
         collapsed ? "w-16" : "w-64"
@@ -119,7 +125,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
-          
+
           return (
             <NavLink
               key={item.path}
@@ -127,8 +133,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
               onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
-                isActive 
-                  ? "bg-primary text-primary-foreground shadow-md" 
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-md"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
@@ -156,8 +162,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       <div className="p-3 border-t space-y-2">
         <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
           <DialogTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className={cn(
                 "w-full justify-start gap-3",
                 collapsed && "justify-center px-0"
@@ -167,7 +173,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
               {!collapsed && <span>Calculator</span>}
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Calculator</DialogTitle>
             </DialogHeader>
@@ -180,8 +186,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           collapsed ? "flex-col" : "justify-between"
         )}>
           <ThemeToggle />
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             onClick={signOut}
             className="text-muted-foreground hover:text-destructive"

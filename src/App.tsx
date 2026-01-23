@@ -12,6 +12,7 @@ import GroupDetail from "./pages/GroupDetail";
 import JoinGroup from "./pages/JoinGroup";
 import AllExpenses from "./pages/AllExpenses";
 import LentMoney from "./pages/LentMoney";
+import BorrowedMoney from "./pages/BorrowedMoney";
 import RecentlyDeletedPage from "./pages/RecentlyDeletedPage";
 import NotFound from "./pages/NotFound";
 import { ThemeInitializer } from "@/components/ThemeToggle";
@@ -21,7 +22,7 @@ const queryClient = new QueryClient();
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -29,11 +30,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
+
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
@@ -48,6 +49,7 @@ const AppRoutes = () => {
       <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
       <Route path="/join/:inviteCode" element={<JoinGroup />} />
       <Route path="/lent-money" element={<ProtectedRoute><LentMoney /></ProtectedRoute>} />
+      <Route path="/borrowed-money" element={<ProtectedRoute><BorrowedMoney /></ProtectedRoute>} />
       <Route path="/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
