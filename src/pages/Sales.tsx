@@ -93,7 +93,7 @@ const SalesPage = () => {
                                     <div className="text-right">
                                         <p className="text-xl font-bold">{formatCurrency(invoice.total_amount)}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            {invoice.items?.length || 0} items
+                                            {Array.isArray(invoice.items) ? invoice.items.length : 0} items
                                         </p>
                                     </div>
                                 </CardContent>

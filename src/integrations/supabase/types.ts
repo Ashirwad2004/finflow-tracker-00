@@ -321,6 +321,102 @@ export type Database = {
         }
         Relationships: []
       }
+      purchases: {
+        Row: {
+          attachment_url: string | null
+          bill_number: string | null
+          created_at: string
+          date: string
+          id: string
+          items: Json
+          status: string | null
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          user_id: string
+          vendor_name: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          bill_number?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          items?: Json
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id: string
+          vendor_name: string
+        }
+        Update: {
+          attachment_url?: string | null
+          bill_number?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          items?: Json
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id?: string
+          vendor_name?: string
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          date: string
+          id: string
+          invoice_number: string
+          items: Json
+          payment_method: string | null
+          status: string | null
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          date?: string
+          id?: string
+          invoice_number: string
+          items?: Json
+          payment_method?: string | null
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          date?: string
+          id?: string
+          invoice_number?: string
+          items?: Json
+          payment_method?: string | null
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       split_bill_participants: {
         Row: {
           amount: number
