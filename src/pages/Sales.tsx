@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Plus, Printer, Search } from "lucide-react";
+import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
+import { Download, Plus, Printer, Search } from "lucide-react";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,17 +19,30 @@ const SalesPage = () => {
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
 
+    interface Sale {
+        id: string;
+        user_id: string;
+        customer_name: string;
+        invoice_number: string;
+        status: 'paid' | 'pending' | 'overdue';
+        total_amount: number;
+        subtotal?: number;
+        tax_amount?: number;
+        date: string;
+        items: any[];
+    }
+
     const { data: invoices = [], isLoading } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
             const { data, error } = await supabase
-                .from("sales")
+                .from("sales" as any)
                 .select("*")
                 .eq("user_id", user?.id)
                 .order("date", { ascending: false });
 
             if (error) throw error;
-            return data;
+            return data as any as Sale[];
         },
         enabled: !!user
     });
@@ -90,11 +104,30 @@ const SalesPage = () => {
                                             {format(new Date(invoice.date), "MMM d, yyyy")}
                                         </p>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-xl font-bold">{formatCurrency(invoice.total_amount)}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {invoice.items?.length || 0} items
-                                        </p>
+                                    <div className="text-right flex flex-col items-end gap-2">
+                                        <div>
+                                            <p className="text-xl font-bold">{formatCurrency(invoice.total_amount)}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {invoice.items?.length || 0} items
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={() => generateInvoicePDF({
+                                                invoice_number: invoice.invoice_number,
+                                                date: invoice.date,
+                                                customer_name: invoice.customer_name,
+                                                items: invoice.items || [],
+                                                subtotal: invoice.subtotal || invoice.total_amount, // Fallback if subtotal missing in older records
+                                                tax_amount: invoice.tax_amount || 0,
+                                                total_amount: invoice.total_amount,
+                                                tax_rate: 0 // Optional, purely for display if available
+                                            })}
+                                        >
+                                            <Download className="w-3 h-3 mr-1" /> PDF
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>
