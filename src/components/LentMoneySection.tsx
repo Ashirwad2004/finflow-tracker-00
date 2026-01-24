@@ -38,6 +38,7 @@ import { EditLentMoneyDialog } from "./EditLentMoneyDialog";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useBusiness } from "@/contexts/BusinessContext";
 
 interface LentMoneySectionProps {
   userId: string;
@@ -57,10 +58,11 @@ interface LentMoneyRecord {
 
 export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
   const { formatCurrency, currency } = useCurrency();
+  const { isBusinessMode } = useBusiness();
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<LentMoneyRecord | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const { data: lentMoney = [], isLoading } = useQuery({
@@ -78,65 +80,31 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
     enabled: !!userId,
   });
 
-  const handleExportPDF = () => {
-    if (!lentMoney || lentMoney.length === 0) {
+  const deleteLentMoney = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("lent_money")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lent-money"] });
       toast({
-        title: "No data",
-        description: "There are no records to export.",
-        variant: "default",
+        title: "Record deleted",
+        description: "The record has been successfully deleted.",
       });
-      return;
-    }
-
-    setIsExporting(true);
-
-    try {
-      const doc = new jsPDF();
-
-      // Title
-      doc.setFontSize(18);
-      doc.text("Lent Money Report", 14, 22);
-      doc.setFontSize(11);
-      doc.text(`Generated on: ${format(new Date(), "MMM d, yyyy")}`, 14, 30);
-
-      // Prepare data for table
-      const tableBody = lentMoney.map((record) => [
-        format(new Date(record.created_at), "MMM d, yyyy"), // Date
-        record.person_name, // Person
-        record.description, // Description
-        `${currency.symbol} ${record.amount}`, // Amount
-        record.due_date ? format(new Date(record.due_date), "MMM d, yyyy") : "No Due Date", // Due Date
-        record.status.toUpperCase(), // Status
-      ]);
-
-      // Generate Table
-      autoTable(doc, {
-        head: [["Date Created", "Person", "Description", "Amount", "Due Date", "Status"]],
-        body: tableBody,
-        startY: 35,
-        theme: "grid",
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [66, 66, 66] },
-      });
-
-      // Save File
-      doc.save(`lent_money_records_${format(new Date(), "yyyy-MM-dd")}.pdf`);
-
+      setDeleteDialogOpen(false);
+    },
+    onError: (error) => {
       toast({
-        title: "Success",
-        description: "Lent money report downloaded successfully.",
-      });
-    } catch (error) {
-      console.error("PDF Export Error:", error);
-      toast({
-        title: "Export Failed",
-        description: "Could not generate the PDF.",
+        title: "Error",
+        description: "Failed to delete record: " + error.message,
         variant: "destructive",
       });
-    } finally {
-      setIsExporting(false);
-    }
-  };
+    },
+  });
 
   const markAsRepaid = useMutation({
     mutationFn: async (id: string) => {
@@ -154,52 +122,14 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
         description: "The loan has been marked as repaid.",
       });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to update status. Please try again.",
+        description: "Failed to update status: " + error.message,
         variant: "destructive",
       });
     },
   });
-
-  const deleteLoan = useMutation({
-    mutationFn: async (loan: LentMoneyRecord) => {
-      const { error } = await supabase
-        .from("lent_money")
-        .delete()
-        .eq("id", loan.id);
-
-      if (error) throw error;
-
-      // Store in recently deleted
-      const key = `recently_deleted_lent_money_${userId}`;
-      const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      existing.push({ ...loan, deleted_at: new Date().toISOString() });
-      localStorage.setItem(key, JSON.stringify(existing));
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lent-money"] });
-      toast({
-        title: "Record deleted",
-        description: "The lent money record has been moved to recently deleted.",
-      });
-      setDeleteDialogOpen(false);
-      setSelectedLoan(null);
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete record. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleEdit = (loan: LentMoneyRecord) => {
-    setSelectedLoan(loan);
-    setEditDialogOpen(true);
-  };
 
   const handleDelete = (loan: LentMoneyRecord) => {
     setSelectedLoan(loan);
@@ -208,20 +138,72 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
 
   const confirmDelete = () => {
     if (selectedLoan) {
-      deleteLoan.mutate(selectedLoan);
+      deleteLentMoney.mutate(selectedLoan.id);
     }
+  };
+
+  const handleEdit = (loan: LentMoneyRecord) => {
+    setSelectedLoan(loan);
+    setEditDialogOpen(true);
   };
 
   const pendingLoans = lentMoney.filter((loan) => loan.status === "pending");
   const repaidLoans = lentMoney.filter((loan) => loan.status === "repaid");
-  const totalPending = pendingLoans.reduce(
-    (sum, loan) => sum + parseFloat(loan.amount.toString()),
-    0
-  );
+  const totalPending = pendingLoans.reduce((sum, loan) => sum + Number(loan.amount), 0);
 
-  const isOverdue = (dueDate: string | null) => {
-    if (!dueDate) return false;
-    return new Date(dueDate) < new Date();
+  const isOverdue = (dateString: string | null) => {
+    if (!dateString) return false;
+    return new Date(dateString) < new Date() && new Date(dateString).toDateString() !== new Date().toDateString();
+  };
+
+  const handleExportPDF = () => {
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF();
+      const title = isBusinessMode ? "Accounts Receivable Report" : "Lent Money Report";
+
+      doc.setFontSize(18);
+      doc.text(title, 14, 22);
+
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+      doc.text(`Total Pending: ${currency.symbol}${totalPending.toFixed(2)}`, 14, 38);
+
+      const tableColumn = ["Person", "Description", "Due Date", "Status", "Amount"];
+      const tableRows = lentMoney.map(loan => [
+        loan.person_name,
+        loan.description || "-",
+        loan.due_date ? new Date(loan.due_date).toLocaleDateString() : "-",
+        loan.status,
+        `${currency.symbol}${loan.amount}`
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [41, 41, 41], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 4: { halign: 'right' } }
+      });
+
+      doc.save(`lent_money_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast({
+        title: "Export Success",
+        description: "PDF report has been downloaded.",
+      });
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not generate PDF report.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (isLoading) {
@@ -230,7 +212,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Lent Money
+            {isBusinessMode ? "Accounts Receivable / Debts" : "Lent Money"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -248,7 +230,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
             <div className="flex items-center gap-4">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Clock className="w-5 h-5" />
-                Lent Money
+                {isBusinessMode ? "Accounts Receivable / Debts" : "Lent Money"}
               </CardTitle>
               {pendingLoans.length > 0 && (
                 <Badge variant="secondary" className="text-xs">

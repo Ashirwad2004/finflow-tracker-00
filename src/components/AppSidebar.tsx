@@ -8,7 +8,9 @@ import {
   Calculator,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp,
+  ShoppingCart
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -22,8 +24,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calculator as CalculatorComponent } from "@/components/calculator";
 import { Settings } from "lucide-react";
 import { SettingsDialog } from "./SettingsDialog";
+import { useBusiness } from "@/contexts/BusinessContext";
 
-export const menuItems = [
+const personalMenuItems = [
   {
     title: "Dashboard",
     path: "/",
@@ -66,7 +69,49 @@ export const menuItems = [
     icon: Clock,
     description: "Recover expenses"
   },
+  {
+    title: "Settings",
+    path: "/settings",
+    icon: Settings,
+    description: "Preferences"
+  }
 ];
+
+const businessMenuItems = [
+  {
+    title: "Dashboard",
+    path: "/",
+    icon: LayoutDashboard,
+    description: "Business Overview"
+  },
+  {
+    title: "Sales & Invoices",
+    path: "/sales",
+    icon: TrendingUp,
+    description: "Manage Sales"
+  },
+  {
+    title: "Purchases",
+    path: "/purchases",
+    icon: ShoppingCart,
+    description: "Manage Bills"
+  },
+  {
+    title: "All Expenses",
+    path: "/expenses",
+    icon: Receipt,
+    description: "Other Expenses"
+  },
+  {
+    title: "Settings",
+    path: "/settings",
+    icon: Settings,
+    description: "Preferences"
+  }
+];
+
+// Exporting menuItems for backward compatibility in other files (though they should update)
+export const menuItems = personalMenuItems;
 
 interface AppSidebarProps {
   onNavigate?: () => void;
@@ -75,6 +120,7 @@ interface AppSidebarProps {
 export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const { isBusinessMode } = useBusiness();
   const [collapsed, setCollapsed] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -94,6 +140,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
     enabled: !!user,
   });
 
+  const currentMenuItems = isBusinessMode ? businessMenuItems : personalMenuItems;
+
   return (
     <aside
       className={cn(
@@ -108,7 +156,9 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         </div>
         {!collapsed && (
           <div className="min-w-0 flex-1">
-            <h1 className="font-bold text-lg text-foreground truncate">ExpenseTracker</h1>
+            <h1 className="font-bold text-lg text-foreground truncate">
+              {isBusinessMode ? "FinFlow Bus." : "ExpenseTracker"}
+            </h1>
             <p className="text-xs text-muted-foreground truncate">{profile?.display_name || "Welcome!"}</p>
           </div>
         )}
@@ -126,7 +176,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
+        {currentMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
 
           return (
@@ -161,9 +211,6 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         })}
       </nav>
 
-      {/* Footer Actions */}
-      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
-
       <div className="p-3 border-t space-y-2">
         <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
           <DialogTrigger asChild>
@@ -185,18 +232,6 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             <CalculatorComponent />
           </DialogContent>
         </Dialog>
-
-        <Button
-          variant="ghost"
-          onClick={() => setIsSettingsOpen(true)}
-          className={cn(
-            "w-full justify-start gap-3",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          <Settings className="w-5 h-5" />
-          {!collapsed && <span>Settings</span>}
-        </Button>
 
         <div className={cn(
           "flex items-center gap-2",

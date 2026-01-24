@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import { BusinessProvider } from "@/contexts/BusinessContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -15,6 +16,7 @@ import AllExpenses from "./pages/AllExpenses";
 import LentMoney from "./pages/LentMoney";
 import BorrowedMoney from "./pages/BorrowedMoney";
 import RecentlyDeletedPage from "./pages/RecentlyDeletedPage";
+import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { ThemeInitializer } from "@/components/ThemeToggle";
 
@@ -39,6 +41,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+import SalesPage from "./pages/Sales";
+import PurchasesPage from "./pages/Purchases";
+
+// ... imports ...
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -52,6 +59,9 @@ const AppRoutes = () => {
       <Route path="/lent-money" element={<ProtectedRoute><LentMoney /></ProtectedRoute>} />
       <Route path="/borrowed-money" element={<ProtectedRoute><BorrowedMoney /></ProtectedRoute>} />
       <Route path="/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
+      <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -60,16 +70,18 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <CurrencyProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <ThemeInitializer />
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </CurrencyProvider>
+      <BusinessProvider>
+        <CurrencyProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <ThemeInitializer />
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </CurrencyProvider>
+      </BusinessProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
