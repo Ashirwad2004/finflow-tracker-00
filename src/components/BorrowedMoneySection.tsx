@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface BorrowedMoneySectionProps {
     userId: string;
+    onRefetchReady?: (refetch: () => Promise<void>) => void;
 }
 
 interface BorrowedMoneyRecord {
@@ -53,14 +54,14 @@ interface BorrowedMoneyRecord {
     updated_at: string;
 }
 
-export const BorrowedMoneySection = ({ userId }: BorrowedMoneySectionProps) => {
+export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySectionProps) => {
     const { formatCurrency, currency } = useCurrency();
     const queryClient = useQueryClient();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedDebt, setSelectedDebt] = useState<BorrowedMoneyRecord | null>(null);
     const [isExporting, setIsExporting] = useState(false);
 
-    const { data: borrowedMoney = [], isLoading } = useQuery({
+    const { data: borrowedMoney = [], isLoading, refetch } = useQuery({
         queryKey: ["borrowed-money", userId],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -74,6 +75,14 @@ export const BorrowedMoneySection = ({ userId }: BorrowedMoneySectionProps) => {
         },
         enabled: !!userId,
     });
+
+    useEffect(() => {
+        if (onRefetchReady) {
+            onRefetchReady(async () => {
+                await refetch();
+            });
+        }
+    }, [onRefetchReady, refetch]);
 
     const handleExportPDF = () => {
         if (!borrowedMoney || borrowedMoney.length === 0) {

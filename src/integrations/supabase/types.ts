@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      borrowed_money: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          person_name: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          person_name: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          person_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number
@@ -281,6 +317,102 @@ export type Database = {
           display_name?: string | null
           id?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      purchases: {
+        Row: {
+          attachment_url: string | null
+          bill_number: string | null
+          created_at: string
+          date: string
+          id: string
+          items: Json
+          status: string | null
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          user_id: string
+          vendor_name: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          bill_number?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          items?: Json
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id: string
+          vendor_name: string
+        }
+        Update: {
+          attachment_url?: string | null
+          bill_number?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          items?: Json
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id?: string
+          vendor_name?: string
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          date: string
+          id: string
+          invoice_number: string
+          items: Json
+          payment_method: string | null
+          status: string | null
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          date?: string
+          id?: string
+          invoice_number: string
+          items?: Json
+          payment_method?: string | null
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          date?: string
+          id?: string
+          invoice_number?: string
+          items?: Json
+          payment_method?: string | null
+          status?: string | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
           user_id?: string
         }
         Relationships: []
