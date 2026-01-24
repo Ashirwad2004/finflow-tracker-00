@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -38,9 +39,13 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { menuItems } from "./AppSidebar";
 import { cn } from "@/lib/utils";
+import { BusinessDashboard } from "@/components/BusinessDashboard";
+import { useBusiness } from "@/contexts/BusinessContext";
 
 export const Dashboard = () => {
+  console.log("Dashboard component rendering...");
   const { user, signOut } = useAuth();
+  const { isBusinessMode } = useBusiness();
   const { formatCurrency } = useCurrency();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
@@ -51,7 +56,7 @@ export const Dashboard = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  console.log("Dashboard user:", user);
+  console.log("Dashboard user state:", user);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -68,27 +73,59 @@ export const Dashboard = () => {
     enabled: !!user,
   });
 
+  // Business Mode View
+  if (isBusinessMode) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card shadow-sm">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="font-bold text-xl">FinFlow Business</h1>
+                <p className="text-xs text-muted-foreground">{profile?.display_name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
+                <Settings className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => signOut()}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+        <BusinessDashboard />
+      </div>
+    );
+  }
+
+  // Personal Mode Logic (Existing)
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ["expenses", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("expenses")
         .select(`
-          *,
-          categories (
-            id,
-            name,
-            color,
-            icon
-          )
-        `)
+  *,
+  categories(
+    id,
+    name,
+    color,
+    icon
+  )
+    `)
         .eq("user_id", user?.id)
         .order("date", { ascending: false });
 
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !isBusinessMode,
   });
 
   const { data: categories = [] } = useQuery({
@@ -116,7 +153,7 @@ export const Dashboard = () => {
       if (error) throw error;
 
       if (expenseToDelete && user?.id) {
-        const recentlyDeletedKey = `recently_deleted_${user.id}`;
+        const recentlyDeletedKey = `recently_deleted_${user.id} `;
         const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
 
         const deletedItem = {
@@ -222,20 +259,7 @@ export const Dashboard = () => {
                       </div>
                     </Button>
 
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-4 px-6 py-4 h-auto text-base"
-                      onClick={() => {
-                        setIsSettingsOpen(true);
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      <Settings className="w-5 h-5 text-muted-foreground" />
-                      <div className="text-left">
-                        <div className="font-medium">Settings</div>
-                        <div className="text-xs text-muted-foreground font-normal">Currency & Preferences</div>
-                      </div>
-                    </Button>
+
                   </div>
                 </SheetContent>
               </Sheet>

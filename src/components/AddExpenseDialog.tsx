@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -35,11 +36,14 @@ import {
   AlertCircle,
   ChevronRight,
   X,
-  Wand2
+  Wand2,
+  Building2,
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SmartExpenseInput } from "./SmartExpenseInput";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useBusiness } from "@/contexts/BusinessContext";
 
 /* ---------------- SCHEMAS & TYPES ---------------- */
 
@@ -48,6 +52,11 @@ const expenseSchema = z.object({
   amount: z.number().positive(),
   category_id: z.string().uuid(),
   date: z.string(),
+  // Business fields (optional/nullable)
+  tax_amount: z.number().nonnegative().optional(),
+  invoice_number: z.string().optional(),
+  vendor_name: z.string().optional(),
+  is_reimbursable: z.boolean().optional(),
 });
 
 interface Category {
@@ -72,6 +81,11 @@ interface ExpenseRow {
   date: string;
   billFile: File | null;
   billPreview: string | null;
+  // Business fields
+  taxAmount: string; // Keep as string for input
+  invoiceNumber: string;
+  vendorName: string;
+  isReimbursable: boolean;
 }
 
 /* ---------------- COMPONENT ---------------- */
@@ -84,6 +98,7 @@ export const AddExpenseDialog = ({
 }: AddExpenseDialogProps) => {
   const queryClient = useQueryClient();
   const { currency } = useCurrency();
+  const { isBusinessMode } = useBusiness();
 
   // State
   const [activeTab, setActiveTab] = useState(0);
@@ -96,6 +111,10 @@ export const AddExpenseDialog = ({
       date: new Date().toISOString().split("T")[0],
       billFile: null,
       billPreview: null,
+      taxAmount: "",
+      invoiceNumber: "",
+      vendorName: "",
+      isReimbursable: false
     },
   ]);
 
@@ -120,6 +139,10 @@ export const AddExpenseDialog = ({
       date: new Date().toISOString().split("T")[0],
       billFile: null,
       billPreview: null,
+      taxAmount: "",
+      invoiceNumber: "",
+      vendorName: "",
+      isReimbursable: false
     };
     setExpenses([...expenses, newRow]);
     // Automatically switch to the new tab
@@ -180,9 +203,15 @@ export const AddExpenseDialog = ({
     const updated = [...expenses];
     const current = updated[activeTab];
 
-    if (data.merchant_name) current.description = data.merchant_name;
+    if (data.merchant_name) current.description = data.merchant_name; // Fallback to description if vendor name not strictly separated
+    if (data.merchant_name && isBusinessMode) current.vendorName = data.merchant_name;
+
     if (data.total_amount) current.amount = data.total_amount.toString();
+    if (data.tax_amount && isBusinessMode) current.taxAmount = data.tax_amount.toString();
+
     if (data.bill_date) current.date = data.bill_date;
+    if (data.invoice_id && isBusinessMode) current.invoiceNumber = data.invoice_id;
+
     if (data.category_suggestion) {
       const match = categories.find(
         (c) => c.name.toLowerCase() === data.category_suggestion?.toLowerCase()
@@ -224,6 +253,7 @@ export const AddExpenseDialog = ({
         expenses.map(async (e) => {
           let billUrl = null;
           if (e.billFile) billUrl = await uploadBillToStorage(e.billFile);
+
           return {
             description: e.description,
             amount: parseFloat(e.amount),
@@ -231,6 +261,11 @@ export const AddExpenseDialog = ({
             date: e.date,
             user_id: userId,
             bill_url: billUrl,
+            // Business Fields
+            tax_amount: e.taxAmount ? parseFloat(e.taxAmount) : 0,
+            invoice_number: e.invoiceNumber || null,
+            vendor_name: e.vendorName || null,
+            is_reimbursable: e.isReimbursable
           };
         })
       );
@@ -243,7 +278,19 @@ export const AddExpenseDialog = ({
       onOpenChange(false);
       // Reset
       expenses.forEach(e => e.billPreview && URL.revokeObjectURL(e.billPreview));
-      setExpenses([{ id: crypto.randomUUID(), description: "", amount: "", categoryId: "", date: new Date().toISOString().split("T")[0], billFile: null, billPreview: null }]);
+      setExpenses([{
+        id: crypto.randomUUID(),
+        description: "",
+        amount: "",
+        categoryId: "",
+        date: new Date().toISOString().split("T")[0],
+        billFile: null,
+        billPreview: null,
+        taxAmount: "",
+        invoiceNumber: "",
+        vendorName: "",
+        isReimbursable: false
+      }]);
       setActiveTab(0);
     },
     onError: (err) => {
@@ -257,12 +304,16 @@ export const AddExpenseDialog = ({
         description: e.description,
         amount: parseFloat(e.amount),
         category_id: e.categoryId,
-        date: e.date
+        date: e.date,
+        tax_amount: e.taxAmount ? parseFloat(e.taxAmount) : undefined,
+        invoice_number: e.invoiceNumber,
+        vendor_name: e.vendorName,
+        is_reimbursable: e.isReimbursable
       }));
       addExpensesMutation.mutate();
     } catch (e) {
       if (e instanceof z.ZodError) {
-        toast({ title: "Validation Error", description: "Please check all fields in all tabs.", variant: "destructive" });
+        toast({ title: "Validation Error", description: "Please check all fields.", variant: "destructive" });
       }
     }
   };
@@ -273,9 +324,6 @@ export const AddExpenseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Mobile: w-full h-[100dvh] (full screen, no rounding)
-        Desktop: fixed width/height, rounded corners, shadow 
-      */}
       <DialogContent className="max-w-full w-full h-[100dvh] sm:h-[650px] sm:max-w-[900px] p-0 gap-0 flex flex-col sm:flex-row rounded-none sm:rounded-2xl border-0 sm:border shadow-none sm:shadow-2xl bg-background overflow-hidden">
 
         {/* === LEFT SIDEBAR / TOP NAV === */}
@@ -289,16 +337,12 @@ export const AddExpenseDialog = ({
                 {expenses.length} item{expenses.length !== 1 ? 's' : ''} total
               </DialogDescription>
             </DialogHeader>
-            {/* Mobile Close Button (Visible only on mobile/tablet) */}
             <Button variant="ghost" size="icon" className="h-6 w-6 sm:hidden -mt-1 -mr-2" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
 
           <ScrollArea className="w-full whitespace-nowrap sm:whitespace-normal">
-            {/* Mobile: Horizontal Flex (row)
-              Desktop: Vertical Flex (col) 
-            */}
             <div className="flex sm:flex-col p-2 gap-2 w-max sm:w-full">
               {expenses.map((expense, index) => {
                 const isValid = isValidRow(expense);
@@ -310,14 +354,12 @@ export const AddExpenseDialog = ({
                     onClick={() => setActiveTab(index)}
                     className={cn(
                       "group relative flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border select-none",
-                      // Mobile: fixed width card. Desktop: full width
                       "w-[160px] sm:w-full",
                       isActive
                         ? "bg-background border-primary/50 shadow-sm ring-1 ring-primary/10"
                         : "bg-transparent border-transparent hover:bg-muted/50"
                     )}
                   >
-                    {/* Number Badge */}
                     <div className={cn(
                       "w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full flex items-center justify-center shrink-0 transition-colors",
                       isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
@@ -334,12 +376,10 @@ export const AddExpenseDialog = ({
                       </p>
                     </div>
 
-                    {/* Validation Icon */}
                     <div className="absolute top-2 right-2 sm:static sm:top-auto sm:right-auto text-muted-foreground/30">
                       {isValid ? <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-green-500/70" /> : <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500/70" />}
                     </div>
 
-                    {/* Delete Button (Visible on hover for desktop, or separate action for mobile could be added) */}
                     {expenses.length > 1 && (
                       <button
                         onClick={(e) => removeRow(e, index)}
@@ -367,12 +407,9 @@ export const AddExpenseDialog = ({
 
         {/* === RIGHT PANEL (Active Form) === */}
         <div className="flex-1 flex flex-col min-w-0 bg-background h-full overflow-hidden">
-
-          {/* Form Content - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="max-w-md mx-auto space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-right-4 duration-300" key={currentExpense.id}>
 
-              {/* AI Smart Input Section */}
               <div className="mb-4">
                 <Label className="text-xs font-semibold text-violet-500 mb-1.5 flex items-center gap-1 uppercase tracking-wide">
                   <Wand2 className="w-3 h-3" /> AI Smart Fill
@@ -392,7 +429,6 @@ export const AddExpenseDialog = ({
                 </div>
               </div>
 
-              {/* Hero Input: Amount */}
               <div className="space-y-4 text-center mt-2 sm:mt-0">
                 <Label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
                   Expense Amount
@@ -405,7 +441,6 @@ export const AddExpenseDialog = ({
                     type="number"
                     step="0.01"
                     placeholder="0.00"
-                    // Smaller font on mobile to prevent overflow/zooming issues
                     className="text-center text-4xl sm:text-5xl font-bold h-16 sm:h-20 border-0 border-b-2 border-muted focus-visible:ring-0 focus-visible:border-primary rounded-none px-8 placeholder:text-muted-foreground/20 bg-transparent"
                     value={currentExpense.amount}
                     onChange={(e) => updateExpense("amount", e.target.value)}
@@ -414,9 +449,7 @@ export const AddExpenseDialog = ({
                 </div>
               </div>
 
-              {/* Main Fields */}
               <div className="grid gap-4 sm:gap-5">
-
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
                     <Receipt className="w-3.5 h-3.5" /> Description
@@ -428,6 +461,33 @@ export const AddExpenseDialog = ({
                     onChange={(e) => updateExpense("description", e.target.value)}
                   />
                 </div>
+
+                {isBusinessMode && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5" /> Vendor
+                      </Label>
+                      <Input
+                        placeholder="Vendor Name"
+                        className="bg-muted/10 h-12"
+                        value={currentExpense.vendorName}
+                        onChange={(e) => updateExpense("vendorName", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5" /> Invoice #
+                      </Label>
+                      <Input
+                        placeholder="INV-001"
+                        className="bg-muted/10 h-12"
+                        value={currentExpense.invoiceNumber}
+                        onChange={(e) => updateExpense("invoiceNumber", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -466,11 +526,42 @@ export const AddExpenseDialog = ({
                     />
                   </div>
                 </div>
+
+                {isBusinessMode && (
+                  <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-muted/20 border border-muted/50 animate-fade-in">
+                    <div className="space-y-2 flex-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                        Tax Amount
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                          {currency.symbol}
+                        </span>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          className="pl-8 bg-background"
+                          value={currentExpense.taxAmount}
+                          onChange={(e) => updateExpense("taxAmount", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-6">
+                      <Checkbox
+                        id="reimbursable"
+                        checked={currentExpense.isReimbursable}
+                        onCheckedChange={(checked) => updateExpense("isReimbursable", checked as boolean)}
+                      />
+                      <Label htmlFor="reimbursable" className="cursor-pointer font-medium">Reimbursable</Label>
+                    </div>
+                  </div>
+                )}
+
               </div>
 
-              {/* Bill Upload Section */}
               <Separator />
-              <div className="pb-4"> {/* Padding bottom for mobile scroll */}
+              <div className="pb-4">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase mb-3 block">
                   Attachment
                 </Label>
@@ -485,15 +576,12 @@ export const AddExpenseDialog = ({
             </div>
           </div>
 
-          {/* Footer Actions */}
           <DialogFooter className="p-4 border-t bg-background flex-row items-center gap-3 sm:justify-between shrink-0">
-            {/* Hidden on mobile to save space, rely on top Close button */}
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="hidden sm:inline-flex">
               Cancel
             </Button>
 
             <div className="flex gap-3 w-full sm:w-auto">
-              {/* Show delete button on mobile in footer since hover isn't available */}
               {expenses.length > 1 && (
                 <Button
                   variant="outline"

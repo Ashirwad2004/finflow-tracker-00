@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, Eye, FileDown } from "lucide-react";
+import { Trash2, FileText, Eye, FileDown, Building2 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-// 1. Add Alert Dialog Imports for safety
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +22,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useBusiness } from "@/contexts/BusinessContext";
 
 interface Expense {
   id: string;
@@ -32,6 +33,11 @@ interface Expense {
   amount: number;
   date: string;
   bill_url?: string | null;
+  // Business fields
+  tax_amount?: number | null;
+  invoice_number?: string | null;
+  vendor_name?: string | null;
+  is_reimbursable?: boolean | null;
   categories: {
     id: string;
     name: string;
@@ -44,18 +50,15 @@ interface ExpenseListProps {
   expenses: Expense[];
   isLoading: boolean;
   onDelete: (id: string) => void;
-  onDeleteAll: () => void; // 2. Add new prop here
+  onDeleteAll: () => void;
 }
 
 export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: ExpenseListProps) => {
   const { formatCurrency, currency } = useCurrency();
+  const { isBusinessMode } = useBusiness();
   const [billPreviewUrl, setBillPreviewUrl] = useState<string | null>(null);
 
   const formatDateForCSV = (d?: string | Date | null) => {
-    // ... (keep logic, but we can't use "... (keep logic)" syntax with replace_file_content unless we are careful about ranges. 
-    // Wait, reusing existing logic is better done by NOT replacing it if possible.
-    // I can't easily skip blocks in replace_file_content.
-    // Best to replace smaller chunks.)
     if (!d) return '';
     if (d instanceof Date && !isNaN(d.getTime())) {
       return d.toISOString().slice(0, 10);
@@ -76,17 +79,34 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
 
   const downloadCSV = (data: Expense[]) => {
     if (!data || data.length === 0) return;
-    const header = ['id', 'description', 'amount', 'date', 'category'];
+
+    let header = ['id', 'description', 'amount', 'date', 'category'];
+    if (isBusinessMode) {
+      header = [...header, 'vendor', 'invoice_no', 'tax_amount', 'reimbursable'];
+    }
+
     const rows = data.map((e) => {
       const amount = typeof e.amount === 'number' ? e.amount : parseFloat(String(e.amount) || '0');
       const dateStr = formatDateForCSV(e.date);
-      return [
+
+      const basicRow = [
         e.id,
         (e.description ?? '').replace(/"/g, '""'),
         amount.toFixed(2),
         dateStr,
         (e.categories?.name ?? '').replace(/"/g, '""'),
       ];
+
+      if (isBusinessMode) {
+        return [
+          ...basicRow,
+          (e.vendor_name ?? '').replace(/"/g, '""'),
+          (e.invoice_number ?? '').replace(/"/g, '""'),
+          (e.tax_amount || 0).toFixed(2),
+          e.is_reimbursable ? 'Yes' : 'No'
+        ];
+      }
+      return basicRow;
     });
 
     const csv = [header, ...rows].map((r) => r.map((cell) => `"${cell}"`).join(',')).join('\r\n');
@@ -103,20 +123,36 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
 
   const downloadPDF = () => {
     const doc = new jsPDF();
+    const title = isBusinessMode ? "Business Expense Report" : "Expense Report";
 
     doc.setFontSize(18);
-    doc.text("Expense Report", 14, 22);
+    doc.text(title, 14, 22);
 
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
 
-    const tableColumn = ["Description", "Category", "Date", "Amount"];
+    let tableColumn = ["Description", "Category", "Date", "Amount"];
+    // Adjust column headers for business mode
+    if (isBusinessMode) {
+      tableColumn = ["Description", "Vendor", "Invoice", "Date", "Tax", "Amount"];
+    }
 
     const tableRows = expenses.map(expense => {
       const amount = typeof expense.amount === 'number'
         ? expense.amount
         : parseFloat(String(expense.amount) || '0');
+
+      if (isBusinessMode) {
+        return [
+          expense.description,
+          expense.vendor_name || '-',
+          expense.invoice_number || '-',
+          new Date(expense.date).toLocaleDateString(),
+          expense.tax_amount ? `${currency.symbol}${expense.tax_amount}` : '-',
+          `${currency.code} ${amount.toFixed(2)}`
+        ];
+      }
 
       return [
         expense.description,
@@ -132,7 +168,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
       startY: 35,
       theme: 'grid',
       styles: {
-        fontSize: 10,
+        fontSize: isBusinessMode ? 8 : 10, // Smaller font if more columns
         cellPadding: 3,
       },
       headStyles: {
@@ -140,9 +176,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
         textColor: 255,
         fontStyle: 'bold',
       },
-      columnStyles: {
-        3: { halign: 'right' }
-      }
+      columnStyles: isBusinessMode ? { 5: { halign: 'right' }, 4: { halign: 'right' } } : { 3: { halign: 'right' } }
     });
 
     doc.save(`expenses_${formatDateForCSV(new Date())}.pdf`);
@@ -199,7 +233,6 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
 
             {/* BUTTONS GROUP */}
             <div className="flex flex-wrap gap-2">
-              {/* 3. New Delete All Button with Confirmation */}
               {expenses.length > 0 && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -240,7 +273,8 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
 
           <div className="divide-y divide-border">
             {expenses.map((expense) => {
-              const Icon = getIcon(expense.categories.icon);
+              const iconName = expense.categories?.icon || 'circle';
+              const Icon = getIcon(iconName);
               return (
                 <div
                   key={expense.id}
@@ -256,6 +290,9 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-foreground truncate">{expense.description}</p>
+                        {isBusinessMode && expense.is_reimbursable && (
+                          <Badge variant="secondary" className="text-[10px] px-1 h-5">Reimbursable</Badge>
+                        )}
                         {expense.bill_url && (
                           <Button
                             variant="ghost"
@@ -268,17 +305,44 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                           </Button>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-muted-foreground">
-                        <span>{expense.categories.name}</span>
+
+                      {/* Subtitles: Category, Date, Vendor/Invoice for Business */}
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-muted-foreground mt-0.5">
+                        <span className="flex items-center gap-1">{expense.categories.name}</span>
                         <span>•</span>
                         <span>{new Date(expense.date).toLocaleDateString()}</span>
+
+                        {isBusinessMode && (expense.vendor_name || expense.invoice_number) && (
+                          <>
+                            <span className="hidden sm:inline">•</span>
+                            <div className="flex items-center gap-2 w-full sm:w-auto mt-1 sm:mt-0">
+                              {expense.vendor_name && (
+                                <span className="flex items-center gap-1 text-xs bg-muted px-1.5 py-0.5 rounded">
+                                  <Building2 className="w-3 h-3" /> {expense.vendor_name}
+                                </span>
+                              )}
+                              {expense.invoice_number && (
+                                <span className="text-xs">Inv: {expense.invoice_number}</span>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-4">
-                    <span className="font-semibold text-lg text-foreground">
-                      {formatCurrency(parseFloat(expense.amount.toString()))}
-                    </span>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-4 ml-12 sm:ml-0">
+                    <div className="text-right">
+                      <span className="font-semibold text-lg text-foreground block">
+                        {formatCurrency(parseFloat(expense.amount.toString()))}
+                      </span>
+                      {isBusinessMode && expense.tax_amount ? (
+                        <span className="text-xs text-muted-foreground block">
+                          + {formatCurrency(expense.tax_amount)} Tax
+                        </span>
+                      ) : null}
+                    </div>
+
                     <Button
                       variant="ghost"
                       size="icon"
