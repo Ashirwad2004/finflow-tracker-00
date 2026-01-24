@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,21 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, LogOut, TrendingDown, TrendingUp, Wallet, Users, Clock, Calculator, UserPlus } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Plus,
+  LogOut,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  Users,
+  Clock,
+  Calculator,
+  UserPlus,
+  Menu,
+  Settings,
+  X
+} from "lucide-react";
 import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
@@ -19,20 +33,25 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
 import { AiInsights } from "@/components/AiInsights";
-import { QuickActionMenu } from "@/components/QuickActionMenu";
+
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { SettingsDialog } from "@/components/SettingsDialog";
+import { menuItems } from "./AppSidebar";
+import { cn } from "@/lib/utils";
 
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
+  const { formatCurrency } = useCurrency();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
   const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   console.log("Dashboard user:", user);
-
-  // ... (queries)
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -85,14 +104,10 @@ export const Dashboard = () => {
     },
   });
 
-  // ... (delete mutation and other logic) ...
-
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
-      // Find the expense to store in recently deleted
       const expenseToDelete = expenses.find(exp => exp.id === id);
 
-      // Delete from database
       const { error } = await supabase
         .from("expenses")
         .delete()
@@ -100,7 +115,6 @@ export const Dashboard = () => {
 
       if (error) throw error;
 
-      // Store in localStorage for recently deleted (if found)
       if (expenseToDelete && user?.id) {
         const recentlyDeletedKey = `recently_deleted_${user.id}`;
         const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
@@ -112,8 +126,6 @@ export const Dashboard = () => {
 
         existingDeleted.push(deletedItem);
         localStorage.setItem(recentlyDeletedKey, JSON.stringify(existingDeleted));
-
-        console.log('Dashboard: Stored deleted expense in localStorage', { key: recentlyDeletedKey, deletedItem, totalItems: existingDeleted.length });
       }
     },
     onSuccess: () => {
@@ -151,8 +163,84 @@ export const Dashboard = () => {
       <header className="border-b bg-card shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
+
+            {/* Left Side: Menu Toggle + Brand */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
+              {/* Menu Button (Left Corner) */}
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-10 w-10">
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[85vw] sm:w-[350px] p-0 overflow-y-auto">
+                  <SheetHeader className="p-4 border-b text-left flex flex-row items-center justify-between space-y-0">
+                    <SheetTitle className="text-xl font-bold flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-primary" />
+                      ExpenseTracker
+                    </SheetTitle>
+                    {/* Close button is automatically rendered by SheetContent, we ensure spacing via layout if needed, 
+                        but standard SheetContent usually places it absolutely. 
+                        If we want a "Best UI", we might rely on the default absolute positioning 
+                        or ensuring the title doesn't overlap. 
+                        Adding pr-6 to title or container helps. 
+                    */}
+                  </SheetHeader>
+                  <div className="py-2">
+                    {menuItems.map((item) => (
+                      <Button
+                        key={item.path}
+                        variant="ghost"
+                        className="w-full justify-start gap-4 px-6 py-4 h-auto text-base"
+                        onClick={() => {
+                          navigate(item.path);
+                          setIsMobileMenuOpen(false);
+                        }}
+                      >
+                        <item.icon className="w-5 h-5 text-muted-foreground" />
+                        <div className="text-left">
+                          <div className="font-medium">{item.title}</div>
+                          <div className="text-xs text-muted-foreground font-normal">{item.description}</div>
+                        </div>
+                      </Button>
+                    ))}
+
+                    <div className="border-t my-2" />
+
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-4 px-6 py-4 h-auto text-base"
+                      onClick={() => {
+                        setIsAddDialogOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      <Plus className="w-5 h-5 text-primary" />
+                      <div className="text-left">
+                        <div className="font-medium">Add Expense</div>
+                        <div className="text-xs text-muted-foreground font-normal">Create new record</div>
+                      </div>
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-4 px-6 py-4 h-auto text-base"
+                      onClick={() => {
+                        setIsSettingsOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      <Settings className="w-5 h-5 text-muted-foreground" />
+                      <div className="text-left">
+                        <div className="font-medium">Settings</div>
+                        <div className="text-xs text-muted-foreground font-normal">Currency & Preferences</div>
+                      </div>
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0 hidden md:flex">
                 <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
               </div>
               <div className="min-w-0">
@@ -160,15 +248,19 @@ export const Dashboard = () => {
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {profile?.display_name || "User"}!</p>
               </div>
             </div>
+
+            {/* Right Side: Quick Actions (Desktop) */}
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              {/* Previous dropdown removed */}
+
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigate("/groups")}
-                className="p-2 sm:p-3"
+                className="p-2 sm:p-3 hidden sm:flex"
               >
                 <UserPlus className="w-4 h-4" />
-                <span className="hidden sm:inline ml-2">Groups</span>
+                <span className="ml-2">Groups</span>
               </Button>
               <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
                 <DialogTrigger asChild>
@@ -184,6 +276,12 @@ export const Dashboard = () => {
                 </DialogContent>
               </Dialog>
               <ThemeToggle />
+
+              {/* Desktop Settings Button */}
+              <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)} className="hidden sm:flex p-2 sm:p-3">
+                <Settings className="w-4 h-4" />
+              </Button>
+
               <Button variant="outline" onClick={handleSignOut} size="sm" className="hidden sm:flex">
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
@@ -208,7 +306,7 @@ export const Dashboard = () => {
               <TrendingDown className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{totalExpenses.toFixed(2)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(totalExpenses)}</div>
               <p className="text-xs text-muted-foreground mt-1">All time</p>
             </CardContent>
           </Card>
@@ -219,7 +317,7 @@ export const Dashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{thisMonthExpenses.toFixed(2)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(thisMonthExpenses)}</div>
               <p className="text-xs text-muted-foreground mt-1">Current month spending</p>
             </CardContent>
           </Card>
@@ -306,12 +404,12 @@ export const Dashboard = () => {
         userId={user?.id || ""}
       />
 
-      <QuickActionMenu
-        onAddExpense={() => setIsAddDialogOpen(true)}
-        onSplitBill={() => navigate("/split-bills")}
-        onLentMoney={() => setIsLentMoneyDialogOpen(true)}
-        onBorrowedMoney={() => navigate("/borrowed-money")}
+      <SettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
       />
+
+
     </div>
   );
 };

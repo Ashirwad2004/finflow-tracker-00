@@ -34,12 +34,12 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronRight,
-  IndianRupee,
   X,
-  Wand2 // Added Wand2
+  Wand2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SmartExpenseInput } from "./SmartExpenseInput";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 /* ---------------- SCHEMAS & TYPES ---------------- */
 
@@ -83,6 +83,7 @@ export const AddExpenseDialog = ({
   userId,
 }: AddExpenseDialogProps) => {
   const queryClient = useQueryClient();
+  const { currency } = useCurrency();
 
   // State
   const [activeTab, setActiveTab] = useState(0);
@@ -329,7 +330,7 @@ export const AddExpenseDialog = ({
                         {expense.description || "New Item"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {expense.amount ? `₹${expense.amount}` : "₹0.00"}
+                        {expense.amount ? `${currency.symbol}${expense.amount}` : `${currency.symbol}0.00`}
                       </p>
                     </div>
 
@@ -397,7 +398,9 @@ export const AddExpenseDialog = ({
                   Expense Amount
                 </Label>
                 <div className="relative inline-block w-full">
-                  <IndianRupee className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/30" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 text-2xl sm:text-3xl font-bold text-muted-foreground/50 w-8 text-center bg-transparent">
+                    {currency.symbol}
+                  </span>
                   <Input
                     type="number"
                     step="0.01"

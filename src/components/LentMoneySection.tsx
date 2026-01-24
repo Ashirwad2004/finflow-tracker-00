@@ -21,22 +21,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
-import { 
-  User, 
-  Calendar, 
-  CheckCircle, 
-  Clock, 
-  AlertCircle, 
-  MoreVertical, 
-  Pencil, 
+import {
+  User,
+  Calendar,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  MoreVertical,
+  Pencil,
   Trash2,
-  FileDown, // Import FileDown icon
-  Loader2   // Import Loader icon
+  FileDown,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { EditLentMoneyDialog } from "./EditLentMoneyDialog";
-import jsPDF from "jspdf"; // Import jsPDF
-import autoTable from "jspdf-autotable"; // Import autoTable
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface LentMoneySectionProps {
   userId: string;
@@ -55,11 +56,12 @@ interface LentMoneyRecord {
 }
 
 export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
+  const { formatCurrency, currency } = useCurrency();
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<LentMoneyRecord | null>(null);
-  const [isExporting, setIsExporting] = useState(false); // State for export loading
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data: lentMoney = [], isLoading } = useQuery({
     queryKey: ["lent-money", userId],
@@ -76,7 +78,6 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
     enabled: !!userId,
   });
 
-  // --- NEW: Handle PDF Export ---
   const handleExportPDF = () => {
     if (!lentMoney || lentMoney.length === 0) {
       toast({
@@ -103,7 +104,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
         format(new Date(record.created_at), "MMM d, yyyy"), // Date
         record.person_name, // Person
         record.description, // Description
-        `Rs. ${record.amount}`, // Amount
+        `${currency.symbol} ${record.amount}`, // Amount
         record.due_date ? format(new Date(record.due_date), "MMM d, yyyy") : "No Due Date", // Due Date
         record.status.toUpperCase(), // Status
       ]);
@@ -251,15 +252,14 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
               </CardTitle>
               {pendingLoans.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
-                  ₹{totalPending.toFixed(2)} pending
+                  {formatCurrency(totalPending)} pending
                 </Badge>
               )}
             </div>
-            
-            {/* --- NEW: PDF Export Button --- */}
-            <Button 
-              variant="outline" 
-              size="sm" 
+
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExportPDF}
               disabled={isExporting || lentMoney.length === 0}
               className="h-8"
@@ -271,7 +271,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
               )}
               Export PDF
             </Button>
-            
+
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -303,7 +303,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
                     </p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">
-                        ₹{parseFloat(loan.amount.toString()).toFixed(2)}
+                        {formatCurrency(parseFloat(loan.amount.toString()))}
                       </span>
                       {loan.due_date && (
                         <span className="flex items-center gap-1">
@@ -365,7 +365,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs text-green-600">
                         <CheckCircle className="w-3 h-3 mr-1" />
-                        ₹{parseFloat(loan.amount.toString()).toFixed(2)}
+                        {formatCurrency(parseFloat(loan.amount.toString()))}
                       </Badge>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

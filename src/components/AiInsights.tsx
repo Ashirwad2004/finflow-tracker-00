@@ -1,12 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lightbulb, TrendingUp, TrendingDown, Target } from "lucide-react";
 
+import { useCurrency } from "@/contexts/CurrencyContext";
+
 interface AiInsightsProps {
     expenses: any[];
     categories: any[];
 }
 
 export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
+    const { formatCurrency } = useCurrency();
     // Simple "AI" logic to generate insights
     const generateInsights = () => {
         if (!expenses.length) return [];
@@ -24,7 +27,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
         if (thisMonthTotal > 10000) {
             insights.push({
                 title: "High Spending Alert",
-                desc: `You've spent ₹${thisMonthTotal.toFixed(0)} this month. Consider reviewing your "Wants" vs "Needs".`,
+                desc: `You've spent ${formatCurrency(thisMonthTotal)} this month. Consider reviewing your "Wants" vs "Needs".`,
                 icon: TrendingUp,
                 color: "text-red-500",
                 bg: "bg-red-500/10"
@@ -32,7 +35,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
         } else if (thisMonthTotal > 0) {
             insights.push({
                 title: "On Track",
-                desc: `Your spending is within a healthy range this month (₹${thisMonthTotal.toFixed(0)}). Keep it up!`,
+                desc: `Your spending is within a healthy range this month (${formatCurrency(thisMonthTotal)}). Keep it up!`,
                 icon: Target,
                 color: "text-green-500",
                 bg: "bg-green-500/10"
@@ -59,7 +62,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
             const catName = categories.find(c => c.id === topCatId)?.name || "Unknown";
             insights.push({
                 title: `Top Category: ${catName}`,
-                desc: `You spent ₹${topCatAmount.toFixed(0)} on ${catName}. Try finding cheaper alternatives?`,
+                desc: `You spent ${formatCurrency(topCatAmount)} on ${catName}. Try finding cheaper alternatives?`,
                 icon: Lightbulb,
                 color: "text-amber-500",
                 bg: "bg-amber-500/10"

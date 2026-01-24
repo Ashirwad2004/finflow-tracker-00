@@ -25,21 +25,17 @@ import {
     User,
     Calendar,
     CheckCircle,
-    Clock,
     AlertCircle,
     MoreVertical,
-    Pencil,
     Trash2,
     FileDown,
     Loader2,
     TrendingDown
 } from "lucide-react";
 import { format } from "date-fns";
-import { BorrowedMoneyDialog } from "./BorrowedMoneyDialog"; // We can reuse Dialog for edit if we adapt it or create EditBorrowedMoneyDialog. For now, let's assume simple edit or skip edit for MVP. 
-// Actually, LentMoney had EditLentMoneyDialog. I should probably skip Edit for now or reuse BorrowedMoneyDialog if possible. 
-// For simplicity in this "Add feature" request, I will skip complex Edit dialog for now or implement Delete/Mark Repaid first.
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface BorrowedMoneySectionProps {
     userId: string;
@@ -58,7 +54,8 @@ interface BorrowedMoneyRecord {
     updated_at: string;
 }
 
-export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySectionProps) => {
+export const BorrowedMoneySection = ({ userId }: BorrowedMoneySectionProps) => {
+    const { formatCurrency, currency } = useCurrency();
     const queryClient = useQueryClient();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedDebt, setSelectedDebt] = useState<BorrowedMoneyRecord | null>(null);
@@ -110,7 +107,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                 format(new Date(record.created_at), "MMM d, yyyy"),
                 record.person_name,
                 record.description,
-                `Rs. ${record.amount}`,
+                `${currency.symbol} ${record.amount}`,
                 record.due_date ? format(new Date(record.due_date), "MMM d, yyyy") : "No Due Date",
                 record.status.toUpperCase(),
             ]);
@@ -254,7 +251,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                             </CardTitle>
                             {pendingDebts.length > 0 && (
                                 <Badge variant="destructive" className="text-xs">
-                                    ₹{totalPending.toFixed(2)} pending
+                                    {formatCurrency(totalPending)} pending
                                 </Badge>
                             )}
                         </div>
@@ -305,7 +302,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                                         </p>
                                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                             <span className="font-semibold text-destructive">
-                                                ₹{parseFloat(debt.amount.toString()).toFixed(2)}
+                                                {formatCurrency(parseFloat(debt.amount.toString()))}
                                             </span>
                                             {debt.due_date && (
                                                 <span className="flex items-center gap-1">
@@ -332,7 +329,6 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                {/* Edit skipped for now */}
                                                 <DropdownMenuItem
                                                     onClick={() => handleDelete(debt)}
                                                     className="text-destructive focus:text-destructive"
@@ -365,7 +361,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                                         <div className="flex items-center gap-2">
                                             <Badge variant="outline" className="text-xs text-green-600">
                                                 <CheckCircle className="w-3 h-3 mr-1" />
-                                                ₹{parseFloat(debt.amount.toString()).toFixed(2)}
+                                                {formatCurrency(parseFloat(debt.amount.toString()))}
                                             </Badge>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>

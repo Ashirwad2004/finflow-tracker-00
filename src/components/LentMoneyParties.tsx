@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, ArrowRight, Loader2, Plus, UserPlus } from "lucide-react";
+import { Loader2, Plus, UserPlus } from "lucide-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface LentMoneyPartiesProps {
     userId: string;
@@ -19,6 +20,7 @@ interface PartyStats {
 }
 
 export const LentMoneyParties = ({ userId, onAddTransaction }: LentMoneyPartiesProps) => {
+    const { formatCurrency } = useCurrency();
     const { data: parties = [], isLoading } = useQuery({
         queryKey: ["lent-money-parties", userId],
         queryFn: async () => {
@@ -125,7 +127,7 @@ export const LentMoneyParties = ({ userId, onAddTransaction }: LentMoneyPartiesP
 
                         <div className="flex items-end justify-between border-t pt-3">
                             <div className="text-2xl font-bold">
-                                ₹{party.totalPending.toFixed(2)}
+                                {formatCurrency(party.totalPending)}
                             </div>
                             <Button
                                 className="h-8 text-xs sm:hidden"
