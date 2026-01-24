@@ -154,6 +154,7 @@ export type Database = {
           description: string
           group_id: string
           id: string
+          split_data: Json | null
           updated_at: string
           user_id: string
           username: string
@@ -166,6 +167,7 @@ export type Database = {
           description: string
           group_id: string
           id?: string
+          split_data?: Json | null
           updated_at?: string
           user_id: string
           username: string
@@ -178,6 +180,7 @@ export type Database = {
           description?: string
           group_id?: string
           id?: string
+          split_data?: Json | null
           updated_at?: string
           user_id?: string
           username?: string
