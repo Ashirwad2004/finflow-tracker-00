@@ -19,6 +19,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
 import { AiInsights } from "@/components/AiInsights";
+import { QuickActionMenu } from "@/components/QuickActionMenu";
 
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -303,6 +304,13 @@ export const Dashboard = () => {
         open={isLentMoneyDialogOpen}
         onOpenChange={setIsLentMoneyDialogOpen}
         userId={user?.id || ""}
+      />
+
+      <QuickActionMenu
+        onAddExpense={() => setIsAddDialogOpen(true)}
+        onSplitBill={() => navigate("/split-bills")}
+        onLentMoney={() => setIsLentMoneyDialogOpen(true)}
+        onBorrowedMoney={() => navigate("/borrowed-money")}
       />
     </div>
   );
