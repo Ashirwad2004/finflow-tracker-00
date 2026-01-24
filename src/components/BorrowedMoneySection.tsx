@@ -54,7 +54,7 @@ interface BorrowedMoneyRecord {
     updated_at: string;
 }
 
-export const BorrowedMoneySection = ({ userId }: BorrowedMoneySectionProps) => {
+export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySectionProps) => {
     const { formatCurrency, currency } = useCurrency();
     const queryClient = useQueryClient();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
