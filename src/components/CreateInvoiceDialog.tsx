@@ -10,8 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
@@ -66,12 +65,14 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
     const taxAmount = (subtotal * Number(watchTaxRate)) / 100;
     const totalAmount = subtotal + taxAmount;
 
+    // ... existing imports ...
+
     const createInvoiceMutation = useMutation({
         mutationFn: async (values: InvoiceFormValues) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("User not authenticated");
 
-            const { error } = await supabase.from("sales").insert({
+            const { error } = await supabase.from("sales" as any).insert({
                 user_id: user.id,
                 invoice_number: values.invoice_number,
                 customer_name: values.customer_name,
@@ -98,7 +99,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                 title: "Invoice Created",
                 description: `Invoice ${data.invoice_number} saved successfully.`
             });
-            generatePDF(data);
+
+            // Use the new utility for consistent PDF generation
+            generateInvoicePDF({
+                ...data,
+                items: data.items.map(item => ({
+                    ...item,
+                    total: Number(item.quantity) * Number(item.price)
+                })),
+                subtotal: subtotal,
+                tax_amount: taxAmount,
+                total_amount: totalAmount
+            });
+
             onOpenChange(false);
             reset();
         },
@@ -111,48 +124,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
         }
     });
 
-    const generatePDF = (data: InvoiceFormValues) => {
-        try {
-            const doc = new jsPDF();
-
-            doc.setFontSize(20);
-            doc.text("INVOICE", 14, 22);
-
-            doc.setFontSize(10);
-            doc.text(`Invoice #: ${data.invoice_number}`, 14, 30);
-            doc.text(`Date: ${data.date}`, 14, 35);
-
-            doc.text("Bill To:", 14, 45);
-            doc.setFontSize(12);
-            doc.text(data.customer_name, 14, 50);
-            doc.setFontSize(10);
-            if (data.customer_phone) doc.text(`Phone: ${data.customer_phone}`, 14, 55);
-
-            const tableRows = data.items.map(item => [
-                item.description,
-                item.quantity.toString(),
-                formatCurrency(item.price),
-                formatCurrency(Number(item.quantity) * Number(item.price))
-            ]);
-
-            autoTable(doc, {
-                head: [["Description", "Qty", "Price", "Total"]],
-                body: tableRows,
-                startY: 65,
-            });
-
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-            doc.text(`Subtotal: ${formatCurrency(subtotal)}`, 140, finalY);
-            doc.text(`Tax (${data.tax_rate}%): ${formatCurrency(taxAmount)}`, 140, finalY + 5);
-            doc.setFontSize(12);
-            doc.text(`Total: ${formatCurrency(totalAmount)}`, 140, finalY + 12);
-
-            doc.save(`Invoice-${data.invoice_number}.pdf`);
-        } catch (e) {
-            console.error("PDF generation failed", e);
-        }
-    };
+    // Removed local generatePDF to use the shared utility
+    // const generatePDF = (data: InvoiceFormValues) => { ... }
 
     const onSubmit = (data: InvoiceFormValues) => {
         createInvoiceMutation.mutate(data);
