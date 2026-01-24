@@ -6,28 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Target, 
-  Edit2, 
-  Check, 
-  X, 
-  AlertTriangle, 
-  TrendingUp, 
-  ShieldAlert, 
-  Wallet 
+import {
+  Target,
+  Edit2,
+  ShieldAlert,
+  Wallet,
+  TrendingUp
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-/* ---------------- UTILS ---------------- */
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface BudgetSectionProps {
   userId: string;
@@ -37,6 +25,7 @@ interface BudgetSectionProps {
 /* ---------------- COMPONENT ---------------- */
 
 export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps) => {
+  const { formatCurrency, currency } = useCurrency();
   const [isEditing, setIsEditing] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
   const queryClient = useQueryClient();
@@ -117,7 +106,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
   const budgetLimit = budget?.amount ?? 0;
   const percentage = budgetLimit > 0 ? (thisMonthExpenses / budgetLimit) * 100 : 0;
   const isOverBudget = thisMonthExpenses > budgetLimit && budgetLimit > 0;
-  const remaining = Math.max(0, budgetLimit - thisMonthExpenses);
+  //   const remaining = Math.max(0, budgetLimit - thisMonthExpenses); // Unused
 
   // Determine UI State based on percentage
   const statusColor = useMemo(() => {
@@ -152,7 +141,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
             {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
           </CardDescription>
         </div>
-        
+
         {!isEditing && (
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={startEditing}>
             <Edit2 className="h-4 w-4" />
@@ -164,7 +153,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
         {isEditing ? (
           <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="relative">
-              <span className="absolute left-3 top-2.5 text-muted-foreground">₹</span>
+              <span className="absolute left-3 top-2.5 text-muted-foreground">{currency.symbol}</span>
               <Input
                 type="number"
                 placeholder="0.00"
@@ -211,9 +200,9 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
 
             {/* Progress Bar */}
             <div className="space-y-2">
-              <Progress 
-                value={Math.min(percentage, 100)} 
-                className="h-2.5 bg-secondary" 
+              <Progress
+                value={Math.min(percentage, 100)}
+                className="h-2.5 bg-secondary"
                 // We override the internal indicator color via CSS class injection or inline style if needed, 
                 // but shadcn's progress usually takes 'bg-primary'. 
                 // To force color: create a wrapper or use utility classes on the indicator if exposed.

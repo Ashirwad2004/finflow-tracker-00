@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -38,6 +38,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 /* ---------------- TYPES ---------------- */
 
@@ -99,15 +100,6 @@ const safeJSONParse = <T,>(key: string, fallback: T): T => {
   }
 };
 
-// Updated to use Indian Locale (en-IN) for Rupee symbol and formatting
-const formatCurrency = (amount: number, currency: string = "INR") => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: currency,
-    maximumFractionDigits: 0, // Keeps numbers clean (e.g., ₹500 instead of ₹500.00)
-  }).format(amount);
-};
-
 /* ---------------- STORAGE HOOK ---------------- */
 
 const useTrashStorage = (userId: string) => {
@@ -141,7 +133,7 @@ const useTrashStorage = (userId: string) => {
     ];
 
     // Sort by most recently deleted
-    return allItems.sort((a, b) => 
+    return allItems.sort((a, b) =>
       new Date(b.deleted_at).getTime() - new Date(a.deleted_at).getTime()
     );
   }, [userId, getStorageKey]);
@@ -174,12 +166,11 @@ interface RecentlyDeletedProps {
   onClose?: () => void; // Optional: If used in a modal/drawer
 }
 
-// Default currencyCode updated to "INR"
 export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: RecentlyDeletedProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getAllDeletedItems, removePermanently } = useTrashStorage(userId);
-  
+
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -225,9 +216,9 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
     },
     onSuccess: () => {
       refreshList();
-      toast({ 
-        title: "Permanently Deleted", 
-        description: "Items have been removed from history." 
+      toast({
+        title: "Permanently Deleted",
+        description: "Items have been removed from history."
       });
     },
   });
@@ -240,36 +231,36 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
       if (item.type === "expense") {
         const payload = item.group_id
           ? {
-              group_id: item.group_id,
-              user_id: userId,
-              username: item.username || "Unknown",
-              description: item.description,
-              amount: item.amount,
-              date: item.date,
-              category_id: item.categories?.id || null,
-            }
+            group_id: item.group_id,
+            user_id: userId,
+            username: item.username || "Unknown",
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            category_id: item.categories?.id || null,
+          }
           : {
-              description: item.description,
-              amount: item.amount,
-              date: item.date,
-              category_id: item.categories?.id || null,
-              user_id: userId,
-            };
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            category_id: item.categories?.id || null,
+            user_id: userId,
+          };
 
         const table = item.group_id ? "group_expenses" : "expenses";
         const { error: err } = await supabase.from(table).insert(payload);
-        
+
         // Handle Foreign Key Error (e.g., Group no longer exists)
         if (err?.code === "23503") {
           throw new Error("Cannot restore: The group this expense belonged to no longer exists.");
         }
         if (err) throw err;
-        
-        queryClient.invalidateQueries({ 
-          queryKey: item.group_id ? ["group-expenses", item.group_id] : ["expenses"] 
+
+        queryClient.invalidateQueries({
+          queryKey: item.group_id ? ["group-expenses", item.group_id] : ["expenses"]
         });
-      } 
-      
+      }
+
       else if (item.type === "group") {
         const { error: err } = await supabase.from("groups").insert({
           name: item.name,
@@ -279,8 +270,8 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
         });
         if (err) throw err;
         queryClient.invalidateQueries({ queryKey: ["groups"] });
-      } 
-      
+      }
+
       else if (item.type === "lent_money") {
         const { error: err } = await supabase.from("lent_money").insert({
           user_id: userId,
@@ -292,8 +283,8 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
         });
         if (err) throw err;
         queryClient.invalidateQueries({ queryKey: ["lent-money"] });
-      } 
-      
+      }
+
       else if (item.type === "split_bill") {
         const { data: bill, error: billError } = await supabase
           .from("split_bills")
@@ -322,10 +313,10 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
       // Success
       removePermanently([{ id: item.id, type: item.type }]);
       refreshList();
-      toast({ 
-        title: "Restored successfully", 
+      toast({
+        title: "Restored successfully",
         description: "Item moved back to active list.",
-        variant: "default" 
+        variant: "default"
       });
 
     } catch (err: any) {
@@ -361,9 +352,9 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
 
           {hasItems && (
             <div className="flex w-full sm:w-auto gap-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={toggleAll}
                 className="flex-1 sm:flex-none"
               >
@@ -374,9 +365,9 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    size="sm" 
-                    variant="destructive" 
+                  <Button
+                    size="sm"
+                    variant="destructive"
                     disabled={selectedIds.size === 0}
                     className="flex-1 sm:flex-none"
                   >
@@ -393,8 +384,8 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => deleteMutation.mutate()} 
+                    <AlertDialogAction
+                      onClick={() => deleteMutation.mutate()}
                       className="bg-destructive hover:bg-destructive/90"
                     >
                       Delete Forever
@@ -457,6 +448,7 @@ const DeletedItemRow = ({
   onToggle: () => void;
   onRestore: () => void;
 }) => {
+  const { formatCurrency } = useCurrency();
   const getMetadata = (item: DeletedItem) => {
     switch (item.type) {
       case "expense":
@@ -499,21 +491,21 @@ const DeletedItemRow = ({
   const { title, subtitle, amount, icon, color } = getMetadata(item);
 
   return (
-    <div 
+    <div
       className={cn(
         "group flex items-center gap-3 p-3 rounded-lg border transition-all duration-200",
-        isSelected 
-          ? "bg-primary/5 border-primary/50 shadow-sm" 
+        isSelected
+          ? "bg-primary/5 border-primary/50 shadow-sm"
           : "hover:bg-muted/60 bg-card border-border/60"
       )}
     >
-      <Checkbox 
-        checked={isSelected} 
+      <Checkbox
+        checked={isSelected}
         onCheckedChange={onToggle}
         className="mt-0.5"
         aria-label={`Select ${title}`}
       />
-      
+
       <div className={cn("w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-md", color)}>
         {item.type === "expense" && item.categories?.icon ? (
           <span className="text-lg leading-none">{item.categories.icon}</span>
@@ -525,8 +517,8 @@ const DeletedItemRow = ({
       <div className="flex-1 min-w-0 flex flex-col justify-center">
         <p className="font-medium text-sm truncate leading-tight">{title}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <Badge 
-            variant="secondary" 
+          <Badge
+            variant="secondary"
             className="text-[10px] px-1.5 py-0 h-4 capitalize font-normal tracking-wide"
           >
             {item.type.replace("_", " ")}
@@ -540,7 +532,7 @@ const DeletedItemRow = ({
       <div className="flex items-center gap-3 sm:gap-4">
         {amount !== null && (
           <div className="text-sm font-semibold whitespace-nowrap tabular-nums">
-             {formatCurrency(amount, currencyCode)}
+            {formatCurrency(amount)}
           </div>
         )}
 

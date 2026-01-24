@@ -24,6 +24,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+import { useCurrency } from "@/contexts/CurrencyContext";
+
 interface Expense {
   id: string;
   description: string;
@@ -46,16 +48,21 @@ interface ExpenseListProps {
 }
 
 export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: ExpenseListProps) => {
+  const { formatCurrency, currency } = useCurrency();
   const [billPreviewUrl, setBillPreviewUrl] = useState<string | null>(null);
 
   const formatDateForCSV = (d?: string | Date | null) => {
+    // ... (keep logic, but we can't use "... (keep logic)" syntax with replace_file_content unless we are careful about ranges. 
+    // Wait, reusing existing logic is better done by NOT replacing it if possible.
+    // I can't easily skip blocks in replace_file_content.
+    // Best to replace smaller chunks.)
     if (!d) return '';
     if (d instanceof Date && !isNaN(d.getTime())) {
       return d.toISOString().slice(0, 10);
     }
     if (typeof d === 'string') {
       if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-      
+
       const parsed = new Date(d);
       if (!isNaN(parsed.getTime())) {
         const y = parsed.getFullYear();
@@ -105,17 +112,17 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
 
     const tableColumn = ["Description", "Category", "Date", "Amount"];
-    
+
     const tableRows = expenses.map(expense => {
-      const amount = typeof expense.amount === 'number' 
-        ? expense.amount 
+      const amount = typeof expense.amount === 'number'
+        ? expense.amount
         : parseFloat(String(expense.amount) || '0');
-      
+
       return [
         expense.description,
         expense.categories.name,
         new Date(expense.date).toLocaleDateString(),
-        `Rs. ${amount.toFixed(2)}`
+        `${currency.code} ${amount.toFixed(2)}`
       ];
     });
 
@@ -175,7 +182,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
   }
 
   const getIcon = (iconName: string) => {
-    const iconKey = iconName.split('-').map((word: string) => 
+    const iconKey = iconName.split('-').map((word: string) =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join('');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,7 +196,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
         <CardContent className="p-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-border gap-4">
             <h3 className="text-lg font-medium">Expenses</h3>
-            
+
             {/* BUTTONS GROUP */}
             <div className="flex flex-wrap gap-2">
               {/* 3. New Delete All Button with Confirmation */}
@@ -210,8 +217,8 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={onDeleteAll} 
+                      <AlertDialogAction
+                        onClick={onDeleteAll}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
                         Yes, Delete All
@@ -270,7 +277,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-4">
                     <span className="font-semibold text-lg text-foreground">
-                      ₹{parseFloat(expense.amount.toString()).toFixed(2)}
+                      {formatCurrency(parseFloat(expense.amount.toString()))}
                     </span>
                     <Button
                       variant="ghost"

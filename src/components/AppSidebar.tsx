@@ -20,8 +20,10 @@ import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calculator as CalculatorComponent } from "@/components/calculator";
+import { Settings } from "lucide-react";
+import { SettingsDialog } from "./SettingsDialog";
 
-const menuItems = [
+export const menuItems = [
   {
     title: "Dashboard",
     path: "/",
@@ -75,6 +77,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const { signOut, user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -159,6 +162,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       </nav>
 
       {/* Footer Actions */}
+      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+
       <div className="p-3 border-t space-y-2">
         <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
           <DialogTrigger asChild>
@@ -181,6 +186,18 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           </DialogContent>
         </Dialog>
 
+        <Button
+          variant="ghost"
+          onClick={() => setIsSettingsOpen(true)}
+          className={cn(
+            "w-full justify-start gap-3",
+            collapsed && "justify-center px-0"
+          )}
+        >
+          <Settings className="w-5 h-5" />
+          {!collapsed && <span>Settings</span>}
+        </Button>
+
         <div className={cn(
           "flex items-center gap-2",
           collapsed ? "flex-col" : "justify-between"
@@ -196,6 +213,6 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           </Button>
         </div>
       </div>
-    </aside>
+    </aside >
   );
 }
