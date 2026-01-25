@@ -39,7 +39,7 @@ const SalesPage = () => {
         }, { action: 'preview' });
 
         if (url) {
-            window.open(url as string, '_blank');
+            window.open(String(url), '_blank');
         }
     };
 
