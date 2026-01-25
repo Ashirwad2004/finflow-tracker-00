@@ -19,6 +19,10 @@ import RecentlyDeletedPage from "./pages/RecentlyDeletedPage";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { ThemeInitializer } from "@/components/ThemeToggle";
+import SalesPage from "./pages/Sales";
+import PurchasesPage from "./pages/Purchases";
+import BusinessDashboardPage from "./pages/BusinessDashboard";
+import InventoryPage from "./pages/Inventory";
 
 const queryClient = new QueryClient();
 
@@ -41,11 +45,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-import SalesPage from "./pages/Sales";
-import PurchasesPage from "./pages/Purchases";
-
-// ... imports ...
-
 const AppRoutes = () => {
   return (
     <Routes>
@@ -62,6 +61,8 @@ const AppRoutes = () => {
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
       <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
+      <Route path="/business-dashboard" element={<ProtectedRoute><BusinessDashboardPage /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

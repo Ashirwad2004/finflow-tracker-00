@@ -39,7 +39,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { menuItems } from "./AppSidebar";
 import { cn } from "@/lib/utils";
-import { BusinessDashboard } from "@/components/BusinessDashboard";
+import BusinessDashboard from "@/pages/BusinessDashboard";
 import { useBusiness } from "@/contexts/BusinessContext";
 
 export const Dashboard = () => {
@@ -153,7 +153,7 @@ export const Dashboard = () => {
       if (error) throw error;
 
       if (expenseToDelete && user?.id) {
-        const recentlyDeletedKey = `recently_deleted_${user.id} `;
+        const recentlyDeletedKey = `recently_deleted_${user.id}`;
         const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
 
         const deletedItem = {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Loader2, Calculator } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -60,17 +60,57 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
     const watchItems = watch("items");
     const watchTaxRate = watch("tax_rate");
 
-    // Calculations
+    // Fetch products for autocomplete
+    const { data: products = [] } = useQuery({
+        queryKey: ["products", -1],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+
+            const { data, error } = await supabase
+                .from("products" as any)
+                .select("*")
+                .eq("user_id", user.id);
+
+            if (error) {
+                console.error("Error fetching products:", error);
+                return [];
+            }
+            return data || [];
+        },
+        enabled: open
+    });
+
+    // Handle product selection
+    const handleProductSelect = (index: number, productName: string) => {
+        const product = products.find((p: any) => p.name === productName);
+        if (product) {
+            setValue(`items.${index}.price`, product.price);
+        }
+    };
     const subtotal = watchItems.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.price)), 0);
     const taxAmount = (subtotal * Number(watchTaxRate)) / 100;
     const totalAmount = subtotal + taxAmount;
 
-    // ... existing imports ...
+    // Fetch User Profile for Business Details
+    const { data: profile } = useQuery({
+        queryKey: ["profile", -1], // Using -1 or auth user id if available in scope, but we can just fetch it inside mutation or here
+        // actually easier to fetch here if we want to pass it immediately without async fetch inside onSuccess
+        enabled: false // We'll fetch ad-hoc or rely on the query above if we had the user ID. 
+        // Let's simple use fetching inside the mutation or top level.
+    });
 
     const createInvoiceMutation = useMutation({
         mutationFn: async (values: InvoiceFormValues) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("User not authenticated");
+
+            // Fetch profile details for PDF generation
+            const { data: profileData } = await supabase
+                .from("profiles")
+                .select("business_name, gst_number, business_address, business_phone")
+                .eq("user_id", user.id)
+                .single();
 
             const { error } = await supabase.from("sales" as any).insert({
                 user_id: user.id,
@@ -91,7 +131,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
             });
 
             if (error) throw error;
-            return values;
+            return { ...values, profile: profileData };
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["sales"] });
@@ -109,7 +149,12 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                 })),
                 subtotal: subtotal,
                 tax_amount: taxAmount,
-                total_amount: totalAmount
+                total_amount: totalAmount,
+                // Pass Owner Details
+                owner_business_name: (data.profile as any)?.business_name,
+                owner_gst: (data.profile as any)?.gst_number,
+                owner_address: (data.profile as any)?.business_address,
+                owner_phone: (data.profile as any)?.business_phone
             });
 
             onOpenChange(false);
@@ -183,7 +228,17 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                                     {fields.map((field, index) => (
                                         <div key={field.id} className="flex gap-3 items-start">
                                             <div className="flex-1 space-y-1">
-                                                <Input {...register(`items.${index}.description` as const, { required: true })} placeholder="Description" />
+                                                <Input
+                                                    {...register(`items.${index}.description` as const, { required: true })}
+                                                    placeholder="Product name or description"
+                                                    list={`products-list-${index}`}
+                                                    onChange={(e) => handleProductSelect(index, e.target.value)}
+                                                />
+                                                <datalist id={`products-list-${index}`}>
+                                                    {products.map((product: any) => (
+                                                        <option key={product.id} value={product.name} />
+                                                    ))}
+                                                </datalist>
                                             </div>
                                             <div className="w-20 space-y-1">
                                                 <Input type="number" {...register(`items.${index}.quantity` as const)} placeholder="Qty" min="1" step="1" />
