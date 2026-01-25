@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, Calculator } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ interface InvoiceItem {
     description: string;
     quantity: number;
     price: number;
+    discount: number; 
     total: number;
 }
 
@@ -32,23 +33,24 @@ interface InvoiceFormValues {
     date: string;
     items: InvoiceItem[];
     tax_rate: number;
+    overall_discount: number; // Now represents a Percentage (0-100)
 }
 
 export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const { currency, formatCurrency } = useCurrency();
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { formatCurrency } = useCurrency();
 
     const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<InvoiceFormValues>({
         defaultValues: {
             customer_name: "",
             customer_phone: "",
             customer_email: "",
-            invoice_number: `INV-${Date.now().toString().slice(-6)}`, // Simple auto-gen
+            invoice_number: "", 
             date: new Date().toISOString().split("T")[0],
-            items: [{ description: "", quantity: 1, price: 0, total: 0 }],
-            tax_rate: 0
+            items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
+            tax_rate: 0,
+            overall_discount: 0 
         }
     });
 
@@ -57,60 +59,111 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
         name: "items"
     });
 
+    // --- Watchers for Real-time Calculation ---
     const watchItems = watch("items");
     const watchTaxRate = watch("tax_rate");
+    const watchOverallDiscount = watch("overall_discount");
 
-    // Fetch products for autocomplete
+    // Fetch Last Invoice Number
+    const { data: lastInvoiceNumber } = useQuery({
+        queryKey: ["last-invoice-number"],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const { data, error } = await supabase
+                .from("sales")
+                .select("invoice_number")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (error) return null;
+            return data?.invoice_number;
+        },
+        enabled: open,
+    });
+
+    // Auto-increment Invoice Number
+    useEffect(() => {
+        if (open) {
+            if (lastInvoiceNumber) {
+                const numericPart = parseInt(lastInvoiceNumber.replace(/\D/g, ""));
+                if (!isNaN(numericPart)) {
+                    setValue("invoice_number", (numericPart + 1).toString());
+                } else {
+                    setValue("invoice_number", "1");
+                }
+            } else {
+                setValue("invoice_number", "1");
+            }
+        }
+    }, [open, lastInvoiceNumber, setValue]);
+
+    // Fetch Products
     const { data: products = [] } = useQuery({
         queryKey: ["products", -1],
         queryFn: async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return [];
-
-            const { data, error } = await supabase
-                .from("products" as any)
-                .select("*")
-                .eq("user_id", user.id);
-
-            if (error) {
-                console.error("Error fetching products:", error);
-                return [];
-            }
+            const { data } = await supabase.from("products" as any).select("*").eq("user_id", user.id);
             return data || [];
         },
         enabled: open
     });
 
-    // Handle product selection
     const handleProductSelect = (index: number, productName: string) => {
         const product = products.find((p: any) => p.name === productName);
-        if (product) {
-            setValue(`items.${index}.price`, product.price);
-        }
+        if (product) setValue(`items.${index}.price`, product.price);
     };
-    const subtotal = watchItems.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.price)), 0);
-    const taxAmount = (subtotal * Number(watchTaxRate)) / 100;
-    const totalAmount = subtotal + taxAmount;
 
-    // Fetch User Profile for Business Details
-    const { data: profile } = useQuery({
-        queryKey: ["profile", -1], // Using -1 or auth user id if available in scope, but we can just fetch it inside mutation or here
-        // actually easier to fetch here if we want to pass it immediately without async fetch inside onSuccess
-        enabled: false // We'll fetch ad-hoc or rely on the query above if we had the user ID. 
-        // Let's simple use fetching inside the mutation or top level.
-    });
+    // --- UPDATED CALCULATIONS ---
+    
+    // 1. Calculate Subtotal (Sum of: Qty * Price * (1 - ItemDiscount%))
+    const subtotal = watchItems.reduce((sum, item) => {
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        const discPercent = Number(item.discount) || 0;
+        
+        const itemTotal = (qty * price) * (1 - (discPercent / 100));
+        return sum + itemTotal;
+    }, 0);
 
+    // 2. Apply Overall Discount (PERCENTAGE Logic)
+    const overallDiscountPercent = Number(watchOverallDiscount) || 0;
+    // Calculate the actual monetary value of the discount
+    const overallDiscountAmount = (subtotal * overallDiscountPercent) / 100;
+    
+    const taxableAmount = Math.max(0, subtotal - overallDiscountAmount);
+
+    // 3. Calculate Tax
+    const taxRate = Number(watchTaxRate) || 0;
+    const taxAmount = (taxableAmount * taxRate) / 100;
+
+    // 4. Grand Total
+    const totalAmount = taxableAmount + taxAmount;
+
+    // --- Mutation ---
     const createInvoiceMutation = useMutation({
         mutationFn: async (values: InvoiceFormValues) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("User not authenticated");
 
-            // Fetch profile details for PDF generation
             const { data: profileData } = await supabase
                 .from("profiles")
                 .select("business_name, gst_number, business_address, business_phone")
                 .eq("user_id", user.id)
                 .single();
+
+            // Prepare items with calculated totals
+            const processedItems = values.items.map(item => {
+                const qty = Number(item.quantity) || 0;
+                const price = Number(item.price) || 0;
+                const disc = Number(item.discount) || 0;
+                return {
+                    ...item,
+                    total: (qty * price) * (1 - (disc / 100))
+                };
+            });
 
             const { error } = await supabase.from("sales" as any).insert({
                 user_id: user.id,
@@ -119,38 +172,35 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                 customer_phone: values.customer_phone,
                 customer_email: values.customer_email,
                 date: values.date,
-                items: values.items.map(item => ({
-                    ...item,
-                    total: Number(item.quantity) * Number(item.price)
-                })),
-                subtotal: subtotal,
+                items: processedItems,
+                subtotal: subtotal, 
                 tax_amount: taxAmount,
                 total_amount: totalAmount,
-                status: "paid", // Default to paid for now, can add status toggle later
+                status: "paid",
                 payment_method: "cash"
             });
 
             if (error) throw error;
-            return { ...values, profile: profileData };
+            // Pass the calculated monetary discount to the PDF generator if needed
+            return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount };
         },
-        onSuccess: (data) => {
+        onSuccess: (data: any) => {
             queryClient.invalidateQueries({ queryKey: ["sales"] });
+            queryClient.invalidateQueries({ queryKey: ["last-invoice-number"] });
+
             toast({
                 title: "Invoice Created",
                 description: `Invoice ${data.invoice_number} saved successfully.`
             });
 
-            // Use the new utility for consistent PDF generation
             generateInvoicePDF({
                 ...data,
-                items: data.items.map(item => ({
-                    ...item,
-                    total: Number(item.quantity) * Number(item.price)
-                })),
                 subtotal: subtotal,
                 tax_amount: taxAmount,
                 total_amount: totalAmount,
-                // Pass Owner Details
+                // Send the percentage and the calculated amount
+                overall_discount: overallDiscountPercent, 
+                overall_discount_amount: overallDiscountAmount,
                 owner_business_name: (data.profile as any)?.business_name,
                 owner_gst: (data.profile as any)?.gst_number,
                 owner_address: (data.profile as any)?.business_address,
@@ -161,16 +211,9 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
             reset();
         },
         onError: (error) => {
-            toast({
-                title: "Error",
-                description: error.message,
-                variant: "destructive"
-            });
+            toast({ title: "Error", description: error.message, variant: "destructive" });
         }
     });
-
-    // Removed local generatePDF to use the shared utility
-    // const generatePDF = (data: InvoiceFormValues) => { ... }
 
     const onSubmit = (data: InvoiceFormValues) => {
         createInvoiceMutation.mutate(data);
@@ -178,7 +221,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Create New Invoice</DialogTitle>
                 </DialogHeader>
@@ -186,40 +229,44 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                 <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
                     <ScrollArea className="flex-1 pr-4 -mr-4">
                         <div className="space-y-6 py-4">
-                            {/* Customer Details */}
+                            {/* Header Details */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Invoice #</Label>
-                                    <Input {...register("invoice_number", { required: true })} readOnly className="bg-muted" />
+                                    <Input 
+                                        {...register("invoice_number", { required: "Invoice Number is required" })} 
+                                        placeholder="1"
+                                    />
+                                    {errors.invoice_number && <span className="text-red-500 text-xs">{errors.invoice_number.message}</span>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Date</Label>
                                     <Input type="date" {...register("date")} />
                                 </div>
                             </div>
-
+                            
                             <div className="space-y-2">
                                 <Label>Customer Name *</Label>
                                 <Input {...register("customer_name", { required: "Customer name is required" })} placeholder="Enter customer name" />
                                 {errors.customer_name && <span className="text-red-500 text-xs">{errors.customer_name.message}</span>}
                             </div>
-
+                            
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Phone (Optional)</Label>
+                                    <Label>Phone</Label>
                                     <Input {...register("customer_phone")} placeholder="Customer phone" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Email (Optional)</Label>
+                                    <Label>Email</Label>
                                     <Input {...register("customer_email")} placeholder="Customer email" />
                                 </div>
                             </div>
 
-                            {/* Items */}
+                            {/* Items Section */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <Label className="text-base font-semibold">Items</Label>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ description: "", quantity: 1, price: 0, total: 0 })}>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ description: "", quantity: 1, price: 0, discount: 0, total: 0 })}>
                                         <Plus className="w-4 h-4 mr-2" /> Add Item
                                     </Button>
                                 </div>
@@ -227,10 +274,11 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                                 <div className="space-y-3">
                                     {fields.map((field, index) => (
                                         <div key={field.id} className="flex gap-3 items-start">
+                                            {/* Description */}
                                             <div className="flex-1 space-y-1">
                                                 <Input
                                                     {...register(`items.${index}.description` as const, { required: true })}
-                                                    placeholder="Product name or description"
+                                                    placeholder="Product"
                                                     list={`products-list-${index}`}
                                                     onChange={(e) => handleProductSelect(index, e.target.value)}
                                                 />
@@ -240,12 +288,29 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                                                     ))}
                                                 </datalist>
                                             </div>
-                                            <div className="w-20 space-y-1">
+                                            
+                                            {/* Quantity */}
+                                            <div className="w-16 space-y-1">
                                                 <Input type="number" {...register(`items.${index}.quantity` as const)} placeholder="Qty" min="1" step="1" />
                                             </div>
-                                            <div className="w-24 space-y-1">
+                                            
+                                            {/* Price */}
+                                            <div className="w-20 space-y-1">
                                                 <Input type="number" {...register(`items.${index}.price` as const)} placeholder="Price" min="0" step="0.01" />
                                             </div>
+
+                                            {/* Item Discount % */}
+                                            <div className="w-16 space-y-1">
+                                                <Input 
+                                                    type="number" 
+                                                    {...register(`items.${index}.discount` as const)} 
+                                                    placeholder="Disc %" 
+                                                    min="0" 
+                                                    max="100" 
+                                                    className="bg-blue-50/50"
+                                                />
+                                            </div>
+
                                             <Button type="button" variant="ghost" size="icon" className="text-destructive mt-0.5" onClick={() => remove(index)}>
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
@@ -254,18 +319,42 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                                 </div>
                             </div>
 
-                            {/* Totals */}
-                            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                            {/* Totals Section */}
+                            <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                                {/* Subtotal */}
                                 <div className="flex justify-between text-sm">
-                                    <span>Subtotal</span>
-                                    <span>{formatCurrency(subtotal)}</span>
+                                    <span className="text-muted-foreground">Subtotal (after item disc)</span>
+                                    <span className="font-medium">{formatCurrency(subtotal)}</span>
                                 </div>
+
+                                {/* Overall Discount */}
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span>Overall Discount (%)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {/* Show the calculated monetary discount amount for clarity */}
+                                        <span className="text-muted-foreground text-xs">
+                                            ({formatCurrency(overallDiscountAmount)})
+                                        </span>
+                                        <Input
+                                            type="number"
+                                            className="w-20 h-8 text-right bg-white"
+                                            {...register("overall_discount")}
+                                            min="0"
+                                            max="100"
+                                            placeholder="0%"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tax */}
                                 <div className="flex justify-between items-center text-sm">
                                     <div className="flex items-center gap-2">
                                         <span>Tax Rate (%)</span>
                                         <Input
                                             type="number"
-                                            className="w-16 h-8 text-right"
+                                            className="w-16 h-8 text-right bg-white"
                                             {...register("tax_rate")}
                                             min="0"
                                             max="100"
@@ -273,9 +362,11 @@ export const CreateInvoiceDialog = ({ open, onOpenChange }: CreateInvoiceDialogP
                                     </div>
                                     <span>{formatCurrency(taxAmount)}</span>
                                 </div>
-                                <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                                    <span>Total</span>
-                                    <span>{formatCurrency(totalAmount)}</span>
+
+                                {/* Final Total */}
+                                <div className="flex justify-between font-bold text-lg pt-3 border-t border-gray-200">
+                                    <span>Grand Total</span>
+                                    <span className="text-primary">{formatCurrency(totalAmount)}</span>
                                 </div>
                             </div>
                         </div>
