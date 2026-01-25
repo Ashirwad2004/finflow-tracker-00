@@ -1,3 +1,5 @@
+
+import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -6,10 +8,37 @@ import { useBusiness } from "@/contexts/BusinessContext";
 import { useCurrency, CURRENCIES } from "@/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Globe } from "lucide-react";
+import { BusinessDetailsDialog } from "@/components/BusinessDetailsDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 
 const SettingsPage = () => {
     const { isBusinessMode, toggleBusinessMode } = useBusiness();
     const { currency, setCurrency } = useCurrency();
+    const { user } = useAuth();
+
+    const [showBusinessDialog, setShowBusinessDialog] = useState(false);
+
+    const handleBusinessToggle = async (checked: boolean) => {
+        if (checked) {
+            // Check if business details exist
+            const { data } = await supabase
+                .from("profiles")
+                .select("business_name")
+                .eq("user_id", user?.id)
+                .single();
+
+            const hasDetails = (data as any)?.business_name;
+
+            if (!hasDetails) {
+                setShowBusinessDialog(true);
+            } else {
+                toggleBusinessMode(true);
+            }
+        } else {
+            toggleBusinessMode(false);
+        }
+    };
 
     return (
         <AppLayout>
@@ -39,13 +68,15 @@ const SettingsPage = () => {
                                 <Switch
                                     id="business-mode"
                                     checked={isBusinessMode}
-                                    onCheckedChange={toggleBusinessMode}
+                                    onCheckedChange={handleBusinessToggle}
+                                    className="transition-all duration-300"
                                 />
                             </div>
                         </CardContent>
                     </Card>
 
                     {/* Currency Section */}
+
                     <Card>
                         <CardHeader>
                             <div className="flex items-center gap-2">
@@ -82,6 +113,12 @@ const SettingsPage = () => {
                     </Card>
                 </div>
             </div>
+
+            <BusinessDetailsDialog
+                open={showBusinessDialog}
+                onOpenChange={setShowBusinessDialog}
+                onSuccess={() => toggleBusinessMode(true)}
+            />
         </AppLayout>
     );
 };

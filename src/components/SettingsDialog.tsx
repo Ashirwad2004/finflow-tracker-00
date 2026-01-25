@@ -108,6 +108,7 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
                             </Select>
                         </div>
 
+
                         {/* Business Mode Toggle */}
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="business-mode" className="text-right">
@@ -118,6 +119,7 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
                                     id="business-mode"
                                     checked={isBusinessMode}
                                     onCheckedChange={handleBusinessToggle}
+                                    className="transition-all duration-300"
                                 />
                                 <Label htmlFor="business-mode" className="font-normal text-muted-foreground text-xs">
                                     Enable invoicing & business dashboard
@@ -126,9 +128,9 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
                         </div>
 
                         {isBusinessMode && (
-                            <div className="grid grid-cols-4 items-center gap-4">
+                            <div className="grid grid-cols-4 items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="col-start-2 col-span-3">
-                                    <Button variant="outline" size="sm" onClick={() => setShowBusinessDialog(true)} className="w-full">
+                                    <Button variant="outline" size="sm" onClick={() => setShowBusinessDialog(true)} className="w-full transition-all hover:scale-[1.02]">
                                         Edit Business Details
                                     </Button>
                                 </div>

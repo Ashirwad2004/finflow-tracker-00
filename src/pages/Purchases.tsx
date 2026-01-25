@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Plus, ShoppingBag, Search } from "lucide-react";
+import { Plus, ShoppingBag, Search, Pencil } from "lucide-react";
 import { RecordPurchaseDialog } from "@/components/RecordPurchaseDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 const PurchasesPage = () => {
     const [isRecordOpen, setIsRecordOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [editingPurchase, setEditingPurchase] = useState<any>(null); // State for editing
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
 
@@ -39,6 +40,11 @@ const PurchasesPage = () => {
         purchase.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         purchase.bill_number?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const handleEdit = (purchase: any) => {
+        setEditingPurchase(purchase);
+        setIsRecordOpen(true);
+    };
 
     return (
         <AppLayout>
@@ -93,11 +99,21 @@ const PurchasesPage = () => {
                                             {format(new Date(purchase.date), "MMM d, yyyy")}
                                         </p>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-xl font-bold text-destructive">-{formatCurrency(purchase.total_amount)}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {purchase.items?.length || 0} items
-                                        </p>
+                                    <div className="text-right flex flex-col items-end gap-2">
+                                        <div>
+                                            <p className="text-xl font-bold text-destructive">-{formatCurrency(purchase.total_amount)}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {purchase.items?.length || 0} items
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={() => handleEdit(purchase)}
+                                        >
+                                            <Pencil className="w-3 h-3 mr-1" /> Edit
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -105,7 +121,14 @@ const PurchasesPage = () => {
                     </div>
                 )}
 
-                <RecordPurchaseDialog open={isRecordOpen} onOpenChange={setIsRecordOpen} />
+                <RecordPurchaseDialog
+                    open={isRecordOpen}
+                    onOpenChange={(open) => {
+                        setIsRecordOpen(open);
+                        if (!open) setEditingPurchase(null);
+                    }}
+                    purchaseToEdit={editingPurchase}
+                />
             </div>
         </AppLayout>
     );
