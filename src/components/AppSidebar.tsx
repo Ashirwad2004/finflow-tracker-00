@@ -10,7 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  ShoppingCart
+  ShoppingCart,
+  BarChart3,
+  Package
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -80,9 +82,15 @@ const personalMenuItems = [
 const businessMenuItems = [
   {
     title: "Dashboard",
-    path: "/",
-    icon: LayoutDashboard,
-    description: "Business Overview"
+    path: "/business-dashboard",
+    icon: BarChart3,
+    description: "Business Analytics"
+  },
+  {
+    title: "Inventory",
+    path: "/inventory",
+    icon: Package,
+    description: "Manage Products"
   },
   {
     title: "Sales & Invoices",

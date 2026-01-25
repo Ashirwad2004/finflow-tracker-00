@@ -260,12 +260,7 @@ export const AddExpenseDialog = ({
             category_id: e.categoryId,
             date: e.date,
             user_id: userId,
-            bill_url: billUrl,
-            // Business Fields
-            tax_amount: e.taxAmount ? parseFloat(e.taxAmount) : 0,
-            invoice_number: e.invoiceNumber || null,
-            vendor_name: e.vendorName || null,
-            is_reimbursable: e.isReimbursable
+            bill_url: billUrl
           };
         })
       );
