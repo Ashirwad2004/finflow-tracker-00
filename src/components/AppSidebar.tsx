@@ -79,7 +79,7 @@ const personalMenuItems = [
   }
 ];
 
-const businessMenuItems = [
+export const businessMenuItems = [
   {
     title: "Dashboard",
     path: "/business-dashboard",

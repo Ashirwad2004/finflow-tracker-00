@@ -26,6 +26,22 @@ const SalesPage = () => {
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
 
+    // Fetch Profile for Business Details
+    const { data: profile } = useQuery({
+        queryKey: ["profile", user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("user_id", user?.id)
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!user
+    });
+
     const handlePreview = (invoice: any) => {
         const url = generateInvoicePDF({
             invoice_number: invoice.invoice_number,
@@ -35,7 +51,13 @@ const SalesPage = () => {
             subtotal: invoice.subtotal || invoice.total_amount,
             tax_amount: invoice.tax_amount || 0,
             total_amount: invoice.total_amount,
-            tax_rate: 0
+            tax_rate: 0,
+            business_details: profile ? {
+                name: (profile as any).business_name,
+                address: (profile as any).business_address,
+                phone: (profile as any).business_phone,
+                gst: (profile as any).gst_number
+            } : undefined
         }, { action: 'preview' });
 
         if (url) {
@@ -160,7 +182,13 @@ const SalesPage = () => {
                                                     subtotal: invoice.subtotal || invoice.total_amount,
                                                     tax_amount: invoice.tax_amount || 0,
                                                     total_amount: invoice.total_amount,
-                                                    tax_rate: 0
+                                                    tax_rate: 0,
+                                                    business_details: profile ? {
+                                                        name: (profile as any).business_name,
+                                                        address: (profile as any).business_address,
+                                                        phone: (profile as any).business_phone,
+                                                        gst: (profile as any).gst_number
+                                                    } : undefined
                                                 }, { action: 'download' })}>
                                                     <Download className="w-4 h-4 mr-2" />
                                                     Download PDF

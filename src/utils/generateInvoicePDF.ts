@@ -18,6 +18,12 @@ export interface InvoiceDetails {
     tax_rate?: number;
     tax_amount?: number;
     total_amount: number;
+    business_details?: {
+        name: string;
+        address?: string;
+        phone?: string;
+        gst?: string;
+    };
 }
 
 const sanitizeText = (text: string) => {
@@ -41,36 +47,69 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
         doc.setFontSize(24);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(33, 33, 33);
-        doc.text("INVOICE", 150, 20, { align: "right" });
+        doc.text("INVOICE", 196, 20, { align: "right" });
 
-        // Brand
-        doc.setFontSize(18);
-        doc.setTextColor(37, 99, 235);
-        doc.text("FinFlow Business", 14, 20);
+        // Brand / Business Details
+        if (data.business_details?.name) {
+            doc.setFontSize(18);
+            doc.setTextColor(37, 99, 235);
+            doc.text(sanitizeText(data.business_details.name), 14, 20);
+
+            doc.setFontSize(10);
+            doc.setTextColor(80, 80, 80);
+            doc.setFont("helvetica", "normal");
+
+            let yPos = 26;
+            if (data.business_details.address) {
+                // Split address into lines if too long
+                const splitAddress = doc.splitTextToSize(sanitizeText(data.business_details.address), 100);
+                doc.text(splitAddress, 14, yPos);
+                yPos += (splitAddress.length * 4) + 2;
+            }
+
+            if (data.business_details.phone) {
+                doc.text(`Phone: ${sanitizeText(data.business_details.phone)}`, 14, yPos);
+                yPos += 5;
+            }
+
+            if (data.business_details.gst) {
+                doc.text(`GST: ${sanitizeText(data.business_details.gst)}`, 14, yPos);
+            }
+
+        } else {
+            // Fallback
+            doc.setFontSize(18);
+            doc.setTextColor(37, 99, 235);
+            doc.text("FinFlow Business", 14, 20);
+        }
 
         // Line
         doc.setLineWidth(0.5);
         doc.setDrawColor(200, 200, 200);
-        doc.line(14, 28, 196, 28);
+
+        // Adjust line start based on content roughly, or keep fixed but push content down
+        const headerBottom = 55; // Pushed down to make room for address
+        doc.line(14, headerBottom, 196, headerBottom);
 
         // --- Info --
+        const infoStartY = 65;
         const dateFormatted = data.date ? format(new Date(data.date), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
 
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(80, 80, 80);
 
-        doc.text("Invoice Details:", 14, 40);
+        doc.text("Invoice Details:", 14, infoStartY);
         doc.setFont("helvetica", "normal");
-        doc.text(`Invoice No: ${sanitizeText(data.invoice_number)}`, 14, 46);
-        doc.text(`Date: ${dateFormatted}`, 14, 51);
+        doc.text(`Invoice No: ${sanitizeText(data.invoice_number)}`, 14, infoStartY + 6);
+        doc.text(`Date: ${dateFormatted}`, 14, infoStartY + 11);
 
         doc.setFont("helvetica", "bold");
-        doc.text("Bill To:", 120, 40);
+        doc.text("Bill To:", 120, infoStartY);
         doc.setFont("helvetica", "normal");
-        doc.text(sanitizeText(data.customer_name), 120, 46);
+        doc.text(sanitizeText(data.customer_name), 120, infoStartY + 6);
 
-        let yPos = 51;
+        let yPos = infoStartY + 11;
         if (data.customer_phone) {
             doc.text(`Phone: ${sanitizeText(data.customer_phone)}`, 120, yPos);
             yPos += 5;
@@ -88,7 +127,7 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
         ]);
 
         autoTable(doc, {
-            startY: 70,
+            startY: 95,
             head: [["Description", "Qty", "Price", "Total"]],
             body: tableRows,
             theme: 'striped',

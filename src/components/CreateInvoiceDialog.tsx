@@ -245,6 +245,26 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 // INSERT new
                 const { error } = await supabase.from("sales" as any).insert(saleData);
                 if (error) throw error;
+
+                // Update Inventory (Decrement Stock)
+                for (const item of values.items) {
+                    const product = (products as any[]).find((p: any) => p.name === item.description);
+                    if (product) {
+                        const qtySold = Number(item.quantity) || 0;
+                        const currentStock = Number(product.stock_quantity) || 0;
+                        const newStock = currentStock - qtySold;
+
+                        // Optional: Check if stock goes negative? Allow it for now or clamp?
+                        // Usually systems allow negative matching physical reality, or stop it.
+                        // I will just update it.
+
+                        await supabase
+                            .from("products" as any)
+                            .update({ stock_quantity: newStock })
+                            .eq("id", product.id);
+                    }
+                }
+
                 return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount };
             }
         },
