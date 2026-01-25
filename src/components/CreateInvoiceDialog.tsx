@@ -161,7 +161,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
     });
 
     const handleProductSelect = (index: number, productName: string) => {
-        const product = products.find((p: any) => p.name === productName);
+        const product = (products as any[]).find((p: any) => p.name === productName);
         if (product) setValue(`items.${index}.price`, product.price);
     };
 

@@ -300,25 +300,73 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          cost_price: number
+          created_at: string
+          id: string
+          name: string
+          price: number
+          stock_quantity: number
+          unit: string | null
+          user_id: string
+        }
+        Insert: {
+          cost_price?: number
+          created_at?: string
+          id?: string
+          name: string
+          price?: number
+          stock_quantity?: number
+          unit?: string | null
+          user_id: string
+        }
+        Update: {
+          cost_price?: number
+          created_at?: string
+          id?: string
+          name?: string
+          price?: number
+          stock_quantity?: number
+          unit?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          business_address: string | null
+          business_name: string | null
+          business_phone: string | null
           created_at: string
           display_name: string | null
+          gst_number: string | null
           id: string
+          is_business_mode: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          business_address?: string | null
+          business_name?: string | null
+          business_phone?: string | null
           created_at?: string
           display_name?: string | null
+          gst_number?: string | null
           id?: string
+          is_business_mode?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          business_address?: string | null
+          business_name?: string | null
+          business_phone?: string | null
           created_at?: string
           display_name?: string | null
+          gst_number?: string | null
           id?: string
+          is_business_mode?: boolean | null
           updated_at?: string
           user_id?: string
         }
