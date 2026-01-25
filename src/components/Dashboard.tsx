@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { AppLayout } from "@/components/AppLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +38,7 @@ import { AiInsights } from "@/components/AiInsights";
 
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
-import { menuItems } from "./AppSidebar";
+import { menuItems, businessMenuItems } from "./AppSidebar";
 import { cn } from "@/lib/utils";
 import BusinessDashboard from "@/pages/BusinessDashboard";
 import { useBusiness } from "@/contexts/BusinessContext";
@@ -155,31 +156,58 @@ export const Dashboard = () => {
   // Business Mode View
   if (isBusinessMode) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card shadow-sm">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="font-bold text-xl">FinFlow Business</h1>
-                <p className="text-xs text-muted-foreground">{profile?.display_name}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
-                <Settings className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => signOut()}>
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+      <AppLayout>
+        {/* Mobile Header - Hidden on Desktop */}
+        <div className="md:hidden border-b bg-card shadow-sm p-4 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="-ml-2">
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[85vw] p-0 overflow-y-auto">
+                <SheetHeader className="p-4 border-b text-left">
+                  <SheetTitle className="text-xl font-bold flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-primary" />
+                    FinFlow Business
+                  </SheetTitle>
+                </SheetHeader>
+                <div className="py-2">
+                  {businessMenuItems.map((item) => (
+                    <Button
+                      key={item.path}
+                      variant="ghost"
+                      className="w-full justify-start gap-4 px-6 py-4 h-auto text-base"
+                      onClick={() => {
+                        navigate(item.path);
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      <item.icon className="w-5 h-5 text-muted-foreground" />
+                      <div className="text-left">
+                        <div className="font-medium">{item.title}</div>
+                        <div className="text-xs text-muted-foreground font-normal">{item.description}</div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            <h1 className="font-bold text-lg">FinFlow Business</h1>
           </div>
-        </header>
+
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={() => signOut()}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+
         <BusinessDashboard />
-      </div>
+      </AppLayout>
     );
   }
 
