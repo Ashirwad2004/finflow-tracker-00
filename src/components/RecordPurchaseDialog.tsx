@@ -11,9 +11,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+// Update imports and component props
+import { useEffect } from "react";
+
 interface RecordPurchaseDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    purchaseToEdit?: any; // Add purchaseToEdit prop
 }
 
 interface PurchaseItem {
@@ -31,7 +35,7 @@ interface PurchaseFormValues {
     attachment_url?: string;
 }
 
-export const RecordPurchaseDialog = ({ open, onOpenChange }: RecordPurchaseDialogProps) => {
+export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: RecordPurchaseDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
@@ -50,6 +54,25 @@ export const RecordPurchaseDialog = ({ open, onOpenChange }: RecordPurchaseDialo
         name: "items"
     });
 
+    // Reset loop
+    useEffect(() => {
+        if (open && purchaseToEdit) {
+            reset({
+                vendor_name: purchaseToEdit.vendor_name,
+                bill_number: purchaseToEdit.bill_number,
+                date: purchaseToEdit.date,
+                items: purchaseToEdit.items || []
+            });
+        } else if (open && !purchaseToEdit) {
+            reset({
+                vendor_name: "",
+                bill_number: "",
+                date: new Date().toISOString().split("T")[0],
+                items: [{ description: "", quantity: 1, price: 0, total: 0 }]
+            });
+        }
+    }, [open, purchaseToEdit, reset]);
+
     const watchItems = watch("items");
     const totalAmount = watchItems.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.price)), 0);
 
@@ -58,8 +81,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange }: RecordPurchaseDialo
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("User not authenticated");
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await supabase.from("purchases" as any).insert({
+            const purchaseData = {
                 user_id: user.id,
                 bill_number: values.bill_number,
                 vendor_name: values.vendor_name,
@@ -68,20 +90,32 @@ export const RecordPurchaseDialog = ({ open, onOpenChange }: RecordPurchaseDialo
                     ...item,
                     total: Number(item.quantity) * Number(item.price)
                 })),
-                subtotal: totalAmount, // Assuming no tax separation for simple purchase entry for now
+                subtotal: totalAmount,
                 tax_amount: 0,
                 total_amount: totalAmount,
                 status: "paid"
-            });
+            };
 
-            if (error) throw error;
+            if (purchaseToEdit) {
+                // UPDATE existing
+                const { error } = await supabase
+                    .from("purchases" as any)
+                    .update(purchaseData)
+                    .eq("id", purchaseToEdit.id);
+                if (error) throw error;
+            } else {
+                // INSERT new
+                const { error } = await supabase.from("purchases" as any).insert(purchaseData);
+                if (error) throw error;
+            }
+
             return values;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["purchases"] });
             toast({
-                title: "Purchase Recorded",
-                description: "Bill has been saved successfully."
+                title: purchaseToEdit ? "Purchase Updated" : "Purchase Recorded",
+                description: `Bill has been ${purchaseToEdit ? "updated" : "saved"} successfully.`
             });
             onOpenChange(false);
             reset();
@@ -103,7 +137,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange }: RecordPurchaseDialo
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
                 <DialogHeader>
-                    <DialogTitle>Record New Purchase / Bill</DialogTitle>
+                    <DialogTitle>{purchaseToEdit ? "Edit Purchase/Bill" : "Record New Purchase/Bill"}</DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
@@ -170,7 +204,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange }: RecordPurchaseDialo
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <Button type="submit" disabled={createPurchaseMutation.isPending}>
                             {createPurchaseMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Save Purchase
+                            {purchaseToEdit ? "Update Purchase" : "Save Purchase"}
                         </Button>
                     </DialogFooter>
                 </form>

@@ -49,13 +49,19 @@ export const ExpenseChart = ({ expenses, currencyCode = "INR" }: ExpenseChartPro
   // Data Processing
   const { chartData, totalAmount } = useMemo(() => {
     const data = expenses.reduce((acc, expense) => {
-      const { name, color } = expense.categories;
+      // Safety check: if categories is missing/null, use a fallback
+      const categoryName = expense.categories?.name || "Uncategorized";
+      const categoryColor = expense.categories?.color || "#94a3b8"; // slate-400
+
       const amount = Number(expense.amount);
-      const existing = acc.find((item) => item.name === name);
-      
-      if (existing) existing.value += amount;
-      else acc.push({ name, value: amount, color });
-      
+      const existing = acc.find((item) => item.name === categoryName);
+
+      if (existing) {
+        existing.value += amount;
+      } else {
+        acc.push({ name: categoryName, value: amount, color: categoryColor });
+      }
+
       return acc;
     }, [] as Array<{ name: string; value: number; color: string }>);
 
@@ -108,7 +114,7 @@ export const ExpenseChart = ({ expenses, currencyCode = "INR" }: ExpenseChartPro
 
       <CardContent className="flex-1 p-6">
         <div className="flex flex-col md:flex-row items-center gap-8 h-full">
-          
+
           {/* LEFT: THE CHART */}
           <div className="relative w-full md:w-1/2 h-[260px] flex-shrink-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -129,16 +135,16 @@ export const ExpenseChart = ({ expenses, currencyCode = "INR" }: ExpenseChartPro
                   stroke="none"
                 >
                   {chartData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.color} 
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
                       className="transition-all duration-300 outline-none"
                     />
                   ))}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            
+
             {/* Center Data for Mobile (Total) */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none md:hidden">
               <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Total</span>
@@ -148,12 +154,12 @@ export const ExpenseChart = ({ expenses, currencyCode = "INR" }: ExpenseChartPro
 
           {/* RIGHT: THE MODERN LEGEND */}
           <div className="w-full md:w-1/2 h-full min-h-0 flex flex-col">
-             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wider px-2">
-                <span>Category</span>
-                <span>% Share</span>
-             </div>
-             
-             <ScrollArea className="h-[220px] w-full pr-3 -mr-3">
+            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wider px-2">
+              <span>Category</span>
+              <span>% Share</span>
+            </div>
+
+            <ScrollArea className="h-[220px] w-full pr-3 -mr-3">
               <div className="space-y-3">
                 {chartData.map((item, index) => {
                   const percent = ((item.value / totalAmount) * 100).toFixed(1);
@@ -166,8 +172,8 @@ export const ExpenseChart = ({ expenses, currencyCode = "INR" }: ExpenseChartPro
                       onMouseLeave={() => setActiveIndex(undefined)}
                       className={cn(
                         "group relative flex flex-col gap-1.5 p-3 rounded-xl transition-all duration-200 cursor-pointer border border-transparent",
-                        isActive 
-                          ? "bg-accent/50 border-border shadow-sm scale-[1.02]" 
+                        isActive
+                          ? "bg-accent/50 border-border shadow-sm scale-[1.02]"
                           : "hover:bg-muted/40"
                       )}
                     >
@@ -192,16 +198,16 @@ export const ExpenseChart = ({ expenses, currencyCode = "INR" }: ExpenseChartPro
 
                       {/* Row 2: Progress Bar Visual */}
                       <div className="relative w-full h-1.5 bg-muted/50 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="absolute left-0 top-0 h-full rounded-full transition-all duration-500 ease-out"
-                          style={{ 
-                            width: `${percent}%`, 
+                          style={{
+                            width: `${percent}%`,
                             backgroundColor: item.color,
                             opacity: isActive ? 1 : 0.7
-                          }} 
+                          }}
                         />
                       </div>
-                      
+
                       {/* Percent Label (Small) */}
                       <div className="flex justify-end">
                         <span className="text-[10px] text-muted-foreground font-medium">{percent}%</span>

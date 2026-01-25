@@ -32,9 +32,10 @@ const formatCurrencySafe = (amount: number | string) => {
     return `Rs. ${num.toFixed(2)}`;
 };
 
-export const generateInvoicePDF = (data: InvoiceDetails) => {
+export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'download' | 'preview' }) => {
     try {
         const doc = new jsPDF();
+        const action = options?.action || 'download';
 
         // --- Header ---
         doc.setFontSize(24);
@@ -136,9 +137,17 @@ export const generateInvoicePDF = (data: InvoiceDetails) => {
         doc.setFont("helvetica", "italic");
         doc.text("Thank you for your business!", 105, 280, { align: "center" });
 
-        doc.save(`Invoice-${sanitizeText(data.invoice_number)}.pdf`);
+        if (action === 'download') {
+            doc.save(`Invoice-${sanitizeText(data.invoice_number)}.pdf`);
+            return null;
+        } else {
+            // Preview
+            return doc.output('bloburl');
+        }
+
     } catch (e) {
         console.error("PDF generation failed", e);
         alert("Failed to generate PDF. Please try again.");
+        return null;
     }
 };

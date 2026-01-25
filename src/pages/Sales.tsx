@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Download, Plus, Printer, Search } from "lucide-react";
+import { Download, Plus, Printer, Search, Pencil, MoreVertical, FileText } from "lucide-react";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,12 +12,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const SalesPage = () => {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [editingInvoice, setEditingInvoice] = useState<any>(null); // State for editing
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
+
+    const handlePreview = (invoice: any) => {
+        const url = generateInvoicePDF({
+            invoice_number: invoice.invoice_number,
+            date: invoice.date,
+            customer_name: invoice.customer_name,
+            items: invoice.items || [],
+            subtotal: invoice.subtotal || invoice.total_amount,
+            tax_amount: invoice.tax_amount || 0,
+            total_amount: invoice.total_amount,
+            tax_rate: 0
+        }, { action: 'preview' });
+
+        if (url) {
+            window.open(url as string, '_blank');
+        }
+    };
 
     interface Sale {
         id: string;
@@ -51,6 +75,11 @@ const SalesPage = () => {
         inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         inv.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const handleEdit = (invoice: any) => {
+        setEditingInvoice(invoice);
+        setIsCreateOpen(true);
+    };
 
     return (
         <AppLayout>
@@ -111,23 +140,37 @@ const SalesPage = () => {
                                                 {invoice.items?.length || 0} items
                                             </p>
                                         </div>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8"
-                                            onClick={() => generateInvoicePDF({
-                                                invoice_number: invoice.invoice_number,
-                                                date: invoice.date,
-                                                customer_name: invoice.customer_name,
-                                                items: invoice.items || [],
-                                                subtotal: invoice.subtotal || invoice.total_amount, // Fallback if subtotal missing in older records
-                                                tax_amount: invoice.tax_amount || 0,
-                                                total_amount: invoice.total_amount,
-                                                tax_rate: 0 // Optional, purely for display if available
-                                            })}
-                                        >
-                                            <Download className="w-3 h-3 mr-1" /> PDF
-                                        </Button>
+
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                    <MoreVertical className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handlePreview(invoice)}>
+                                                    <FileText className="w-4 h-4 mr-2" />
+                                                    Preview Invoice
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => generateInvoicePDF({
+                                                    invoice_number: invoice.invoice_number,
+                                                    date: invoice.date,
+                                                    customer_name: invoice.customer_name,
+                                                    items: invoice.items || [],
+                                                    subtotal: invoice.subtotal || invoice.total_amount,
+                                                    tax_amount: invoice.tax_amount || 0,
+                                                    total_amount: invoice.total_amount,
+                                                    tax_rate: 0
+                                                }, { action: 'download' })}>
+                                                    <Download className="w-4 h-4 mr-2" />
+                                                    Download PDF
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleEdit(invoice)}>
+                                                    <Pencil className="w-4 h-4 mr-2" />
+                                                    Edit Invoice
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -135,7 +178,14 @@ const SalesPage = () => {
                     </div>
                 )}
 
-                <CreateInvoiceDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+                <CreateInvoiceDialog
+                    open={isCreateOpen}
+                    onOpenChange={(open) => {
+                        setIsCreateOpen(open);
+                        if (!open) setEditingInvoice(null);
+                    }}
+                    invoiceToEdit={editingInvoice}
+                />
             </div>
         </AppLayout>
     );

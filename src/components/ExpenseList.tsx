@@ -273,8 +273,12 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
 
           <div className="divide-y divide-border">
             {expenses.map((expense) => {
+              // Safety check for category
+              const categoryName = expense.categories?.name || 'Uncategorized';
+              const categoryColor = expense.categories?.color || '#94a3b8'; // slate-400
               const iconName = expense.categories?.icon || 'circle';
               const Icon = getIcon(iconName);
+
               return (
                 <div
                   key={expense.id}
@@ -283,9 +287,9 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                   <div className="flex items-center gap-3 flex-1">
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${expense.categories.color}20` }}
+                      style={{ backgroundColor: `${categoryColor}20` }}
                     >
-                      <Icon className="w-5 h-5" style={{ color: expense.categories.color }} />
+                      <Icon className="w-5 h-5" style={{ color: categoryColor }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -308,7 +312,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
 
                       {/* Subtitles: Category, Date, Vendor/Invoice for Business */}
                       <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-muted-foreground mt-0.5">
-                        <span className="flex items-center gap-1">{expense.categories.name}</span>
+                        <span className="flex items-center gap-1">{categoryName}</span>
                         <span>•</span>
                         <span>{new Date(expense.date).toLocaleDateString()}</span>
 
