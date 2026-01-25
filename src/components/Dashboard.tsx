@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -42,6 +42,8 @@ import { menuItems, businessMenuItems } from "./AppSidebar";
 import { cn } from "@/lib/utils";
 import BusinessDashboard from "@/pages/BusinessDashboard";
 import { useBusiness } from "@/contexts/BusinessContext";
+import { OnboardingDialog } from "@/components/OnboardingDialog";
+import { BusinessDetailsDialog } from "@/components/BusinessDetailsDialog";
 
 export const Dashboard = () => {
   console.log("Dashboard component rendering...");
@@ -54,8 +56,31 @@ export const Dashboard = () => {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showBusinessDetails, setShowBusinessDetails] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { toggleBusinessMode } = useBusiness();
+
+  useEffect(() => {
+    if (user) {
+      const hasOnboarded = localStorage.getItem(`onboarded_${user.id}`);
+      if (!hasOnboarded) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [user]);
+
+  const handleOnboardingSelect = async (mode: 'personal' | 'business') => {
+    if (mode === 'business') {
+      await toggleBusinessMode(true);
+      setShowBusinessDetails(true);
+    }
+    if (user) {
+      localStorage.setItem(`onboarded_${user.id}`, 'true');
+    }
+    setShowOnboarding(false);
+  };
 
   console.log("Dashboard user state:", user);
 
@@ -464,6 +489,21 @@ export const Dashboard = () => {
         onOpenChange={setIsSettingsOpen}
       />
 
+
+      <SettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+      />
+
+      <OnboardingDialog
+        open={showOnboarding}
+        onSelect={handleOnboardingSelect}
+      />
+
+      <BusinessDetailsDialog
+        open={showBusinessDetails}
+        onOpenChange={setShowBusinessDetails}
+      />
 
     </div>
   );
