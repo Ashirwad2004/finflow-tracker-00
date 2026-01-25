@@ -18,7 +18,7 @@ import BorrowedMoney from "./pages/BorrowedMoney";
 import RecentlyDeletedPage from "./pages/RecentlyDeletedPage";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import { ThemeInitializer } from "@/components/ThemeToggle";
+import { ThemeInitializer } from "@/components/layout/ThemeToggle";
 import SalesPage from "./pages/Sales";
 import PurchasesPage from "./pages/Purchases";
 import BusinessDashboardPage from "./pages/BusinessDashboard";

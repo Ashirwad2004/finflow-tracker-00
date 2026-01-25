@@ -19,13 +19,13 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calculator as CalculatorComponent } from "@/components/calculator";
 import { Settings } from "lucide-react";
-import { SettingsDialog } from "./SettingsDialog";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { useBusiness } from "@/contexts/BusinessContext";
 
 const personalMenuItems = [

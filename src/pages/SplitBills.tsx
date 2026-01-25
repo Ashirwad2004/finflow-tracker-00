@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Trash2, Users, Check, X, FileDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -65,7 +65,7 @@ const SplitBills = () => {
       // 1. Add Title and Date
       doc.setFontSize(18);
       doc.text("Split Bills Report", 14, 22);
-      
+
       doc.setFontSize(11);
       doc.setTextColor(100);
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
@@ -98,14 +98,14 @@ const SplitBills = () => {
         styles: { fontSize: 9 },
         headStyles: { fillColor: [66, 66, 66] }, // Dark grey header
         // Highlight 'Pending' in red text
-        didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index === 5) {
-                if (data.cell.raw === 'Pending') {
-                    data.cell.styles.textColor = [220, 53, 69]; // Red
-                } else {
-                    data.cell.styles.textColor = [25, 135, 84]; // Green
-                }
+        didParseCell: function (data) {
+          if (data.section === 'body' && data.column.index === 5) {
+            if (data.cell.raw === 'Pending') {
+              data.cell.styles.textColor = [220, 53, 69]; // Red
+            } else {
+              data.cell.styles.textColor = [25, 135, 84]; // Green
             }
+          }
         }
       });
 
@@ -273,12 +273,12 @@ const SplitBills = () => {
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-xl font-semibold">Your Split Bills</h2>
-          
+
           <div className="flex items-center gap-2">
             {/* --- NEW: Export PDF Button --- */}
-            <Button 
-              variant="outline" 
-              onClick={handleExportPDF} 
+            <Button
+              variant="outline"
+              onClick={handleExportPDF}
               disabled={isExporting || splitBills.length === 0}
             >
               <FileDown className="w-4 h-4 mr-2" />

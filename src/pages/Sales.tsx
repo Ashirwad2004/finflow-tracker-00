@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { Download, Plus, Printer, Search, Pencil, MoreVertical, FileText } from "lucide-react";

@@ -48,7 +48,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { GroupExpenseDialog } from "@/components/GroupExpenseDialog";

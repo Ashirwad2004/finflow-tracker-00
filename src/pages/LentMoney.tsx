@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { LentMoneySection } from "@/components/LentMoneySection";
 import { LentMoneyParties } from "@/components/LentMoneyParties";
 import { LentMoneyDialog } from "@/components/LentMoneyDialog";

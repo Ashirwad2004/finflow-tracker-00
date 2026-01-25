@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { Dashboard } from "@/components/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Wallet, TrendingUp, Shield, Zap } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 const Index = () => {
   const { user, loading } = useAuth();

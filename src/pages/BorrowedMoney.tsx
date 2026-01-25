@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { BorrowedMoneySection } from "@/components/BorrowedMoneySection";
 import { BorrowedMoneyParties } from "@/components/BorrowedMoneyParties";
 import { BorrowedMoneyDialog } from "@/components/BorrowedMoneyDialog";

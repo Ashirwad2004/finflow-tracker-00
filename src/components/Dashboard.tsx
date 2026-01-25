@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,14 +31,14 @@ import { BudgetSection } from "@/components/BudgetSection";
 import { RecentlyDeleted } from "@/components/RecentlyDeleted";
 import { LentMoneySection } from "@/components/LentMoneySection";
 import { Calculator as CalculatorComponent } from "@/components/calculator";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
 
 import { AiInsights } from "@/components/AiInsights";
 
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
-import { menuItems, businessMenuItems } from "./AppSidebar";
+import { menuItems, businessMenuItems } from "@/components/layout/AppSidebar";
 import { cn } from "@/lib/utils";
 import BusinessDashboard from "@/pages/BusinessDashboard";
 import { useBusiness } from "@/contexts/BusinessContext";
