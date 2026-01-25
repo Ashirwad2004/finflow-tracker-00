@@ -73,38 +73,8 @@ export const Dashboard = () => {
     enabled: !!user,
   });
 
-  // Business Mode View
-  if (isBusinessMode) {
-    return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card shadow-sm">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="font-bold text-xl">FinFlow Business</h1>
-                <p className="text-xs text-muted-foreground">{profile?.display_name}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
-                <Settings className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => signOut()}>
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </header>
-        <BusinessDashboard />
-      </div>
-    );
-  }
 
-  // Personal Mode Logic (Existing)
+  // Personal Mode Hooks
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ["expenses", user?.id],
     queryFn: async () => {
@@ -181,6 +151,39 @@ export const Dashboard = () => {
       });
     },
   });
+
+  // Business Mode View
+  if (isBusinessMode) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card shadow-sm">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="font-bold text-xl">FinFlow Business</h1>
+                <p className="text-xs text-muted-foreground">{profile?.display_name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
+                <Settings className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => signOut()}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+        <BusinessDashboard />
+      </div>
+    );
+  }
+
+
 
   const handleSignOut = async () => {
     await signOut();
