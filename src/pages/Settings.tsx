@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +7,50 @@ import { Button } from "@/components/ui/button";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { useCurrency, CURRENCIES } from "@/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Globe, Download, Loader2 } from "lucide-react";
+import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet } from "lucide-react";
 import { BusinessDetailsDialog } from "@/components/BusinessDetailsDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type BackupFormat = "json" | "csv";
+
+const convertToCSV = (data: Record<string, unknown[]>): string => {
+    const csvSections: string[] = [];
+
+    for (const [tableName, rows] of Object.entries(data)) {
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+
+        // Add section header
+        csvSections.push(`\n=== ${tableName.toUpperCase()} ===\n`);
+
+        // Get headers from first row
+        const headers = Object.keys(rows[0] as object);
+        csvSections.push(headers.join(","));
+
+        // Add data rows
+        for (const row of rows) {
+            const values = headers.map((header) => {
+                const value = (row as Record<string, unknown>)[header];
+                if (value === null || value === undefined) return "";
+                if (typeof value === "object") return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+                if (typeof value === "string" && (value.includes(",") || value.includes('"') || value.includes("\n"))) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return String(value);
+            });
+            csvSections.push(values.join(","));
+        }
+    }
+
+    return csvSections.join("\n");
+};
 
 const SettingsPage = () => {
     const { isBusinessMode, toggleBusinessMode } = useBusiness();
@@ -44,7 +82,7 @@ const SettingsPage = () => {
         }
     };
 
-    const handleBackup = async () => {
+    const handleBackup = async (format: BackupFormat) => {
         if (!user) {
             toast({
                 title: "Error",
@@ -62,12 +100,34 @@ const SettingsPage = () => {
                 throw new Error(error.message);
             }
 
-            // Create and download the file
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const dateStr = new Date().toISOString().split('T')[0];
+            let blob: Blob;
+            let filename: string;
+
+            if (format === "csv") {
+                // Convert to CSV format
+                const csvData = {
+                    expenses: data.expenses || [],
+                    budgets: data.budgets || [],
+                    lentMoney: data.lentMoney || [],
+                    borrowedMoney: data.borrowedMoney || [],
+                    sales: data.sales || [],
+                    purchases: data.purchases || [],
+                    products: data.products || [],
+                    splitBills: data.splitBills || [],
+                };
+                const csvContent = convertToCSV(csvData);
+                blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                filename = `finflow-backup-${dateStr}.csv`;
+            } else {
+                blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                filename = `finflow-backup-${dateStr}.json`;
+            }
+
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `finflow-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -75,7 +135,7 @@ const SettingsPage = () => {
 
             toast({
                 title: "Backup Complete",
-                description: "Your data has been downloaded successfully",
+                description: `Your data has been downloaded as ${format.toUpperCase()}`,
             });
         } catch (error) {
             console.error("Backup error:", error);
@@ -179,23 +239,33 @@ const SettingsPage = () => {
                                         Export expenses, sales, purchases, lent/borrowed money, and more.
                                     </p>
                                 </div>
-                                <Button
-                                    onClick={handleBackup}
-                                    disabled={isBackingUp}
-                                    className="ml-4"
-                                >
-                                    {isBackingUp ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Backing up...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Download className="mr-2 h-4 w-4" />
-                                            Backup Data
-                                        </>
-                                    )}
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button disabled={isBackingUp} className="ml-4">
+                                            {isBackingUp ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Backing up...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Download className="mr-2 h-4 w-4" />
+                                                    Export Data
+                                                </>
+                                            )}
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleBackup("json")}>
+                                            <FileJson className="mr-2 h-4 w-4" />
+                                            Export as JSON
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBackup("csv")}>
+                                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                            Export as CSV (Excel)
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </CardContent>
                     </Card>
