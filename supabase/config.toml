@@ -1,4 +1,7 @@
 project_id = "uxezrpjctgovqhbbpyrl"
 
 [functions.scan-bill]
-verify_jwt = true
+verify_jwt = false
+
+[functions.backup-data]
+verify_jwt = false
