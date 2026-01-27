@@ -3,8 +3,9 @@ import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { exportSalesToCSV } from "@/utils/exportSalesCSV";
-import { Download, Plus, Printer, Search, Pencil, MoreVertical, FileText } from "lucide-react";
+import { Download, Plus, Printer, Search, Pencil, MoreVertical, FileText, BarChart3 } from "lucide-react";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
+import { SalesInsightsDialog } from "@/components/SalesInsightsDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import {
     DropdownMenu,
@@ -22,7 +24,9 @@ import {
 
 const SalesPage = () => {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [showInsights, setShowInsights] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all');
     const [editingInvoice, setEditingInvoice] = useState<any>(null); // State for editing
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
@@ -94,10 +98,12 @@ const SalesPage = () => {
         enabled: !!user
     });
 
-    const filteredInvoices = invoices.filter(inv =>
-        inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        inv.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredInvoices = invoices.filter(inv => {
+        const matchesSearch = inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            inv.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === 'all' || inv.status === filterStatus;
+        return matchesSearch && matchesStatus;
+    });
 
     const handleEdit = (invoice: any) => {
         setEditingInvoice(invoice);
@@ -107,20 +113,20 @@ const SalesPage = () => {
     return (
         <AppLayout>
             <div className="container mx-auto p-4 animate-fade-in space-y-6">
-                import {exportSalesToCSV} from "@/utils/exportSalesCSV";
 
-                // ... existing imports ...
-
-                // Inside the component return ...
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1 className="text-2xl font-bold">Sales & Invoices</h1>
                         <p className="text-muted-foreground">Manage your customer invoices</p>
                     </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+                        <Button variant="outline" onClick={() => setShowInsights(true)}>
+                            <BarChart3 className="w-4 h-4 mr-2" />
+                            Insights
+                        </Button>
                         <Button variant="outline" onClick={() => exportSalesToCSV(invoices)}>
                             <Download className="w-4 h-4 mr-2" />
-                            Download Report
+                            Report
                         </Button>
                         <Button onClick={() => setIsCreateOpen(true)}>
                             <Plus className="w-4 h-4 mr-2" />
@@ -129,15 +135,26 @@ const SalesPage = () => {
                     </div>
                 </div>
 
-                {/* Search Bar */}
-                <div className="relative max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search by customer or invoice #"
-                        className="pl-9"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                {/* Filters & Search */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                    <Tabs defaultValue="all" value={filterStatus} onValueChange={(val) => setFilterStatus(val as any)} className="w-full sm:w-auto">
+                        <TabsList>
+                            <TabsTrigger value="all">All Invoices</TabsTrigger>
+                            <TabsTrigger value="paid" className="data-[state=active]:bg-green-100 data-[state=active]:text-green-700">Paid</TabsTrigger>
+                            <TabsTrigger value="pending" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">Pending</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+
+                    {/* Search Bar */}
+                    <div className="relative max-w-sm w-full sm:w-64">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search..."
+                            className="pl-9"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
                 </div>
 
                 {/* Invoice List */}
@@ -148,7 +165,7 @@ const SalesPage = () => {
                         <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
                             <Printer className="w-6 h-6 opacity-50" />
                         </div>
-                        <p>No invoices found. Start by creating a new invoice.</p>
+                        <p>No invoices matching your filter.</p>
                     </div>
                 ) : (
                     <div className="grid gap-4">
@@ -225,6 +242,11 @@ const SalesPage = () => {
                         if (!open) setEditingInvoice(null);
                     }}
                     invoiceToEdit={editingInvoice}
+                />
+
+                <SalesInsightsDialog
+                    open={showInsights}
+                    onOpenChange={setShowInsights}
                 />
             </div>
         </AppLayout>
