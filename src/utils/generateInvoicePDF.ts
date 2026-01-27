@@ -137,7 +137,7 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
                 fontStyle: 'bold'
             },
             columnStyles: {
-                0: { cellWidth: 80 }, // Description
+                0: { cellWidth: 82 }, // Description - Adjusted to align right edge to 196 (82+20+40+40 = 182 + 14margin = 196)
                 1: { cellWidth: 20, halign: 'center' }, // Qty
                 2: { cellWidth: 40, halign: 'right' }, // Price
                 3: { cellWidth: 40, halign: 'right' }  // Total
@@ -148,7 +148,17 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
                 cellPadding: 3,
                 overflow: 'linebreak'
             },
-            margin: { top: 70, left: 14, right: 14 }
+            margin: { top: 70, left: 14, right: 14 },
+            didParseCell: (data) => {
+                if (data.section === 'head') {
+                    if (data.column.index === 1) { // Qty
+                        data.cell.styles.halign = 'center';
+                    }
+                    if (data.column.index === 2 || data.column.index === 3) { // Price & Total
+                        data.cell.styles.halign = 'right';
+                    }
+                }
+            }
         });
 
         // --- Totals ---
