@@ -28,9 +28,14 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    const [isLoading, setIsLoading] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
-    const { register, handleSubmit, formState: { errors }, reset } = useForm<BusinessDetailsFormValues>({
+    // Extending form interface
+    interface ExtendedFormValues extends BusinessDetailsFormValues {
+        signature_file?: FileList;
+    }
+
+    const { register, handleSubmit, formState: { errors }, reset } = useForm<ExtendedFormValues>({
         defaultValues: {
             business_name: "",
             gst_number: "",
@@ -39,12 +44,12 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
         }
     });
 
-    // Fetch existing business details when dialog opens
+    // Fetch existing details
     useEffect(() => {
         if (open && user) {
             supabase
                 .from("profiles" as any)
-                .select("business_name, gst_number, business_phone, business_address")
+                .select("business_name, gst_number, business_phone, business_address, signature_url")
                 .eq("user_id", user.id)
                 .single()
                 .then(({ data }) => {
@@ -55,24 +60,60 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                             business_phone: (data as any).business_phone || "",
                             business_address: (data as any).business_address || ""
                         });
+                        // signature_url is not in form values but we might want to show it? 
+                        // For now just allow overwrite.
                     }
                 });
         }
     }, [open, user, reset]);
 
     const updateBusinessDetailsMutation = useMutation({
-        mutationFn: async (values: BusinessDetailsFormValues) => {
+        mutationFn: async (values: ExtendedFormValues) => {
             if (!user) throw new Error("User not authenticated");
 
+            let signatureUrl = null;
+
+            // Handle File Upload
+            if (values.signature_file && values.signature_file.length > 0) {
+                setIsUploading(true);
+                const file = values.signature_file[0];
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('business_assets')
+                    .upload(fileName, file);
+
+                if (uploadError) {
+                    setIsUploading(false);
+                    throw uploadError;
+                }
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('business_assets')
+                    .getPublicUrl(fileName);
+
+                signatureUrl = publicUrl;
+                setIsUploading(false);
+            }
+
+            const updateData: any = {
+                user_id: user.id,
+                business_name: values.business_name,
+                gst_number: values.gst_number,
+                business_phone: values.business_phone,
+                business_address: values.business_address,
+                updated_at: new Date().toISOString()
+            };
+
+            if (signatureUrl) {
+                updateData.signature_url = signatureUrl;
+            }
+
+            // Use upsert to create profile if it doesn't exist
             const { error } = await supabase
                 .from("profiles" as any)
-                .update({
-                    business_name: values.business_name,
-                    gst_number: values.gst_number,
-                    business_phone: values.business_phone,
-                    business_address: values.business_address
-                })
-                .eq("user_id", user.id);
+                .upsert(updateData, { onConflict: 'user_id' });
 
             if (error) throw error;
             return values;
@@ -89,6 +130,7 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
             }
         },
         onError: (error: Error) => {
+            setIsUploading(false);
             toast({
                 title: "Error",
                 description: error.message,
@@ -97,7 +139,7 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
         }
     });
 
-    const onSubmit = (data: BusinessDetailsFormValues) => {
+    const onSubmit = (data: ExtendedFormValues) => {
         updateBusinessDetailsMutation.mutate(data);
     };
 
@@ -174,17 +216,40 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                         )}
                     </div>
 
+
+
+                    <div className="space-y-2">
+                        <Label htmlFor="signature">Signature (Image)</Label>
+                        <Input
+                            id="signature"
+                            type="file"
+                            accept="image/*"
+                            className="cursor-pointer"
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    // Handle upload immediately or store in state? 
+                                    // Storing in state for submit is better but for simple impl I'll just keep it in a ref or state
+                                    // Let's modify the component logic above to handle this.
+                                }
+                            }}
+                            ref={register("signature_file").ref}
+                            {...{ ...register("signature_file"), ref: null }} // Quick hack, better to handle separately or use Controller
+                        />
+                        <p className="text-xs text-muted-foreground">Upload an image of your signature to display on invoices.</p>
+                    </div>
+
                     <DialogFooter>
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
-                            disabled={updateBusinessDetailsMutation.isPending}
+                            disabled={updateBusinessDetailsMutation.isPending || isUploading}
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={updateBusinessDetailsMutation.isPending}>
-                            {updateBusinessDetailsMutation.isPending && (
+                        <Button type="submit" disabled={updateBusinessDetailsMutation.isPending || isUploading}>
+                            {(updateBusinessDetailsMutation.isPending || isUploading) && (
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                             )}
                             Save Details
@@ -192,6 +257,6 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                     </DialogFooter>
                 </form>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 };

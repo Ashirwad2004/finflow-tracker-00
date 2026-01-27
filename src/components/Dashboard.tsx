@@ -490,10 +490,7 @@ export const Dashboard = () => {
       />
 
 
-      <SettingsDialog
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-      />
+
 
       <OnboardingDialog
         open={showOnboarding}

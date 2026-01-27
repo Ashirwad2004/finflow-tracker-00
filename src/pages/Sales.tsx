@@ -42,8 +42,8 @@ const SalesPage = () => {
         enabled: !!user
     });
 
-    const handlePreview = (invoice: any) => {
-        const url = generateInvoicePDF({
+    const handlePreview = async (invoice: any) => {
+        const url = await generateInvoicePDF({
             invoice_number: invoice.invoice_number,
             date: invoice.date,
             customer_name: invoice.customer_name,
@@ -56,7 +56,8 @@ const SalesPage = () => {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
                 phone: (profile as any).business_phone,
-                gst: (profile as any).gst_number
+                gst: (profile as any).gst_number,
+                signature_url: (profile as any).signature_url
             } : undefined
         }, { action: 'preview' });
 
@@ -174,7 +175,7 @@ const SalesPage = () => {
                                                     <FileText className="w-4 h-4 mr-2" />
                                                     Preview Invoice
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => generateInvoicePDF({
+                                                <DropdownMenuItem onClick={async () => await generateInvoicePDF({
                                                     invoice_number: invoice.invoice_number,
                                                     date: invoice.date,
                                                     customer_name: invoice.customer_name,
@@ -187,7 +188,8 @@ const SalesPage = () => {
                                                         name: (profile as any).business_name,
                                                         address: (profile as any).business_address,
                                                         phone: (profile as any).business_phone,
-                                                        gst: (profile as any).gst_number
+                                                        gst: (profile as any).gst_number,
+                                                        signature_url: (profile as any).signature_url
                                                     } : undefined
                                                 }, { action: 'download' })}>
                                                     <Download className="w-4 h-4 mr-2" />

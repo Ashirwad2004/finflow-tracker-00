@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { PartySelect } from "@/components/PartySelect";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-// Update imports and component props
-import { useEffect } from "react";
 
 interface RecordPurchaseDialogProps {
     open: boolean;
@@ -28,6 +26,7 @@ interface PurchaseItem {
 }
 
 interface PurchaseFormValues {
+    party_id?: string;
     vendor_name: string;
     bill_number: string;
     date: string;
@@ -83,6 +82,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
 
             const purchaseData = {
                 user_id: user.id,
+                party_id: values.party_id,
                 bill_number: values.bill_number,
                 vendor_name: values.vendor_name,
                 date: values.date,
@@ -157,7 +157,18 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
 
                             <div className="space-y-2">
                                 <Label>Vendor / Supplier Name *</Label>
-                                <Input {...register("vendor_name", { required: "Vendor name is required" })} placeholder="Enter vendor name" />
+                                <div className="space-y-2">
+                                    <PartySelect
+                                        type="vendor"
+                                        value={watch("party_id")}
+                                        onChange={(id, party) => {
+                                            setValue("party_id", id);
+                                            if (party) setValue("vendor_name", party.name);
+                                        }}
+                                        placeholder="Select Vendor"
+                                    />
+                                    <Input {...register("vendor_name", { required: "Vendor name is required" })} placeholder="Vendor Name" />
+                                </div>
                                 {errors.vendor_name && <span className="text-red-500 text-xs">{errors.vendor_name.message}</span>}
                             </div>
 

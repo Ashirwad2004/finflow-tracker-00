@@ -39,6 +39,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useBusiness } from "@/contexts/BusinessContext";
+import { cn } from "@/lib/utils";
 
 interface LentMoneySectionProps {
   userId: string;

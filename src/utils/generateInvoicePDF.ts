@@ -23,6 +23,7 @@ export interface InvoiceDetails {
         address?: string;
         phone?: string;
         gst?: string;
+        signature_url?: string | null;
     };
 }
 
@@ -34,11 +35,10 @@ const sanitizeText = (text: string) => {
 const formatCurrencySafe = (amount: number | string) => {
     const num = Number(amount);
     if (isNaN(num)) return "0.00";
-    // basic toFixed to avoid locale-specific unicode characters (like non-breaking spaces)
-    return `Rs. ${num.toFixed(2)}`;
+    return `${num.toFixed(2)}`;
 };
 
-export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'download' | 'preview' }) => {
+export const generateInvoicePDF = async (data: InvoiceDetails, options?: { action?: 'download' | 'preview' }) => {
     try {
         const doc = new jsPDF();
         const action = options?.action || 'download';
@@ -61,7 +61,6 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
 
             let yPos = 26;
             if (data.business_details.address) {
-                // Split address into lines if too long
                 const splitAddress = doc.splitTextToSize(sanitizeText(data.business_details.address), 100);
                 doc.text(splitAddress, 14, yPos);
                 yPos += (splitAddress.length * 4) + 2;
@@ -77,18 +76,14 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
             }
 
         } else {
-            // Fallback
             doc.setFontSize(18);
             doc.setTextColor(37, 99, 235);
             doc.text("FinFlow Business", 14, 20);
         }
 
-        // Line
         doc.setLineWidth(0.5);
         doc.setDrawColor(200, 200, 200);
-
-        // Adjust line start based on content roughly, or keep fixed but push content down
-        const headerBottom = 55; // Pushed down to make room for address
+        const headerBottom = 55;
         doc.line(14, headerBottom, 196, headerBottom);
 
         // --- Info --
@@ -134,16 +129,17 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
             headStyles: {
                 fillColor: [37, 99, 235],
                 textColor: 255,
-                fontStyle: 'bold'
+                fontStyle: 'bold',
+                halign: 'left' // Ensure headers align with content
             },
             columnStyles: {
-                0: { cellWidth: 80 }, // Description
-                1: { cellWidth: 20, halign: 'center' }, // Qty
-                2: { cellWidth: 40, halign: 'right' }, // Price
-                3: { cellWidth: 40, halign: 'right' }  // Total
+                0: { cellWidth: 80, halign: 'left' },
+                1: { cellWidth: 20, halign: 'center' },
+                2: { cellWidth: 40, halign: 'right' },
+                3: { cellWidth: 40, halign: 'right' }
             },
             styles: {
-                font: "helvetica", // Enforcing font
+                font: "helvetica",
                 fontSize: 9,
                 cellPadding: 3,
                 overflow: 'linebreak'
@@ -153,23 +149,58 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
 
         // --- Totals ---
         const finalY = (doc as any).lastAutoTable.finalY + 10;
-        const rightColX = 140;
-        const valueX = 196;
+
+        // Table geometry:
+        // Left Margin: 14
+        // Columns: 80 + 20 + 40 + 40 = 180 width.
+        // Right Edge of Table = 14 + 180 = 194.
+
+        const rightEdge = 194;
+        const colWidth = 40; // Width of the 'Total' column
+        const labelX = rightEdge - colWidth - 5; // Start labels slightly before the column starts, or align with previous column?
+        // Let's try aligning Labels to the 'Price' column roughly.
 
         doc.setFont("helvetica", "normal");
-        doc.text("Subtotal:", rightColX, finalY);
-        doc.text(formatCurrencySafe(data.subtotal), valueX, finalY, { align: "right" });
 
-        doc.text(`Tax (${data.tax_rate || 0}%):`, rightColX, finalY + 6);
-        doc.text(formatCurrencySafe(data.tax_amount || 0), valueX, finalY + 6, { align: "right" });
+        // Subtotal
+        doc.text("Subtotal:", labelX, finalY, { align: 'right' });
+        doc.text(formatCurrencySafe(data.subtotal), rightEdge, finalY, { align: "right" });
 
-        doc.line(rightColX, finalY + 9, valueX, finalY + 9);
+        // Tax
+        doc.text(`Tax (${data.tax_rate || 0}%):`, labelX, finalY + 6, { align: 'right' });
+        doc.text(formatCurrencySafe(data.tax_amount || 0), rightEdge, finalY + 6, { align: "right" });
 
+        doc.line(labelX + 5, finalY + 9, rightEdge, finalY + 9); // Underline values
+
+        // Total
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         doc.setTextColor(0, 0, 0);
-        doc.text("Total:", rightColX, finalY + 16);
-        doc.text(formatCurrencySafe(data.total_amount), valueX, finalY + 16, { align: "right" });
+        doc.text("Total:", labelX, finalY + 16, { align: 'right' });
+        doc.text(`Rs. ${formatCurrencySafe(data.total_amount)}`, rightEdge, finalY + 16, { align: "right" });
+
+
+        // --- Signature ---
+        if (data.business_details?.signature_url) {
+            try {
+                const imgResult = await fetch(data.business_details.signature_url);
+                if (imgResult.ok) {
+                    const imgBlob = await imgResult.blob();
+                    const imgUrl = URL.createObjectURL(imgBlob);
+
+                    const sigY = finalY + 30;
+                    // Center signature over the totals area roughly, or to the right
+                    // Let's place it aligned with the right edge
+                    doc.addImage(imgUrl, 'PNG', rightEdge - 40, sigY, 40, 20);
+
+                    doc.setFontSize(8);
+                    doc.setFont("helvetica", "normal");
+                    doc.text("Authorized Signature", rightEdge - 20, sigY + 25, { align: "center" });
+                }
+            } catch (err) {
+                console.error("Error loading signature image", err);
+            }
+        }
 
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
@@ -180,7 +211,6 @@ export const generateInvoicePDF = (data: InvoiceDetails, options?: { action?: 'd
             doc.save(`Invoice-${sanitizeText(data.invoice_number)}.pdf`);
             return null;
         } else {
-            // Preview
             return doc.output('bloburl');
         }
 

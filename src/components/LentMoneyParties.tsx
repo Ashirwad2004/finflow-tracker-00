@@ -19,6 +19,18 @@ interface PartyStats {
     lastTransactionDate: string;
 }
 
+interface LentMoneyRecord {
+    id: string;
+    amount: number;
+    person_name: string;
+    description: string;
+    due_date: string | null;
+    status: string;
+    user_id: string;
+    created_at: string;
+    updated_at?: string;
+}
+
 export const LentMoneyParties = ({ userId, onAddTransaction }: LentMoneyPartiesProps) => {
     const { formatCurrency } = useCurrency();
     const { data: parties = [], isLoading } = useQuery({
@@ -33,10 +45,13 @@ export const LentMoneyParties = ({ userId, onAddTransaction }: LentMoneyPartiesP
 
             if (error) throw error;
 
+            // Cast the data to break the deep type inference chain
+            const records = data as unknown as LentMoneyRecord[];
+
             // Group by person_name
             const partyMap = new Map<string, PartyStats>();
 
-            data.forEach((record) => {
+            records.forEach((record) => {
                 const name = record.person_name.trim(); // Normalize name
                 const current = partyMap.get(name) || {
                     personName: name,

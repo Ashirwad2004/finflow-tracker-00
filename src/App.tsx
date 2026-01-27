@@ -23,6 +23,7 @@ import SalesPage from "./pages/Sales";
 import PurchasesPage from "./pages/Purchases";
 import BusinessDashboardPage from "./pages/BusinessDashboard";
 import InventoryPage from "./pages/Inventory";
+import PartiesPage from "./pages/Parties";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ const AppRoutes = () => {
       <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
       <Route path="/business-dashboard" element={<ProtectedRoute><BusinessDashboardPage /></ProtectedRoute>} />
       <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+      <Route path="/parties" element={<ProtectedRoute><PartiesPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

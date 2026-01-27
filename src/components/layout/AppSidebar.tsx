@@ -111,6 +111,12 @@ export const businessMenuItems = [
     description: "Other Expenses"
   },
   {
+    title: "Parties",
+    path: "/parties",
+    icon: Users,
+    description: "Customers & Vendors"
+  },
+  {
     title: "Settings",
     path: "/settings",
     icon: Settings,
