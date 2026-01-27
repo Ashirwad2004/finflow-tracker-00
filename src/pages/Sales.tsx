@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
+import { exportSalesToCSV } from "@/utils/exportSalesCSV";
 import { Download, Plus, Printer, Search, Pencil, MoreVertical, FileText } from "lucide-react";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { useQuery } from "@tanstack/react-query";
@@ -106,15 +107,26 @@ const SalesPage = () => {
     return (
         <AppLayout>
             <div className="container mx-auto p-4 animate-fade-in space-y-6">
+                import {exportSalesToCSV} from "@/utils/exportSalesCSV";
+
+                // ... existing imports ...
+
+                // Inside the component return ...
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1 className="text-2xl font-bold">Sales & Invoices</h1>
                         <p className="text-muted-foreground">Manage your customer invoices</p>
                     </div>
-                    <Button onClick={() => setIsCreateOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Invoice
-                    </Button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <Button variant="outline" onClick={() => exportSalesToCSV(invoices)}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Download Report
+                        </Button>
+                        <Button onClick={() => setIsCreateOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create Invoice
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Search Bar */}
