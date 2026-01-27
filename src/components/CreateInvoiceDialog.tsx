@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
@@ -33,6 +34,7 @@ interface InvoiceFormValues {
     items: InvoiceItem[];
     tax_rate: number;
     overall_discount: number;
+    status: "paid" | "pending"; // [NEW] Added status field
 }
 
 export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: CreateInvoiceDialogProps) => {
@@ -49,7 +51,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
             date: new Date().toISOString().split("T")[0],
             items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
             tax_rate: 0,
-            overall_discount: 0
+            overall_discount: 0,
+            status: "paid" // [NEW] Default status
         },
         mode: "onBlur" // Validate fields when the user leaves the input
     });
@@ -76,18 +79,20 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 date: invoiceToEdit.date,
                 items: items,
                 tax_rate: (invoiceToEdit.tax_amount / (invoiceToEdit.subtotal || 1)) * 100,
-                overall_discount: invoiceToEdit.overall_discount || 0
+                overall_discount: invoiceToEdit.overall_discount || 0,
+                status: invoiceToEdit.status || "paid" // [NEW] Load status
             });
         } else if (open && !invoiceToEdit) {
             reset({
                 customer_name: "",
                 customer_phone: "",
                 customer_email: "",
-                invoice_number: "", 
+                invoice_number: "",
                 date: new Date().toISOString().split("T")[0],
                 items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
                 tax_rate: 0,
-                overall_discount: 0
+                overall_discount: 0,
+                status: "paid" // [NEW] Reset to default
             });
         }
     }, [open, invoiceToEdit, reset]);
@@ -194,8 +199,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 subtotal: subtotal,
                 tax_amount: taxAmount,
                 total_amount: totalAmount,
-                status: "paid",
-                payment_method: "cash",
+                status: values.status, // [NEW] Use selected status
+                payment_method: values.status === 'paid' ? "cash" : null,
             };
 
             if (invoiceToEdit) {
@@ -310,12 +315,12 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                 <div className="space-y-3">
                                     {fields.map((field, index) => (
                                         <div key={field.id} className="flex gap-3 items-start flex-col sm:flex-row bg-muted/20 p-2 rounded-md">
-                                            
+
                                             {/* Description Input */}
                                             <div className="flex-1 space-y-1 w-full">
                                                 <Input
-                                                    {...register(`items.${index}.description` as const, { 
-                                                        required: "Product name is required" 
+                                                    {...register(`items.${index}.description` as const, {
+                                                        required: "Product name is required"
                                                     })}
                                                     placeholder="Product Name *"
                                                     list={`products-list-${index}`}
@@ -338,25 +343,25 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                             <div className="flex gap-2 w-full sm:w-auto">
                                                 {/* Quantity */}
                                                 <div className="w-16 space-y-1">
-                                                    <Input 
-                                                        type="number" 
-                                                        {...register(`items.${index}.quantity` as const, { required: true, min: 1 })} 
-                                                        placeholder="Qty" 
-                                                        min="1" 
+                                                    <Input
+                                                        type="number"
+                                                        {...register(`items.${index}.quantity` as const, { required: true, min: 1 })}
+                                                        placeholder="Qty"
+                                                        min="1"
                                                     />
                                                 </div>
 
                                                 {/* Price - Validated Required */}
                                                 <div className="w-24 space-y-1">
-                                                    <Input 
-                                                        type="number" 
-                                                        {...register(`items.${index}.price` as const, { 
+                                                    <Input
+                                                        type="number"
+                                                        {...register(`items.${index}.price` as const, {
                                                             required: "Required",
                                                             valueAsNumber: true,
                                                             min: { value: 0.01, message: "> 0" }
-                                                        })} 
-                                                        placeholder="Price *" 
-                                                        min="0" 
+                                                        })}
+                                                        placeholder="Price *"
+                                                        min="0"
                                                         step="0.01"
                                                         className={errors.items?.[index]?.price ? "border-red-500" : ""}
                                                     />
@@ -433,6 +438,26 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                 <div className="flex justify-between font-bold text-lg pt-3 border-t border-gray-200">
                                     <span>Grand Total</span>
                                     <span className="text-primary">{formatCurrency(totalAmount)}</span>
+                                </div>
+
+                                {/* [NEW] Payment Status Selection */}
+                                <div className="pt-3 border-t border-gray-200">
+                                    <Label className="mb-2 block">Payment Status</Label>
+                                    <RadioGroup
+                                        defaultValue="paid"
+                                        value={watch("status")}
+                                        onValueChange={(val) => setValue("status", val as "paid" | "pending")}
+                                        className="flex gap-4"
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="paid" id="status-paid" />
+                                            <Label htmlFor="status-paid" className="cursor-pointer text-green-600 font-medium">Paid</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="pending" id="status-pending" />
+                                            <Label htmlFor="status-pending" className="cursor-pointer text-orange-500 font-medium">Pending</Label>
+                                        </div>
+                                    </RadioGroup>
                                 </div>
                             </div>
                         </div>
