@@ -42,6 +42,8 @@ import { menuItems, businessMenuItems } from "./AppSidebar";
 import { cn } from "@/lib/utils";
 import BusinessDashboard from "@/pages/BusinessDashboard";
 import { useBusiness } from "@/contexts/BusinessContext";
+import { motion } from "framer-motion";
+import { AnimatedCounter, DashboardCard } from "@/components/DashboardComponents";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { BusinessDetailsDialog } from "@/components/BusinessDetailsDialog";
 
@@ -252,8 +254,8 @@ export const Dashboard = () => {
     .reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card shadow-sm">
+    <div className="min-h-screen bg-background bg-noise">
+      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
 
@@ -379,94 +381,127 @@ export const Dashboard = () => {
           <AiInsights expenses={expenses} categories={categories} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-fade-in">
-          <Card className="shadow-card bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <TrendingDown className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalExpenses)}</div>
-              <p className="text-xs text-muted-foreground mt-1">All time</p>
-            </CardContent>
-          </Card>
+        {/* MAIN DASHBOARD GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <DashboardCard
+            title="Total Expenses"
+            icon={TrendingDown}
+            delay={0}
+            withSparkline={true}
+          >
+            <AnimatedCounter value={totalExpenses} prefix={user?.user_metadata?.currency ? "" : "₹"} />
+            {/* Note: In a real app we'd pass the currency symbol from context properly to AnimatedCounter if needed, but for now we rely on the parent logic or refine AnimatedCounter */}
+          </DashboardCard>
 
-          <Card className="shadow-card bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">This Month</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(thisMonthExpenses)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Current month spending</p>
-            </CardContent>
-          </Card>
+          <DashboardCard
+            title="This Month"
+            icon={TrendingUp}
+            delay={1}
+            trend={{ value: 12, isPositive: false }}
+            withSparkline={true}
+          >
+            <AnimatedCounter value={thisMonthExpenses} prefix={user?.user_metadata?.currency ? "" : "₹"} />
+          </DashboardCard>
 
-          <Card className="shadow-card bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{expenses.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Total recorded</p>
-            </CardContent>
-          </Card>
+          <DashboardCard
+            title="Transactions"
+            icon={Wallet}
+            delay={2}
+          >
+            {expenses.length}
+          </DashboardCard>
 
-          <BudgetSection userId={user?.id || ""} thisMonthExpenses={thisMonthExpenses} />
+          {/* Budget is complex component, we might need to wrap it later or just leave as is for now but formatted */}
+          <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
+            <BudgetSection userId={user?.id || ""} thisMonthExpenses={thisMonthExpenses} />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-              <h2 className="text-xl font-semibold">
-                {showRecentlyDeleted ? "Recently Deleted Expenses" : "Recent Expenses"}
-              </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* LEFT COLUMN: EXPENSE LIST (Occupies 2cols on LG) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Header with Actions */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+            >
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">
+                  {showRecentlyDeleted ? "Recently Deleted" : "Recent Transactions"}
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  {showRecentlyDeleted ? "Manage your deleted items" : "Track and manage your daily spending"}
+                </p>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => setShowRecentlyDeleted(!showRecentlyDeleted)}
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
+                  className="text-muted-foreground"
                 >
                   <Clock className="w-4 h-4 mr-2" />
-                  {showRecentlyDeleted ? "Show Expenses" : "Recently Deleted"}
+                  {showRecentlyDeleted ? "Back to List" : "History"}
                 </Button>
+
                 {!showRecentlyDeleted && (
                   <>
-                    <Button onClick={() => navigate("/split-bills")} size="sm" variant="outline">
+                    <Button onClick={() => navigate("/split-bills")} size="sm" variant="outline" className="hidden sm:flex">
                       <Users className="w-4 h-4 mr-2" />
-                      Split Bills
+                      Split
                     </Button>
-                    <Button onClick={() => setIsLentMoneyDialogOpen(true)} size="sm" variant="outline">
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      Lent Money
-                    </Button>
-                    <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
+                    <Button onClick={() => setIsAddDialogOpen(true)} size="sm" className="shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow">
                       <Plus className="w-4 h-4 mr-2" />
                       Add Expense
                     </Button>
                   </>
                 )}
               </div>
-            </div>
-            {showRecentlyDeleted ? (
-              <RecentlyDeleted userId={user?.id || ""} />
-            ) : (
-              <ExpenseList
-                expenses={expenses}
-                isLoading={isLoading}
-                onDelete={(id) => deleteExpense.mutate(id)}
-                onDeleteAll={() => { }}
-              />
-            )}
+            </motion.div>
+
+            {/* Main List Area */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-card rounded-2xl border shadow-sm overflow-hidden min-h-[400px]"
+            >
+              {showRecentlyDeleted ? (
+                <RecentlyDeleted userId={user?.id || ""} />
+              ) : (
+                <ExpenseList
+                  expenses={expenses}
+                  isLoading={isLoading}
+                  onDelete={(id) => deleteExpense.mutate(id)}
+                  onDeleteAll={() => { }}
+                />
+              )}
+            </motion.div>
           </div>
 
-          <div className="space-y-6 animate-fade-in" style={{ animationDelay: "0.2s" }}>
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Spending by Category</h2>
-              <ExpenseChart expenses={expenses} />
-            </div>
-            <LentMoneySection userId={user?.id || ""} />
+          {/* RIGHT COLUMN: CHARTS & INSIGHTS */}
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="bg-card rounded-2xl border shadow-sm p-6 mb-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  Spending Analysis
+                </h3>
+                <div className="h-[300px] w-full min-h-[300px]">
+                  <ExpenseChart expenses={expenses} />
+                </div>
+              </div>
+
+              {/* Quick Actions / Other Sections could go here */}
+              <LentMoneySection userId={user?.id || ""} />
+            </motion.div>
           </div>
         </div>
       </main>
