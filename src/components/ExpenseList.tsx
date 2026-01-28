@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, FileText, Eye, FileDown, Building2 } from "lucide-react";
@@ -272,7 +273,7 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
           </div>
 
           <div className="divide-y divide-border">
-            {expenses.map((expense) => {
+            {expenses.map((expense, index) => {
               // Safety check for category
               const categoryName = expense.categories?.name || 'Uncategorized';
               const categoryColor = expense.categories?.color || '#94a3b8'; // slate-400
@@ -280,28 +281,31 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
               const Icon = getIcon(iconName);
 
               return (
-                <div
+                <motion.div
                   key={expense.id}
-                  className="p-4 hover:bg-muted/50 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 group"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 group relative overflow-hidden"
                 >
-                  <div className="flex items-center gap-3 flex-1">
+                  <div className="flex items-center gap-4 flex-1 z-10">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${categoryColor}20` }}
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm border border-black/5 dark:border-white/5"
+                      style={{ backgroundColor: `${categoryColor}15` }}
                     >
                       <Icon className="w-5 h-5" style={{ color: categoryColor }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground truncate">{expense.description}</p>
+                        <p className="font-semibold text-foreground truncate text-sm sm:text-base">{expense.description}</p>
                         {isBusinessMode && expense.is_reimbursable && (
-                          <Badge variant="secondary" className="text-[10px] px-1 h-5">Reimbursable</Badge>
+                          <Badge variant="secondary" className="text-[10px] px-1 h-5 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-transparent">Reimbursable</Badge>
                         )}
                         {expense.bill_url && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 opacity-60 hover:opacity-100"
                             onClick={() => setBillPreviewUrl(expense.bill_url!)}
                             title="View bill"
                           >
@@ -311,22 +315,22 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                       </div>
 
                       {/* Subtitles: Category, Date, Vendor/Invoice for Business */}
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-muted-foreground mt-0.5">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground mt-0.5 font-medium">
                         <span className="flex items-center gap-1">{categoryName}</span>
                         <span>•</span>
-                        <span>{new Date(expense.date).toLocaleDateString()}</span>
+                        <span>{new Date(expense.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
 
                         {isBusinessMode && (expense.vendor_name || expense.invoice_number) && (
                           <>
-                            <span className="hidden sm:inline">•</span>
+                            <span className="hidden sm:inline opacity-30">|</span>
                             <div className="flex items-center gap-2 w-full sm:w-auto mt-1 sm:mt-0">
                               {expense.vendor_name && (
-                                <span className="flex items-center gap-1 text-xs bg-muted px-1.5 py-0.5 rounded">
+                                <span className="flex items-center gap-1 text-xs bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground/80">
                                   <Building2 className="w-3 h-3" /> {expense.vendor_name}
                                 </span>
                               )}
                               {expense.invoice_number && (
-                                <span className="text-xs">Inv: {expense.invoice_number}</span>
+                                <span className="text-xs font-mono opacity-70">#{expense.invoice_number}</span>
                               )}
                             </div>
                           </>
@@ -335,28 +339,39 @@ export const ExpenseList = ({ expenses, isLoading, onDelete, onDeleteAll }: Expe
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-4 ml-12 sm:ml-0">
+                  <div className="flex items-center justify-between sm:justify-end gap-6 ml-16 sm:ml-0 z-10">
                     <div className="text-right">
-                      <span className="font-semibold text-lg text-foreground block">
+                      <span className="font-bold text-base sm:text-lg text-foreground block tracking-tight">
                         {formatCurrency(parseFloat(expense.amount.toString()))}
                       </span>
                       {isBusinessMode && expense.tax_amount ? (
-                        <span className="text-xs text-muted-foreground block">
+                        <span className="text-xs text-muted-foreground block font-medium">
                           + {formatCurrency(expense.tax_amount)} Tax
                         </span>
                       ) : null}
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDelete(expense.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        // Placeholder for edit action if needed later
+                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      >
+                        {/* Edit Icon could go here */}
+                        <Building2 className="w-4 h-4 opacity-0" /> {/* Hidden filler or use Edit icon */}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(expense.id)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
