@@ -387,7 +387,6 @@ export const Dashboard = () => {
             title="Total Expenses"
             icon={TrendingDown}
             delay={0}
-            withSparkline={true}
           >
             <AnimatedCounter value={totalExpenses} prefix={user?.user_metadata?.currency ? "" : "₹"} />
             {/* Note: In a real app we'd pass the currency symbol from context properly to AnimatedCounter if needed, but for now we rely on the parent logic or refine AnimatedCounter */}
@@ -398,7 +397,6 @@ export const Dashboard = () => {
             icon={TrendingUp}
             delay={1}
             trend={{ value: 12, isPositive: false }}
-            withSparkline={true}
           >
             <AnimatedCounter value={thisMonthExpenses} prefix={user?.user_metadata?.currency ? "" : "₹"} />
           </DashboardCard>
