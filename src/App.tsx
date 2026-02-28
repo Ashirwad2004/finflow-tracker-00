@@ -1,41 +1,64 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { CurrencyProvider } from "@/contexts/CurrencyContext";
-import { BusinessProvider } from "@/contexts/BusinessContext";
+import { CurrencyProvider } from "@/core/contexts/CurrencyContext";
+import { BusinessProvider } from "@/core/contexts/BusinessContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/lib/auth";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import SplitBills from "./pages/SplitBills";
-import Groups from "./pages/Groups";
-import GroupDetail from "./pages/GroupDetail";
-import JoinGroup from "./pages/JoinGroup";
-import AllExpenses from "./pages/AllExpenses";
-import LentMoney from "./pages/LentMoney";
-import BorrowedMoney from "./pages/BorrowedMoney";
-import RecentlyDeletedPage from "./pages/RecentlyDeletedPage";
-import SettingsPage from "./pages/Settings";
-import NotFound from "./pages/NotFound";
-import { ThemeInitializer } from "@/components/ThemeToggle";
-import SalesPage from "./pages/Sales";
-import PurchasesPage from "./pages/Purchases";
-import BusinessDashboardPage from "./pages/BusinessDashboard";
-import InventoryPage from "./pages/Inventory";
+import { AuthProvider, useAuth } from "@/core/lib/auth";
+import { ThemeInitializer } from "@/components/shared/ThemeToggle";
+import Index from "@/pages/Index";
 
-const queryClient = new QueryClient();
+// Lazy-loaded pages
+const Auth = lazy(() => import("@/features/auth/Auth"));
+const Groups = lazy(() => import("@/features/groups/Groups"));
+const GroupDetail = lazy(() => import("@/features/groups/GroupDetail"));
+const JoinGroup = lazy(() => import("@/features/groups/JoinGroup"));
+const AllExpenses = lazy(() => import("@/features/expenses/AllExpenses"));
+const LentMoney = lazy(() => import("@/features/loans/LentMoney"));
+const BorrowedMoney = lazy(() => import("@/features/loans/BorrowedMoney"));
+const RecentlyDeletedPage = lazy(() => import("@/features/trash/RecentlyDeletedPage"));
+const SettingsPage = lazy(() => import("@/features/settings/Settings"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+const SalesPage = lazy(() => import("@/features/business/Sales"));
+const PurchasesPage = lazy(() => import("@/features/business/Purchases"));
+const BusinessDashboardPage = lazy(() => import("@/features/business/BusinessDashboard"));
+const PartiesPage = lazy(() => import("@/features/business/Parties"));
+const PrintStudioPage = lazy(() => import("@/features/business/PrintStudio"));
+const InventoryPage = lazy(() => import("@/features/business/Inventory"));
+const ReportsPage = lazy(() => import("@/features/business/Reports"));
+
+// Optimize React Query: 
+// 1. Keep data fresh for 5 mins (reduces duplicate network requests)
+// 2. Keep unused cache around for 15 mins
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 15,
+      retry: 1,
+      refetchOnWindowFocus: false, // Prevents sudden UI slowdowns when switching tabs
+    },
+  },
+});
+
+// A reusable full-page loading skeleton while lazy components resolve
+const PageLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading experience...</p>
+    </div>
+  </div>
+);
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {
@@ -47,24 +70,28 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   return (
-    <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/expenses" element={<ProtectedRoute><AllExpenses /></ProtectedRoute>} />
-      <Route path="/split-bills" element={<ProtectedRoute><SplitBills /></ProtectedRoute>} />
-      <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-      <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
-      <Route path="/join/:inviteCode" element={<JoinGroup />} />
-      <Route path="/lent-money" element={<ProtectedRoute><LentMoney /></ProtectedRoute>} />
-      <Route path="/borrowed-money" element={<ProtectedRoute><BorrowedMoney /></ProtectedRoute>} />
-      <Route path="/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
-      <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
-      <Route path="/business-dashboard" element={<ProtectedRoute><BusinessDashboardPage /></ProtectedRoute>} />
-      <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/expenses" element={<ProtectedRoute><AllExpenses /></ProtectedRoute>} />
+        <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+        <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
+        <Route path="/join/:inviteCode" element={<JoinGroup />} />
+        <Route path="/lent-money" element={<ProtectedRoute><LentMoney /></ProtectedRoute>} />
+        <Route path="/borrowed-money" element={<ProtectedRoute><BorrowedMoney /></ProtectedRoute>} />
+        <Route path="/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
+        <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
+        <Route path="/business-dashboard" element={<ProtectedRoute><BusinessDashboardPage /></ProtectedRoute>} />
+        <Route path="/print-studio" element={<ProtectedRoute><PrintStudioPage /></ProtectedRoute>} />
+        <Route path="/parties" element={<ProtectedRoute><PartiesPage /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 };
 

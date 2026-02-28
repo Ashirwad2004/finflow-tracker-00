@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     // Validate the user's JWT
     const token = authHeader.replace("Bearer ", "");
     const { data: claims, error: authError } = await supabase.auth.getClaims(token);
-    
+
     if (authError || !claims?.claims) {
       console.error("Auth error:", authError);
       return new Response(
@@ -51,7 +51,6 @@ Deno.serve(async (req) => {
       salesResult,
       purchasesResult,
       productsResult,
-      splitBillsResult,
       profileResult,
     ] = await Promise.all([
       supabase.from("expenses").select("*").eq("user_id", userId),
@@ -61,7 +60,6 @@ Deno.serve(async (req) => {
       supabase.from("sales").select("*").eq("user_id", userId),
       supabase.from("purchases").select("*").eq("user_id", userId),
       supabase.from("products").select("*").eq("user_id", userId),
-      supabase.from("split_bills").select("*, split_bill_participants(*)").eq("user_id", userId),
       supabase.from("profiles").select("*").eq("user_id", userId).single(),
     ]);
 
@@ -74,7 +72,6 @@ Deno.serve(async (req) => {
     if (salesResult.error) errors.push(`Sales: ${salesResult.error.message}`);
     if (purchasesResult.error) errors.push(`Purchases: ${purchasesResult.error.message}`);
     if (productsResult.error) errors.push(`Products: ${productsResult.error.message}`);
-    if (splitBillsResult.error) errors.push(`Split Bills: ${splitBillsResult.error.message}`);
 
     if (errors.length > 0) {
       console.error("Errors fetching data:", errors);
@@ -92,7 +89,6 @@ Deno.serve(async (req) => {
       sales: salesResult.data || [],
       purchases: purchasesResult.data || [],
       products: productsResult.data || [],
-      splitBills: splitBillsResult.data || [],
     };
 
     console.log(`Backup completed successfully. Expenses: ${backupData.expenses.length}, Sales: ${backupData.sales.length}`);

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
-import { Dashboard } from "@/components/Dashboard";
+import { useAuth } from "@/core/lib/auth";
+import { Dashboard } from "@/features/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import {
   Wallet,
@@ -25,7 +25,7 @@ import {
   Car,
   AlertCircle
 } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { motion, useScroll, useTransform, useSpring, useMotionValue } from "framer-motion";
 
 // --- Components for the Landing Page ---
