@@ -49,9 +49,9 @@ export const EditLentMoneyDialog = ({ open, onOpenChange, lentMoney }: EditLentM
 
   useEffect(() => {
     if (lentMoney) {
-      setAmount(lentMoney.amount.toString());
-      setPersonName(lentMoney.person_name);
-      setDescription(lentMoney.description);
+      setAmount(String(lentMoney.amount || ""));
+      setPersonName(lentMoney.person_name || "");
+      setDescription(lentMoney.description || "");
       setDueDate(lentMoney.due_date || "");
     }
   }, [lentMoney]);
@@ -84,10 +84,10 @@ export const EditLentMoneyDialog = ({ open, onOpenChange, lentMoney }: EditLentM
       });
       onOpenChange(false);
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to update record. Please try again.",
+        description: error?.message || "Failed to update record. Please try again.",
         variant: "destructive",
       });
     },
@@ -96,7 +96,7 @@ export const EditLentMoneyDialog = ({ open, onOpenChange, lentMoney }: EditLentM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lentMoney) return;
-    
+
     setLoading(true);
 
     try {
