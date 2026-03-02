@@ -28,6 +28,7 @@ const PartiesPage = lazy(() => import("@/features/business/Parties"));
 const PrintStudioPage = lazy(() => import("@/features/business/PrintStudio"));
 const InventoryPage = lazy(() => import("@/features/business/Inventory"));
 const ReportsPage = lazy(() => import("@/features/business/Reports"));
+const PersonalReportsPage = lazy(() => import("@/features/reports/PersonalReports"));
 
 // Optimize React Query: 
 // 1. Keep data fresh for 5 mins (reduces duplicate network requests)
@@ -80,6 +81,7 @@ const AppRoutes = () => {
         <Route path="/join/:inviteCode" element={<JoinGroup />} />
         <Route path="/lent-money" element={<ProtectedRoute><LentMoney /></ProtectedRoute>} />
         <Route path="/borrowed-money" element={<ProtectedRoute><BorrowedMoney /></ProtectedRoute>} />
+        <Route path="/personal-reports" element={<ProtectedRoute><PersonalReportsPage /></ProtectedRoute>} />
         <Route path="/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
