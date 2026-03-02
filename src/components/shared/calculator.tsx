@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Delete, Divide, Minus, Plus, X, Equal, RotateCcw } from "lucide-react";
@@ -92,6 +92,52 @@ export const Calculator = () => {
     }
   };
 
+  // Keyboard support
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const activeElement = document.activeElement;
+      if (
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          (activeElement as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      const { key } = event;
+
+      if (/[0-9]/.test(key)) {
+        event.preventDefault();
+        inputNumber(key);
+      } else if (key === "+" || key === "-" || key === "*" || key === "/") {
+        event.preventDefault();
+        inputOperation(key);
+      } else if (key === "." || key === ",") {
+        event.preventDefault();
+        inputDecimal();
+      } else if (key === "Enter" || key === "=") {
+        event.preventDefault();
+        performCalculation();
+      } else if (key === "Backspace") {
+        event.preventDefault();
+        backspace();
+      } else if (key === "Escape") {
+        event.preventDefault();
+        clear();
+      }
+    },
+    [display, previousValue, operation, waitingForOperand]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
   // Common button styles for animation and shape
   const btnBase = "h-16 text-xl rounded-2xl transition-all duration-200 active:scale-90 hover:shadow-md border-0";
 
@@ -101,17 +147,17 @@ export const Calculator = () => {
         <CardContent className="p-5">
           {/* Display Screen */}
           <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl mb-6 shadow-inner relative flex flex-col items-end justify-end h-32 transition-colors">
-            
+
             {/* History / Previous Operation */}
             <div className="text-gray-400 dark:text-gray-500 text-sm font-medium h-6 flex items-center gap-1">
               {previousValue !== null && (
                 <>
-                  {parseFloat(previousValue.toFixed(7))} 
+                  {parseFloat(previousValue.toFixed(7))}
                   {operation && <span className="text-primary">{getOpIcon(operation)}</span>}
                 </>
               )}
             </div>
-            
+
             {/* Main Numbers */}
             <div className="text-4xl font-bold tracking-tight text-gray-800 dark:text-gray-100 break-all">
               {display}
@@ -120,7 +166,7 @@ export const Calculator = () => {
 
           {/* Keypad */}
           <div className="grid grid-cols-4 gap-3">
-            
+
             {/* Utility Row */}
             <Button
               variant="ghost"
@@ -129,7 +175,7 @@ export const Calculator = () => {
             >
               <RotateCcw className="mr-2 h-4 w-4" /> Clear
             </Button>
-            
+
             <Button
               variant="ghost"
               onClick={backspace}
@@ -137,7 +183,7 @@ export const Calculator = () => {
             >
               <Delete className="h-5 w-5" />
             </Button>
-            
+
             <Button
               variant="secondary"
               onClick={() => inputOperation("/")}

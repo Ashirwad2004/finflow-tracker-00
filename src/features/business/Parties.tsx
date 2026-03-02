@@ -31,6 +31,7 @@ const PartiesPage = () => {
     const queryClient = useQueryClient();
 
     const [searchTerm, setSearchTerm] = useState("");
+    const [filterType, setFilterType] = useState<"All Types" | "Customer" | "Vendor" | "Both">("All Types");
 
     // Dialog States
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -199,98 +200,159 @@ const PartiesPage = () => {
     };
 
     // Derived Data
-    const filteredParties = parties.filter(party =>
-        party.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (party.phone && party.phone.includes(searchTerm)) ||
-        (party.type && party.type.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredParties = parties.filter(party => {
+        const matchesSearch = party.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (party.phone && party.phone.includes(searchTerm)) ||
+            (party.type && party.type.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        let matchesType = true;
+        if (filterType === "Customer") matchesType = party.type === "customer";
+        else if (filterType === "Vendor") matchesType = party.type === "vendor";
+        else if (filterType === "Both") matchesType = party.type === "both";
+
+        return matchesSearch && matchesType;
+    });
+
+    const getInitials = (name: string) => {
+        return name.substring(0, 2).toUpperCase() || 'NA';
+    };
 
     return (
         <AppLayout>
-            <div className="container mx-auto px-4 py-8 animate-fade-in relative max-w-7xl">
-                <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-8 animate-fade-in text-slate-900 dark:text-slate-100 font-display">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold flex items-center gap-3 mb-2">
-                            <Users className="w-8 h-8 text-primary" />
-                            Parties Directory
-                        </h1>
-                        <p className="text-muted-foreground">Manage your Customers and Vendors as a unified address book</p>
+                        <div className="flex items-center space-x-2 mb-1">
+                            <Users className="text-primary w-8 h-8" />
+                            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Parties Directory</h2>
+                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage your Customers and Vendors as a unified address book</p>
                     </div>
-                    <Button onClick={handleAddClick} size="lg" className="w-full sm:w-auto shadow-sm">
-                        <Plus className="w-5 h-5 mr-2" />
-                        Add New Party
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        <Button variant="outline" className="hidden sm:flex items-center space-x-2 border-slate-200 dark:border-slate-800 shadow-sm font-bold">
+                            Export
+                        </Button>
+                        <Button onClick={handleAddClick} className="flex items-center space-x-2 shadow-sm font-bold bg-primary hover:bg-primary/90 text-white">
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add New Party
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="bg-card rounded-xl border shadow-sm">
-                    <div className="p-4 border-b flex flex-col sm:flex-row gap-4 items-center justify-between">
-                        <div className="relative w-full sm:max-w-md">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search by name, phone, or type..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-9 h-10 bg-background"
-                            />
-                        </div>
+                {/* Filters */}
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 flex flex-col lg:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                        <Input
+                            placeholder="Search by name, phone, or type..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-11 pr-4 h-11 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus-visible:ring-1 focus-visible:ring-primary/50 text-sm"
+                        />
                     </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value as any)}
+                            className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-semibold px-4 h-11 focus:ring-1 focus:ring-primary/50 text-slate-700 dark:text-slate-300 outline-none"
+                        >
+                            <option>All Types</option>
+                            <option>Customer</option>
+                            <option>Vendor</option>
+                            <option>Both</option>
+                        </select>
+                    </div>
+                </div>
 
-                    <div className="p-0">
-                        {isLoading ? (
-                            <div className="p-6 space-y-4">
-                                {[...Array(3)].map((_, i) => (
-                                    <Skeleton key={i} className="h-16 w-full" />
-                                ))}
-                            </div>
-                        ) : filteredParties.length === 0 ? (
-                            <div className="text-center py-24 text-muted-foreground">
-                                <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                                <p className="text-lg font-medium text-foreground/80">No parties found</p>
-                                <p className="text-sm">
-                                    {searchTerm ? "Try adjusting your search query." : "Click 'Add New Party' to create your first directory contact."}
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0 p-4">
-                                {filteredParties.map(party => (
-                                    <div key={party.id} className="p-4 border rounded-lg m-2 bg-background hover:bg-accent/40 transition-colors group relative">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <h3 className="font-semibold text-lg text-foreground line-clamp-1" title={party.name}>{party.name}</h3>
-                                                <Badge variant="outline" className={`mt-1 capitalize text-[10px] ${party.type === 'customer' ? "bg-green-50 text-green-700 border-green-200" :
-                                                    party.type === 'vendor' ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                                        "bg-purple-50 text-purple-700 border-purple-200"
-                                                    }`}>
+                {/* Data Table */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[900px]">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Party Name</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Details</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tax ID / GSTIN</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">Loading parties...</td>
+                                    </tr>
+                                ) : filteredParties.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-16 text-center text-slate-500 flex flex-col items-center justify-center">
+                                            <Users className="w-12 h-12 mb-4 text-slate-300 dark:text-slate-700" />
+                                            <p className="text-sm font-medium">No parties found</p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredParties.map((party) => (
+                                        <tr key={party.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer" onClick={() => handleEditClick(party)}>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center space-x-3">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0
+                                                        ${party.type === 'customer' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' :
+                                                            party.type === 'vendor' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' :
+                                                                'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'}
+                                                    `}>
+                                                        {getInitials(party.name)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-semibold text-slate-900 dark:text-white line-clamp-1" title={party.name}>{party.name}</div>
+                                                        <div className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">ID: {party.id.split('-')[0]}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border
+                                                    ${party.type === 'customer' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50' :
+                                                        party.type === 'vendor' ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800/50' :
+                                                            'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800/50'}
+                                                `}>
                                                     {party.type}
-                                                </Badge>
-                                            </div>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <MoreVertical className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => handleEditClick(party)}>
-                                                        <Edit className="h-4 w-4 mr-2" /> Edit Details
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => handleDeleteClick(party)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
-                                                        <Trash2 className="h-4 w-4 mr-2" /> Delete Party
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{party.email || <span className="text-slate-400">No email</span>}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5">{party.phone || <span className="text-slate-400">No phone</span>}</div>
+                                            </td>
+                                            <td className="px-6 py-4 font-mono text-[11px] font-medium text-slate-500">
+                                                {party.gst_number || <span className="text-slate-400 italic">N/A</span>}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleEditClick(party); }}
+                                                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
 
-                                        <div className="space-y-1.5 mt-4 text-sm text-muted-foreground">
-                                            {party.phone && <p>📞 {party.phone}</p>}
-                                            {party.email && <p className="line-clamp-1" title={party.email}>✉️ {party.email}</p>}
-                                            {party.gst_number && <p>📄 <span className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded">{party.gst_number}</span></p>}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                            <button className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded">
+                                                                <MoreVertical className="w-4 h-4" />
+                                                            </button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                                            <DropdownMenuItem onClick={() => handleDeleteClick(party)} className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/50">
+                                                                <Trash2 className="h-4 w-4 mr-2" /> Delete Party
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

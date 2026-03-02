@@ -100,7 +100,7 @@ const Auth = () => {
         }
 
         const redirectTo = searchParams.get('redirect') || '/';
-        
+
         if (isLogin) {
           const { error } = await signIn(email, password);
           if (error) {
@@ -145,11 +145,17 @@ const Auth = () => {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
           title: "Validation error",
           description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "An error occurred",
+          description: error?.message || "Something went wrong during authentication.",
           variant: "destructive",
         });
       }
@@ -157,6 +163,12 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  const isSubmitDisabled = loading ||
+    (isResettingPassword && (!newPassword || !confirmPassword)) ||
+    (isForgotPassword && !email) ||
+    (isLogin && (!email || !password)) ||
+    (!isLogin && (!isForgotPassword && !isResettingPassword) && (!email || !password || !displayName));
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -174,10 +186,10 @@ const Auth = () => {
             {isResettingPassword
               ? "Enter your new password below"
               : isForgotPassword
-              ? "Enter your email to receive a password reset link"
-              : isLogin
-              ? "Sign in to continue tracking your expenses"
-              : "Start managing your finances today"}
+                ? "Enter your email to receive a password reset link"
+                : isLogin
+                  ? "Sign in to continue tracking your expenses"
+                  : "Start managing your finances today"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -208,9 +220,10 @@ const Auth = () => {
                 </div>
               </>
             ) : (
-              <>
+              <div className="space-y-4 flex flex-col">
+                {/* 1. Name Field (Only on Sign Up) */}
                 {!isLogin && !isForgotPassword && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 order-1">
                     <Label htmlFor="displayName">Name</Label>
                     <Input
                       id="displayName"
@@ -222,7 +235,9 @@ const Auth = () => {
                     />
                   </div>
                 )}
-                <div className="space-y-2">
+
+                {/* 2. Email Field (Always visible unless resetting password via token) */}
+                <div className="space-y-2 order-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
@@ -233,8 +248,10 @@ const Auth = () => {
                     required
                   />
                 </div>
+
+                {/* 3. Password Field (Hidden only on Forgot Password) */}
                 {!isForgotPassword && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 order-3">
                     <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
@@ -246,12 +263,12 @@ const Auth = () => {
                     />
                   </div>
                 )}
-              </>
+              </div>
             )}
             <Button
               type="submit"
-              className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
-              disabled={loading}
+              className="w-full bg-gradient-primary hover:opacity-90 transition-opacity mt-6"
+              disabled={isSubmitDisabled}
             >
               {loading ? "Loading..." : isResettingPassword ? "Update Password" : isForgotPassword ? "Send Reset Link" : isLogin ? "Sign In" : "Sign Up"}
             </Button>
@@ -278,8 +295,8 @@ const Auth = () => {
                 {isForgotPassword
                   ? "Back to sign in"
                   : isLogin
-                  ? "Don't have an account? Sign up"
-                  : "Already have an account? Sign in"}
+                    ? "Don't have an account? Sign up"
+                    : "Already have an account? Sign in"}
               </button>
             </div>
           )}

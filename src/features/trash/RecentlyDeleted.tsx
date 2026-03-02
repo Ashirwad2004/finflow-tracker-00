@@ -43,7 +43,7 @@ import { useCurrency } from "@/core/contexts/CurrencyContext";
 
 /* ---------------- TYPES ---------------- */
 
-type ItemType = "expense" | "lent_money" | "group" | "borrowed_money" | "party" | "product";
+type ItemType = "expense" | "lent_money" | "group" | "borrowed_money" | "party" | "product" | "sale";
 
 interface BaseDeletedItem {
   id: string;
@@ -109,7 +109,20 @@ interface DeletedProduct extends BaseDeletedItem {
   unit: string;
 }
 
-type DeletedItem = DeletedExpense | DeletedLentMoney | DeletedGroup | DeletedBorrowedMoney | DeletedParty | DeletedProduct;
+interface DeletedSale extends BaseDeletedItem {
+  type: "sale";
+  user_id: string;
+  customer_name: string;
+  invoice_number: string;
+  status: string;
+  total_amount: number;
+  subtotal?: number;
+  tax_amount?: number;
+  date: string;
+  items: any[];
+}
+
+type DeletedItem = DeletedExpense | DeletedLentMoney | DeletedGroup | DeletedBorrowedMoney | DeletedParty | DeletedProduct | DeletedSale;
 
 /* ---------------- UTILS ---------------- */
 
@@ -135,6 +148,7 @@ const useTrashStorage = (userId: string) => {
       group: `recently_deleted_groups_${userId}`,
       party: `recently_deleted_parties_${userId}`,
       product: `recently_deleted_products_${userId}`,
+      sale: `recently_deleted_sales_${userId}`,
     };
     return keys[type];
   }, [userId]);
@@ -158,6 +172,7 @@ const useTrashStorage = (userId: string) => {
       ...load<DeletedGroup>("group"),
       ...load<DeletedParty>("party"),
       ...load<DeletedProduct>("product"),
+      ...load<DeletedSale>("sale"),
     ];
 
     // Sort by most recently deleted
@@ -167,7 +182,7 @@ const useTrashStorage = (userId: string) => {
   }, [userId, getStorageKey]);
 
   const removePermanently = useCallback((itemsToRemove: { id: string; type: ItemType }[]) => {
-    const types: ItemType[] = ["expense", "lent_money", "borrowed_money", "group", "party", "product"];
+    const types: ItemType[] = ["expense", "lent_money", "borrowed_money", "group", "party", "product", "sale"];
 
     types.forEach((type) => {
       const idsToRemove = itemsToRemove
@@ -351,6 +366,23 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
         } as any);
         if (err) throw err;
         queryClient.invalidateQueries({ queryKey: ["products"] });
+      }
+
+      else if (item.type === "sale") {
+        const { error: err } = await supabase.from("sales" as any).insert({
+          id: item.id,
+          user_id: item.user_id,
+          customer_name: item.customer_name,
+          invoice_number: item.invoice_number,
+          status: item.status,
+          total_amount: item.total_amount,
+          subtotal: item.subtotal,
+          tax_amount: item.tax_amount,
+          date: item.date,
+          items: item.items,
+        } as any);
+        if (err) throw err;
+        queryClient.invalidateQueries({ queryKey: ["sales", userId] });
       }
 
       // Success
@@ -541,6 +573,14 @@ const DeletedItemRow = ({
           amount: item.price,
           icon: <Package className="w-4 h-4" />,
           color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+        };
+      case "sale":
+        return {
+          title: `Invoice ${item.invoice_number}`,
+          subtitle: `Sale • ${item.customer_name}`,
+          amount: item.total_amount,
+          icon: <Receipt className="w-4 h-4" />,
+          color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
         };
       default:
         return { title: "Item", subtitle: "", amount: 0, icon: <AlertCircle />, color: "bg-gray-100" };
