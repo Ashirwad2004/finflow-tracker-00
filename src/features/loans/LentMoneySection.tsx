@@ -125,7 +125,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("lent_money")
-        .update({ status: "repaid" })
+        .update({ status: "paid" })
         .eq("id", id);
 
       if (error) throw error;
@@ -163,7 +163,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
   };
 
   const pendingLoans = lentMoney.filter((loan) => loan.status === "pending");
-  const repaidLoans = lentMoney.filter((loan) => loan.status === "repaid");
+  const repaidLoans = lentMoney.filter((loan) => loan.status === "paid");
   const totalPending = pendingLoans.reduce((sum, loan) => sum + Number(loan.amount), 0);
 
   const isOverdue = (dateString: string | null) => {
