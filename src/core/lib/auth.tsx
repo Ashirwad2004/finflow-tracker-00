@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, displayName: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -55,10 +55,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     if (!error && data.user) {
       // Create profile
-      await supabase.from('profiles').insert({
+      const { error: profileError } = await supabase.from('profiles' as any).insert({
         user_id: data.user.id,
         display_name: displayName,
-      });
+      } as any);
+
+      if (profileError) {
+        console.error("Profile creation failed during signup:", profileError);
+        // Optionally clean up the auth user if profile creation fails entirely
+        // await supabase.auth.admin.deleteUser(data.user.id); // Requires admin previliges not exposed in client.
+        return { error: new Error(`Account created, but profile setup failed: ${profileError.message}`) };
+      }
     }
 
     return { error };
@@ -79,7 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const resetPassword = async (email: string) => {
     // Use the current origin to ensure it works in both dev and production
     const redirectUrl = `${window.location.origin}/auth?reset=true`;
-    
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
     });
