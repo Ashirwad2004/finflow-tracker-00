@@ -63,15 +63,16 @@ export default function PersonalReports() {
     const isLoading = loadingLent || loadingBorrowed || loadingExpenses;
 
     // Party-wise Aggregation
-    const partyMap = new Map<string, { lent: number, borrowed: number, net: number }>();
+    const partyMap = new Map<string, { lent: number, borrowed: number, net: number, hasPending: boolean }>();
 
     // Process Lent
     lentMoney.forEach(item => {
         const name = item.person_name.trim();
-        const current = partyMap.get(name) || { lent: 0, borrowed: 0, net: 0 };
+        const current = partyMap.get(name) || { lent: 0, borrowed: 0, net: 0, hasPending: false };
         current.lent += Number(item.amount);
         if (item.status === 'pending') {
             current.net += Number(item.amount); // You are owed this
+            current.hasPending = true;
         }
         partyMap.set(name, current);
     });
@@ -79,15 +80,18 @@ export default function PersonalReports() {
     // Process Borrowed
     borrowedMoney.forEach(item => {
         const name = item.person_name.trim();
-        const current = partyMap.get(name) || { lent: 0, borrowed: 0, net: 0 };
+        const current = partyMap.get(name) || { lent: 0, borrowed: 0, net: 0, hasPending: false };
         current.borrowed += Number(item.amount);
         if (item.status === 'pending') {
             current.net -= Number(item.amount); // You owe this
+            current.hasPending = true;
         }
         partyMap.set(name, current);
     });
 
-    const parties = Array.from(partyMap.entries()).map(([name, totals]) => ({ name, ...totals }))
+    const parties = Array.from(partyMap.entries())
+        .filter(([_, totals]) => totals.hasPending)
+        .map(([name, totals]) => ({ name, ...totals }))
         .sort((a, b) => b.net - a.net); // Sort by highest owed to you
 
     const totalLent = lentMoney.reduce((sum, item) => sum + Number(item.amount), 0);
