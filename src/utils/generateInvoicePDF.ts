@@ -67,12 +67,13 @@ const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width
 
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
-    options?: { action?: 'download' | 'preview', theme?: 'corporate' | 'minimalist' | 'retail' | 'tally' }
+    options?: { action?: 'download' | 'preview', theme?: 'corporate' | 'minimalist' | 'retail' | 'tally' | 'gst1', documentTitle?: string }
 ) => {
     try {
         const doc = new jsPDF();
         const action = options?.action || 'download';
         const theme = options?.theme || localStorage.getItem("finflow_invoice_theme") || 'corporate';
+        const documentTitle = options?.documentTitle;
 
         const safeText = (txt: string | undefined | null) => sanitizeText(txt || "");
         const dateFormatted = data.date ? format(new Date(data.date), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
@@ -297,9 +298,9 @@ export const generateInvoicePDF = async (
                 headerBaseY = 32;
             }
 
-            doc.setFontSize(10);
+            doc.setFontSize(28);
             doc.setFont("helvetica", "bold");
-            doc.text("INVOICE", 196, 20, { align: "right" });
+            doc.text((documentTitle || "INVOICE").toUpperCase(), 196, 20, { align: "right" });
             doc.setFont("helvetica", "normal");
             doc.setTextColor(...textMid);
             doc.text(`No. ${safeText(data.invoice_number)}`, 196, 26, { align: "right" });
@@ -448,7 +449,7 @@ export const generateInvoicePDF = async (
             doc.setTextColor(...accentColor);
             doc.setFontSize(16);
             doc.setFont("helvetica", "bold");
-            doc.text("INVOICE", 140, 25);
+            doc.text(documentTitle || "INVOICE", 140, 25);
 
             doc.setFontSize(10);
             doc.setTextColor(...textDark);
@@ -548,9 +549,9 @@ export const generateInvoicePDF = async (
             doc.rect(10, 10, 190, pageHeight - 20);
 
             // Title
-            doc.setFontSize(12);
+            doc.setFontSize(22);
             doc.setFont("helvetica", "bold");
-            doc.text("TAX INVOICE", 105, 16, { align: "center" });
+            doc.text((documentTitle || "TAX INVOICE").toUpperCase(), 105, 16, { align: "center" });
 
             // Title bottom line
             doc.line(10, 20, 200, 20);
@@ -684,6 +685,197 @@ export const generateInvoicePDF = async (
 
             doc.setFont("helvetica", "bold");
             doc.text(`for ${bizName}`, 198, finalY + 14, { align: "right" });
+
+            if (signatureBase64) {
+                const maxDim = 25;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 35;
+                const sigX = 198 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+            }
+
+            doc.setFont("helvetica", "normal");
+            doc.text("Authorised Signatory", 198, pageHeight - 15, { align: "right" });
+
+        } else if (theme === 'gst1') {
+            // --- STANDARD GST THEME 1 ---
+            const textDark: [number, number, number] = [0, 0, 0];
+            doc.setTextColor(...textDark);
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.3);
+
+            // Outer Border
+            doc.rect(10, 10, 190, pageHeight - 20);
+
+            // Header Top Bar
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text((documentTitle || "TAX INVOICE").toUpperCase(), 105, 18, { align: "center" });
+
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "italic");
+            doc.text("Original for Recipient", 195, 14, { align: "right" });
+
+            doc.line(10, 22, 200, 22);
+
+            let myY = 28;
+            let myMaxY = 45;
+
+            // Left Block (Business Details)
+            if (logoBase64) {
+                const maxDim = 20;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                doc.addImage(logoBase64.dataUrl, "PNG", 12, myY, renderW, renderH);
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
+                doc.text(bizName, 14 + renderW, myY + 6);
+                myY = Math.max(myY + 12, myY + renderH + 5);
+            } else {
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
+                doc.text(bizName, 12, myY + 4);
+                myY += 10;
+            }
+
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            if (data.business_details?.address) {
+                const addrLines = doc.splitTextToSize(safeText(data.business_details.address), 90);
+                doc.text(addrLines, 12, myY);
+                myY += addrLines.length * 4;
+            }
+            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 12, myY + 2); myY += 6; }
+            if (data.business_details?.gst) {
+                doc.setFont("helvetica", "bold");
+                doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 12, myY + 2);
+                doc.setFont("helvetica", "normal");
+                myY += 6;
+            }
+
+            myMaxY = Math.max(myMaxY, myY + 2);
+
+            // Vertical line divider
+            doc.line(105, 22, 105, myMaxY);
+
+            // Right Block (Invoice Details)
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.text("Invoice No.", 107, 28);
+            doc.setFont("helvetica", "normal");
+            doc.text(safeText(data.invoice_number), 107, 32);
+
+            doc.line(105, 34, 200, 34);
+
+            doc.setFont("helvetica", "bold");
+            doc.text("Dated", 107, 38);
+            doc.setFont("helvetica", "normal");
+            doc.text(dateFormatted, 107, 42);
+
+            // Middle horizontal line 
+            doc.line(10, myMaxY, 200, myMaxY);
+
+            // Billed to
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.text("Billed to:", 12, myMaxY + 5);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 12, myMaxY + 11);
+
+            let cliY = myMaxY + 16;
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 12, cliY); cliY += 4; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 12, cliY); cliY += 4; }
+
+            const afterBuyerY = Math.max(myMaxY + 25, cliY + 2);
+
+            // GST specific columns
+            autoTable(doc, {
+                startY: afterBuyerY,
+                head: [["S No.", "Description of Goods", "HSN/SAC", "Qty", "Rate", "Amount"]],
+                body: data.items.map((item, index) => [
+                    (index + 1).toString(),
+                    safeText(item.description),
+                    "-", // HSN placeholder
+                    item.quantity.toString(),
+                    formatCurrencySafe(item.price),
+                    formatCurrencySafe(Number(item.quantity) * Number(item.price))
+                ]),
+                theme: 'grid',
+                headStyles: { fillColor: [240, 240, 240], textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: 0.3, halign: 'center' },
+                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: { left: 0.3, right: 0.3 } },
+                columnStyles: {
+                    0: { cellWidth: 10, halign: 'center' },
+                    1: { cellWidth: 70 },
+                    2: { cellWidth: 20, halign: 'center' },
+                    3: { cellWidth: 15, halign: 'center' },
+                    4: { cellWidth: 25, halign: 'right' },
+                    5: { cellWidth: 40, halign: 'right' }
+                },
+                margin: { left: 10, right: 10 },
+                tableLineColor: 0,
+                tableLineWidth: 0.3,
+            });
+
+            let finalY = (doc as any).lastAutoTable.finalY + 2;
+
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.3);
+            doc.line(10, (doc as any).lastAutoTable.finalY, 200, (doc as any).lastAutoTable.finalY);
+
+            // Subtotal
+            doc.setFont("helvetica", "normal");
+            doc.text("Taxable Value", 140, finalY + 6);
+            doc.text(formatCurrencySafe(data.subtotal), 198, finalY + 6, { align: "right" });
+
+            let currentTotalY = finalY + 12;
+
+            if (data.tax_rate && data.tax_rate > 0) {
+                // Split tax for local GST appearance (CGST/SGST 50% each if total tax rate)
+                const splitRate = data.tax_rate / 2;
+                const splitAmount = (data.tax_amount || 0) / 2;
+
+                doc.text(`CGST @ ${splitRate}%`, 140, currentTotalY);
+                doc.text(formatCurrencySafe(splitAmount), 198, currentTotalY, { align: "right" });
+                currentTotalY += 6;
+
+                doc.text(`SGST @ ${splitRate}%`, 140, currentTotalY);
+                doc.text(formatCurrencySafe(splitAmount), 198, currentTotalY, { align: "right" });
+                currentTotalY += 6;
+            }
+
+            doc.line(10, currentTotalY, 200, currentTotalY);
+
+            doc.setFont("helvetica", "bold");
+            doc.text("Total", 140, currentTotalY + 6);
+            doc.text(formatCurrencySafe(data.total_amount), 198, currentTotalY + 6, { align: "right" });
+
+            doc.line(10, currentTotalY + 9, 200, currentTotalY + 9);
+
+            // Footer / Sign
+            doc.line(125, currentTotalY + 9, 125, pageHeight - 10);
+
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "italic");
+            doc.text("Declaration", 12, currentTotalY + 15);
+            doc.setFont("helvetica", "normal");
+            doc.text("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 12, currentTotalY + 20, { maxWidth: 100 });
+
+            doc.setFont("helvetica", "bold");
+            doc.text(`for ${bizName}`, 198, currentTotalY + 14, { align: "right" });
 
             if (signatureBase64) {
                 const maxDim = 25;

@@ -62,6 +62,12 @@ const personalMenuItems = [
     description: "Track debts"
   },
   {
+    title: "Reports",
+    path: "/personal-reports",
+    icon: FileBarChart,
+    description: "Analytics & summaries"
+  },
+  {
     title: "Recently Deleted",
     path: "/recently-deleted",
     icon: Clock,
