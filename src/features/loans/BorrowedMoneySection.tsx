@@ -143,7 +143,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
         mutationFn: async (id: string) => {
             const { error } = await supabase
                 .from("borrowed_money")
-                .update({ status: "repaid" })
+                .update({ status: "paid" })
                 .eq("id", id);
 
             if (error) throw error;
@@ -212,7 +212,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
     };
 
     const pendingDebts = borrowedMoney.filter((debt) => debt.status === "pending");
-    const repaidDebts = borrowedMoney.filter((debt) => debt.status === "repaid");
+    const repaidDebts = borrowedMoney.filter((debt) => debt.status === "paid");
     const totalPending = pendingDebts.reduce(
         (sum, debt) => sum + parseFloat(debt.amount.toString()),
         0

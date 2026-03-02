@@ -70,7 +70,9 @@ export default function PersonalReports() {
         const name = item.person_name.trim();
         const current = partyMap.get(name) || { lent: 0, borrowed: 0, net: 0 };
         current.lent += Number(item.amount);
-        current.net += Number(item.amount); // You are owed this
+        if (item.status === 'pending') {
+            current.net += Number(item.amount); // You are owed this
+        }
         partyMap.set(name, current);
     });
 
@@ -79,7 +81,9 @@ export default function PersonalReports() {
         const name = item.person_name.trim();
         const current = partyMap.get(name) || { lent: 0, borrowed: 0, net: 0 };
         current.borrowed += Number(item.amount);
-        current.net -= Number(item.amount); // You owe this
+        if (item.status === 'pending') {
+            current.net -= Number(item.amount); // You owe this
+        }
         partyMap.set(name, current);
     });
 
