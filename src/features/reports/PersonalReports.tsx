@@ -9,6 +9,7 @@ import { FileBarChart, HandCoins, Receipt, Users, TrendingUp, TrendingDown, Refr
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { format } from "date-fns";
+import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 export default function PersonalReports() {
     const { user } = useAuth();
@@ -25,7 +26,7 @@ export default function PersonalReports() {
                 .eq("user_id", user?.id)
                 .order("created_at", { ascending: false });
             if (error) throw error;
-            return data;
+            return (data || []) as any[];
         },
         enabled: !!user
     });
@@ -40,25 +41,13 @@ export default function PersonalReports() {
                 .eq("user_id", user?.id)
                 .order("created_at", { ascending: false });
             if (error) throw error;
-            return data;
+            return (data || []) as any[];
         },
         enabled: !!user
     });
 
-    // Fetch all expenses
-    const { data: expenses = [], isLoading: loadingExpenses } = useQuery({
-        queryKey: ["reports-expenses", user?.id],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from("expenses")
-                .select(`*, categories(name, color, icon)`)
-                .eq("user_id", user?.id)
-                .order("date", { ascending: false });
-            if (error) throw error;
-            return data;
-        },
-        enabled: !!user
-    });
+    // Fetch all expenses (Now realtime)
+    const { data: expenses = [], isLoading: loadingExpenses } = useExpensesQuery(user?.id);
 
     const isLoading = loadingLent || loadingBorrowed || loadingExpenses;
 

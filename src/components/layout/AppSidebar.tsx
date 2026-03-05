@@ -16,11 +16,12 @@ import {
   FileBarChart,
   Printer
 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/core/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { useAuth } from "@/core/lib/auth";
 import { useState } from "react";
@@ -153,11 +154,21 @@ interface AppSidebarProps {
 
 export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { signOut, user } = useAuth();
-  const { isBusinessMode } = useBusiness();
+  const { isBusinessMode, toggleBusinessMode } = useBusiness();
   const [collapsed, setCollapsed] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const handleModeToggle = async (checked: boolean) => {
+    await toggleBusinessMode(checked);
+    if (checked) {
+      navigate('/business-dashboard');
+    } else {
+      navigate('/');
+    }
+  };
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -207,6 +218,19 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
       </Button>
+
+      {/* Mode Toggle */}
+      <div className={cn(
+        "px-4 py-3 border-b flex items-center transition-all duration-200",
+        collapsed ? "justify-center" : "justify-between"
+      )}>
+        {!collapsed && <span className="text-sm font-medium">Business Mode</span>}
+        <Switch
+          checked={isBusinessMode}
+          onCheckedChange={handleModeToggle}
+          title={isBusinessMode ? "Switch to Personal Mode" : "Switch to Business Mode"}
+        />
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">

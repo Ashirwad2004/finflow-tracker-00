@@ -21,7 +21,9 @@ export const SalesInsightsDialog = ({ open, onOpenChange }: SalesInsightsDialogP
         queryKey: ["sales-insights", user?.id],
         queryFn: async () => {
             const { data, error } = await supabase
+```tsx
                 .from("sales")
+```
                 .select("*")
                 .eq("user_id", user?.id);
 
