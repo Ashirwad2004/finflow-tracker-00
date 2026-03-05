@@ -46,6 +46,7 @@ import { motion } from "framer-motion";
 import { AnimatedCounter, DashboardCard } from "@/features/dashboard/DashboardComponents";
 import { OnboardingDialog } from "@/features/settings/OnboardingDialog";
 import { BusinessDetailsDialog } from "@/features/business/BusinessDetailsDialog";
+import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 export const Dashboard = () => {
   console.log("Dashboard component rendering...");
@@ -104,28 +105,7 @@ export const Dashboard = () => {
 
 
   // Personal Mode Hooks
-  const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ["expenses", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("expenses")
-        .select(`
-  *,
-  categories(
-    id,
-    name,
-    color,
-    icon
-  )
-    `)
-        .eq("user_id", user?.id)
-        .order("date", { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user && !isBusinessMode,
-  });
+  const { data: expenses = [], isLoading } = useExpensesQuery(user?.id, isBusinessMode);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+alembic
+pydantic
+pydantic-settings
+pyjwt
+passlib[bcrypt]
+psycopg2-binary

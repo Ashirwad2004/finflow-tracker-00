@@ -17,6 +17,7 @@ import { MonthlyExpenseReport } from "@/features/expenses/MonthlyExpenseReport";
 import { toast } from "@/core/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/core/lib/utils";
+import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 const AllExpenses = () => {
   const { user } = useAuth();
@@ -26,28 +27,7 @@ const AllExpenses = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
-  const { data: expenses = [], isLoading, refetch } = useQuery({
-    queryKey: ["expenses", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("expenses")
-        .select(`
-          *,
-          categories (
-            id,
-            name,
-            color,
-            icon
-          )
-        `)
-        .eq("user_id", user?.id)
-        .order("date", { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
+  const { data: expenses = [], isLoading, refetch } = useExpensesQuery(user?.id);
 
   const handleRefresh = async () => {
     await refetch();
