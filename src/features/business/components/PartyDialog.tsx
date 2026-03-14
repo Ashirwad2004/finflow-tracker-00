@@ -54,7 +54,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
             address: address.trim() || null,
             gst_number: gstNumber.trim() || null,
         } as any);
-        onOpenChange(false);
+        // Do not close dialog here, wait for mutation success
     };
 
     return (

@@ -62,10 +62,13 @@ const PartiesPage = () => {
         mutationFn: async (newParty: Partial<Party>) => {
             if (!newParty.name) throw new Error("Party name is required");
 
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (!currentUser) throw new Error("User not authenticated");
+
             const { data: existingParty } = await supabase
                 .from("parties")
                 .select("id")
-                .eq("user_id", user?.id)
+                .eq("user_id", currentUser.id)
                 .ilike("name", newParty.name)
                 .limit(1);
 
@@ -75,7 +78,7 @@ const PartiesPage = () => {
 
             const { data, error } = await supabase
                 .from("parties" as any)
-                .insert([{ ...newParty, user_id: user?.id }])
+                .insert([{ ...newParty, user_id: currentUser.id }])
                 .select()
                 .single();
             if (error) throw error;
@@ -86,6 +89,7 @@ const PartiesPage = () => {
             queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
             queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
             toast({ title: "Party created successfully" });
+            setIsDialogOpen(false);
         },
         onError: (error) => {
             toast({ title: "Error creating party", description: error.message, variant: "destructive" });
@@ -96,11 +100,14 @@ const PartiesPage = () => {
         mutationFn: async (updatedParty: Partial<Party>) => {
             if (!selectedParty?.id) return;
 
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (!currentUser) throw new Error("User not authenticated");
+
             if (updatedParty.name && updatedParty.name !== selectedParty.name) {
                 const { data: existingParty } = await supabase
                     .from("parties")
                     .select("id")
-                    .eq("user_id", user?.id)
+                    .eq("user_id", currentUser.id)
                     .ilike("name", updatedParty.name)
                     .limit(1);
 
@@ -123,6 +130,7 @@ const PartiesPage = () => {
             queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
             queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
             toast({ title: "Party updated successfully" });
+            setIsDialogOpen(false);
         },
         onError: (error) => {
             toast({ title: "Error updating party", description: error.message, variant: "destructive" });
@@ -131,6 +139,9 @@ const PartiesPage = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (!currentUser) throw new Error("User not authenticated");
+
             const currentPartyToDelete = parties.find(p => p.id === id);
             if (currentPartyToDelete) {
                 const deletedItem = {
@@ -143,7 +154,7 @@ const PartiesPage = () => {
                 delete (deletedItem as any).type;
                 deletedItem.type = "party";
 
-                const key = `recently_deleted_parties_${user?.id}`;
+                const key = `recently_deleted_parties_${currentUser.id}`;
                 const existingStr = localStorage.getItem(key);
                 const existing = existingStr ? JSON.parse(existingStr) : [];
                 localStorage.setItem(key, JSON.stringify([deletedItem, ...existing]));
