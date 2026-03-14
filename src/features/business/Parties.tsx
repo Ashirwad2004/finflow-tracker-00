@@ -25,6 +25,8 @@ export interface Party {
     created_at: string;
 }
 
+const getPartiesTable = () => (supabase as any).from("parties");
+
 const PartiesPage = () => {
     const { user } = useAuth();
     const { toast } = useToast();
@@ -46,8 +48,7 @@ const PartiesPage = () => {
     const { data: parties = [], isLoading } = useQuery({
         queryKey: ["parties", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("parties" as any)
+            const { data, error } = await getPartiesTable()
                 .select("*")
                 .order("name");
 
@@ -58,6 +59,7 @@ const PartiesPage = () => {
     });
 
     // Mutations
+
     const createMutation = useMutation({
         mutationFn: async (newParty: Partial<Party>) => {
             if (!newParty.name) throw new Error("Party name is required");
@@ -65,8 +67,7 @@ const PartiesPage = () => {
             const { data: { user: currentUser } } = await supabase.auth.getUser();
             if (!currentUser) throw new Error("User not authenticated");
 
-            const { data: existingParty } = await supabase
-                .from("parties")
+            const { data: existingParty } = await getPartiesTable()
                 .select("id")
                 .eq("user_id", currentUser.id)
                 .ilike("name", newParty.name)
@@ -76,9 +77,8 @@ const PartiesPage = () => {
                 throw new Error(`A party with the name "${newParty.name}" already exists.`);
             }
 
-            const { data, error } = await supabase
-                .from("parties" as any)
-                .insert([{ ...newParty, user_id: currentUser.id }])
+            const { data, error } = await getPartiesTable()
+                .insert([{ ...newParty, user_id: currentUser.id }]) // Use user.id
                 .select()
                 .single();
             if (error) throw error;
@@ -104,8 +104,7 @@ const PartiesPage = () => {
             if (!currentUser) throw new Error("User not authenticated");
 
             if (updatedParty.name && updatedParty.name !== selectedParty.name) {
-                const { data: existingParty } = await supabase
-                    .from("parties")
+                const { data: existingParty } = await getPartiesTable()
                     .select("id")
                     .eq("user_id", currentUser.id)
                     .ilike("name", updatedParty.name)
@@ -116,9 +115,8 @@ const PartiesPage = () => {
                 }
             }
 
-            const { data, error } = await supabase
-                .from("parties" as any)
-                .update(updatedParty)
+            const { data, error } = await getPartiesTable()
+                .update(updatedParty as any) // Casting to any for update payload flexibility
                 .eq("id", selectedParty.id)
                 .select()
                 .single();
@@ -160,10 +158,10 @@ const PartiesPage = () => {
                 localStorage.setItem(key, JSON.stringify([deletedItem, ...existing]));
             }
 
-            const { error } = await supabase
-                .from("parties" as any)
+            const { error } = await getPartiesTable() // Use getPartiesTable
                 .delete()
-                .eq("id", id);
+                .eq("id", id)
+                .eq("user_id", currentUser.id); // Add user_id check for security
             if (error) throw error;
         },
         onSuccess: () => {
