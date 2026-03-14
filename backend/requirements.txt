@@ -7,3 +7,4 @@ pydantic-settings
 pyjwt
 passlib[bcrypt]
 psycopg2-binary
+slowapi
