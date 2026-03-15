@@ -258,20 +258,61 @@ const Index = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="bg-card rounded-xl border shadow-sm p-6">
-                      <h3 className="font-semibold mb-6">Recent Activity</h3>
-                      <div className="space-y-4">
-                        {[1, 2, 3, 4].map((i) => (
-                          <div key={i} className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
-                              TX
+                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col gap-3 overflow-hidden">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-sm">Recent Activity</h3>
+                        <div className="flex items-center gap-1.5">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                          </span>
+                          <span className="text-[10px] font-medium text-green-600">Live</span>
+                        </div>
+                      </div>
+
+                      {/* Activity Items */}
+                      <div className="space-y-2.5">
+                        {[
+                          { icon: TrendingUp, label: "Revenue Received", sub: "Acme Corp · just now", amt: "+$2,450", color: "bg-emerald-500/15 text-emerald-600", amtColor: "text-emerald-600", delay: 0 },
+                          { icon: Home, label: "Office Rent", sub: "Monthly · 2 min ago", amt: "-$1,200", color: "bg-blue-500/15 text-blue-600", amtColor: "text-rose-500", delay: 0.08 },
+                          { icon: Utensils, label: "Team Lunch", sub: "Food · 47 min ago", amt: "-$186", color: "bg-orange-500/15 text-orange-600", amtColor: "text-rose-500", delay: 0.16 },
+                          { icon: Zap, label: "SaaS Subscription", sub: "Software · 3h ago", amt: "-$99", color: "bg-violet-500/15 text-violet-600", amtColor: "text-rose-500", delay: 0.24 },
+                        ].map((item, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, x: 20 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.4, delay: item.delay }}
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/40 transition-colors group cursor-default"
+                          >
+                            <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${item.color}`}>
+                              <item.icon className="w-3.5 h-3.5" />
                             </div>
-                            <div className="flex-1 space-y-1">
-                              <div className="h-2 w-20 bg-muted rounded-full" />
-                              <div className="h-1.5 w-12 bg-muted/50 rounded-full" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold truncate">{item.label}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">{item.sub}</div>
                             </div>
-                            <div className="h-2 w-8 bg-muted rounded-full" />
-                          </div>
+                            <div className={`text-xs font-bold flex-shrink-0 ${item.amtColor} tabular-nums`}>
+                              {item.amt}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      {/* Footer sparkline */}
+                      <div className="pt-1 border-t border-border/50 flex items-end gap-0.5 h-8">
+                        {[3,5,4,7,6,9,8,10,7,9,8,11].map((h, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ scaleY: 0 }}
+                            whileInView={{ scaleY: 1 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.5, delay: i * 0.04 }}
+                            style={{ height: `${h * 8}%`, transformOrigin: "bottom" }}
+                            className="flex-1 bg-primary/30 rounded-sm hover:bg-primary/60 transition-colors"
+                          />
                         ))}
                       </div>
                     </div>
@@ -518,9 +559,204 @@ const Index = () => {
         </div>
       </section>
 
+      {/* --- PRICING SECTION (id="pricing" for footer link) --- */}
+      <section id="pricing" className="py-32 bg-slate-50 dark:bg-slate-950/50 overflow-hidden">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            className="text-center mb-16"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-6">
+              <Zap className="w-3.5 h-3.5" /> Simple, Transparent Pricing
+            </div>
+            <h2 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
+              Invest in your <span className="bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent">financial clarity</span>
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-xl mx-auto">
+              Start free. Upgrade when you're ready. No hidden fees, ever.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20 max-w-5xl mx-auto">
+            {[
+              {
+                name: "Starter",
+                price: "Free",
+                period: "",
+                desc: "Perfect for individuals getting started.",
+                features: ["Up to 50 expenses/month", "Basic analytics", "Invoice templates", "Email support"],
+                cta: "Get Started",
+                highlight: false,
+              },
+              {
+                name: "Pro",
+                price: "₹799",
+                period: "/month",
+                desc: "For freelancers and growing businesses.",
+                features: ["Unlimited expenses", "Advanced AI analytics", "Business mode + Parties", "Priority support", "GST Reports", "Multi-currency"],
+                cta: "Upgrade to Pro",
+                highlight: true,
+              },
+              {
+                name: "Business",
+                price: "₹2,499",
+                period: "/month",
+                desc: "For teams that need powerful tools.",
+                features: ["Everything in Pro", "Team collaboration", "Custom branding", "API access", "Dedicated account manager"],
+                cta: "Contact Sales",
+                highlight: false,
+              },
+            ].map((plan, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className={`relative rounded-3xl p-8 flex flex-col ${plan.highlight
+                  ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-2xl shadow-primary/40 scale-105"
+                  : "bg-background border border-border/60 shadow-lg"
+                }`}
+              >
+                {plan.highlight && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md tracking-wide uppercase">
+                    Most Popular
+                  </div>
+                )}
+                <div className={`text-sm font-semibold uppercase tracking-widest mb-3 ${plan.highlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.name}</div>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className={`text-5xl font-extrabold ${plan.highlight ? "text-white" : "text-foreground"}`}>{plan.price}</span>
+                  <span className={`text-lg font-medium ${plan.highlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.period}</span>
+                </div>
+                <p className={`text-sm mb-6 ${plan.highlight ? "text-white/80" : "text-muted-foreground"}`}>{plan.desc}</p>
+                <ul className="space-y-3 mb-8 flex-1">
+                  {plan.features.map((f, j) => (
+                    <li key={j} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${plan.highlight ? "text-white/90" : "text-green-500"}`} />
+                      <span className={plan.highlight ? "text-white/90" : "text-foreground"}>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  onClick={() => navigate("/auth")}
+                  className={`w-full h-12 rounded-full font-semibold transition-all hover:scale-105 ${plan.highlight
+                    ? "bg-white text-primary hover:bg-white/90 shadow-lg"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  }`}
+                >
+                  {plan.cta}
+                </Button>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Payment Checkout Card — Stitch Design (FinFlow INR Payment UI) */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="rounded-3xl border bg-background shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2">
+              {/* Left — Checkout Form */}
+              <div className="p-8 md:p-10">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-md">
+                    <Wallet className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="font-bold text-lg tracking-tight">FinFlow <span className="text-primary">Pro</span></span>
+                </div>
+                <h3 className="text-2xl font-bold mb-1">Complete your upgrade</h3>
+                <p className="text-muted-foreground text-sm mb-8">Secure payment · All taxes included</p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Card Number</label>
+                    <div className="h-12 rounded-xl border border-border/60 bg-muted/30 flex items-center px-4 gap-3">
+                      <div className="flex gap-1">
+                        <div className="w-6 h-4 bg-red-500 rounded-sm opacity-80" />
+                        <div className="w-6 h-4 bg-orange-400 rounded-sm opacity-60 -ml-2" />
+                      </div>
+                      <span className="text-muted-foreground text-sm font-mono tracking-widest">•••• •••• •••• 4242</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Expiry</label>
+                      <div className="h-12 rounded-xl border border-border/60 bg-muted/30 flex items-center px-4">
+                        <span className="text-muted-foreground text-sm font-mono">MM / YY</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">CVV</label>
+                      <div className="h-12 rounded-xl border border-border/60 bg-muted/30 flex items-center px-4">
+                        <span className="text-muted-foreground text-sm font-mono">•••</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Name on Card</label>
+                    <div className="h-12 rounded-xl border border-border/60 bg-muted/30 flex items-center px-4">
+                      <span className="text-muted-foreground text-sm">Your Full Name</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => navigate("/auth")}
+                  className="w-full h-14 mt-6 rounded-2xl text-base font-bold shadow-xl shadow-primary/30 bg-gradient-to-r from-primary to-violet-600 border-0 hover:opacity-90 transition-all hover:scale-[1.02]"
+                >
+                  <Lock className="mr-2 w-4 h-4" /> Pay ₹799 securely
+                </Button>
+                <p className="text-center text-xs text-muted-foreground mt-4 flex items-center justify-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" /> SSL Encrypted · PCI DSS Compliant
+                </p>
+              </div>
+
+              {/* Right — Order Summary */}
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-8 md:p-10 flex flex-col">
+                <h3 className="text-lg font-bold mb-2 text-white/90">Order Summary</h3>
+                <p className="text-sm text-white/50 mb-8">FinFlow Pro · Billed annually</p>
+
+                <div className="space-y-4 flex-1">
+                  {[
+                    { label: "Pro Plan (Annual)", amount: "₹7,990" },
+                    { label: "GST (18%)", amount: "₹1,438" },
+                    { label: "Discount (–20%)", amount: "–₹1,598" },
+                  ].map((item, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-white/60">{item.label}</span>
+                      <span className="font-semibold text-white">{item.amount}</span>
+                    </div>
+                  ))}
+
+                  <div className="border-t border-white/10 pt-4 flex justify-between">
+                    <span className="text-lg font-bold text-white">Total Today</span>
+                    <span className="text-2xl font-extrabold text-primary">₹7,830</span>
+                  </div>
+                </div>
+
+                <div className="mt-8 space-y-3">
+                  {["Cancel anytime with 1-click", "7-day money back guarantee", "Premium support included"].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-white/70">
+                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      {feature}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-white/10">
+                  <div className="text-xs text-white/40 text-center">
+                    Trusted by 10,000+ businesses across India
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
 
-      {/* --- CTA SECTION --- */}
       <section className="py-32 relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/20 rounded-full blur-[100px] -z-10" />
 
@@ -617,7 +853,7 @@ const Index = () => {
             </div>
             <div className="flex gap-8 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Product</a>
-              <a href="#" className="hover:text-foreground transition-colors">Pricing</a>
+              <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
               <a href="#" className="hover:text-foreground transition-colors">Security</a>
               <a href="#" className="hover:text-foreground transition-colors">Terms</a>
             </div>
