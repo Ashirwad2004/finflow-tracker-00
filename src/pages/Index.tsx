@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { BookDemoModal } from "@/features/demo/BookDemoModal";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
 import { Dashboard } from "@/features/dashboard/Dashboard";
@@ -69,6 +70,7 @@ const Index = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const targetRef = useRef<HTMLDivElement>(null);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   // Hero Parallax Logic
   const { scrollYProgress } = useScroll({
@@ -108,6 +110,7 @@ const Index = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-background font-sans selection:bg-primary/20 overflow-x-hidden" onMouseMove={handleMouseMove}>
       {/* Navigation */}
       <motion.nav
@@ -170,8 +173,8 @@ const Index = () => {
               <Button onClick={() => navigate("/auth")} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
                 Start for Free <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Button size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full border-2 hover:bg-muted/50 backdrop-blur-sm">
-                View Live Demo
+              <Button size="lg" variant="outline" onClick={() => setDemoOpen(true)} className="h-14 px-8 text-lg rounded-full border-2 hover:bg-muted/50 backdrop-blur-sm">
+                Book a Demo Call
               </Button>
             </div>
           </motion.div>
@@ -864,7 +867,10 @@ const Index = () => {
         </div>
       </footer>
     </div>
-  );
+
+    {/* Book a Demo Modal */}
+    <BookDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
+  </>);
 };
 
 export default Index;
