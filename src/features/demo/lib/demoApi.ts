@@ -158,3 +158,37 @@ export async function updateDemoRequest(
     .eq("id", id);
   if (error) throw error;
 }
+
+// ---------- Overview Stats ----------
+
+export interface AdminStats {
+  total: number;
+  newToday: number;
+  called: number;
+  converted: number;
+  spam: number;
+  conversionRate: number;
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const { data, error } = await db
+    .from("demo_requests")
+    .select("status, submitted_at");
+
+  if (error) throw error;
+  const rows = (data ?? []) as { status: DemoStatus; submitted_at: string }[];
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const total = rows.length;
+  const newToday = rows.filter(
+    (r) => new Date(r.submitted_at) >= todayStart
+  ).length;
+  const called = rows.filter((r) => r.status === "called").length;
+  const converted = rows.filter((r) => r.status === "converted").length;
+  const spam = rows.filter((r) => r.status === "spam").length;
+  const conversionRate = total > 0 ? Math.round((converted / total) * 100) : 0;
+
+  return { total, newToday, called, converted, spam, conversionRate };
+}

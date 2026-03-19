@@ -173,7 +173,7 @@ const Index = () => {
               <Button onClick={() => navigate("/auth")} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
                 Start for Free <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setDemoOpen(true)} className="h-14 px-8 text-lg rounded-full border-2 hover:bg-muted/50 backdrop-blur-sm">
+              <Button size="lg" onClick={() => setDemoOpen(true)} className="h-14 px-8 text-lg rounded-full bg-red-600 hover:bg-red-700 text-white border-0 shadow-lg shadow-red-500/30 transition-all hover:scale-105">
                 Book a Demo Call
               </Button>
             </div>

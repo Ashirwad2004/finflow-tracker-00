@@ -92,7 +92,7 @@ const AppRoutes = () => {
         <Route path="/parties" element={<ProtectedRoute><PartiesPage /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-        <Route path="/admin/demo" element={<ProtectedRoute><AdminDemoPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminDemoPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
