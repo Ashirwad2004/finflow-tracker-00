@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 import { useState } from "react";
 import { BusinessDetailsDialog } from "@/features/business/BusinessDetailsDialog";
+import { RevenueAnalytics } from "@/features/business/RevenueAnalytics";
 import {
     TrendingUp,
     TrendingDown,
@@ -189,6 +190,11 @@ export default function BusinessDashboard() {
                     <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Cash Flow</p>
                     <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(cashFlow)}</h3>
                 </div>
+            </div>
+
+            {/* Revenue Analytics Section */}
+            <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+                <RevenueAnalytics sales={sales} expenses={expenses} />
             </div>
 
             {/* Charts Section */}
