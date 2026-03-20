@@ -4,13 +4,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, User, Calendar, Receipt, DollarSign, Percent, FileText } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Calendar, Receipt, DollarSign, Percent, FileText, PackageX } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useItemSettings } from "@/core/hooks/use-item-settings";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
@@ -42,6 +43,13 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
+
+    // Load item settings (keyed by current user)
+    const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
+    }, [open]);
+    const { settings } = useItemSettings(currentUserId);
 
     const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<InvoiceFormValues>({
         defaultValues: {
@@ -262,12 +270,18 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 if (error) throw error;
 
                 // Update Inventory
-                for (const item of values.items) {
-                    const product = (products as any[]).find((p: any) => p.name === item.description);
-                    if (product) {
-                        const qtySold = Number(item.quantity) || 0;
-                        const currentStock = Number(product.stock_quantity) || 0;
-                        await supabase.from("products" as any).update({ stock_quantity: currentStock - qtySold }).eq("id", product.id);
+                const shouldDeduct = settings.deductStockOnlyOnPaid
+                    ? values.status === "paid"
+                    : true;
+
+                if (shouldDeduct) {
+                    for (const item of values.items) {
+                        const product = (products as any[]).find((p: any) => p.name === item.description);
+                        if (product) {
+                            const qtySold = Number(item.quantity) || 0;
+                            const currentStock = Number(product.stock_quantity) || 0;
+                            await supabase.from("products" as any).update({ stock_quantity: currentStock - qtySold }).eq("id", product.id);
+                        }
                     }
                 }
                 return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount };
@@ -299,9 +313,30 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
             return;
         }
 
-        // Additional Safety Check: Ensure total isn't zero (optional, depends on your business logic)
-        // If you allow 100% discount, remove this check.
-        // if (totalAmount <= 0) { ... }
+        // ── STOP SALE ON NEGATIVE STOCK ───────────────────────────────────
+        if (settings.stopSaleOnNegativeStock && !invoiceToEdit) {
+            const violations: string[] = [];
+            for (const item of data.items) {
+                const product = (products as any[]).find((p: any) => p.name === item.description);
+                if (product) {
+                    const qtySold = Number(item.quantity) || 0;
+                    const currentStock = Number(product.stock_quantity) || 0;
+                    if (qtySold > currentStock) {
+                        violations.push(
+                            `"${item.description}" — only ${currentStock} ${product.unit || 'units'} in stock, you're selling ${qtySold}`
+                        );
+                    }
+                }
+            }
+            if (violations.length > 0) {
+                toast({
+                    title: "❌ Insufficient Stock",
+                    description: violations.join(" • "),
+                    variant: "destructive"
+                });
+                return;
+            }
+        }
 
         createInvoiceMutation.mutate(data);
     };
@@ -445,7 +480,13 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                                         }}
                                                     />
                                                     <datalist id={`products-list-${index}`}>
-                                                        {products.map((p: any) => <option key={p.id} value={p.name} />)}
+                                                        {(products as any[]).map((p: any) => (
+                                                            <option
+                                                                key={p.id}
+                                                                value={p.name}
+                                                                label={settings.showStockInItemPicker ? `Stock: ${p.stock_quantity} ${p.unit || ''}`.trim() : undefined}
+                                                            />
+                                                        ))}
                                                     </datalist>
                                                 </div>
 

@@ -22,7 +22,7 @@ import {
     DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Package, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -37,6 +37,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useItemSettings } from "@/core/hooks/use-item-settings";
 
 interface Product {
     id: string;
@@ -62,11 +63,13 @@ export default function Inventory() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
+    const { settings, updateSetting, resetSettings } = useItemSettings(user?.id);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     const { register, handleSubmit, formState: { errors }, reset } = useForm<ProductFormValues>({
@@ -221,7 +224,10 @@ export default function Inventory() {
         updateProductMutation.mutate(data);
     };
 
-    const lowStockCount = products.filter(p => p.stock_quantity < 10).length;
+    const lowStockThreshold = settings.lowStockWarningThreshold;
+    const lowStockCount = lowStockThreshold > 0
+        ? products.filter(p => p.stock_quantity < lowStockThreshold).length
+        : 0;
 
     return (
         <AppLayout>
@@ -236,10 +242,16 @@ export default function Inventory() {
                             Manage your products and stock levels
                         </p>
                     </div>
-                    <Button onClick={() => setIsAddDialogOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Product
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="gap-2">
+                            <Settings2 className="w-4 h-4" />
+                            Item Settings
+                        </Button>
+                        <Button onClick={() => setIsAddDialogOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Product
+                        </Button>
+                    </div>
                 </div>
 
                 {lowStockCount > 0 && (
@@ -250,7 +262,7 @@ export default function Inventory() {
                                 Low Stock Alert
                             </p>
                             <p className="text-sm text-orange-700 dark:text-orange-300">
-                                {lowStockCount} product{lowStockCount !== 1 ? 's' : ''} {lowStockCount !== 1 ? 'are' : 'is'} running low on stock (less than 10 units)
+                                {lowStockCount} product{lowStockCount !== 1 ? 's' : ''} {lowStockCount !== 1 ? 'are' : 'is'} running low on stock (less than {lowStockThreshold} units)
                             </p>
                         </div>
                     </div>
@@ -309,7 +321,7 @@ export default function Inventory() {
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <span>{product.stock_quantity}</span>
-                                                {product.stock_quantity < 10 && (
+                                                {product.stock_quantity < lowStockThreshold && lowStockThreshold > 0 && (
                                                     <Badge variant="destructive" className="text-xs">
                                                         Low Stock
                                                     </Badge>
@@ -340,6 +352,153 @@ export default function Inventory() {
                         </Table>
                     )}
                 </div>
+
+                {/* Item Settings Dialog */}
+                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <DialogContent className="sm:max-w-[520px]">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <Settings2 className="w-5 h-5 text-primary" />
+                                Item Settings
+                            </DialogTitle>
+                            <DialogDescription>
+                                Configure how items behave across sales and inventory tracking.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-1 py-2">
+                            {/* Section: Stock Control */}
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Stock Control</p>
+
+                            {/* Stop Sale on Negative Stock */}
+                            <div className={`flex items-start justify-between gap-4 p-4 rounded-xl border transition-all ${
+                                settings.stopSaleOnNegativeStock
+                                    ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+                                    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                            }`}>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Stop Sale on Negative Stock</p>
+                                        {settings.stopSaleOnNegativeStock && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700">
+                                                Active
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Block invoice creation when an item's sold quantity exceeds current stock. Prevents selling items you don't have.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={settings.stopSaleOnNegativeStock}
+                                    onClick={() => updateSetting("stopSaleOnNegativeStock", !settings.stopSaleOnNegativeStock)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.stopSaleOnNegativeStock
+                                            ? "border-red-500 bg-red-500"
+                                            : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                                        settings.stopSaleOnNegativeStock ? "translate-x-5" : "translate-x-0.5"
+                                    }`} />
+                                </button>
+                            </div>
+
+                            {/* Low Stock Threshold */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-3">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Low Stock Warning Threshold</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Show a low stock badge when quantity falls below this number. Set to 0 to disable.
+                                    </p>
+                                </div>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={9999}
+                                    value={settings.lowStockWarningThreshold}
+                                    onChange={(e) => updateSetting("lowStockWarningThreshold", Math.max(0, Number(e.target.value)))}
+                                    className="w-20 h-9 text-right text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+
+                            {/* Section: Invoice Behaviour */}
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-5 mb-3">Invoice Behaviour</p>
+
+                            {/* Deduct Stock Only on Paid */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Deduct Stock Only on Paid Invoices</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        When enabled, stock is only reduced when an invoice is marked as Paid — not for Pending or Draft invoices.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={settings.deductStockOnlyOnPaid}
+                                    onClick={() => updateSetting("deductStockOnlyOnPaid", !settings.deductStockOnlyOnPaid)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.deductStockOnlyOnPaid
+                                            ? "border-primary bg-primary"
+                                            : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                                        settings.deductStockOnlyOnPaid ? "translate-x-5" : "translate-x-0.5"
+                                    }`} />
+                                </button>
+                            </div>
+
+                            {/* Section: Display */}
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-5 mb-3">Display</p>
+
+                            {/* Show stock in item picker */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Show Stock in Item Picker</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Display available stock count next to each item when adding lines to an invoice.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={settings.showStockInItemPicker}
+                                    onClick={() => updateSetting("showStockInItemPicker", !settings.showStockInItemPicker)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.showStockInItemPicker
+                                            ? "border-primary bg-primary"
+                                            : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                                        settings.showStockInItemPicker ? "translate-x-5" : "translate-x-0.5"
+                                    }`} />
+                                </button>
+                            </div>
+
+                            {/* Info note */}
+                            <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                                <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                                <p className="text-xs text-blue-700 dark:text-blue-400">
+                                    All settings are saved automatically and apply immediately across your account.
+                                </p>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="gap-2">
+                            <Button variant="ghost" size="sm" onClick={resetSettings} className="text-slate-500 mr-auto">
+                                Reset to Defaults
+                            </Button>
+                            <Button onClick={() => setIsSettingsOpen(false)}>
+                                Done
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Add Product Dialog */}
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
