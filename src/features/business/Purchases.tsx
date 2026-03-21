@@ -43,11 +43,16 @@ export default function PurchasesPage() {
         id: string;
         user_id: string;
         vendor_name: string;
+        vendor_phone?: string;
+        vendor_email?: string;
+        vendor_gstin?: string;
         bill_number: string;
         status: 'paid' | 'pending' | 'overdue' | 'draft';
         total_amount: number;
         subtotal?: number;
         tax_amount?: number;
+        tax_rate?: number;
+        discount_amount?: number;
         date: string;
         items: any[];
     }
@@ -77,11 +82,15 @@ export default function PurchasesPage() {
             invoice_number: purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`,
             date: purchase.date,
             customer_name: purchase.vendor_name, // Mapping Vendor to Customer field in the PDF
+            customer_phone: purchase.vendor_phone,
+            customer_email: purchase.vendor_email,
+            customer_gstin: purchase.vendor_gstin,
             items: purchase.items || [],
             subtotal: purchase.subtotal || purchase.total_amount,
+            discount_amount: purchase.discount_amount || 0,
             tax_amount: purchase.tax_amount || 0,
             total_amount: purchase.total_amount,
-            tax_rate: 0,
+            tax_rate: purchase.tax_rate || 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -102,11 +111,15 @@ export default function PurchasesPage() {
             invoice_number: purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`,
             date: purchase.date,
             customer_name: purchase.vendor_name,
+            customer_phone: purchase.vendor_phone,
+            customer_email: purchase.vendor_email,
+            customer_gstin: purchase.vendor_gstin,
             items: purchase.items || [],
             subtotal: purchase.subtotal || purchase.total_amount,
+            discount_amount: purchase.discount_amount || 0,
             tax_amount: purchase.tax_amount || 0,
             total_amount: purchase.total_amount,
-            tax_rate: 0,
+            tax_rate: purchase.tax_rate || 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -125,11 +138,15 @@ export default function PurchasesPage() {
                 invoice_number: billString,
                 date: purchase.date,
                 customer_name: purchase.vendor_name,
+                customer_phone: purchase.vendor_phone,
+                customer_email: purchase.vendor_email,
+                customer_gstin: purchase.vendor_gstin,
                 items: purchase.items || [],
                 subtotal: purchase.subtotal || purchase.total_amount,
+                discount_amount: purchase.discount_amount || 0,
                 tax_amount: purchase.tax_amount || 0,
                 total_amount: purchase.total_amount,
-                tax_rate: 0,
+                tax_rate: purchase.tax_rate || 0,
                 business_details: profile ? {
                     name: (profile as any).business_name,
                     address: (profile as any).business_address,
