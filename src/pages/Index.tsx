@@ -218,9 +218,9 @@ const Index = () => {
                   {/* Stats Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                     {[
-                      { label: "Total Revenue", val: "$45,231.89", trend: "+20.1%", color: "text-green-600", bg: "bg-green-500/10" },
-                      { label: "Expenses", val: "$12,056.00", trend: "+4.5%", color: "text-rose-600", bg: "bg-rose-500/10" },
-                      { label: "Net Profit", val: "$33,175.89", trend: "+25.3%", color: "text-blue-600", bg: "bg-blue-500/10" },
+                      { label: "Total Revenue", val: "₹45,231.89", trend: "+20.1%", color: "text-green-600", bg: "bg-green-500/10" },
+                      { label: "Expenses", val: "₹12,056.00", trend: "+4.5%", color: "text-rose-600", bg: "bg-rose-500/10" },
+                      { label: "Net Profit", val: "₹33,175.89", trend: "+25.3%", color: "text-blue-600", bg: "bg-blue-500/10" },
                       { label: "Pending Invoices", val: "4", trend: "Action Needed", color: "text-orange-600", bg: "bg-orange-500/10" },
                     ].map((stat, i) => (
                       <motion.div
@@ -255,7 +255,7 @@ const Index = () => {
                             className="flex-1 bg-primary/80 rounded-t-sm hover:bg-primary transition-colors cursor-pointer relative group"
                           >
                             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
-                              ${h}k
+                              ₹{h}k
                             </div>
                           </motion.div>
                         ))}
@@ -277,10 +277,10 @@ const Index = () => {
                       {/* Activity Items */}
                       <div className="space-y-2.5">
                         {[
-                          { icon: TrendingUp, label: "Revenue Received", sub: "Acme Corp · just now", amt: "+$2,450", color: "bg-emerald-500/15 text-emerald-600", amtColor: "text-emerald-600", delay: 0 },
-                          { icon: Home, label: "Office Rent", sub: "Monthly · 2 min ago", amt: "-$1,200", color: "bg-blue-500/15 text-blue-600", amtColor: "text-rose-500", delay: 0.08 },
-                          { icon: Utensils, label: "Team Lunch", sub: "Food · 47 min ago", amt: "-$186", color: "bg-orange-500/15 text-orange-600", amtColor: "text-rose-500", delay: 0.16 },
-                          { icon: Zap, label: "SaaS Subscription", sub: "Software · 3h ago", amt: "-$99", color: "bg-violet-500/15 text-violet-600", amtColor: "text-rose-500", delay: 0.24 },
+                          { icon: TrendingUp, label: "Revenue Received", sub: "Acme Corp · just now", amt: "+₹2,450", color: "bg-emerald-500/15 text-emerald-600", amtColor: "text-emerald-600", delay: 0 },
+                          { icon: Home, label: "Office Rent", sub: "Monthly · 2 min ago", amt: "-₹1,200", color: "bg-blue-500/15 text-blue-600", amtColor: "text-rose-500", delay: 0.08 },
+                          { icon: Utensils, label: "Team Lunch", sub: "Food · 47 min ago", amt: "-₹186", color: "bg-orange-500/15 text-orange-600", amtColor: "text-rose-500", delay: 0.16 },
+                          { icon: Zap, label: "SaaS Subscription", sub: "Software · 3h ago", amt: "-₹99", color: "bg-violet-500/15 text-violet-600", amtColor: "text-rose-500", delay: 0.24 },
                         ].map((item, i) => (
                           <motion.div
                             key={i}
@@ -391,7 +391,7 @@ const Index = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Amount</div>
-                        <div className="font-bold text-2xl text-primary">$2,450.00</div>
+                        <div className="font-bold text-2xl text-primary">₹2,450.00</div>
                       </div>
                     </div>
 
@@ -404,7 +404,7 @@ const Index = () => {
                           </div>
                           <div className="text-sm font-medium">Website Redesign</div>
                         </div>
-                        <div className="font-semibold">$1,200</div>
+                        <div className="font-semibold">₹1,200</div>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-muted/20 rounded-lg">
                         <div className="flex items-center gap-3">
@@ -413,7 +413,7 @@ const Index = () => {
                           </div>
                           <div className="text-sm font-medium">SEO Optimization</div>
                         </div>
-                        <div className="font-semibold">$850</div>
+                        <div className="font-semibold">₹850</div>
                       </div>
                     </div>
 
@@ -472,7 +472,7 @@ const Index = () => {
                           <div>
                             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total Spent</div>
                             <div className="text-3xl font-bold flex items-center gap-2">
-                              $4,250
+                              ₹4,250
                               <span className="text-[10px] bg-green-500/10 text-green-600 px-2 py-0.5 rounded-full border border-green-500/20">-4.2%</span>
                             </div>
                           </div>
@@ -510,9 +510,9 @@ const Index = () => {
 
                         <div className="space-y-4">
                           {[
-                            { icon: Home, label: "Housing", amt: "$1,200", pct: 65, color: "bg-blue-500" },
-                            { icon: Utensils, label: "Food & Dining", amt: "$450", pct: 35, color: "bg-orange-500" },
-                            { icon: Car, label: "Transport", amt: "$200", pct: 15, color: "bg-green-500" },
+                            { icon: Home, label: "Housing", amt: "₹1,200", pct: 65, color: "bg-blue-500" },
+                            { icon: Utensils, label: "Food & Dining", amt: "₹450", pct: 35, color: "bg-orange-500" },
+                            { icon: Car, label: "Transport", amt: "₹200", pct: 15, color: "bg-green-500" },
                           ].map((cat, i) => (
                             <div key={i} className="group/item">
                               <div className="flex justify-between items-center mb-1.5">
