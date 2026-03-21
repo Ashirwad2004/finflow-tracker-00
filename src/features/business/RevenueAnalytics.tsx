@@ -34,7 +34,7 @@ import {
   Activity,
   ArrowUpRight,
   ArrowDownRight,
-  DollarSign,
+  IndianRupee,
   Layers,
   Minus,
 } from "lucide-react";
@@ -333,7 +333,7 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
           label="Revenue"
           value={formatCurrency(currentRevenue)}
           trend={revTrend}
-          icon={DollarSign}
+          icon={IndianRupee}
           color="text-primary bg-primary/10"
         />
         <KpiCard

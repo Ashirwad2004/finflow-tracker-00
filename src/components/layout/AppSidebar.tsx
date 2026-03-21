@@ -1,6 +1,6 @@
 import {
   LayoutDashboard,
-  Receipt,
+  ReceiptIndianRupee,
   Users,
   Wallet,
   HandCoins,
@@ -41,7 +41,7 @@ const personalMenuItems = [
   {
     title: "All Expenses",
     path: "/expenses",
-    icon: Receipt,
+    icon: ReceiptIndianRupee,
     description: "View all transactions"
   },
   {
@@ -128,7 +128,7 @@ export const businessMenuItems = [
   {
     title: "All Expenses",
     path: "/expenses",
-    icon: Receipt,
+    icon: ReceiptIndianRupee,
     description: "Other Expenses"
   },
   {
