@@ -15,9 +15,14 @@ export interface InvoiceDetails {
         total: number | string;
     }[];
     subtotal: number;
+    discount_amount?: number;
     tax_rate?: number;
     tax_amount?: number;
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
     total_amount: number;
+    customer_gstin?: string;
     business_details?: {
         name: string;
         address?: string;
@@ -97,6 +102,30 @@ export const generateInvoicePDF = async (
         }
         if (data.business_details?.signature_url) {
             signatureBase64 = await fetchImageAsBase64(data.business_details.signature_url);
+        }
+
+        // Tax logic
+        let cgstVal = data.cgst || 0;
+        let sgstVal = data.sgst || 0;
+        let igstVal = data.igst || 0;
+        let isInterState = false;
+
+        const bizGSTIN = data.business_details?.gst?.trim().toUpperCase();
+        const custGSTIN = data.customer_gstin?.trim().toUpperCase();
+        
+        if (data.tax_amount && data.tax_amount > 0 && !cgstVal && !igstVal) {
+            // Calculate dynamic split based on GSTINs
+            if (bizGSTIN && bizGSTIN.length >= 2 && custGSTIN && custGSTIN.length >= 2) {
+                if (bizGSTIN.substring(0, 2) !== custGSTIN.substring(0, 2)) {
+                    isInterState = true;
+                }
+            }
+            if (isInterState) {
+                igstVal = data.tax_amount;
+            } else {
+                cgstVal = Number((data.tax_amount / 2).toFixed(2));
+                sgstVal = Number((data.tax_amount - cgstVal).toFixed(2));
+            }
         }
 
         if (theme === 'corporate') {
@@ -189,6 +218,7 @@ export const generateInvoicePDF = async (
             let billY = 68;
             if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
             if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
 
             autoTable(doc, {
                 startY: Math.max(85, billY + 10),
@@ -220,12 +250,46 @@ export const generateInvoicePDF = async (
             doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
 
             let currentTotalY = finalY;
-            if (data.tax_rate && data.tax_rate > 0) {
+            if (data.discount_amount && data.discount_amount > 0) {
                 currentTotalY += 7;
                 doc.setTextColor(...textLight);
-                doc.text(`Tax (${data.tax_rate}%):`, totalBlockX, currentTotalY);
+                doc.text("Discount:", totalBlockX, currentTotalY);
                 doc.setTextColor(...textDark);
-                doc.text(formatCurrencySafe(data.tax_amount || 0), vAlignX, currentTotalY, { align: "right" });
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, vAlignX, currentTotalY, { align: "right" });
+            }
+
+            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const cgstLabel = splitRate ? `CGST (${splitRate}%):` : "CGST:";
+            const sgstLabel = splitRate ? `SGST (${splitRate}%):` : "SGST:";
+            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%):` : "IGST:";
+
+            if (isInterState && igstVal > 0) {
+                currentTotalY += 7;
+                doc.setTextColor(...textLight);
+                doc.text(igstLabel, totalBlockX, currentTotalY);
+                doc.setTextColor(...textDark);
+                doc.text(formatCurrencySafe(igstVal), vAlignX, currentTotalY, { align: "right" });
+            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
+                if (cgstVal > 0) {
+                    currentTotalY += 7;
+                    doc.setTextColor(...textLight);
+                    doc.text(cgstLabel, totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text(formatCurrencySafe(cgstVal), vAlignX, currentTotalY, { align: "right" });
+                }
+                if (sgstVal > 0) {
+                    currentTotalY += 7;
+                    doc.setTextColor(...textLight);
+                    doc.text(sgstLabel, totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text(formatCurrencySafe(sgstVal), vAlignX, currentTotalY, { align: "right" });
+                }
+            } else if (data.tax_amount && data.tax_amount > 0) {
+                currentTotalY += 7;
+                doc.setTextColor(...textLight);
+                doc.text(`Tax (${data.tax_rate || ''}%):`, totalBlockX, currentTotalY);
+                doc.setTextColor(...textDark);
+                doc.text(formatCurrencySafe(data.tax_amount), vAlignX, currentTotalY, { align: "right" });
             }
 
             const totalBoxY = currentTotalY + 5;
@@ -329,7 +393,8 @@ export const generateInvoicePDF = async (
             doc.text(safeText(data.customer_name), 120, clientY); clientY += 5;
             doc.setTextColor(...textMid);
             if (data.customer_phone) { doc.text(`P: ${safeText(data.customer_phone)}`, 120, clientY); clientY += 5; }
-            if (data.customer_email) { doc.text(`E: ${safeText(data.customer_email)}`, 120, clientY); }
+            if (data.customer_email) { doc.text(`E: ${safeText(data.customer_email)}`, 120, clientY); clientY += 5; }
+            if (custGSTIN) { doc.text(`GST: ${custGSTIN}`, 120, clientY); }
 
             autoTable(doc, {
                 startY: Math.max(75, Math.max(myY, clientY) + 10),
@@ -359,12 +424,46 @@ export const generateInvoicePDF = async (
             doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
 
             let currentTotalY = finalY;
-            if (data.tax_rate && data.tax_rate > 0) {
+            if (data.discount_amount && data.discount_amount > 0) {
                 currentTotalY += 6;
                 doc.setTextColor(...textMid);
-                doc.text(`Tax (${data.tax_rate}%)`, totalBlockX, currentTotalY);
+                doc.text("Discount", totalBlockX, currentTotalY);
                 doc.setTextColor(...textDark);
-                doc.text(formatCurrencySafe(data.tax_amount || 0), vAlignX, currentTotalY, { align: "right" });
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, vAlignX, currentTotalY, { align: "right" });
+            }
+
+            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const cgstLabel = splitRate ? `CGST (${splitRate}%)` : "CGST";
+            const sgstLabel = splitRate ? `SGST (${splitRate}%)` : "SGST";
+            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%)` : "IGST";
+
+            if (isInterState && igstVal > 0) {
+                currentTotalY += 6;
+                doc.setTextColor(...textMid);
+                doc.text(igstLabel, totalBlockX, currentTotalY);
+                doc.setTextColor(...textDark);
+                doc.text(formatCurrencySafe(igstVal), vAlignX, currentTotalY, { align: "right" });
+            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
+                if (cgstVal > 0) {
+                    currentTotalY += 6;
+                    doc.setTextColor(...textMid);
+                    doc.text(cgstLabel, totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text(formatCurrencySafe(cgstVal), vAlignX, currentTotalY, { align: "right" });
+                }
+                if (sgstVal > 0) {
+                    currentTotalY += 6;
+                    doc.setTextColor(...textMid);
+                    doc.text(sgstLabel, totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text(formatCurrencySafe(sgstVal), vAlignX, currentTotalY, { align: "right" });
+                }
+            } else if (data.tax_amount && data.tax_amount > 0) {
+                currentTotalY += 6;
+                doc.setTextColor(...textMid);
+                doc.text(`Tax (${data.tax_rate || ''}%)`, totalBlockX, currentTotalY);
+                doc.setTextColor(...textDark);
+                doc.text(formatCurrencySafe(data.tax_amount), vAlignX, currentTotalY, { align: "right" });
             }
 
             currentTotalY += 6;
@@ -463,7 +562,8 @@ export const generateInvoicePDF = async (
             doc.text(doc.splitTextToSize(safeText(data.customer_name), 65), 140, 56);
             let cliY = 62;
             if (data.customer_phone) { doc.text(safeText(data.customer_phone), 140, cliY); cliY += 5; }
-            if (data.customer_email) { doc.text(safeText(data.customer_email), 140, cliY); }
+            if (data.customer_email) { doc.text(safeText(data.customer_email), 140, cliY); cliY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN: ${custGSTIN}`, 140, cliY); }
 
             autoTable(doc, {
                 startY: Math.max(70, myY + 15),
@@ -494,10 +594,36 @@ export const generateInvoicePDF = async (
             doc.text("Subtotal", 140, trayY);
             doc.text(formatCurrencySafe(data.subtotal), 196, trayY, { align: "right" });
 
-            if (data.tax_rate && data.tax_rate > 0) {
+            if (data.discount_amount && data.discount_amount > 0) {
                 trayY += 7;
-                doc.text(`Tax (${data.tax_rate}%)`, 140, trayY);
-                doc.text(formatCurrencySafe(data.tax_amount || 0), 196, trayY, { align: "right" });
+                doc.text("Discount", 140, trayY);
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 196, trayY, { align: "right" });
+            }
+
+            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const cgstLabel = splitRate ? `CGST (${splitRate}%)` : "CGST";
+            const sgstLabel = splitRate ? `SGST (${splitRate}%)` : "SGST";
+            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%)` : "IGST";
+
+            if (isInterState && igstVal > 0) {
+                trayY += 7;
+                doc.text(igstLabel, 140, trayY);
+                doc.text(formatCurrencySafe(igstVal), 196, trayY, { align: "right" });
+            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
+                if (cgstVal > 0) {
+                    trayY += 7;
+                    doc.text(cgstLabel, 140, trayY);
+                    doc.text(formatCurrencySafe(cgstVal), 196, trayY, { align: "right" });
+                }
+                if (sgstVal > 0) {
+                    trayY += 7;
+                    doc.text(sgstLabel, 140, trayY);
+                    doc.text(formatCurrencySafe(sgstVal), 196, trayY, { align: "right" });
+                }
+            } else if (data.tax_amount && data.tax_amount > 0) {
+                trayY += 7;
+                doc.text(`Tax (${data.tax_rate || ''}%)`, 140, trayY);
+                doc.text(formatCurrencySafe(data.tax_amount), 196, trayY, { align: "right" });
             }
 
             trayY += 8;
@@ -667,18 +793,62 @@ export const generateInvoicePDF = async (
             doc.setLineWidth(0.3);
             doc.line(10, finalY, 200, finalY);
 
-            doc.setFont("helvetica", "bold");
-            doc.text("Total", 125, finalY + 6);
-            doc.text(formatCurrencySafe(data.total_amount), 198, finalY + 6, { align: "right" });
+            let tallyTotalY = finalY;
 
-            doc.line(10, finalY + 9, 200, finalY + 9);
+            if (data.discount_amount && data.discount_amount > 0) {
+                tallyTotalY += 6;
+                doc.setFont("helvetica", "italic");
+                doc.text("Discount", 125, tallyTotalY);
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 198, tallyTotalY, { align: "right" });
+            }
+
+            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const cgstLabel = splitRate ? `CGST (${splitRate}%)` : "CGST";
+            const sgstLabel = splitRate ? `SGST (${splitRate}%)` : "SGST";
+            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%)` : "IGST";
+
+            doc.setFont("helvetica", "normal");
+            if (isInterState && igstVal > 0) {
+                tallyTotalY += 6;
+                doc.text(igstLabel, 125, tallyTotalY);
+                doc.text(formatCurrencySafe(igstVal), 198, tallyTotalY, { align: "right" });
+            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
+                if (cgstVal > 0) {
+                    tallyTotalY += 6;
+                    doc.text(cgstLabel, 125, tallyTotalY);
+                    doc.text(formatCurrencySafe(cgstVal), 198, tallyTotalY, { align: "right" });
+                }
+                if (sgstVal > 0) {
+                    tallyTotalY += 6;
+                    doc.text(sgstLabel, 125, tallyTotalY);
+                    doc.text(formatCurrencySafe(sgstVal), 198, tallyTotalY, { align: "right" });
+                }
+            } else if (data.tax_amount && data.tax_amount > 0) {
+                tallyTotalY += 6;
+                doc.text(`Tax (${data.tax_rate || ''}%)`, 125, tallyTotalY);
+                doc.text(formatCurrencySafe(data.tax_amount), 198, tallyTotalY, { align: "right" });
+            }
+
+            tallyTotalY += 6;
+            doc.line(10, tallyTotalY, 200, tallyTotalY);
+
+            doc.setFont("helvetica", "bold");
+            tallyTotalY += 6;
+            doc.text("Total", 125, tallyTotalY);
+            doc.text(formatCurrencySafe(data.total_amount), 198, tallyTotalY, { align: "right" });
+
+            tallyTotalY += 3;
+            doc.line(10, tallyTotalY, 200, tallyTotalY);
 
             // Amount in words (mocked standard footer text)
             doc.setFontSize(8);
             doc.setFont("helvetica", "italic");
-            doc.text("Declaration", 12, finalY + 15);
+            doc.text("Declaration", 12, tallyTotalY + 6);
             doc.setFont("helvetica", "normal");
-            doc.text("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 12, finalY + 20, { maxWidth: 100 });
+            doc.text("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 12, tallyTotalY + 11, { maxWidth: 100 });
+
+            // Signature block vertical line right
+            doc.line(125, finalY, 125, pageHeight - 10);
 
             // Signature block bottom right
             doc.line(125, finalY + 9, 125, pageHeight - 10);
@@ -799,6 +969,7 @@ export const generateInvoicePDF = async (
             doc.setFont("helvetica", "normal");
             if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 12, cliY); cliY += 4; }
             if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 12, cliY); cliY += 4; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 12, cliY); cliY += 4; }
 
             const afterBuyerY = Math.max(myMaxY + 25, cliY + 2);
 
@@ -843,16 +1014,42 @@ export const generateInvoicePDF = async (
 
             let currentTotalY = finalY + 12;
 
-            if (data.tax_rate && data.tax_rate > 0) {
+            if (data.discount_amount && data.discount_amount > 0) {
+                doc.text("Discount", 140, currentTotalY);
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 198, currentTotalY, { align: "right" });
+                currentTotalY += 6;
+            }
+
+            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const cgstLabel = splitRate ? `CGST @ ${splitRate}%` : "CGST";
+            const sgstLabel = splitRate ? `SGST @ ${splitRate}%` : "SGST";
+            const igstLabel = data.tax_rate ? `IGST @ ${data.tax_rate}%` : "IGST";
+
+            if (isInterState && igstVal > 0) {
+                doc.text(igstLabel, 140, currentTotalY);
+                doc.text(formatCurrencySafe(igstVal), 198, currentTotalY, { align: "right" });
+                currentTotalY += 6;
+            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
+                if (cgstVal > 0) {
+                    doc.text(cgstLabel, 140, currentTotalY);
+                    doc.text(formatCurrencySafe(cgstVal), 198, currentTotalY, { align: "right" });
+                    currentTotalY += 6;
+                }
+                if (sgstVal > 0) {
+                    doc.text(sgstLabel, 140, currentTotalY);
+                    doc.text(formatCurrencySafe(sgstVal), 198, currentTotalY, { align: "right" });
+                    currentTotalY += 6;
+                }
+            } else if (data.tax_amount && data.tax_amount > 0) {
                 // Split tax for local GST appearance (CGST/SGST 50% each if total tax rate)
-                const splitRate = data.tax_rate / 2;
+                
                 const splitAmount = (data.tax_amount || 0) / 2;
 
-                doc.text(`CGST @ ${splitRate}%`, 140, currentTotalY);
+                doc.text(cgstLabel, 140, currentTotalY);
                 doc.text(formatCurrencySafe(splitAmount), 198, currentTotalY, { align: "right" });
                 currentTotalY += 6;
 
-                doc.text(`SGST @ ${splitRate}%`, 140, currentTotalY);
+                doc.text(sgstLabel, 140, currentTotalY);
                 doc.text(formatCurrencySafe(splitAmount), 198, currentTotalY, { align: "right" });
                 currentTotalY += 6;
             }

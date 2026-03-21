@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, User, Calendar, Receipt, DollarSign, Percent, FileText, PackageX } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Calendar, Receipt, DollarSign, Percent, FileText, PackageX, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -12,11 +12,14 @@ import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
+import { SalesSettings } from "@/core/hooks/use-sales-settings";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     invoiceToEdit?: any;
+    /** Sales settings passed from the Sales page (or undefined when called from other contexts). */
+    salesSettings?: SalesSettings;
 }
 
 interface InvoiceItem {
@@ -31,15 +34,17 @@ interface InvoiceFormValues {
     customer_name: string;
     customer_phone: string;
     customer_email: string;
+    /** 15-character GST Identification Number — drives B2B/B2C classification in GSTR-1 */
+    customer_gstin: string;
     invoice_number: string;
     date: string;
     items: InvoiceItem[];
     tax_rate: number;
     overall_discount: number;
-    status: "paid" | "pending"; // [NEW] Added status field
+    status: "paid" | "pending";
 }
 
-export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: CreateInvoiceDialogProps) => {
+export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSettings }: CreateInvoiceDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
@@ -56,14 +61,15 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
             customer_name: "",
             customer_phone: "",
             customer_email: "",
+            customer_gstin: "",
             invoice_number: "",
             date: new Date().toISOString().split("T")[0],
             items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
             tax_rate: 0,
             overall_discount: 0,
-            status: "paid" // [NEW] Default status
+            status: "paid"
         },
-        mode: "onBlur" // Validate fields when the user leaves the input
+        mode: "onBlur"
     });
 
     const { fields, append, remove } = useFieldArray({
@@ -96,6 +102,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
         if (party) {
             if (party.phone && !watch("customer_phone")) setValue("customer_phone", party.phone, { shouldValidate: true, shouldDirty: true });
             if (party.email && !watch("customer_email")) setValue("customer_email", party.email, { shouldValidate: true, shouldDirty: true });
+            if (party.gstin && !watch("customer_gstin")) setValue("customer_gstin", party.gstin, { shouldValidate: true, shouldDirty: true });
         }
     };
 
@@ -107,24 +114,26 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 customer_name: invoiceToEdit.customer_name,
                 customer_phone: invoiceToEdit.customer_phone,
                 customer_email: invoiceToEdit.customer_email,
+                customer_gstin: invoiceToEdit.customer_gstin || "",
                 invoice_number: invoiceToEdit.invoice_number,
                 date: invoiceToEdit.date,
                 items: items,
                 tax_rate: (invoiceToEdit.tax_amount / (invoiceToEdit.subtotal || 1)) * 100,
                 overall_discount: invoiceToEdit.overall_discount || 0,
-                status: invoiceToEdit.status || "paid" // [NEW] Load status
+                status: invoiceToEdit.status || "paid"
             });
         } else if (open && !invoiceToEdit) {
             reset({
                 customer_name: "",
                 customer_phone: "",
                 customer_email: "",
+                customer_gstin: "",
                 invoice_number: "",
                 date: new Date().toISOString().split("T")[0],
                 items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
-                tax_rate: 0,
+                tax_rate: salesSettings?.defaultTaxRate ?? 0,
                 overall_discount: 0,
-                status: "paid" // [NEW] Reset to default
+                status: salesSettings?.defaultStatus ?? "paid",
             });
         }
     }, [open, invoiceToEdit, reset]);
@@ -149,21 +158,26 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
         enabled: open && !invoiceToEdit,
     });
 
-    // Auto-increment Invoice Number
+    // Auto-increment Invoice Number — with optional prefix from sales settings
     useEffect(() => {
         if (open && !invoiceToEdit) {
+            const prefix = salesSettings?.invoiceNumberPrefix ?? "";
             if (lastInvoiceNumber) {
-                const numericPart = parseInt(lastInvoiceNumber.replace(/\D/g, ""));
+                // Strip prefix before extracting numeric part
+                const stripped = lastInvoiceNumber.startsWith(prefix)
+                    ? lastInvoiceNumber.slice(prefix.length)
+                    : lastInvoiceNumber;
+                const numericPart = parseInt(stripped.replace(/\D/g, ""));
                 if (!isNaN(numericPart)) {
-                    setValue("invoice_number", (numericPart + 1).toString());
+                    setValue("invoice_number", `${prefix}${numericPart + 1}`);
                 } else {
-                    setValue("invoice_number", "1");
+                    setValue("invoice_number", `${prefix}1`);
                 }
             } else {
-                setValue("invoice_number", "1");
+                setValue("invoice_number", `${prefix}1`);
             }
         }
-    }, [open, lastInvoiceNumber, setValue, invoiceToEdit]);
+    }, [open, lastInvoiceNumber, setValue, invoiceToEdit, salesSettings?.invoiceNumberPrefix]);
 
     // Fetch Products
     const { data: products = [] } = useQuery({
@@ -182,7 +196,29 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
         if (product) setValue(`items.${index}.price`, product.price);
     };
 
-    // --- UPDATED CALCULATIONS ---
+    // Outstanding balance check helper
+    const checkOutstandingBalance = async (customerName: string): Promise<boolean> => {
+        if (!salesSettings?.warnOnOutstandingBalance || !customerName.trim()) return true;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return true;
+        const { data } = await supabase
+            .from("sales" as any)
+            .select("id, status, total_amount, invoice_number")
+            .eq("user_id", user.id)
+            .eq("customer_name", customerName)
+            .in("status", ["pending", "overdue"]);
+        const outstanding = (data as any[] | null) ?? [];
+        if (outstanding.length > 0) {
+            const total = outstanding.reduce((s: number, inv: any) => s + Number(inv.total_amount || 0), 0);
+            const formatted = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(total);
+            return window.confirm(
+                `⚠️ Outstanding Balance Warning\n\n"${customerName}" has ${outstanding.length} unpaid invoice(s) totalling ${formatted}.\n\nDo you still want to create a new invoice for this customer?`
+            );
+        }
+        return true;
+    };
+
+    // Real-time calc
     const subtotal = watchItems.reduce((sum, item) => {
         const qty = Number(item.quantity) || 0;
         const price = Number(item.price) || 0;
@@ -196,7 +232,11 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
     const taxableAmount = Math.max(0, subtotal - overallDiscountAmount);
     const taxRate = Number(watchTaxRate) || 0;
     const taxAmount = (taxableAmount * taxRate) / 100;
-    const totalAmount = taxableAmount + taxAmount;
+    const rawTotal = taxableAmount + taxAmount;
+    // Round off: if enabled, round to nearest integer and compute the rounding difference
+    const roundedTotal = salesSettings?.roundOffTotal ? Math.round(rawTotal) : rawTotal;
+    const roundOffDiff = salesSettings?.roundOffTotal ? (roundedTotal - rawTotal) : 0;
+    const totalAmount = roundedTotal;
 
     // --- Mutation ---
     const createInvoiceMutation = useMutation({
@@ -226,13 +266,16 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 customer_name: values.customer_name,
                 customer_phone: values.customer_phone,
                 customer_email: values.customer_email,
+                customer_gstin: values.customer_gstin?.trim().toUpperCase() || null,
                 date: values.date,
                 items: processedItems,
                 subtotal: subtotal,
+                discount_amount: overallDiscountAmount,
+                tax_rate: taxRate,
                 tax_amount: taxAmount,
                 total_amount: totalAmount,
-                status: values.status, // [NEW] Use selected status
-                payment_method: values.status === 'paid' ? "cash" : null,
+                status: values.status,
+                payment_method: values.status === 'paid' ? "cash" : null
             };
 
             if (invoiceToEdit) {
@@ -250,7 +293,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                     }
                 }
 
-                const { error } = await supabase.from("sales" as any).update(saleData).eq("id", invoiceToEdit.id);
+                const { error } = await supabase.from("sales" as any).update(saleData as any).eq("id", invoiceToEdit.id);
                 if (error) throw error;
                 return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount, id: invoiceToEdit.id };
             } else {
@@ -266,7 +309,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                     throw new Error(`An invoice with number "${values.invoice_number}" already exists.`);
                 }
 
-                const { error } = await supabase.from("sales" as any).insert(saleData);
+                const { error } = await supabase.from("sales" as any).insert(saleData as any);
                 if (error) throw error;
 
                 // Update Inventory
@@ -302,7 +345,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
         }
     });
 
-    const onSubmit = (data: InvoiceFormValues) => {
+    const onSubmit = async (data: InvoiceFormValues) => {
         // Validation: Ensure there is at least one item
         if (data.items.length === 0) {
             toast({
@@ -311,6 +354,23 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 variant: "destructive"
             });
             return;
+        }
+
+        // ── BACKDATE PREVENTION ──────────────────────────────────
+        if (salesSettings?.preventBackdating && !invoiceToEdit) {
+            const invoiceDate = new Date(data.date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const diffMs = today.getTime() - invoiceDate.getTime();
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            if (diffDays > (salesSettings.backdatingLimitDays ?? 90)) {
+                toast({
+                    title: "📅 Backdating Not Allowed",
+                    description: `Invoice date cannot be more than ${salesSettings.backdatingLimitDays} days in the past. Selected date is ${diffDays} days old.`,
+                    variant: "destructive"
+                });
+                return;
+            }
         }
 
         // ── STOP SALE ON NEGATIVE STOCK ───────────────────────────────────
@@ -336,6 +396,12 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                 });
                 return;
             }
+        }
+
+        // ── OUTSTANDING BALANCE CHECK ──────────────────────────────────
+        if (!invoiceToEdit) {
+            const proceed = await checkOutstandingBalance(data.customer_name);
+            if (!proceed) return;
         }
 
         createInvoiceMutation.mutate(data);
@@ -393,6 +459,30 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                             <Label className="text-xs font-medium text-slate-700">Email</Label>
                                             <Input className="h-9 rounded-sm border-slate-300 bg-white" {...register("customer_email")} placeholder="Email address" />
                                         </div>
+                                    </div>
+
+                                    {/* GSTIN field — drives B2B classification in GSTR-1 */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-xs font-medium text-slate-700">Customer GSTIN</Label>
+                                            {watch("customer_gstin")?.length === 15 ? (
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">✓ B2B Invoice</span>
+                                            ) : watch("customer_gstin")?.length > 0 ? (
+                                                <span className="text-[10px] text-amber-600">{watch("customer_gstin").length}/15 chars</span>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400">B2C — leave blank if unregistered</span>
+                                            )}
+                                        </div>
+                                        <Input
+                                            className="h-9 rounded-sm border-slate-300 bg-white font-mono uppercase tracking-widest text-sm"
+                                            {...register("customer_gstin", {
+                                                validate: v => !v || v.length === 0 || v.length === 15 || "GSTIN must be exactly 15 characters"
+                                            })}
+                                            placeholder="e.g. 29AABCD1234E1Z5"
+                                            maxLength={15}
+                                            onChange={e => setValue("customer_gstin", e.target.value.toUpperCase())}
+                                        />
+                                        {errors.customer_gstin && <span className="text-destructive text-xs block">{errors.customer_gstin.message}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -594,8 +684,12 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                         </div>
                                     )}
 
+                                    {/* GST-aware tax label */}
                                     <div className="flex justify-between items-center text-sm px-2 pt-1 border-b border-slate-100 pb-3">
-                                        <span className="text-slate-600">Tax</span>
+                                        <span className="text-slate-600">
+                                            {salesSettings?.gstMode === "igst" ? "IGST" :
+                                             salesSettings?.gstMode === "cgst_sgst" ? "Tax (CGST+SGST)" : "Tax"}
+                                        </span>
                                         <div className="flex items-center gap-2">
                                             <div className="relative w-24">
                                                 <Input
@@ -612,8 +706,24 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit }: Creat
                                     </div>
                                     {taxAmount > 0 && (
                                         <div className="flex justify-between items-center text-xs px-2 -mt-1.5 pb-2 border-b border-slate-100">
-                                            <span></span>
+                                            <span className="text-slate-400 text-[10px]">
+                                                {salesSettings?.gstMode === "cgst_sgst"
+                                                    ? `CGST ${formatCurrency(taxAmount / 2)} + SGST ${formatCurrency(taxAmount / 2)}`
+                                                    : salesSettings?.gstMode === "igst"
+                                                    ? `IGST @ ${taxRate}%`
+                                                    : ""}
+                                            </span>
                                             <span className="text-emerald-600 font-medium">+{formatCurrency(taxAmount)}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Round-off line */}
+                                    {salesSettings?.roundOffTotal && Math.abs(roundOffDiff) > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs px-2 pb-2">
+                                            <span className="text-slate-500">Round Off</span>
+                                            <span className={roundOffDiff > 0 ? "text-emerald-600 font-medium" : "text-rose-500 font-medium"}>
+                                                {roundOffDiff > 0 ? "+" : ""}{formatCurrency(roundOffDiff)}
+                                            </span>
                                         </div>
                                     )}
                                 </div>

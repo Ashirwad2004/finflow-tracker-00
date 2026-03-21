@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2 } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info } from "lucide-react";
 import { CreateInvoiceDialog } from "@/features/invoices/CreateInvoiceDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -14,15 +14,20 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useSalesSettings } from "@/core/hooks/use-sales-settings";
 
 export default function SalesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingInvoice, setEditingInvoice] = useState<any>(null);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
     const queryClient = useQueryClient();
+    const { settings, updateSetting, resetSettings } = useSalesSettings(user?.id);
 
     // Fetch Profile for Business Details
     const { data: profile } = useQuery({
@@ -43,11 +48,16 @@ export default function SalesPage() {
         id: string;
         user_id: string;
         customer_name: string;
+        customer_phone?: string;
+        customer_email?: string;
+        customer_gstin?: string;
         invoice_number: string;
         status: 'paid' | 'pending' | 'overdue' | 'draft';
         total_amount: number;
         subtotal?: number;
         tax_amount?: number;
+        tax_rate?: number;
+        discount_amount?: number;
         date: string;
         items: any[];
     }
@@ -76,11 +86,15 @@ export default function SalesPage() {
             invoice_number: invoice.invoice_number,
             date: invoice.date,
             customer_name: invoice.customer_name,
+            customer_phone: invoice.customer_phone,
+            customer_email: invoice.customer_email,
+            customer_gstin: invoice.customer_gstin,
             items: invoice.items || [],
             subtotal: invoice.subtotal || invoice.total_amount,
+            discount_amount: invoice.discount_amount || 0,
             tax_amount: invoice.tax_amount || 0,
             total_amount: invoice.total_amount,
-            tax_rate: 0,
+            tax_rate: invoice.tax_rate || 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -101,11 +115,15 @@ export default function SalesPage() {
             invoice_number: invoice.invoice_number,
             date: invoice.date,
             customer_name: invoice.customer_name,
+            customer_phone: invoice.customer_phone,
+            customer_email: invoice.customer_email,
+            customer_gstin: invoice.customer_gstin,
             items: invoice.items || [],
             subtotal: invoice.subtotal || invoice.total_amount,
+            discount_amount: invoice.discount_amount || 0,
             tax_amount: invoice.tax_amount || 0,
             total_amount: invoice.total_amount,
-            tax_rate: 0,
+            tax_rate: invoice.tax_rate || 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -123,11 +141,15 @@ export default function SalesPage() {
                 invoice_number: invoice.invoice_number,
                 date: invoice.date,
                 customer_name: invoice.customer_name,
+                customer_phone: invoice.customer_phone,
+                customer_email: invoice.customer_email,
+                customer_gstin: invoice.customer_gstin,
                 items: invoice.items || [],
                 subtotal: invoice.subtotal || invoice.total_amount,
+                discount_amount: invoice.discount_amount || 0,
                 tax_amount: invoice.tax_amount || 0,
                 total_amount: invoice.total_amount,
-                tax_rate: 0,
+                tax_rate: invoice.tax_rate || 0,
                 business_details: profile ? {
                     name: (profile as any).business_name,
                     address: (profile as any).business_address,
@@ -162,36 +184,40 @@ export default function SalesPage() {
     };
 
     const handleDelete = async (invoice: Sale) => {
-        if (window.confirm("Are you sure you want to delete this invoice? It will be moved to History & Bin.")) {
-            // 1. Move to local storage recycle bin
-            try {
-                const storageKey = `recently_deleted_sales_${user?.id}`;
-                const existing = localStorage.getItem(storageKey);
-                const deletedItems = existing ? JSON.parse(existing) : [];
+        const shouldProceed = settings.confirmBeforeDelete
+            ? window.confirm("Are you sure you want to delete this invoice? It will be moved to History & Bin.")
+            : true;
 
-                deletedItems.push({
-                    ...invoice,
-                    type: "sale",
-                    deleted_at: new Date().toISOString()
-                });
+        if (!shouldProceed) return;
 
-                localStorage.setItem(storageKey, JSON.stringify(deletedItems));
-            } catch (e) {
-                console.warn("Failed to save to local recycle bin", e);
-            }
+        // 1. Move to local storage recycle bin
+        try {
+            const storageKey = `recently_deleted_sales_${user?.id}`;
+            const existing = localStorage.getItem(storageKey);
+            const deletedItems = existing ? JSON.parse(existing) : [];
 
-            // 2. Remove from Supabase
-            const { error } = await supabase
-                .from("sales" as any)
-                .delete()
-                .eq("id", invoice.id);
+            deletedItems.push({
+                ...invoice,
+                type: "sale",
+                deleted_at: new Date().toISOString()
+            });
 
-            if (error) {
-                console.error("Error deleting invoice:", error);
-                alert("Failed to delete invoice.");
-            } else {
-                queryClient.invalidateQueries({ queryKey: ["sales", user?.id] });
-            }
+            localStorage.setItem(storageKey, JSON.stringify(deletedItems));
+        } catch (e) {
+            console.warn("Failed to save to local recycle bin", e);
+        }
+
+        // 2. Remove from Supabase
+        const { error } = await supabase
+            .from("sales" as any)
+            .delete()
+            .eq("id", invoice.id);
+
+        if (error) {
+            console.error("Error deleting invoice:", error);
+            alert("Failed to delete invoice.");
+        } else {
+            queryClient.invalidateQueries({ queryKey: ["sales", user?.id] });
         }
     };
 
@@ -239,6 +265,13 @@ export default function SalesPage() {
                                 placeholder="Search invoices..."
                             />
                         </div>
+                        <button
+                            onClick={() => setIsSettingsOpen(true)}
+                            className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg shadow-sm transition-all"
+                        >
+                            <Settings2 className="w-4 h-4" />
+                            Sales Settings
+                        </button>
                         <button
                             onClick={() => {
                                 setEditingInvoice(null);
@@ -427,7 +460,242 @@ export default function SalesPage() {
                         if (!open) setEditingInvoice(null);
                     }}
                     invoiceToEdit={editingInvoice}
+                    salesSettings={settings}
                 />
+
+                {/* Sales Settings Dialog */}
+                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <Settings2 className="w-5 h-5 text-primary" />
+                                Sales Settings
+                            </DialogTitle>
+                            <DialogDescription>
+                                Configure invoicing defaults, accounting controls, and workflow preferences.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-1 py-2">
+
+                            {/* ── INVOICING DEFAULTS ── */}
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Invoicing Defaults</p>
+
+                            {/* Default Tax Rate */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Default Tax Rate</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Pre-filled on every new invoice. Common GST slabs: 0, 5, 12, 18, 28%.</p>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="number" min={0} max={100}
+                                        value={settings.defaultTaxRate}
+                                        onChange={(e) => updateSetting("defaultTaxRate", Math.min(100, Math.max(0, Number(e.target.value))))}
+                                        className="w-16 h-9 text-right text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                    <span className="text-sm text-slate-500">%</span>
+                                </div>
+                            </div>
+
+                            {/* Default Invoice Status */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Default Invoice Status</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">The pre-selected status when opening the Create Invoice form.</p>
+                                </div>
+                                <select
+                                    value={settings.defaultStatus}
+                                    onChange={(e) => updateSetting("defaultStatus", e.target.value as any)}
+                                    className="h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="paid">Paid</option>
+                                    <option value="pending">Pending</option>
+                                </select>
+                            </div>
+
+                            {/* Invoice Number Prefix */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Invoice Number Prefix</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Prepended to every auto-generated invoice number.<br/>
+                                        e.g. <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded">INV-</span> → <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded">INV-42</span>
+                                    </p>
+                                </div>
+                                <input
+                                    type="text" maxLength={10}
+                                    value={settings.invoiceNumberPrefix}
+                                    onChange={(e) => updateSetting("invoiceNumberPrefix", e.target.value.toUpperCase())}
+                                    placeholder="e.g. INV-"
+                                    className="w-24 h-9 text-sm font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+
+                            {/* Payment Terms */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Default Payment Terms</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Days from invoice date until payment is due. Set to 0 to disable due dates.</p>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="number" min={0} max={365}
+                                        value={settings.defaultPaymentTermsDays}
+                                        onChange={(e) => updateSetting("defaultPaymentTermsDays", Math.max(0, Number(e.target.value)))}
+                                        className="w-16 h-9 text-right text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                    <span className="text-sm text-slate-500">days</span>
+                                </div>
+                            </div>
+
+                            {/* ── ACCOUNTING CONTROLS ── */}
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-6 mb-3">Accounting Controls</p>
+
+                            {/* Prevent Backdating */}
+                            <div className={`flex items-start justify-between gap-4 p-4 rounded-xl border transition-all ${
+                                settings.preventBackdating
+                                    ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
+                                    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                            }`}>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Prevent Backdating</p>
+                                        {settings.preventBackdating && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700">Active</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Block invoices dated more than <span className="font-semibold">{settings.backdatingLimitDays} days</span> in the past. Protects closed accounting periods.
+                                    </p>
+                                    {settings.preventBackdating && (
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span className="text-xs text-slate-500">Limit:</span>
+                                            <input
+                                                type="number" min={1} max={365}
+                                                value={settings.backdatingLimitDays}
+                                                onChange={(e) => updateSetting("backdatingLimitDays", Math.max(1, Number(e.target.value)))}
+                                                className="w-16 h-7 text-right text-sm font-bold rounded-lg border border-amber-300 bg-white dark:bg-amber-950/20 px-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                            />
+                                            <span className="text-xs text-slate-500">days</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.preventBackdating}
+                                    onClick={() => updateSetting("preventBackdating", !settings.preventBackdating)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 ${
+                                        settings.preventBackdating ? "border-amber-500 bg-amber-500" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.preventBackdating ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
+                            </div>
+
+                            {/* Round Off Total */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Round Off Invoice Total</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Rounds the final payable amount to the nearest rupee. The round-off difference is shown as a separate line item on the invoice — standard CA practice.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.roundOffTotal}
+                                    onClick={() => updateSetting("roundOffTotal", !settings.roundOffTotal)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.roundOffTotal ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.roundOffTotal ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
+                            </div>
+
+                            {/* GST Mode */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">GST Display Mode</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        How tax is labelled on invoices.<br/>
+                                        <span className="font-semibold">IGST</span> = inter-state &bull; <span className="font-semibold">CGST+SGST</span> = intra-state
+                                    </p>
+                                </div>
+                                <select
+                                    value={settings.gstMode}
+                                    onChange={(e) => updateSetting("gstMode", e.target.value as any)}
+                                    className="h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="none">Generic Tax</option>
+                                    <option value="igst">IGST</option>
+                                    <option value="cgst_sgst">CGST + SGST</option>
+                                </select>
+                            </div>
+
+                            {/* ── WORKFLOW ── */}
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-6 mb-3">Workflow</p>
+
+                            {/* Warn on Outstanding Balance */}
+                            <div className={`flex items-start justify-between gap-4 p-4 rounded-xl border transition-all ${
+                                settings.warnOnOutstandingBalance
+                                    ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800"
+                                    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                            }`}>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Warn on Outstanding Balance</p>
+                                        {settings.warnOnOutstandingBalance && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-700">Active</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Show a warning before creating a new invoice if the customer already has unpaid or overdue invoices.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.warnOnOutstandingBalance}
+                                    onClick={() => updateSetting("warnOnOutstandingBalance", !settings.warnOnOutstandingBalance)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 ${
+                                        settings.warnOnOutstandingBalance ? "border-rose-500 bg-rose-500" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.warnOnOutstandingBalance ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
+                            </div>
+
+                            {/* Confirm Before Delete */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Confirm Before Delete</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Show a confirmation dialog before permanently deleting an invoice.</p>
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.confirmBeforeDelete}
+                                    onClick={() => updateSetting("confirmBeforeDelete", !settings.confirmBeforeDelete)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.confirmBeforeDelete ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.confirmBeforeDelete ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
+                            </div>
+
+                            {/* Info note */}
+                            <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                                <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                                <p className="text-xs text-blue-700 dark:text-blue-400">
+                                    All changes apply immediately. Defaults apply to new invoices only; existing invoices are unaffected.
+                                </p>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="gap-2">
+                            <Button variant="ghost" size="sm" onClick={resetSettings} className="text-slate-500 mr-auto">
+                                Reset to Defaults
+                            </Button>
+                            <Button onClick={() => setIsSettingsOpen(false)}>Done</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </AppLayout>
     );
