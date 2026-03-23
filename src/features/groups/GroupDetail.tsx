@@ -111,6 +111,7 @@ const GroupDetail = () => {
       if (error) throw error;
       return data;
     },
+    refetchInterval: 1000,
   });
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -124,6 +125,7 @@ const GroupDetail = () => {
         .order("joined_at");
       return data as Member[] || [];
     },
+    refetchInterval: 1000,
   });
 
   const { data: expenses = [], isLoading: expensesLoading } = useQuery({
@@ -140,6 +142,7 @@ const GroupDetail = () => {
       // Safety check if we need manual parsing, but Supabase JS client handles JSON types automatically
       return data as Expense[] || [];
     },
+    refetchInterval: 1000,
   });
 
   const { data: categories = [] } = useQuery({
