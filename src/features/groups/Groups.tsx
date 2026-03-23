@@ -107,6 +107,7 @@ const Groups = () => {
       return groups || [];
     },
     enabled: !!user?.id,
+    refetchInterval: 1000,
   });
 
   const { data: allMembers = [] } = useQuery({
@@ -117,6 +118,7 @@ const Groups = () => {
         .select("group_id, user_id, username");
       return data || [];
     },
+    refetchInterval: 1000,
   });
 
   const getGroupMembers = (groupId: string) =>
@@ -173,7 +175,7 @@ const Groups = () => {
         .maybeSingle();
 
       const username =
-        profile?.display_name || `user_${user?.id?.slice(0, 8)}`;
+        profile?.display_name || user?.user_metadata?.display_name || user?.email?.split('@')[0] || `user_${user?.id?.slice(0, 8)}`;
 
       const { error: memberErr } = await supabase
         .from("group_members")
