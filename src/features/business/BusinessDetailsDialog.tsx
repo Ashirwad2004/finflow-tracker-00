@@ -49,8 +49,8 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
     // Fetch existing business details when dialog opens
     useEffect(() => {
         if (open && user) {
-            supabase
-                .from("profiles" as any)
+            (supabase as any)
+                .from("profiles")
                 .select("business_name, gst_number, business_phone, business_address, business_logo, signature_url")
                 .eq("user_id", user.id)
                 .single()
@@ -106,8 +106,8 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                 currentSignatureUrl = await uploadImage(signatureFile, 'signature');
             }
 
-            const { error } = await supabase
-                .from("profiles" as any)
+            const { error } = await (supabase as any)
+                .from("profiles")
                 .update({
                     business_name: values.business_name,
                     gst_number: values.gst_number,

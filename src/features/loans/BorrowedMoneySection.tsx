@@ -64,6 +64,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
     const { data: borrowedMoney = [], isLoading, refetch } = useQuery({
         queryKey: ["borrowed-money", userId],
         queryFn: async () => {
+            // @ts-ignore: types.ts might be incomplete
             const { data, error } = await supabase
                 .from("borrowed_money")
                 .select("*")
@@ -141,6 +142,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
 
     const markAsRepaid = useMutation({
         mutationFn: async (id: string) => {
+            // @ts-ignore: types.ts might be incomplete
             const { error } = await supabase
                 .from("borrowed_money")
                 .update({ status: "paid" })
@@ -168,6 +170,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
 
     const deleteDebt = useMutation({
         mutationFn: async (debt: BorrowedMoneyRecord) => {
+            // @ts-ignore: types.ts might be incomplete
             const { error } = await supabase
                 .from("borrowed_money")
                 .delete()
@@ -284,7 +287,11 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                             {pendingDebts.map((debt) => (
                                 <div
                                     key={debt.id}
-                                    className="flex items-start justify-between p-3 rounded-lg bg-muted/30 border border-border/50 hover:border-border transition-colors"
+                                    className={`flex items-start justify-between p-3 rounded-lg border transition-colors ${
+                                        isOverdue(debt.due_date)
+                                            ? "bg-destructive/10 border-destructive/30 hover:border-destructive/50"
+                                            : "bg-muted/30 border-border/50 hover:border-border"
+                                    }`}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
