@@ -23,6 +23,7 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { useAuth } from "@/core/lib/auth";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -173,6 +174,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
+      // @ts-ignore: types.ts might be incomplete
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -204,7 +206,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             <h1 className="font-bold text-lg text-foreground truncate">
               {isBusinessMode ? "FinFlow Bus." : "ExpenseTracker"}
             </h1>
-            <p className="text-xs text-muted-foreground truncate">{profile?.display_name || "Welcome!"}</p>
+            <p className="text-xs text-muted-foreground truncate">{profile?.display_name ?? "Welcome!"}</p>
           </div>
         )}
       </div>
@@ -292,10 +294,13 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         </Dialog>
 
         <div className={cn(
-          "flex items-center gap-2",
+          "flex items-center gap-1",
           collapsed ? "flex-col" : "justify-between"
         )}>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <NotificationDropdown userId={user?.id || ""} />
+            <ThemeToggle />
+          </div>
           <Button
             variant="ghost"
             size="icon"
