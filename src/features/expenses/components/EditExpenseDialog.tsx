@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
+import { useAuth } from "@/core/lib/auth";
 import {
     Dialog,
     DialogContent,
@@ -83,6 +85,7 @@ export const EditExpenseDialog = ({
     const queryClient = useQueryClient();
     const { currency } = useCurrency();
     const { isBusinessMode } = useBusiness();
+    const { user } = useAuth();
 
     // Form State
     const [description, setDescription] = useState("");
@@ -125,12 +128,15 @@ export const EditExpenseDialog = ({
                 is_reimbursable: isReimbursable
             };
 
-            const { error } = await supabase
-                .from("expenses")
-                .update(payload)
-                .eq("id", expense.id);
+            const result = await offlineMutate({
+                table: "expenses",
+                action: "update",
+                recordId: expense.id,
+                payload,
+                userId: user?.id || ""
+            });
 
-            if (error) throw error;
+            if (result.error) throw result.error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });

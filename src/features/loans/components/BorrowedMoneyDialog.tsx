@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,22 +96,44 @@ export const BorrowedMoneyDialog = ({ open, onOpenChange, userId, defaultPersonN
             description: string;
             dueDate?: string;
         }) => {
-            const { data: result, error } = await supabase
-                .from("borrowed_money")
-                .insert({
-                    user_id: userId,
-                    amount: data.amount,
-                    person_name: data.personName,
-                    description: data.description,
-                    due_date: data.dueDate || null,
-                    status: "pending",
-                });
+            const recordId = uuidv4();
+            const payload = {
+                id: recordId,
+                user_id: userId,
+                amount: data.amount,
+                person_name: data.personName,
+                description: data.description,
+                due_date: data.dueDate || null,
+                status: "pending",
+            };
+
+            const { data: result, error } = await offlineMutate({
+                table: "borrowed_money",
+                action: "insert",
+                recordId,
+                payload,
+                userId
+            });
 
             if (error) throw error;
             return result;
         },
-        onSuccess: () => {
+        onSuccess: (result) => {
+            // Optimistically inject the new item into the cache so it appears immediately while offline
+            if (userId && result) {
+              queryClient.setQueryData(["borrowed-money", userId], (old: any[] | undefined) => {
+                const optimisticItem = {
+                   ...result.data, // This contains the structured payload
+                   id: result.data?.id || uuidv4(),
+                   created_at: new Date().toISOString(),
+                   _isOffline: true
+                };
+                return [optimisticItem, ...(old || [])];
+              });
+            }
+      
             queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
+            queryClient.invalidateQueries({ queryKey: ["borrowed-money", userId] });
             queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
             toast({
                 title: "Success",
