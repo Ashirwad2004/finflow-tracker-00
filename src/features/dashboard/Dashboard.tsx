@@ -22,14 +22,14 @@ import {
   Settings,
   X
 } from "lucide-react";
-import { ExpenseList } from "@/features/expenses/ExpenseList";
-import { ExpenseChart } from "@/features/expenses/ExpenseChart";
-import { AddExpenseDialog } from "@/features/expenses/AddExpenseDialog";
-import { EditExpenseDialog } from "@/features/expenses/EditExpenseDialog";
-import { LentMoneyDialog } from "@/features/loans/LentMoneyDialog";
-import { BudgetSection } from "@/features/settings/BudgetSection";
-import { RecentlyDeleted } from "@/features/trash/RecentlyDeleted";
-import { LentMoneySection } from "@/features/loans/LentMoneySection";
+import { ExpenseList } from "@/features/expenses/components/ExpenseList";
+import { ExpenseChart } from "@/features/expenses/components/ExpenseChart";
+import { AddExpenseDialog } from "@/features/expenses/components/AddExpenseDialog";
+import { EditExpenseDialog } from "@/features/expenses/components/EditExpenseDialog";
+import { LentMoneyDialog } from "@/features/loans/components/LentMoneyDialog";
+import { BudgetSection } from "@/features/settings/components/BudgetSection";
+import { RecentlyDeleted } from "@/features/trash/components/RecentlyDeleted";
+import { LentMoneySection } from "@/features/loans/components/LentMoneySection";
 import { Calculator as CalculatorComponent } from "@/components/shared/calculator";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { toast } from "@/core/hooks/use-toast";
@@ -37,15 +37,15 @@ import { toast } from "@/core/hooks/use-toast";
 import { AiInsights } from "@/features/dashboard/AiInsights";
 
 import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { SettingsDialog } from "@/features/settings/SettingsDialog";
+import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { menuItems, businessMenuItems } from "@/components/layout/AppSidebar";
 import { cn } from "@/core/lib/utils";
-import BusinessDashboard from "@/features/business/BusinessDashboard";
+import BusinessDashboard from "@/features/business/pages/BusinessDashboard";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { motion } from "framer-motion";
 import { AnimatedCounter, DashboardCard } from "@/features/dashboard/DashboardComponents";
-import { OnboardingDialog } from "@/features/settings/OnboardingDialog";
-import { BusinessDetailsDialog } from "@/features/business/BusinessDetailsDialog";
+import { OnboardingDialog } from "@/features/settings/components/OnboardingDialog";
+import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 export const Dashboard = () => {

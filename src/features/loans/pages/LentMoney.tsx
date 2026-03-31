@@ -1,8 +1,8 @@
 import { useAuth } from "@/core/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { LentMoneySection } from "@/features/loans/LentMoneySection";
-import { LentMoneyParties } from "@/features/loans/LentMoneyParties";
-import { LentMoneyDialog } from "@/features/loans/LentMoneyDialog";
+import { LentMoneySection } from "@/features/loans/components/LentMoneySection";
+import { LentMoneyParties } from "@/features/loans/components/LentMoneyParties";
+import { LentMoneyDialog } from "@/features/loans/components/LentMoneyDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, List, Users } from "lucide-react";

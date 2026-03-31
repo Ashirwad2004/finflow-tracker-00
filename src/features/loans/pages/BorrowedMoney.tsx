@@ -1,8 +1,8 @@
 import { useAuth } from "@/core/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { BorrowedMoneySection } from "@/features/loans/BorrowedMoneySection";
-import { BorrowedMoneyParties } from "@/features/loans/BorrowedMoneyParties";
-import { BorrowedMoneyDialog } from "@/features/loans/BorrowedMoneyDialog";
+import { BorrowedMoneySection } from "@/features/loans/components/BorrowedMoneySection";
+import { BorrowedMoneyParties } from "@/features/loans/components/BorrowedMoneyParties";
+import { BorrowedMoneyDialog } from "@/features/loans/components/BorrowedMoneyDialog";
 import { PullToRefresh } from "@/components/layout/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

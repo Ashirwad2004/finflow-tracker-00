@@ -8,7 +8,7 @@ import { useBusiness } from "@/core/contexts/BusinessContext";
 import { useCurrency, CURRENCIES } from "@/core/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet } from "lucide-react";
-import { BusinessDetailsDialog } from "@/features/business/BusinessDetailsDialog";
+import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { useToast } from "@/core/hooks/use-toast";

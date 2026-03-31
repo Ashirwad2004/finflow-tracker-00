@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
-import { LedgerTransaction } from "@/features/business/DetailedPartyReport";
+import { LedgerTransaction } from "@/features/business/components/DetailedPartyReport";
 
 const sanitizeText = (text: string) => {
     return text.replace(/[^\x00-\x7F]/g, "");
