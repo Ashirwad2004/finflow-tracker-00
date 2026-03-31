@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { LedgerTransaction } from "@/features/business/DetailedPartyReport";
+import { LedgerTransaction } from "@/features/business/components/DetailedPartyReport";
 
 export const exportDetailedPartyCSV = (
     data: LedgerTransaction[],

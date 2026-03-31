@@ -1,8 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PartyReport } from "@/features/business/PartyReport";
-import { DetailedPartyReport } from "@/features/business/DetailedPartyReport";
-import { GSTR1Report } from "@/features/business/GSTR1Report";
+import { PartyReport } from "@/features/business/components/PartyReport";
+import { DetailedPartyReport } from "@/features/business/components/DetailedPartyReport";
+import { GSTR1Report } from "@/features/business/components/GSTR1Report";
 import { FileBarChart, ShieldCheck } from "lucide-react";
 
 const ReportsPage = () => {

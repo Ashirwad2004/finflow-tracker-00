@@ -34,7 +34,7 @@ import {
   Loader2
 } from "lucide-react";
 import { format } from "date-fns";
-import { EditLentMoneyDialog } from "@/features/loans/EditLentMoneyDialog";
+import { EditLentMoneyDialog } from "@/features/loans/components/EditLentMoneyDialog";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/core/contexts/CurrencyContext";

@@ -13,7 +13,7 @@ import {
 import { useCurrency, CURRENCIES } from "@/core/contexts/CurrencyContext";
 import { Switch } from "@/components/ui/switch";
 import { useBusiness } from "@/core/contexts/BusinessContext";
-import { BusinessDetailsDialog } from "@/features/business/BusinessDetailsDialog";
+import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 

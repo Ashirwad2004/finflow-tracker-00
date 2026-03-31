@@ -24,7 +24,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/core/hooks/use-toast";
 import { z } from "zod";
-import { BillUpload } from "@/features/expenses/BillUpload";
+import { BillUpload } from "@/features/expenses/components/BillUpload";
 import {
   Trash2,
   Plus,
@@ -41,7 +41,7 @@ import {
   FileText
 } from "lucide-react";
 import { cn } from "@/core/lib/utils";
-import { SmartExpenseInput } from "@/features/expenses/SmartExpenseInput";
+import { SmartExpenseInput } from "@/features/expenses/components/SmartExpenseInput";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 

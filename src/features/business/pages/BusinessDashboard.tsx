@@ -6,8 +6,8 @@ import { format, subMonths, isSameMonth } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 import { useState } from "react";
-import { BusinessDetailsDialog } from "@/features/business/BusinessDetailsDialog";
-import { RevenueAnalytics } from "@/features/business/RevenueAnalytics";
+import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
+import { RevenueAnalytics } from "@/features/business/components/RevenueAnalytics";
 import {
     TrendingUp,
     TrendingDown,

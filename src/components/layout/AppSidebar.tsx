@@ -29,7 +29,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calculator as CalculatorComponent } from "@/components/shared/calculator";
 import { Settings } from "lucide-react";
-import { SettingsDialog } from "@/features/settings/SettingsDialog";
+import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 
 const personalMenuItems = [

@@ -1,6 +1,6 @@
 import { useAuth } from "@/core/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { RecentlyDeleted } from "@/features/trash/RecentlyDeleted";
+import { RecentlyDeleted } from "@/features/trash/components/RecentlyDeleted";
 
 const RecentlyDeletedPage = () => {
   const { user } = useAuth();
