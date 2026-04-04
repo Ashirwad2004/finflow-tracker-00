@@ -14,7 +14,8 @@ import {
   BarChart3,
   Package,
   FileBarChart,
-  Printer
+  Printer,
+  Globe
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/core/lib/utils";
@@ -119,6 +120,12 @@ export const businessMenuItems = [
     path: "/purchases",
     icon: ShoppingCart,
     description: "Manage Bills"
+  },
+  {
+    title: "Online Store",
+    path: "/online-store",
+    icon: Globe,
+    description: "Manage storefront"
   },
   {
     title: "Reports",

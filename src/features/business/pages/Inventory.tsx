@@ -22,9 +22,9 @@ import {
     DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -37,7 +37,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
+import { ProductImageUpload } from "@/features/business/components/ProductImageUpload";
 
 interface Product {
     id: string;
@@ -48,6 +51,9 @@ interface Product {
     stock_quantity: number;
     unit: string;
     created_at: string;
+    is_listed_online?: boolean;
+    online_description?: string;
+    image_url?: string;
 }
 
 interface ProductFormValues {
@@ -56,6 +62,9 @@ interface ProductFormValues {
     cost_price: number;
     stock_quantity: number;
     unit: string;
+    is_listed_online?: boolean;
+    online_description?: string;
+    image_url?: string;
 }
 
 export default function Inventory() {
@@ -72,13 +81,16 @@ export default function Inventory() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-    const { register, handleSubmit, formState: { errors }, reset } = useForm<ProductFormValues>({
+    const { register, handleSubmit, formState: { errors }, reset, watch, control } = useForm<ProductFormValues>({
         defaultValues: {
             name: "",
             price: 0,
             cost_price: 0,
             stock_quantity: 0,
-            unit: "pc"
+            unit: "pc",
+            is_listed_online: false,
+            online_description: "",
+            image_url: ""
         }
     });
 
@@ -206,7 +218,10 @@ export default function Inventory() {
             price: product.price,
             cost_price: product.cost_price,
             stock_quantity: product.stock_quantity,
-            unit: product.unit
+            unit: product.unit,
+            is_listed_online: product.is_listed_online || false,
+            online_description: product.online_description || "",
+            image_url: product.image_url || ""
         });
         setIsEditDialogOpen(true);
     };
@@ -315,7 +330,14 @@ export default function Inventory() {
                             <TableBody>
                                 {filteredProducts.map((product) => (
                                     <TableRow key={product.id}>
-                                        <TableCell className="font-medium">{product.name}</TableCell>
+                                        <TableCell className="font-medium">
+                                            <div className="flex items-center gap-2">
+                                                {product.name}
+                                                {product.is_listed_online && (
+                                                    <Globe className="w-4 h-4 text-blue-500" />
+                                                )}
+                                            </div>
+                                        </TableCell>
                                         <TableCell>{formatCurrency(product.price)}</TableCell>
                                         <TableCell>{formatCurrency(product.cost_price)}</TableCell>
                                         <TableCell>
@@ -573,6 +595,55 @@ export default function Inventory() {
                                 </div>
                             </div>
 
+                            <div className="space-y-4 pt-4 border-t mt-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base text-primary flex items-center gap-2">
+                                            <Globe className="w-4 h-4" />
+                                            List on Online Store
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">Make this product visible on your public storefront</p>
+                                    </div>
+                                    <Controller
+                                        name="is_listed_online"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Switch
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                            />
+                                        )}
+                                    />
+                                </div>
+                                
+                                {watch("is_listed_online") && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Controller
+                                                name="image_url"
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <ProductImageUpload
+                                                        value={field.value || ""}
+                                                        onChange={field.onChange}
+                                                        inputId="add_product_image"
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="add_online_description">Product Description</Label>
+                                            <Textarea
+                                                id="add_online_description"
+                                                {...register("online_description")}
+                                                placeholder="Describe the product for online customers..."
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
                             <DialogFooter>
                                 <Button type="button" variant="outline" onClick={() => {
                                     setIsAddDialogOpen(false);
@@ -653,6 +724,55 @@ export default function Inventory() {
                                         placeholder="pc, kg, ltr, etc."
                                     />
                                 </div>
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t mt-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base text-primary flex items-center gap-2">
+                                            <Globe className="w-4 h-4" />
+                                            List on Online Store
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">Make this product visible on your public storefront</p>
+                                    </div>
+                                    <Controller
+                                        name="is_listed_online"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Switch
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                            />
+                                        )}
+                                    />
+                                </div>
+                                
+                                {watch("is_listed_online") && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Controller
+                                                name="image_url"
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <ProductImageUpload
+                                                        value={field.value || ""}
+                                                        onChange={field.onChange}
+                                                        inputId="edit_product_image"
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit_online_description">Product Description</Label>
+                                            <Textarea
+                                                id="edit_online_description"
+                                                {...register("online_description")}
+                                                placeholder="Describe the product for online customers..."
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <DialogFooter>

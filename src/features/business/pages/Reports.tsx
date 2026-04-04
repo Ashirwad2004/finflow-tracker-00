@@ -3,7 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PartyReport } from "@/features/business/components/PartyReport";
 import { DetailedPartyReport } from "@/features/business/components/DetailedPartyReport";
 import { GSTR1Report } from "@/features/business/components/GSTR1Report";
-import { FileBarChart, ShieldCheck } from "lucide-react";
+import { OnlineStoreReport } from "@/features/business/components/OnlineStoreReport";
+import { FileBarChart, ShieldCheck, ShoppingBag } from "lucide-react";
 
 const ReportsPage = () => {
     return (
@@ -21,7 +22,7 @@ const ReportsPage = () => {
 
                 <Tabs defaultValue="party-report" className="space-y-6">
                     <div className="bg-card w-full sm:w-auto inline-block p-1 rounded-lg border">
-                        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto p-0 bg-transparent gap-1">
+                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-0 bg-transparent gap-1">
                             <TabsTrigger
                                 value="party-report"
                                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2.5 px-6 rounded-md shadow-sm transition-all"
@@ -41,6 +42,13 @@ const ReportsPage = () => {
                                 <ShieldCheck className="w-4 h-4" />
                                 GSTR-1
                             </TabsTrigger>
+                            <TabsTrigger
+                                value="online-store"
+                                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white py-2.5 px-6 rounded-md shadow-sm transition-all flex items-center gap-2"
+                            >
+                                <ShoppingBag className="w-4 h-4" />
+                                Online Store
+                            </TabsTrigger>
                         </TabsList>
                     </div>
 
@@ -54,6 +62,10 @@ const ReportsPage = () => {
 
                     <TabsContent value="gstr1" className="mt-0 outline-none">
                         <GSTR1Report />
+                    </TabsContent>
+
+                    <TabsContent value="online-store" className="mt-0 outline-none">
+                        <OnlineStoreReport />
                     </TabsContent>
                 </Tabs>
             </div>
