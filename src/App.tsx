@@ -28,9 +28,11 @@ const BusinessDashboardPage = lazy(() => import("@/features/business/pages/Busin
 const PartiesPage = lazy(() => import("@/features/business/pages/Parties"));
 const PrintStudioPage = lazy(() => import("@/features/business/pages/PrintStudio"));
 const InventoryPage = lazy(() => import("@/features/business/pages/Inventory"));
+const OnlineStorePage = lazy(() => import("@/features/business/pages/OnlineStore"));
 const ReportsPage = lazy(() => import("@/features/business/pages/Reports"));
 const PersonalReportsPage = lazy(() => import("@/features/reports/pages/PersonalReports"));
 const AdminDemoPage = lazy(() => import("@/features/demo/AdminDashboard"));
+const StorefrontPage = lazy(() => import("@/features/storefront/Storefront"));
 
 // Optimize React Query: 
 // 1. Keep data fresh for 5 mins (reduces duplicate network requests)
@@ -92,6 +94,8 @@ const AppRoutes = () => {
         <Route path="/print-studio" element={<ProtectedRoute><PrintStudioPage /></ProtectedRoute>} />
         <Route path="/parties" element={<ProtectedRoute><PartiesPage /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+        <Route path="/online-store" element={<ProtectedRoute><OnlineStorePage /></ProtectedRoute>} />
+        <Route path="/store/:storeSlug" element={<StorefrontPage />} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminDemoPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
