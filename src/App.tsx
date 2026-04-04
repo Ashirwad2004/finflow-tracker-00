@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/core/lib/auth";
 import { ThemeInitializer } from "@/components/shared/ThemeToggle";
+import { AIAssistantChat } from "@/components/shared/AIAssistantChat";
 import Index from "@/pages/Index";
 
 // Lazy-loaded pages
@@ -109,6 +110,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <ThemeInitializer />
+              <AIAssistantChat />
               <AppRoutes />
             </BrowserRouter>
           </TooltipProvider>

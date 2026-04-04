@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, Filter, Trash2, Calendar, TrendingDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddExpenseDialog } from "@/features/expenses/components/AddExpenseDialog";
+import { MagicAddExpense } from "@/features/expenses/components/MagicAddExpense";
 import { MonthlyExpenseReport } from "@/features/expenses/components/MonthlyExpenseReport";
 import { toast } from "@/core/hooks/use-toast";
 import { format } from "date-fns";
@@ -127,6 +128,8 @@ const AllExpenses = () => {
               Add Expense
             </Button>
           </div>
+
+          <MagicAddExpense userId={user?.id || ""} categories={categories} />
 
           {/* Stats Card */}
           <Card className="bg-gradient-card shadow-card">

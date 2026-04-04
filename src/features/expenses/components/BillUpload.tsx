@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, Loader2, X, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/core/integrations/supabase/client";
+import { callOpenAI } from "@/core/integrations/ai/openai";
 import { toast } from "@/core/hooks/use-toast";
 import {
   Dialog,
@@ -40,11 +40,11 @@ export const BillUpload = ({
     if (!file) return;
 
     // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
-        description: "Please upload a JPG, PNG, or PDF file.",
+        description: "Please upload an Image file (JPG, PNG, WEBP). PDFs currently unsupported for native Vision AI.",
         variant: "destructive",
       });
       return;
@@ -75,29 +75,43 @@ export const BillUpload = ({
       // Convert file to base64
       const base64 = await fileToBase64(file);
 
-      const { data, error } = await supabase.functions.invoke('scan-bill', {
-        body: {
-          imageBase64: base64,
-          mimeType: file.type,
-        },
-      });
+      const jsonSchema = {
+          type: "json_schema",
+          json_schema: {
+              name: "receipt_extraction",
+              strict: true,
+              schema: {
+                  type: "object",
+                  properties: {
+                      merchant_name: { type: ["string", "null"] },
+                      total_amount: { type: ["number", "null"] },
+                      bill_date: { type: ["string", "null"] },
+                      tax_amount: { type: ["number", "null"] },
+                      category_suggestion: { type: ["string", "null"] }
+                  },
+                  required: ["merchant_name", "total_amount", "bill_date", "tax_amount", "category_suggestion"],
+                  additionalProperties: false
+              }
+          }
+      };
 
-      if (error) throw error;
+      const response = await callOpenAI([
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Please act as an OCR expert. Extract the total, tax, date (YYYY-MM-DD), merchant name, and fundamentally categorize this receipt." },
+            { type: "image_url", image_url: { url: `data:${file.type};base64,${base64}` } }
+          ]
+        }
+      ], "gpt-4o-mini", jsonSchema);
 
-      if (data.error) {
+      const data = JSON.parse(response);
+
+      if (data) {
+        onDataExtracted(data);
         toast({
-          title: "OCR Warning",
-          description: data.error,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data.success && data.data) {
-        onDataExtracted(data.data);
-        toast({
-          title: "Bill scanned successfully",
-          description: "Data has been auto-filled. Please review and edit if needed.",
+          title: "✨ AI Magic Scan Complete",
+          description: "Data has been magically auto-filled. Please review.",
         });
       }
     } catch (error: unknown) {
@@ -142,10 +156,10 @@ export const BillUpload = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.pdf"
+            accept=".jpg,.jpeg,.png,.webp"
             onChange={handleFileSelect}
             className="hidden"
-            aria-label="Upload bill image or PDF"
+            aria-label="Upload bill image"
           />
           <div className="bg-muted/50 rounded-full w-12 h-12 mx-auto flex items-center justify-center mb-3">
             <Upload className="h-6 w-6 text-muted-foreground" />
