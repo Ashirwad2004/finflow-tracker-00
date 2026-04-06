@@ -7,11 +7,19 @@ const db = supabase as any;
 
 export interface AppUser {
   id: string;
+  user_id?: string;
   email: string | null;
   created_at: string;
   updated_at: string;
   avatar_url: string | null;
   full_name: string | null;
+  business_name?: string | null;
+  gst_number?: string | null;
+  business_phone?: string | null;
+  business_address?: string | null;
+  business_logo?: string | null;
+  signature_url?: string | null;
+  is_business_mode?: boolean;
 }
 
 export interface SystemTableCount {
@@ -35,7 +43,7 @@ export interface SystemHealth {
 export async function getAppUsers(): Promise<AppUser[]> {
   const { data, error } = await db
     .from("profiles")
-    .select("id, email, created_at, updated_at, avatar_url, full_name")
+    .select("id, user_id, email, created_at, updated_at, avatar_url, full_name, business_name, gst_number, business_phone, business_address, is_business_mode, business_logo, signature_url")
     .order("created_at", { ascending: false })
     .limit(200);
 
