@@ -62,6 +62,8 @@ function CartDrawer({
     cartTotal,
     cartCount,
     deliveryCharge,
+    baseDeliveryCharge,
+    freeDeliveryThreshold,
     formatCurrency,
     onRemoveOne,
     onAddOne,
@@ -76,6 +78,8 @@ function CartDrawer({
     cartTotal: number;
     cartCount: number;
     deliveryCharge: number;
+    baseDeliveryCharge: number;
+    freeDeliveryThreshold: number;
     formatCurrency: (n: number) => string;
     onRemoveOne: (id: string) => void;
     onAddOne: (id: string) => void;
@@ -164,6 +168,35 @@ function CartDrawer({
                     <div className="flex-1 overflow-y-auto">
                         {step === "cart" ? (
                             <div className="p-6 space-y-4">
+                                {freeDeliveryThreshold > 0 && baseDeliveryCharge > 0 && cartCount > 0 && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden">
+                                        <div className="flex items-center gap-2 relative z-10">
+                                            {cartTotal >= freeDeliveryThreshold ? (
+                                                <>
+                                                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                                                        <span className="text-[10px]">🎉</span>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-green-700">You've unlocked FREE delivery!</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                                        <Truck className="w-3 h-3 text-blue-600" />
+                                                    </div>
+                                                    <p className="text-xs font-semibold text-slate-700">
+                                                        Add <span className="font-black text-blue-600">{formatCurrency(freeDeliveryThreshold - cartTotal)}</span> more for FREE delivery
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden relative z-10">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-blue-400 to-green-400 transition-all duration-500 ease-out" 
+                                                style={{ width: `${Math.min(100, Math.max(0, (cartTotal / freeDeliveryThreshold) * 100))}%` }} 
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 {cartCount === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-64 gap-4">
                                         <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center">
@@ -289,10 +322,17 @@ function CartDrawer({
                                             </div>
                                         );
                                     })}
-                                    {deliveryCharge > 0 && (
+                                    {baseDeliveryCharge > 0 && (
                                         <div className="flex justify-between text-sm pt-2">
                                             <span className="text-slate-600">Delivery Fee</span>
-                                            <span className="font-bold text-slate-900">{formatCurrency(deliveryCharge)}</span>
+                                            {deliveryCharge === 0 ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-slate-400 line-through text-xs">{formatCurrency(baseDeliveryCharge)}</span>
+                                                    <span className="font-bold text-green-600 uppercase text-[10px] tracking-wider px-1.5 py-0.5 bg-green-100 rounded">Free</span>
+                                                </div>
+                                            ) : (
+                                                <span className="font-bold text-slate-900">{formatCurrency(deliveryCharge)}</span>
+                                            )}
                                         </div>
                                     )}
                                     <div className="flex justify-between text-sm font-black pt-2 border-t border-slate-200 mt-1">
@@ -309,20 +349,24 @@ function CartDrawer({
                         <div className="p-5 border-t border-slate-100 space-y-3 flex-shrink-0 bg-white">
                             {/* Subtotal row */}
                             <div className="space-y-1.5 px-1 mb-2">
-                                {deliveryCharge > 0 && (
+                                {baseDeliveryCharge > 0 && (
                                     <div className="flex justify-between text-xs text-slate-500 font-medium">
                                         <span>Subtotal</span>
                                         <span>{formatCurrency(cartTotal)}</span>
                                     </div>
                                 )}
-                                {deliveryCharge > 0 && (
+                                {baseDeliveryCharge > 0 && (
                                     <div className="flex justify-between text-xs text-slate-500 font-medium">
                                         <span>Delivery Fee</span>
-                                        <span>{formatCurrency(deliveryCharge)}</span>
+                                        {deliveryCharge === 0 ? (
+                                            <span className="font-bold text-green-600">FREE</span>
+                                        ) : (
+                                            <span>{formatCurrency(deliveryCharge)}</span>
+                                        )}
                                     </div>
                                 )}
                                 <div className="flex justify-between text-sm font-bold text-slate-700 pt-1">
-                                    <span>{deliveryCharge > 0 ? "Total" : "Total"}</span>
+                                    <span>Total</span>
                                     <span className="font-black text-slate-900">{formatCurrency(cartTotal + deliveryCharge)}</span>
                                 </div>
                             </div>
@@ -459,8 +503,8 @@ export default function Storefront() {
     );
     const cartCount = useMemo(() => Object.values(cart).reduce((a, b) => a + b, 0), [cart]);
 
-    const deliveryChargeRaw = storeProfile?.delivery_charge || 0;
-    const freeDeliveryThreshold = storeProfile?.free_delivery_min_amount || 0;
+    const deliveryChargeRaw = Number(storeProfile?.delivery_charge) || 0;
+    const freeDeliveryThreshold = Number(storeProfile?.free_delivery_min_amount) || 0;
     const effectiveDeliveryCharge = (deliveryChargeRaw > 0 && freeDeliveryThreshold > 0 && cartTotal >= freeDeliveryThreshold) ? 0 : deliveryChargeRaw;
 
     // ── Submit order ───────────────────────────────────────────────────────
@@ -829,6 +873,8 @@ export default function Storefront() {
                 cartTotal={cartTotal}
                 cartCount={cartCount}
                 deliveryCharge={effectiveDeliveryCharge}
+                baseDeliveryCharge={deliveryChargeRaw}
+                freeDeliveryThreshold={freeDeliveryThreshold}
                 formatCurrency={formatCurrency}
                 onRemoveOne={handleRemove}
                 onAddOne={handleAdd}
