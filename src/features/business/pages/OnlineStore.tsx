@@ -270,6 +270,7 @@ export default function OnlineStore() {
     const [isStoreActive, setIsStoreActive] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
 
     // Fetch profile
     const { data: profile } = useQuery({
@@ -286,11 +287,12 @@ export default function OnlineStore() {
     });
 
     useEffect(() => {
-        if (profile) {
+        if (profile && isInitialLoading) {
             setStoreSlug((profile as any).store_slug || "");
             setIsStoreActive((profile as any).is_store_active || false);
+            setIsInitialLoading(false);
         }
-    }, [profile]);
+    }, [profile, isInitialLoading]);
 
     // Fetch Orders — include nested order items + product name in a single query
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
@@ -318,9 +320,12 @@ export default function OnlineStore() {
 
     const updateStoreConfig = async () => {
         setIsSaving(true);
+        
+        const finalSlug = storeSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+        
         const { error } = await (supabase.from as any)("profiles")
             .update({
-                store_slug: storeSlug,
+                store_slug: finalSlug || null,
                 is_store_active: isStoreActive,
             } as any)
             .eq("user_id", user?.id);
@@ -330,6 +335,7 @@ export default function OnlineStore() {
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         } else {
+            setStoreSlug(finalSlug); // Sync the potentially cleaned slug back to state
             toast({ title: "Saved", description: "Online store settings updated." });
             queryClient.invalidateQueries({ queryKey: ["profile"] });
         }

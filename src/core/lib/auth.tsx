@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, displayName: string) => {
     // Prevent weak passwords from reaching Supabase Auth
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&.])[A-Za-z\\d@$!%*?&.]{8,}$/;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.])[A-Za-z\d@$!%*?&.]{8,}$/;
     if (!passwordRegex.test(password)) {
       return { error: new Error("Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.") };
     }
@@ -58,21 +58,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     });
-
-    if (!error && data.user) {
-      // Create profile
-      const { error: profileError } = await supabase.from('profiles' as any).insert({
-        user_id: data.user.id,
-        display_name: displayName,
-      } as any);
-
-      if (profileError) {
-        console.error("Profile creation failed during signup:", profileError);
-        // Optionally clean up the auth user if profile creation fails entirely
-        // await supabase.auth.admin.deleteUser(data.user.id); // Requires admin previliges not exposed in client.
-        return { error: new Error(`Account created, but profile setup failed: ${profileError.message}`) };
-      }
-    }
 
     return { error };
   };

@@ -11,7 +11,7 @@ import { z } from "zod";
 import { supabase } from "@/core/integrations/supabase/client";
 
 const emailSchema = z.string().trim().email({ message: "Invalid email address" });
-const passwordSchema = z.string().min(6, { message: "Password must be at least 6 characters" });
+const passwordSchema = z.string().min(8, { message: "Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters." });
 const nameSchema = z.string().trim().min(2, { message: "Name must be at least 2 characters" });
 
 const Auth = () => {
