@@ -60,6 +60,7 @@ interface OnlineOrder {
     customer_address: string;
     status: string;
     total_amount: number;
+    delivery_charge: number;
     created_at: string;
     online_order_items: OrderItem[];
 }
@@ -229,7 +230,17 @@ function OrderRow({
                                         ))}
                                     </div>
                                     {/* Total row */}
-                                    <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/30">
+                                    {order.delivery_charge > 0 && (
+                                        <div className="flex items-center justify-between px-4 pt-3 pb-1 border-t border-border bg-muted/30">
+                                            <span className="text-xs font-medium text-muted-foreground">
+                                                Delivery Fee
+                                            </span>
+                                            <span className="text-sm font-semibold text-muted-foreground">
+                                                {formatCurrency(order.delivery_charge)}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className={`flex items-center justify-between px-4 pb-3 ${order.delivery_charge > 0 ? "pt-1" : "pt-3 border-t border-border"} bg-muted/30`}>
                                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                             Order Total
                                         </span>
@@ -271,6 +282,8 @@ export default function OnlineStore() {
     const [isSaving, setIsSaving] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [deliveryCharge, setDeliveryCharge] = useState<number | "">("");
+    const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | "">("");
 
     // Fetch profile
     const { data: profile } = useQuery({
@@ -290,6 +303,8 @@ export default function OnlineStore() {
         if (profile && isInitialLoading) {
             setStoreSlug((profile as any).store_slug || "");
             setIsStoreActive((profile as any).is_store_active || false);
+            setDeliveryCharge((profile as any).delivery_charge || "");
+            setFreeDeliveryThreshold((profile as any).free_delivery_min_amount || "");
             setIsInitialLoading(false);
         }
     }, [profile, isInitialLoading]);
@@ -327,6 +342,8 @@ export default function OnlineStore() {
             .update({
                 store_slug: finalSlug || null,
                 is_store_active: isStoreActive,
+                delivery_charge: deliveryCharge || 0,
+                free_delivery_min_amount: freeDeliveryThreshold || 0,
             } as any)
             .eq("user_id", user?.id);
 
@@ -415,6 +432,34 @@ export default function OnlineStore() {
                                         />
                                     </div>
                                     <p className="text-xs text-muted-foreground">This is your unique link to share with customers.</p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <Label htmlFor="deliveryCharge">Delivery Charge ({formatCurrency(0).replace(/\d/g, '').trim()})</Label>
+                                    <Input
+                                        id="deliveryCharge"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={deliveryCharge}
+                                        onChange={(e) => setDeliveryCharge(e.target.value === "" ? "" : Number(e.target.value))}
+                                        placeholder="e.g. 50"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Added to the final amount on checkout.</p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <Label htmlFor="freeDeliveryThreshold">Free Delivery Threshold ({formatCurrency(0).replace(/\d/g, '').trim()})</Label>
+                                    <Input
+                                        id="freeDeliveryThreshold"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={freeDeliveryThreshold}
+                                        onChange={(e) => setFreeDeliveryThreshold(e.target.value === "" ? "" : Number(e.target.value))}
+                                        placeholder="e.g. 300"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Orders equal to or above this cart value get free delivery (leave as 0 to always charge).</p>
                                 </div>
 
                                 <Button className="w-full" onClick={updateStoreConfig} disabled={isSaving}>
