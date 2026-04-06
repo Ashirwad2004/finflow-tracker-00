@@ -49,6 +49,8 @@ interface StoreProfile {
     is_store_active: boolean;
     business_name: string | null;
     business_logo: string | null;
+    delivery_charge: number;
+    free_delivery_min_amount: number;
 }
 
 // ─── Fullscreen portal cart drawer (no shadcn wrapper = no double X) ──────────
@@ -59,6 +61,7 @@ function CartDrawer({
     products,
     cartTotal,
     cartCount,
+    deliveryCharge,
     formatCurrency,
     onRemoveOne,
     onAddOne,
@@ -72,6 +75,7 @@ function CartDrawer({
     products: StoreProduct[];
     cartTotal: number;
     cartCount: number;
+    deliveryCharge: number;
     formatCurrency: (n: number) => string;
     onRemoveOne: (id: string) => void;
     onAddOne: (id: string) => void;
@@ -285,9 +289,15 @@ function CartDrawer({
                                             </div>
                                         );
                                     })}
+                                    {deliveryCharge > 0 && (
+                                        <div className="flex justify-between text-sm pt-2">
+                                            <span className="text-slate-600">Delivery Fee</span>
+                                            <span className="font-bold text-slate-900">{formatCurrency(deliveryCharge)}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-sm font-black pt-2 border-t border-slate-200 mt-1">
                                         <span className="text-slate-900">Total</span>
-                                        <span style={{ color: "hsl(262 83% 58%)" }}>{formatCurrency(cartTotal)}</span>
+                                        <span style={{ color: "hsl(262 83% 58%)" }}>{formatCurrency(cartTotal + deliveryCharge)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -298,9 +308,23 @@ function CartDrawer({
                     {cartCount > 0 && (
                         <div className="p-5 border-t border-slate-100 space-y-3 flex-shrink-0 bg-white">
                             {/* Subtotal row */}
-                            <div className="flex justify-between text-sm font-bold text-slate-700 px-1">
-                                <span>Total</span>
-                                <span className="font-black text-slate-900">{formatCurrency(cartTotal)}</span>
+                            <div className="space-y-1.5 px-1 mb-2">
+                                {deliveryCharge > 0 && (
+                                    <div className="flex justify-between text-xs text-slate-500 font-medium">
+                                        <span>Subtotal</span>
+                                        <span>{formatCurrency(cartTotal)}</span>
+                                    </div>
+                                )}
+                                {deliveryCharge > 0 && (
+                                    <div className="flex justify-between text-xs text-slate-500 font-medium">
+                                        <span>Delivery Fee</span>
+                                        <span>{formatCurrency(deliveryCharge)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between text-sm font-bold text-slate-700 pt-1">
+                                    <span>{deliveryCharge > 0 ? "Total" : "Total"}</span>
+                                    <span className="font-black text-slate-900">{formatCurrency(cartTotal + deliveryCharge)}</span>
+                                </div>
                             </div>
 
                             {step === "cart" ? (
@@ -335,7 +359,7 @@ function CartDrawer({
                                         {isSubmitting ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Placing…</>
                                         ) : (
-                                            <>Place Order · {formatCurrency(cartTotal)}</>
+                                            <>Place Order · {formatCurrency(cartTotal + deliveryCharge)}</>
                                         )}
                                     </button>
                                 </div>
@@ -435,6 +459,10 @@ export default function Storefront() {
     );
     const cartCount = useMemo(() => Object.values(cart).reduce((a, b) => a + b, 0), [cart]);
 
+    const deliveryChargeRaw = storeProfile?.delivery_charge || 0;
+    const freeDeliveryThreshold = storeProfile?.free_delivery_min_amount || 0;
+    const effectiveDeliveryCharge = (deliveryChargeRaw > 0 && freeDeliveryThreshold > 0 && cartTotal >= freeDeliveryThreshold) ? 0 : deliveryChargeRaw;
+
     // ── Submit order ───────────────────────────────────────────────────────
     const submitOrder = async (name: string, phone: string, address: string) => {
         const items = Object.entries(cart).map(([productId, qty]) => ({
@@ -449,7 +477,8 @@ export default function Storefront() {
                 p_customer_name: name,
                 p_customer_phone: phone,
                 p_customer_address: address,
-                p_total_amount: cartTotal,
+                p_total_amount: cartTotal + effectiveDeliveryCharge,
+                p_delivery_charge: effectiveDeliveryCharge,
                 p_items: items,
             });
             if (error) throw error;
@@ -621,7 +650,7 @@ export default function Storefront() {
                         }}
                     >
                         <ShoppingBag className="w-3.5 h-3.5" />
-                        <span className="text-xs">{formatCurrency(cartTotal)}</span>
+                        <span className="text-xs">{formatCurrency(cartTotal + effectiveDeliveryCharge)}</span>
                         {cartCount > 0 && (
                             <span
                                 className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px] font-black text-white flex items-center justify-center shadow"
@@ -718,7 +747,7 @@ export default function Storefront() {
                             }}
                         >
                             <ShoppingBag className="w-4 h-4" />
-                            View Cart ({cartCount}) · {formatCurrency(cartTotal)}
+                            View Cart ({cartCount}) · {formatCurrency(cartTotal + effectiveDeliveryCharge)}
                         </button>
                     )}
                 </div>
@@ -784,7 +813,7 @@ export default function Storefront() {
                             <span>View Cart</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span>{formatCurrency(cartTotal)}</span>
+                            <span>{formatCurrency(cartTotal + effectiveDeliveryCharge)}</span>
                             <ArrowRight className="w-4 h-4" />
                         </div>
                     </button>
@@ -799,6 +828,7 @@ export default function Storefront() {
                 products={products}
                 cartTotal={cartTotal}
                 cartCount={cartCount}
+                deliveryCharge={effectiveDeliveryCharge}
                 formatCurrency={formatCurrency}
                 onRemoveOne={handleRemove}
                 onAddOne={handleAdd}
