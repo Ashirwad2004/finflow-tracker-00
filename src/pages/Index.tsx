@@ -131,8 +131,8 @@ const Index = () => {
             <Button onClick={() => navigate("/auth")} variant="ghost" className="hidden sm:flex font-medium">
               Log In
             </Button>
-            <Button onClick={() => navigate("/auth")} className="shadow-lg shadow-primary/20 rounded-full px-6 transition-all hover:scale-105">
-              Get Started
+            <Button onClick={() => window.location.href = '#download'} className="shadow-lg shadow-primary/20 rounded-full px-6 transition-all hover:scale-105">
+              <Download className="mr-2 w-4 h-4" /> Download App
             </Button>
           </div>
         </div>
@@ -169,12 +169,12 @@ const Index = () => {
               Stop guessing. Start growing. The financial operating system designed for modern freelancers and businesses to scale with confidence.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
-              <Button onClick={() => navigate("/auth")} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
-                Start for Free <ArrowRight className="ml-2 w-5 h-5" />
+            <div id="download" className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
+              <Button onClick={() => window.open('https://github.com/ashirwad/finflow/releases/latest/download/FinFlow-Installer.exe')} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
+                Download for Windows <Download className="ml-2 w-5 h-5" />
               </Button>
-              <Button size="lg" onClick={() => setDemoOpen(true)} className="h-14 px-8 text-lg rounded-full bg-red-600 hover:bg-red-700 text-white border-0 shadow-lg shadow-red-500/30 transition-all hover:scale-105">
-                Book a Demo Call
+              <Button size="lg" onClick={() => window.open('https://github.com/ashirwad/finflow/releases/latest/download/FinFlow.dmg')} className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">
+                Download for Mac
               </Button>
             </div>
           </motion.div>
