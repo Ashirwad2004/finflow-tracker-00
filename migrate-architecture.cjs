@@ -7,8 +7,6 @@ console.log("Starting Migration...");
 
 const dirStructure = [
     'core',
-    'components/layout',
-    'components/shared',
     'features/auth',
     'features/dashboard',
     'features/expenses',
@@ -20,12 +18,7 @@ const dirStructure = [
     'features/trash'
 ];
 
-dirStructure.forEach(dir => {
-    const fullPath = path.join(SRC_DIR, dir.replace(/\//g, path.sep));
-    if (!fs.existsSync(fullPath)) {
-        fs.mkdirSync(fullPath, { recursive: true });
-    }
-});
+
 
 const coreFoldersToMove = ['contexts', 'hooks', 'lib', 'integrations'];
 coreFoldersToMove.forEach(folder => {
@@ -42,18 +35,8 @@ coreFoldersToMove.forEach(folder => {
     }
 });
 
-const filesToMove = {
-    // layout
-    'components/AppSidebar.tsx': 'components/layout/AppSidebar.tsx',
-    'components/AppLayout.tsx': 'components/layout/AppLayout.tsx',
-    'components/QuickActionMenu.tsx': 'components/layout/QuickActionMenu.tsx',
-    'components/PullToRefresh.tsx': 'components/layout/PullToRefresh.tsx',
 
-    // shared
-    'components/ThemeToggle.tsx': 'components/shared/ThemeToggle.tsx',
-    'components/ErrorBoundary.tsx': 'components/shared/ErrorBoundary.tsx',
-    'components/calculator.tsx': 'components/shared/calculator.tsx',
-
+    
     // auth
     'pages/Auth.tsx': 'features/auth/Auth.tsx',
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BookDemoModal } from "@/features/demo/BookDemoModal";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
+import { isTauri } from "@tauri-apps/api/core";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,8 +94,31 @@ const Index = () => {
     y.set((clientY / innerHeight - 0.5) * 20);
   }
 
+  const handleDownload = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const link = document.createElement("a");
+    link.href = "/downloads/FinFlow-Installer.exe";
+    link.download = "FinFlow-Installer.exe";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Fallback notification since we are mocking the installer locally
+    const toast = (window as any).toast || console.log;
+    toast("Download started! Check your downloads folder.");
+  };
+
   useEffect(() => {
-    // Optional: Redirect logic
+    // If desktop, skip landing page and go to auth directly
+    if (!loading && !user) {
+      try {
+        if (isTauri()) {
+          navigate("/auth", { replace: true });
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
   }, [user, loading, navigate]);
 
   if (loading) {
@@ -131,7 +155,7 @@ const Index = () => {
             <Button onClick={() => navigate("/auth")} variant="ghost" className="hidden sm:flex font-medium">
               Log In
             </Button>
-            <Button onClick={() => window.location.href = '#download'} className="shadow-lg shadow-primary/20 rounded-full px-6 transition-all hover:scale-105">
+            <Button onClick={handleDownload} className="shadow-lg shadow-primary/20 rounded-full px-6 transition-all hover:scale-105">
               <Download className="mr-2 w-4 h-4" /> Download App
             </Button>
           </div>
@@ -170,7 +194,7 @@ const Index = () => {
             </p>
 
             <div id="download" className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
-              <Button onClick={() => window.open('https://github.com/ashirwad/finflow/releases/latest/download/FinFlow-Installer.exe')} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
+              <Button onClick={handleDownload} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
                 Download for Windows <Download className="ml-2 w-5 h-5" />
               </Button>
               <Button size="lg" onClick={() => window.open('https://github.com/ashirwad/finflow/releases/latest/download/FinFlow.dmg')} className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">

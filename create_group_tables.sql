@@ -1,4 +1,3 @@
--- Run this SQL in your Supabase SQL Editor to create the group expenses tables
 
 -- Create groups table
 CREATE TABLE IF NOT EXISTS public.groups (
