@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -276,6 +277,7 @@ export default function OnlineStore() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
+    const navigate = useNavigate();
 
     const [storeSlug, setStoreSlug] = useState("");
     const [isStoreActive, setIsStoreActive] = useState(false);
@@ -285,14 +287,13 @@ export default function OnlineStore() {
     const [deliveryCharge, setDeliveryCharge] = useState<number | "">("");
     const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | "">("");
 
-    // Fetch profile
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
             const { data, error } = await (supabase.from as any)("profiles")
                 .select("*")
                 .eq("user_id", user?.id)
-                .single();
+                .maybeSingle();
             if (error) throw error;
             return data;
         },
@@ -300,11 +301,13 @@ export default function OnlineStore() {
     });
 
     useEffect(() => {
-        if (profile && isInitialLoading) {
-            setStoreSlug((profile as any).store_slug || "");
-            setIsStoreActive((profile as any).is_store_active || false);
-            setDeliveryCharge((profile as any).delivery_charge || "");
-            setFreeDeliveryThreshold((profile as any).free_delivery_min_amount || "");
+        if (profile !== undefined && isInitialLoading) {
+            if (profile) {
+                setStoreSlug((profile as any).store_slug || "");
+                setIsStoreActive((profile as any).is_store_active || false);
+                setDeliveryCharge((profile as any).delivery_charge || "");
+                setFreeDeliveryThreshold((profile as any).free_delivery_min_amount || "");
+            }
             setIsInitialLoading(false);
         }
     }, [profile, isInitialLoading]);
@@ -338,19 +341,23 @@ export default function OnlineStore() {
         
         const finalSlug = storeSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
         
-        const { error } = await (supabase.from as any)("profiles")
-            .update({
+        const { data: updatedProfile, error } = await (supabase.from as any)("profiles")
+            .upsert({
+                user_id: user?.id,
                 store_slug: finalSlug || null,
                 is_store_active: isStoreActive,
                 delivery_charge: deliveryCharge || 0,
                 free_delivery_min_amount: freeDeliveryThreshold || 0,
             } as any)
-            .eq("user_id", user?.id);
+            .select();
 
+        console.log("Upsert profile response:", { updatedProfile, error });
         setIsSaving(false);
 
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } else if (!updatedProfile || updatedProfile.length === 0) {
+            toast({ title: "Error", description: "Could not update profile. You might not have permission, or your database is missing columns.", variant: "destructive" });
         } else {
             setStoreSlug(finalSlug); // Sync the potentially cleaned slug back to state
             toast({ title: "Saved", description: "Online store settings updated." });
@@ -374,7 +381,10 @@ export default function OnlineStore() {
     const publicUrl = `${window.location.origin}/store/${storeSlug}`;
 
     const handleCopyLink = () => {
-        navigator.clipboard.writeText(publicUrl);
+        const cleanUrl = window.location.hostname.includes("localhost") || window.location.hostname.includes("tauri") 
+            ? `https://finflow.app/store/${storeSlug}` 
+            : publicUrl;
+        navigator.clipboard.writeText(cleanUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         toast({ title: "Copied!", description: "Store link copied to clipboard." });
@@ -487,14 +497,22 @@ export default function OnlineStore() {
                                         {isStoreActive ? "Share this link with customers to accept orders." : "Enable the store above to let customers visit this link."}
                                     </p>
                                     <div className="bg-white rounded-lg border px-3 py-2 text-xs font-mono text-muted-foreground break-all mb-3 select-all">
-                                        {publicUrl}
+                                        {window.location.hostname.includes("localhost") || window.location.hostname.includes("tauri") 
+                                            ? `https://finflow.app/store/${storeSlug}` 
+                                            : publicUrl}
                                     </div>
                                     <div className="flex gap-2">
                                         <Button variant="secondary" size="sm" className="flex-1" onClick={handleCopyLink}>
                                             {copied ? <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
                                             {copied ? "Copied!" : "Copy Link"}
                                         </Button>
-                                        <Button variant="outline" size="sm" className="flex-1" onClick={() => window.open(publicUrl, "_blank")} disabled={!isStoreActive}>
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="flex-1" 
+                                            onClick={() => navigate(`/store/${storeSlug}`)} 
+                                            disabled={!isStoreActive}
+                                        >
                                             <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                                             Preview
                                         </Button>

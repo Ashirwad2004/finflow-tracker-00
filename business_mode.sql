@@ -16,7 +16,7 @@ SELECT 'Marketing', '#F97316', 'Megaphone'
 WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = 'Marketing');
 
 INSERT INTO categories (name, color, icon)
-SELECT 'Office Supplies', '#10B981', 'Paperclip'
+SELECT 'Office Supplies', '#19bc86ff', 'Paperclip'
 WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = 'Office Supplies');
 
 INSERT INTO categories (name, color, icon)

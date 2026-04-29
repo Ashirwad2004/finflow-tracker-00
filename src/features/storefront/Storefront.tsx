@@ -447,11 +447,15 @@ export default function Storefront() {
         data: storeProfile,
         isLoading: isLoadingStore,
         isFetched: isStoreFetched,
+        error: storeError,
     } = useQuery<StoreProfile | null>({
         queryKey: ["publicStoreProfile", storeSlug],
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc("get_public_store", { p_slug: storeSlug });
-            if (error) return null;
+            if (error) {
+                console.error("Supabase RPC Error:", error);
+                throw new Error(`Database Error: ${error.message}. (Did you forget to run the SQL migrations?)`);
+            }
             let row: any = null;
             if (Array.isArray(data)) row = data[0] ?? null;
             else if (data && typeof data === "object") row = data;
@@ -573,7 +577,7 @@ export default function Storefront() {
     }
 
     // ── Store not found ────────────────────────────────────────────────────
-    if (isStoreFetched && !storeProfile) {
+    if (storeError || (isStoreFetched && !storeProfile)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
                 <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 max-w-sm w-full text-center">
@@ -582,7 +586,9 @@ export default function Storefront() {
                     </div>
                     <h1 className="text-2xl font-black text-slate-900 mb-2">Store Not Found</h1>
                     <p className="text-slate-500 text-sm leading-relaxed">
-                        This store link is invalid or offline. Please verify the URL.
+                        {storeError 
+                            ? String(storeError) 
+                            : "This store link is invalid, not active yet, or offline. Please verify the URL or ensure you have saved your Online Store settings."}
                     </p>
                 </div>
             </div>
