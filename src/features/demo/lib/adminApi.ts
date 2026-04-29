@@ -37,19 +37,20 @@ export interface SystemHealth {
 // ---------- Users ----------
 
 /**
- * Fetches app users from the `profiles` table.
- * Falls back gracefully if the table doesn't exist yet.
+ * Fetches app users via RPC to bypass RLS and join with auth.users for emails.
  */
 export async function getAppUsers(): Promise<AppUser[]> {
-  const { data, error } = await db
-    .from("profiles")
-    .select("id, user_id, email, created_at, updated_at, avatar_url, full_name, business_name, gst_number, business_phone, business_address, is_business_mode, business_logo, signature_url")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const { data, error } = await db.rpc("get_admin_users");
 
   if (error) {
-    // profiles table might not exist — return empty array gracefully
-    console.warn("[adminApi] getAppUsers:", error.message);
+    console.warn("[adminApi] getAppUsers RPC error:", error.message);
+    if (typeof window !== "undefined" && (window as any).toast) {
+      (window as any).toast.error("Failed to load users: " + error.message + ". Did you run the SQL script?");
+    } else {
+      console.error("Please run the admin_get_users_rpc.sql script in your Supabase SQL editor!");
+      // Optionally use alert so the user really sees it
+      // alert("Error loading users: " + error.message + "\n\nPlease run the admin_get_users_rpc.sql script in your Supabase Dashboard!");
+    }
     return [];
   }
   return (data ?? []) as AppUser[];

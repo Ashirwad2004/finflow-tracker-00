@@ -28,6 +28,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { motion, useScroll, useTransform, useSpring, useMotionValue } from "framer-motion";
 
 // --- Components for the Landing Page ---
@@ -72,6 +73,7 @@ const Index = () => {
   const navigate = useNavigate();
   const targetRef = useRef<HTMLDivElement>(null);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   // Hero Parallax Logic
   const { scrollYProgress } = useScroll({
@@ -96,16 +98,20 @@ const Index = () => {
 
   const handleDownload = (e: React.MouseEvent) => {
     e.preventDefault();
-    const link = document.createElement("a");
-    link.href = "/downloads/FinFlow-Installer.exe";
-    link.download = "FinFlow-Installer.exe";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setShowInstallGuide(true);
     
-    // Fallback notification since we are mocking the installer locally
-    const toast = (window as any).toast || console.log;
-    toast("Download started! Check your downloads folder.");
+    // Slight delay to allow modal to open before download starts
+    setTimeout(() => {
+      const link = document.createElement("a");
+      link.href = "/downloads/FinFlow-Installer.exe";
+      link.download = "FinFlow-Installer.exe";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      const toast = (window as any).toast || console.log;
+      toast("Download started! Check your downloads folder.");
+    }, 500);
   };
 
   useEffect(() => {
@@ -136,6 +142,39 @@ const Index = () => {
   return (
     <>
     <div className="min-h-screen bg-background font-sans selection:bg-primary/20 overflow-x-hidden" onMouseMove={handleMouseMove}>
+      {/* Installation Guide Modal */}
+      <Dialog open={showInstallGuide} onOpenChange={setShowInstallGuide}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" /> Download Started!
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              Because FinFlow is new, Windows might block the installation. Here is how to install it safely:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
+              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">1</div>
+              <p className="text-sm">Click on the downloaded <strong>FinFlow-Installer.exe</strong> file.</p>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
+              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">2</div>
+              <p className="text-sm">If you see a blue "Windows protected your PC" screen, click on <strong>More info</strong>.</p>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
+              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">3</div>
+              <p className="text-sm">Click the <strong>Run anyway</strong> button at the bottom to start the installation.</p>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-start">
+            <Button type="button" onClick={() => setShowInstallGuide(false)} className="w-full">
+              I understand, close this window
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Navigation */}
       <motion.nav
         initial={{ y: -100 }}
@@ -194,11 +233,11 @@ const Index = () => {
             </p>
 
             <div id="download" className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
+              <Button onClick={() => setDemoOpen(true)} size="lg" className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">
+                <Star className="mr-2 w-5 h-5" /> Book a Demo
+              </Button>
               <Button onClick={handleDownload} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
                 Download for Windows <Download className="ml-2 w-5 h-5" />
-              </Button>
-              <Button size="lg" onClick={() => window.open('https://github.com/ashirwad/finflow/releases/latest/download/FinFlow.dmg')} className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">
-                Download for Mac
               </Button>
             </div>
           </motion.div>
@@ -803,8 +842,11 @@ const Index = () => {
               <Button size="lg" onClick={() => navigate("/auth")} className="h-16 px-10 text-xl rounded-full shadow-xl bg-primary hover:bg-primary/90">
                 Get Started Now
               </Button>
-              <p className="text-sm text-muted-foreground mt-4 sm:mt-0 sm:ml-4">No credit card required.</p>
+              <Button size="lg" variant="outline" onClick={() => setDemoOpen(true)} className="h-16 px-10 text-xl rounded-full hover:scale-105 transition-all bg-background/50 backdrop-blur-sm border-border/80">
+                Book a Demo
+              </Button>
             </div>
+            <p className="text-sm text-muted-foreground mt-4">No credit card required.</p>
           </motion.div>
         </div>
       </section>
