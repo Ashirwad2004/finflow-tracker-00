@@ -88,9 +88,16 @@ function CartDrawer({
     isSubmitting: boolean;
 }) {
     const [step, setStep] = useState<"cart" | "form">("cart");
-    const [name, setName] = useState("");
-    const [phone, setPhone] = useState("");
-    const [address, setAddress] = useState("");
+    const [name, setName] = useState(() => localStorage.getItem("storefront_name") || "");
+    const [phone, setPhone] = useState(() => localStorage.getItem("storefront_phone") || "");
+    const [address, setAddress] = useState(() => localStorage.getItem("storefront_address") || "");
+
+    // Save details to localStorage whenever they change
+    useEffect(() => {
+        localStorage.setItem("storefront_name", name);
+        localStorage.setItem("storefront_phone", phone);
+        localStorage.setItem("storefront_address", address);
+    }, [name, phone, address]);
 
     // reset to cart view whenever drawer opens
     useEffect(() => {
@@ -99,7 +106,7 @@ function CartDrawer({
 
     const handleSubmit = async () => {
         await onSubmit(name, phone, address);
-        setName(""); setPhone(""); setAddress("");
+        // We no longer clear name/phone/address here so they persist for the customer's next visit.
         setStep("cart");
     };
 
@@ -468,11 +475,11 @@ export default function Storefront() {
 
     const storeId = storeProfile?.user_id ?? null;
 
-    const { data: brandingData } = useQuery<{ business_name: string | null; business_logo: string | null } | null>({
+    const { data: brandingData } = useQuery<{ business_name: string | null; business_logo: string | null; delivery_charge: number | null; free_delivery_min_amount: number | null } | null>({
         queryKey: ["publicStoreBranding", storeId],
         queryFn: async () => {
             const { data, error } = await (supabase as any)
-                .from("profiles").select("business_name, business_logo")
+                .from("profiles").select("business_name, business_logo, delivery_charge, free_delivery_min_amount")
                 .eq("user_id", storeId).maybeSingle();
             if (error) return null;
             return data;
@@ -507,8 +514,8 @@ export default function Storefront() {
     );
     const cartCount = useMemo(() => Object.values(cart).reduce((a, b) => a + b, 0), [cart]);
 
-    const deliveryChargeRaw = Number(storeProfile?.delivery_charge) || 0;
-    const freeDeliveryThreshold = Number(storeProfile?.free_delivery_min_amount) || 0;
+    const deliveryChargeRaw = Number(brandingData?.delivery_charge ?? storeProfile?.delivery_charge) || 0;
+    const freeDeliveryThreshold = Number(brandingData?.free_delivery_min_amount ?? storeProfile?.free_delivery_min_amount) || 0;
     const effectiveDeliveryCharge = (deliveryChargeRaw > 0 && freeDeliveryThreshold > 0 && cartTotal >= freeDeliveryThreshold) ? 0 : deliveryChargeRaw;
 
     // ── Submit order ───────────────────────────────────────────────────────

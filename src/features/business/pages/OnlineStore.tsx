@@ -31,6 +31,8 @@ import {
     ChevronDown,
     ChevronRight,
     Clock,
+    Calendar,
+    BarChart3,
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -286,6 +288,7 @@ export default function OnlineStore() {
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [deliveryCharge, setDeliveryCharge] = useState<number | "">("");
     const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | "">("");
+    const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "year" | "all">("month");
 
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
@@ -342,22 +345,31 @@ export default function OnlineStore() {
         const finalSlug = storeSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
         
         const { data: updatedProfile, error } = await (supabase.from as any)("profiles")
-            .upsert({
-                user_id: user?.id,
+            .update({
                 store_slug: finalSlug || null,
                 is_store_active: isStoreActive,
                 delivery_charge: deliveryCharge || 0,
                 free_delivery_min_amount: freeDeliveryThreshold || 0,
             } as any)
+            .eq("user_id", user?.id)
             .select();
 
-        console.log("Upsert profile response:", { updatedProfile, error });
+        console.log("Update profile response:", { updatedProfile, error });
         setIsSaving(false);
 
         if (error) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+            // Check for duplicate key error which often means the store slug is already taken
+            if (error.code === '23505' || error.message?.includes('duplicate key')) {
+                toast({ 
+                    title: "URL Already Taken", 
+                    description: "That Store URL Slug is already used by another business. Please choose a different one.", 
+                    variant: "destructive" 
+                });
+            } else {
+                toast({ title: "Error", description: error.message, variant: "destructive" });
+            }
         } else if (!updatedProfile || updatedProfile.length === 0) {
-            toast({ title: "Error", description: "Could not update profile. You might not have permission, or your database is missing columns.", variant: "destructive" });
+            toast({ title: "Error", description: "Could not update profile. You might not have permission.", variant: "destructive" });
         } else {
             setStoreSlug(finalSlug); // Sync the potentially cleaned slug back to state
             toast({ title: "Saved", description: "Online store settings updated." });
@@ -393,10 +405,43 @@ export default function OnlineStore() {
     // Count by status for summary badges
     const pendingCount = orders.filter(o => o.status === "pending").length;
 
+    // Calculate Dynamic SaaS Metrics
+    const now = new Date();
+    let startTime = 0;
+    
+    if (dateFilter === "today") {
+        startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    } else if (dateFilter === "week") {
+        const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1; // 0 for Mon, 6 for Sun
+        startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek).getTime();
+    } else if (dateFilter === "month") {
+        startTime = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    } else if (dateFilter === "year") {
+        startTime = new Date(now.getFullYear(), 0, 1).getTime();
+    } // "all" -> 0
+
+    let filteredSales = 0;
+    let filteredOrdersCount = 0;
+    let filteredDeliveryFee = 0;
+
+    orders.forEach(order => {
+        // Only count accepted or completed orders for revenue metrics
+        if (order.status !== "completed" && order.status !== "accepted") return;
+        
+        const orderTime = new Date(order.created_at).getTime();
+        if (orderTime >= startTime) {
+            filteredSales += (order.total_amount || 0);
+            filteredDeliveryFee += (order.delivery_charge || 0);
+            filteredOrdersCount++;
+        }
+    });
+
+    const avgOrderValue = filteredOrdersCount > 0 ? filteredSales / filteredOrdersCount : 0;
+
     return (
         <AppLayout>
             <div className="container mx-auto px-4 py-8">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-3xl font-bold flex items-center gap-2">
                             <ShoppingBag className="w-8 h-8 text-primary" />
@@ -405,6 +450,61 @@ export default function OnlineStore() {
                         <p className="text-muted-foreground mt-1">
                             Manage your public storefront and incoming online orders
                         </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-muted-foreground">Showing:</span>
+                        <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+                            <SelectTrigger className="w-[160px] bg-background">
+                                <SelectValue placeholder="Select Period" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="today">Today</SelectItem>
+                                <SelectItem value="week">This Week</SelectItem>
+                                <SelectItem value="month">This Month</SelectItem>
+                                <SelectItem value="year">This Year</SelectItem>
+                                <SelectItem value="all">All Time</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {/* SaaS Metrics Dashboard */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Revenue</span>
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                <Activity className="w-4 h-4 text-emerald-600" />
+                            </div>
+                        </div>
+                        <span className="text-2xl font-black text-foreground">{formatCurrency(filteredSales)}</span>
+                    </div>
+                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Orders</span>
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                <ShoppingBag className="w-4 h-4 text-blue-600" />
+                            </div>
+                        </div>
+                        <span className="text-2xl font-black text-foreground">{filteredOrdersCount}</span>
+                    </div>
+                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg. Order Value</span>
+                            <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                                <BarChart3 className="w-4 h-4 text-violet-600" />
+                            </div>
+                        </div>
+                        <span className="text-2xl font-black text-foreground">{formatCurrency(avgOrderValue)}</span>
+                    </div>
+                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Delivery Fees</span>
+                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                                <MapPin className="w-4 h-4 text-amber-600" />
+                            </div>
+                        </div>
+                        <span className="text-2xl font-black text-foreground">{formatCurrency(filteredDeliveryFee)}</span>
                     </div>
                 </div>
 
