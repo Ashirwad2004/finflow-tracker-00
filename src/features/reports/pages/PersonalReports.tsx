@@ -20,7 +20,7 @@ export default function PersonalReports() {
     const { data: lentMoney = [], isLoading: loadingLent } = useQuery({
         queryKey: ["reports-lent-money", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("lent_money")
                 .select("*")
                 .eq("user_id", user?.id)
@@ -35,7 +35,7 @@ export default function PersonalReports() {
     const { data: borrowedMoney = [], isLoading: loadingBorrowed } = useQuery({
         queryKey: ["reports-borrowed-money", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("borrowed_money")
                 .select("*")
                 .eq("user_id", user?.id)
