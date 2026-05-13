@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -40,7 +40,7 @@ import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { menuItems, businessMenuItems } from "@/components/layout/AppSidebar";
 import { cn } from "@/core/lib/utils";
-import BusinessDashboard from "@/features/business/pages/BusinessDashboard";
+const BusinessDashboard = lazy(() => import("@/features/business/pages/BusinessDashboard"));
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { motion } from "framer-motion";
 import { AnimatedCounter, DashboardCard } from "@/features/dashboard/DashboardComponents";
@@ -229,7 +229,9 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        <BusinessDashboard />
+        <Suspense fallback={<div className="p-8 text-center text-muted-foreground animate-pulse">Loading Business Dashboard...</div>}>
+          <BusinessDashboard />
+        </Suspense>
       </AppLayout>
     );
   }
