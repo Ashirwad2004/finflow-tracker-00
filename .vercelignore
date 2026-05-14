@@ -1,3 +1,7 @@
 # Ignore python scripts so Vercel doesn't think this is a FastAPI app
 *.py
 update_ui.py
+backend/
+backend/*
+requirements.txt
+alembic/
