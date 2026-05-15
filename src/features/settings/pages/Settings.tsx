@@ -19,6 +19,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DesktopSettings } from "../components/DesktopSettings";
+import { StoreSettings } from "../components/StoreSettings";
 
 type BackupFormat = "json" | "csv";
 
@@ -154,23 +155,23 @@ const SettingsPage = () => {
             <div className="container mx-auto p-4 max-w-2xl animate-fade-in">
                 <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {/* Business Mode Section */}
-                    <Card>
-                        <CardHeader>
+                    <Card className="rounded-md">
+                        <CardHeader className="p-4 pb-2">
                             <div className="flex items-center gap-2">
-                                <Building2 className="w-5 h-5 text-primary" />
-                                <CardTitle>Business Preferences</CardTitle>
+                                <Building2 className="w-4 h-4 text-primary" />
+                                <CardTitle className="text-base">Business Preferences</CardTitle>
                             </div>
-                            <CardDescription>
+                            <CardDescription className="text-xs">
                                 Customize features for small business usage.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="space-y-4 p-4 pt-0">
                             <div className="flex items-center justify-between space-x-2">
                                 <div className="space-y-1">
-                                    <Label htmlFor="business-mode" className="text-base">Business Mode</Label>
-                                    <p className="text-sm text-muted-foreground">
+                                    <Label htmlFor="business-mode" className="text-sm font-semibold">Business Mode</Label>
+                                    <p className="text-[11px] text-muted-foreground">
                                         Enable tax tracking, invoices, and reimbursable expenses.
                                     </p>
                                 </div>
@@ -178,7 +179,7 @@ const SettingsPage = () => {
                                     id="business-mode"
                                     checked={isBusinessMode}
                                     onCheckedChange={handleBusinessToggle}
-                                    className="transition-all duration-300"
+                                    className="transition-all duration-300 scale-90"
                                 />
                             </div>
                         </CardContent>
@@ -186,19 +187,19 @@ const SettingsPage = () => {
 
                     {/* Currency Section */}
 
-                    <Card>
-                        <CardHeader>
+                    <Card className="rounded-md">
+                        <CardHeader className="p-4 pb-2">
                             <div className="flex items-center gap-2">
-                                <Globe className="w-5 h-5 text-primary" />
-                                <CardTitle>Regional Settings</CardTitle>
+                                <Globe className="w-4 h-4 text-primary" />
+                                <CardTitle className="text-base">Regional Settings</CardTitle>
                             </div>
-                            <CardDescription>
+                            <CardDescription className="text-xs">
                                 Set your currency and locale preferences.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="p-4 pt-0">
                             <div className="space-y-2">
-                                <Label htmlFor="currency">Currency</Label>
+                                <Label htmlFor="currency" className="text-xs">Currency</Label>
                                 <Select
                                     value={currency.code}
                                     onValueChange={(val) => {
@@ -206,7 +207,7 @@ const SettingsPage = () => {
                                         if (selected) setCurrency(selected);
                                     }}
                                 >
-                                    <SelectTrigger id="currency">
+                                    <SelectTrigger id="currency" className="h-8 text-xs">
                                         <SelectValue placeholder="Select Currency" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -222,26 +223,26 @@ const SettingsPage = () => {
                     </Card>
 
                     {/* Backup Section */}
-                    <Card>
-                        <CardHeader>
+                    <Card className="rounded-md">
+                        <CardHeader className="p-4 pb-2">
                             <div className="flex items-center gap-2">
-                                <Download className="w-5 h-5 text-primary" />
-                                <CardTitle>Data Backup</CardTitle>
+                                <Download className="w-4 h-4 text-primary" />
+                                <CardTitle className="text-base">Data Backup</CardTitle>
                             </div>
-                            <CardDescription>
+                            <CardDescription className="text-xs">
                                 Download a complete backup of all your data.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="p-4 pt-0">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <p className="text-sm text-muted-foreground">
+                                    <p className="text-[11px] text-muted-foreground">
                                         Export expenses, sales, purchases, lent/borrowed money, and more.
                                     </p>
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button disabled={isBackingUp} className="ml-4">
+                                        <Button disabled={isBackingUp} className="ml-4" size="sm">
                                             {isBackingUp ? (
                                                 <>
                                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -269,6 +270,8 @@ const SettingsPage = () => {
                             </div>
                         </CardContent>
                     </Card>
+
+                    <StoreSettings />
 
                     <DesktopSettings />
                 </div>
