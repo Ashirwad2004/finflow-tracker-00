@@ -281,39 +281,7 @@ export default function OnlineStore() {
     const { formatCurrency } = useCurrency();
     const navigate = useNavigate();
 
-    const [storeSlug, setStoreSlug] = useState("");
-    const [isStoreActive, setIsStoreActive] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [copied, setCopied] = useState(false);
-    const [isInitialLoading, setIsInitialLoading] = useState(true);
-    const [deliveryCharge, setDeliveryCharge] = useState<number | "">("");
-    const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | "">("");
     const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "year" | "all">("month");
-
-    const { data: profile } = useQuery({
-        queryKey: ["profile", user?.id],
-        queryFn: async () => {
-            const { data, error } = await (supabase.from as any)("profiles")
-                .select("*")
-                .eq("user_id", user?.id)
-                .maybeSingle();
-            if (error) throw error;
-            return data;
-        },
-        enabled: !!user,
-    });
-
-    useEffect(() => {
-        if (profile !== undefined && isInitialLoading) {
-            if (profile) {
-                setStoreSlug((profile as any).store_slug || "");
-                setIsStoreActive((profile as any).is_store_active || false);
-                setDeliveryCharge((profile as any).delivery_charge || "");
-                setFreeDeliveryThreshold((profile as any).free_delivery_min_amount || "");
-            }
-            setIsInitialLoading(false);
-        }
-    }, [profile, isInitialLoading]);
 
     // Fetch Orders — include nested order items + product name in a single query
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
@@ -339,43 +307,6 @@ export default function OnlineStore() {
         enabled: !!user,
     });
 
-    const updateStoreConfig = async () => {
-        setIsSaving(true);
-        
-        const finalSlug = storeSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
-        
-        const { data: updatedProfile, error } = await (supabase.from as any)("profiles")
-            .update({
-                store_slug: finalSlug || null,
-                is_store_active: isStoreActive,
-                delivery_charge: deliveryCharge || 0,
-                free_delivery_min_amount: freeDeliveryThreshold || 0,
-            } as any)
-            .eq("user_id", user?.id)
-            .select();
-
-        console.log("Update profile response:", { updatedProfile, error });
-        setIsSaving(false);
-
-        if (error) {
-            // Check for duplicate key error which often means the store slug is already taken
-            if (error.code === '23505' || error.message?.includes('duplicate key')) {
-                toast({ 
-                    title: "URL Already Taken", 
-                    description: "That Store URL Slug is already used by another business. Please choose a different one.", 
-                    variant: "destructive" 
-                });
-            } else {
-                toast({ title: "Error", description: error.message, variant: "destructive" });
-            }
-        } else if (!updatedProfile || updatedProfile.length === 0) {
-            toast({ title: "Error", description: "Could not update profile. You might not have permission.", variant: "destructive" });
-        } else {
-            setStoreSlug(finalSlug); // Sync the potentially cleaned slug back to state
-            toast({ title: "Saved", description: "Online store settings updated." });
-            queryClient.invalidateQueries({ queryKey: ["profile"] });
-        }
-    };
 
     const updateOrderStatus = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
@@ -445,17 +376,6 @@ export default function OnlineStore() {
         };
     }, [user?.id, queryClient, toast]);
 
-    const publicUrl = `${window.location.origin}/store/${storeSlug}`;
-
-    const handleCopyLink = () => {
-        const cleanUrl = window.location.hostname.includes("localhost") || window.location.hostname.includes("tauri") 
-            ? `https://finflow.app/store/${storeSlug}` 
-            : publicUrl;
-        navigator.clipboard.writeText(cleanUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-        toast({ title: "Copied!", description: "Store link copied to clipboard." });
-    };
 
     // Count by status for summary badges
     const pendingCount = orders.filter(o => o.status === "pending").length;
@@ -563,122 +483,9 @@ export default function OnlineStore() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Settings Panel */}
-                    <div className="lg:col-span-1 space-y-6">
-                        <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
-                            <div className="p-6 border-b bg-muted/40">
-                                <h2 className="text-xl font-semibold flex items-center gap-2">
-                                    <Globe className="w-5 h-5 text-primary" />
-                                    Store Configuration
-                                </h2>
-                            </div>
-                            <div className="p-6 space-y-6">
-                                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
-                                    <div className="space-y-0.5">
-                                        <Label className="text-base">Enable Store</Label>
-                                        <p className="text-xs text-muted-foreground">Make your store visible to the public</p>
-                                    </div>
-                                    <Switch checked={isStoreActive} onCheckedChange={setIsStoreActive} />
-                                </div>
-
-                                <div className="space-y-3">
-                                    <Label htmlFor="storeSlug">Store URL Slug</Label>
-                                    <div className="flex">
-                                        <div className="bg-muted px-3 border border-r-0 rounded-l-md flex items-center text-sm text-muted-foreground whitespace-nowrap">
-                                            {window.location.host}/store/
-                                        </div>
-                                        <Input
-                                            id="storeSlug"
-                                            value={storeSlug}
-                                            onChange={(e) => setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                                            placeholder="my-business"
-                                            className="rounded-l-none"
-                                        />
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">This is your unique link to share with customers.</p>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <Label htmlFor="deliveryCharge">Delivery Charge ({formatCurrency(0).replace(/\d/g, '').trim()})</Label>
-                                    <Input
-                                        id="deliveryCharge"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={deliveryCharge}
-                                        onChange={(e) => setDeliveryCharge(e.target.value === "" ? "" : Number(e.target.value))}
-                                        placeholder="e.g. 50"
-                                    />
-                                    <p className="text-xs text-muted-foreground">Added to the final amount on checkout.</p>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <Label htmlFor="freeDeliveryThreshold">Free Delivery Threshold ({formatCurrency(0).replace(/\d/g, '').trim()})</Label>
-                                    <Input
-                                        id="freeDeliveryThreshold"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={freeDeliveryThreshold}
-                                        onChange={(e) => setFreeDeliveryThreshold(e.target.value === "" ? "" : Number(e.target.value))}
-                                        placeholder="e.g. 300"
-                                    />
-                                    <p className="text-xs text-muted-foreground">Orders equal to or above this cart value get free delivery (leave as 0 to always charge).</p>
-                                </div>
-
-                                <Button className="w-full" onClick={updateStoreConfig} disabled={isSaving}>
-                                    {isSaving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : "Save Settings"}
-                                </Button>
-                            </div>
-                        </div>
-
-                        {storeSlug && (
-                            <div className={`rounded-xl p-5 shadow-sm border relative overflow-hidden ${isStoreActive ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200" : "bg-muted/40 border-dashed"}`}>
-                                <div className="absolute top-0 right-0 p-3 opacity-10">
-                                    <Globe className="w-20 h-20 text-primary" />
-                                </div>
-                                <div className="relative z-10">
-                                    {isStoreActive ? (
-                                        <Badge className="mb-3 bg-green-500/15 text-green-700 hover:bg-green-500/20 border-green-400/30 text-xs">
-                                            <Activity className="w-3 h-3 mr-1" />
-                                            Store is Live
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="outline" className="mb-3 text-xs border-dashed">Store is Inactive</Badge>
-                                    )}
-                                    <p className="text-sm font-semibold mb-1">Your Storefront Link</p>
-                                    <p className="text-xs text-muted-foreground mb-3">
-                                        {isStoreActive ? "Share this link with customers to accept orders." : "Enable the store above to let customers visit this link."}
-                                    </p>
-                                    <div className="bg-white rounded-lg border px-3 py-2 text-xs font-mono text-muted-foreground break-all mb-3 select-all">
-                                        {window.location.hostname.includes("localhost") || window.location.hostname.includes("tauri") 
-                                            ? `https://finflow.app/store/${storeSlug}` 
-                                            : publicUrl}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Button variant="secondary" size="sm" className="flex-1" onClick={handleCopyLink}>
-                                            {copied ? <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
-                                            {copied ? "Copied!" : "Copy Link"}
-                                        </Button>
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            className="flex-1" 
-                                            onClick={() => navigate(`/store/${storeSlug}`)} 
-                                            disabled={!isStoreActive}
-                                        >
-                                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                                            Preview
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
+                <div className="flex-1">
                     {/* Orders Panel */}
-                    <div className="lg:col-span-2">
+                    <div>
                         <div className="bg-card border rounded-xl shadow-sm h-full flex flex-col">
                             <div className="p-6 border-b flex items-center justify-between">
                                 <div className="flex items-center gap-3">

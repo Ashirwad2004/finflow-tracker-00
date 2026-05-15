@@ -69,24 +69,24 @@ export const DesktopSettings = () => {
     if (!isDesktop) return null;
 
     return (
-        <Card className="border-primary/20 shadow-md">
-            <CardHeader className="bg-primary/5 pb-4">
+        <Card className="border-primary/20 shadow-md rounded-md">
+            <CardHeader className="bg-primary/5 p-4 pb-2">
                 <div className="flex items-center gap-2">
-                    <Monitor className="w-5 h-5 text-primary" />
-                    <CardTitle>Desktop Preferences</CardTitle>
+                    <Monitor className="w-4 h-4 text-primary" />
+                    <CardTitle className="text-base">Desktop Preferences</CardTitle>
                 </div>
-                <CardDescription>
+                <CardDescription className="text-xs">
                     Manage FinFlow native application settings.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 pt-4">
+            <CardContent className="space-y-4 p-4 pt-2">
                 <div className="flex items-center justify-between space-x-2">
                     <div className="space-y-1">
-                        <Label htmlFor="auto-start" className="text-base flex items-center gap-2">
+                        <Label htmlFor="auto-start" className="text-sm font-semibold flex items-center gap-2">
                             <PlaySquare className="w-4 h-4 text-muted-foreground" /> 
                             Launch on System Startup
                         </Label>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-[11px] text-muted-foreground">
                             Automatically open FinFlow in the background when your computer boots.
                         </p>
                     </div>
@@ -94,21 +94,23 @@ export const DesktopSettings = () => {
                         id="auto-start"
                         checked={autoStart}
                         onCheckedChange={handleAutoStartToggle}
+                        className="scale-90"
                     />
                 </div>
 
                 <div className="flex items-center justify-between space-x-2 border-t pt-4">
                     <div className="space-y-1">
-                        <Label className="text-base flex items-center gap-2">
+                        <Label className="text-sm font-semibold flex items-center gap-2">
                             <DownloadCloud className="w-4 h-4 text-muted-foreground" /> 
                             Software Updates
                         </Label>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-[11px] text-muted-foreground">
                             Check for new features, bug fixes, and performance improvements.
                         </p>
                     </div>
                     <Button 
                         variant="outline" 
+                        size="sm"
                         onClick={handleCheckUpdate} 
                         disabled={checkingUpdate}
                     >
