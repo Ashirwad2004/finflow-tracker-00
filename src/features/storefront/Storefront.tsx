@@ -436,6 +436,104 @@ function CartDrawer({
     );
 }
 
+// ─── Fullscreen Orders Drawer ──────────
+function OrdersDrawer({
+    open,
+    onClose,
+    formatCurrency
+}: {
+    open: boolean;
+    onClose: () => void;
+    formatCurrency: (n: number) => string;
+}) {
+    const savedOrders = useMemo(() => {
+        try { return JSON.parse(localStorage.getItem('storefront_orders') || '[]'); } catch { return []; }
+    }, [open]);
+
+    const { data: orders, isLoading } = useQuery({
+        queryKey: ['orderHistory', savedOrders],
+        queryFn: async () => {
+            if (!savedOrders.length) return [];
+            const { data, error } = await (supabase as any).rpc('get_customer_orders', { p_order_ids: savedOrders });
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: open && savedOrders.length > 0
+    });
+
+    return (
+        <DialogPrimitive.Root open={open} onOpenChange={v => { if (!v) onClose(); }}>
+            <DialogPrimitive.Portal>
+                <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+                <DialogPrimitive.Content className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-white shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=closed]:duration-300 data-[state=open]:duration-500">
+                    <DialogPrimitive.Title className="sr-only">My Orders</DialogPrimitive.Title>
+
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                            <PackageOpen className="w-5 h-5 text-indigo-600" />
+                            <h2 className="text-lg font-black text-slate-900">My Orders</h2>
+                        </div>
+                        <button onClick={onClose} className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                            <X className="w-4 h-4 text-slate-600" />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+                        {!savedOrders.length ? (
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center">
+                                    <PackageOpen className="w-10 h-10 text-slate-300" />
+                                </div>
+                                <p className="font-semibold text-slate-400 text-sm">No past orders found.</p>
+                            </div>
+                        ) : isLoading ? (
+                            <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
+                        ) : (
+                            orders?.map((order: any) => (
+                                <div key={order.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-400 mb-1">
+                                                {new Date(order.created_at).toLocaleDateString()} at {new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                            </p>
+                                            <p className="font-black text-slate-900">{formatCurrency(order.total_amount)}</p>
+                                        </div>
+                                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                            order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                            order.status === 'accepted' ? 'bg-orange-100 text-orange-700' :
+                                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                            'bg-blue-100 text-blue-700'
+                                        }`}>
+                                            {order.status}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {(order.items || []).map((item: any, i: number) => (
+                                            <div key={i} className="flex justify-between text-sm">
+                                                <span className="text-slate-600 flex items-center gap-2">
+                                                    <span className="w-5 h-5 bg-slate-100 rounded flex items-center justify-center text-[10px] font-bold text-slate-500">{item.quantity}x</span>
+                                                    {item.product_name}
+                                                </span>
+                                                <span className="font-bold text-slate-900">{formatCurrency(item.price_at_time * item.quantity)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {order.delivery_charge > 0 && (
+                                        <div className="flex justify-between text-xs pt-2 border-t border-slate-50">
+                                            <span className="text-slate-400">Delivery Fee</span>
+                                            <span className="font-semibold text-slate-600">{formatCurrency(order.delivery_charge)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
+    );
+}
+
 // ─── Main Storefront ───────────────────────────────────────────────────────────
 export default function Storefront() {
     const { storeSlug } = useParams<{ storeSlug: string }>();
@@ -444,8 +542,11 @@ export default function Storefront() {
 
     const [cart, setCart] = useState<Record<string, number>>({});
     const [isCartOpen, setIsCartOpen] = useState(false);
+    const [isOrdersOpen, setIsOrdersOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [orderComplete, setOrderComplete] = useState(false);
+    const [trackedOrderId, setTrackedOrderId] = useState<string | null>(null);
+    const [orderStatus, setOrderStatus] = useState<string>("pending");
     const [submittedName, setSubmittedName] = useState("");
     const [search, setSearch] = useState("");
 
@@ -527,7 +628,7 @@ export default function Storefront() {
         }));
         setIsSubmitting(true);
         try {
-            const { error } = await (supabase as any).rpc("place_online_order", {
+            const { data: orderId, error } = await (supabase as any).rpc("place_online_order", {
                 p_store_id: storeId,
                 p_customer_name: name,
                 p_customer_phone: phone,
@@ -537,16 +638,70 @@ export default function Storefront() {
                 p_items: items,
             });
             if (error) throw error;
+            
             setSubmittedName(name);
+            setTrackedOrderId(orderId);
+            setOrderStatus("pending");
             setOrderComplete(true);
             setCart({});
             setIsCartOpen(false);
+
+            // Save order ID to localStorage for order history
+            try {
+                const currentOrders = JSON.parse(localStorage.getItem('storefront_orders') || '[]');
+                if (!currentOrders.includes(orderId)) {
+                    localStorage.setItem('storefront_orders', JSON.stringify([orderId, ...currentOrders]));
+                }
+            } catch (e) {
+                console.error("Could not save order to history");
+            }
+
         } catch (err: any) {
             toast({ title: "Couldn't place order", description: err?.message ?? "Please try again.", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    // ── Live Order Tracking ────────────────────────────────────────────────
+    useEffect(() => {
+        if (!trackedOrderId) return;
+
+        const channel = supabase
+            .channel(`public-order-${trackedOrderId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'order_status_events',
+                    filter: `order_id=eq.${trackedOrderId}`,
+                },
+                (payload) => {
+                    const newStatus = payload.new.status;
+                    setOrderStatus(newStatus);
+                    
+                    if (newStatus === "accepted") {
+                        toast({ title: "Order Accepted! 🎉", description: "The store has accepted your order." });
+                        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+                        audio.volume = 0.5;
+                        audio.play().catch(() => {});
+                    } else if (newStatus === "completed") {
+                        toast({ title: "Order Completed! ✅", description: "Your order is ready." });
+                        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+                        audio.volume = 0.5;
+                        audio.play().catch(() => {});
+                    } else if (newStatus === "cancelled") {
+                        toast({ title: "Order Cancelled ❌", description: "Your order has been cancelled by the store.", variant: "destructive" });
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [trackedOrderId, toast]);
 
     // ── Loading ────────────────────────────────────────────────────────────
     if (isLoadingStore) {
@@ -607,41 +762,86 @@ export default function Storefront() {
         return (
             <div className="min-h-screen flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg, hsl(262 30% 97%) 0%, white 60%)" }}>
                 <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-10 max-w-sm w-full text-center">
-                    <div className="relative mx-auto w-24 h-24 mb-8">
-                        <div className="absolute inset-0 rounded-full bg-green-100 animate-ping opacity-40" style={{ animationDuration: "2s" }} />
-                        <div className="relative w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
-                            <CheckCircle2 className="w-12 h-12 text-white" />
-                        </div>
+                    <div className="relative mx-auto w-24 h-24 mb-6">
+                        {orderStatus === "pending" && (
+                            <>
+                                <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-40" style={{ animationDuration: "2s" }} />
+                                <div className="relative w-24 h-24 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center shadow-lg">
+                                    <Loader2 className="w-10 h-10 text-white animate-spin" />
+                                </div>
+                            </>
+                        )}
+                        {orderStatus === "accepted" && (
+                            <>
+                                <div className="absolute inset-0 rounded-full bg-orange-100 animate-ping opacity-40" style={{ animationDuration: "2s" }} />
+                                <div className="relative w-24 h-24 bg-gradient-to-br from-orange-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                                    <PackageOpen className="w-12 h-12 text-white" />
+                                </div>
+                            </>
+                        )}
+                        {orderStatus === "completed" && (
+                            <>
+                                <div className="absolute inset-0 rounded-full bg-green-100 animate-ping opacity-40" style={{ animationDuration: "2s" }} />
+                                <div className="relative w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                                    <CheckCircle2 className="w-12 h-12 text-white" />
+                                </div>
+                            </>
+                        )}
+                        {orderStatus === "cancelled" && (
+                            <div className="relative w-24 h-24 bg-gradient-to-br from-red-400 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
+                                <AlertCircle className="w-12 h-12 text-white" />
+                            </div>
+                        )}
                     </div>
-                    <p className="text-4xl mb-2">🎉</p>
-                    <h1 className="text-2xl font-black text-slate-900 mb-3">Order Placed!</h1>
-                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                        Thank you, <strong className="text-slate-800">{submittedName}</strong>! Your order is confirmed and the store will contact you soon.
+
+                    <h1 className="text-2xl font-black text-slate-900 mb-2">
+                        {orderStatus === "pending" && "Order Placed!"}
+                        {orderStatus === "accepted" && "Order Accepted!"}
+                        {orderStatus === "completed" && "Order Completed!"}
+                        {orderStatus === "cancelled" && "Order Cancelled"}
+                    </h1>
+                    
+                    <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                        {orderStatus === "pending" && `Thank you, ${submittedName}! Waiting for the store to accept your order...`}
+                        {orderStatus === "accepted" && "The store is now preparing your order. It will be on its way soon!"}
+                        {orderStatus === "completed" && "Your order has been successfully completed. Enjoy!"}
+                        {orderStatus === "cancelled" && "Unfortunately, your order could not be fulfilled at this time."}
                     </p>
-                    <div className="flex justify-center gap-8 mb-8 text-xs text-slate-400">
-                        <div className="flex flex-col items-center gap-1.5">
-                            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-                                <Truck className="w-4 h-4 text-blue-500" />
+
+                    {/* Live Tracker UI */}
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-8 text-left">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Live Status</p>
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                                    <CheckCircle2 className="w-4 h-4 text-white" />
+                                </div>
+                                <span className="text-sm font-semibold text-slate-900">Order Placed</span>
                             </div>
-                            <span>Fast Delivery</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-1.5">
-                            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center">
-                                <Shield className="w-4 h-4 text-green-500" />
+                            <div className="flex items-center gap-3">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-500 ${orderStatus === "accepted" || orderStatus === "completed" ? "bg-orange-500" : "bg-slate-200"}`}>
+                                    {(orderStatus === "accepted" || orderStatus === "completed") && <CheckCircle2 className="w-4 h-4 text-white" />}
+                                </div>
+                                <span className={`text-sm font-semibold ${orderStatus === "accepted" || orderStatus === "completed" ? "text-slate-900" : "text-slate-400"}`}>Accepted</span>
                             </div>
-                            <span>Secure</span>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-500 ${orderStatus === "completed" ? "bg-green-500" : "bg-slate-200"}`}>
+                                    {orderStatus === "completed" && <CheckCircle2 className="w-4 h-4 text-white" />}
+                                </div>
+                                <span className={`text-sm font-semibold ${orderStatus === "completed" ? "text-slate-900" : "text-slate-400"}`}>Completed</span>
+                            </div>
                         </div>
                     </div>
+
                     <button
-                        className="w-full h-13 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98]"
-                        style={{
-                            height: 52,
-                            background: "linear-gradient(135deg, hsl(262 83% 58%) 0%, hsl(290 80% 60%) 100%)",
-                            boxShadow: "0 6px 24px hsl(262 83% 58% / 0.35)",
+                        className="w-full h-13 rounded-2xl font-black text-slate-600 bg-slate-100 hover:bg-slate-200 text-sm flex items-center justify-center transition-all active:scale-[0.98]"
+                        style={{ height: 52 }}
+                        onClick={() => {
+                            setOrderComplete(false);
+                            setTrackedOrderId(null);
                         }}
-                        onClick={() => setOrderComplete(false)}
                     >
-                        Continue Shopping <ArrowRight className="w-4 h-4" />
+                        Close Tracking
                     </button>
                 </div>
             </div>
@@ -694,9 +894,19 @@ export default function Storefront() {
                         </div>
                     </div>
 
-                    {/* Cart button */}
-                    <button
-                        onClick={() => setIsCartOpen(true)}
+                    <div className="flex items-center gap-3">
+                        {/* My Orders Button */}
+                        <button
+                            onClick={() => setIsOrdersOpen(true)}
+                            className="hidden sm:flex items-center gap-1.5 h-9 px-3 rounded-lg font-medium text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                        >
+                            <PackageOpen className="w-3.5 h-3.5" />
+                            My Orders
+                        </button>
+
+                        {/* Cart button */}
+                        <button
+                            onClick={() => setIsCartOpen(true)}
                         className="relative flex items-center gap-2 h-9 px-3.5 rounded-lg font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.97]"
                         style={{
                             background: cartCount > 0
@@ -717,6 +927,7 @@ export default function Storefront() {
                             </span>
                         )}
                     </button>
+                </div>
                 </div>
             </header>
 
@@ -852,12 +1063,18 @@ export default function Storefront() {
                 )}
             </main>
 
-            {/* ── Mobile sticky cart bar ── */}
-            {cartCount > 0 && (
-                <div className="fixed bottom-4 inset-x-4 z-50 md:hidden">
+            {/* ── Mobile floating buttons ── */}
+            <div className="fixed bottom-4 inset-x-4 z-50 md:hidden flex items-center justify-between gap-3 pointer-events-none">
+                <button
+                    onClick={() => setIsOrdersOpen(true)}
+                    className="pointer-events-auto h-14 w-14 rounded-2xl font-black text-slate-700 bg-white flex items-center justify-center transition-all shadow-xl border border-slate-100"
+                >
+                    <PackageOpen className="w-5 h-5 text-indigo-600" />
+                </button>
+                {cartCount > 0 && (
                     <button
                         onClick={() => setIsCartOpen(true)}
-                        className="w-full h-14 rounded-2xl font-black text-white text-sm flex items-center justify-between px-5 transition-all active:scale-[0.98]"
+                        className="pointer-events-auto flex-1 h-14 rounded-2xl font-black text-white text-sm flex items-center justify-between px-5 transition-all active:scale-[0.98]"
                         style={{
                             background: "linear-gradient(135deg, hsl(262 83% 58%) 0%, hsl(290 80% 60%) 100%)",
                             boxShadow: "0 8px 32px hsl(262 83% 58% / 0.5)",
@@ -874,8 +1091,8 @@ export default function Storefront() {
                             <ArrowRight className="w-4 h-4" />
                         </div>
                     </button>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* ── Cart Drawer ── */}
             <CartDrawer
