@@ -390,6 +390,61 @@ export default function OnlineStore() {
         },
     });
 
+    // ── Real-time Order Subscription ──────────────────────────────────────────
+    useEffect(() => {
+        if (!user?.id) return;
+
+        // Play a subtle notification sound (optional, browsers may block if no interaction)
+        const playNotificationSound = () => {
+            try {
+                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+                audio.volume = 0.5;
+                audio.play().catch(() => {});
+            } catch (e) {}
+        };
+
+        const channel = supabase
+            .channel('realtime-online-orders')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'online_orders',
+                    filter: `store_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    playNotificationSound();
+                    
+                    toast({
+                        title: "🎉 New Order Received!",
+                        description: `Incoming order from ${payload.new.customer_name}.`,
+                    });
+                    
+                    // Invalidate to fetch fresh data including nested items
+                    queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'online_orders',
+                    filter: `store_id=eq.${user.id}`,
+                },
+                () => {
+                    // Silently update if an order is modified (e.g., status changed from customer side or another device)
+                    queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id, queryClient, toast]);
+
     const publicUrl = `${window.location.origin}/store/${storeSlug}`;
 
     const handleCopyLink = () => {
