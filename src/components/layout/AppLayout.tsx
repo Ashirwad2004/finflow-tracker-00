@@ -18,13 +18,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   // The pages (like Dashboard) now handle their own headers/menus.
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-screen w-full flex flex-col bg-background overflow-hidden">
       <OfflineBanner />
       <div className="flex-1 flex overflow-hidden">
-        <div className="hidden md:block">
+        <div className="hidden md:block h-full shrink-0">
           <AppSidebar />
         </div>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 h-full overflow-y-auto relative">
           {children}
         </main>
       </div>
