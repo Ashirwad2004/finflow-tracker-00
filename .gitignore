@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
+*.timestamp-*.mjs
+audit.json
+error.txt
+bun.lockb
 
 # Editor directories and files
 .vscode/*

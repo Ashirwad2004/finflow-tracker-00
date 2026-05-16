@@ -22,9 +22,7 @@ export const useExpensesRealtime = (userId: string | undefined) => {
                     table: "expenses",
                     filter: `user_id=eq.${userId}`, // CRITICAL: Stop global table listening. Only listen to this user's rows.
                 },
-                (payload) => {
-                    console.log("Real-time expenses change received:", payload);
-
+                () => {
                     // Let React Query intelligently refetch in the background.
                     queryClient.invalidateQueries({ queryKey: ["expenses", userId] });
                     // Invalidate specific report queries if they exist

@@ -15,14 +15,10 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
     const [isBusinessMode, setIsBusinessMode] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    console.log("BusinessProvider rendering. User:", user?.id);
-
     // Fetch initial state
     useEffect(() => {
-        console.log("BusinessProvider useEffect triggering. User:", user?.id);
         const fetchSettings = async () => {
             if (!user) {
-                console.log("No user in BusinessProvider, stopping load.");
                 setIsLoading(false);
                 return;
             }
