@@ -5,7 +5,6 @@ import { supabase } from "@/core/integrations/supabase/client";
 
 import { AuthLayout } from "./components/AuthLayout";
 import { LoginForm, SignupForm, ForgotPasswordForm, ResetPasswordForm } from "./components/AuthForms";
-import { SocialAuth } from "./components/SocialAuth";
 
 type AuthView = "login" | "signup" | "forgot" | "reset";
 
@@ -42,9 +41,6 @@ const Auth = () => {
       content: (
         <>
           <LoginForm onToggleForgot={() => setView("forgot")} />
-          <div className="mt-6">
-            <SocialAuth />
-          </div>
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
             <button type="button" className="text-primary hover:underline font-medium" onClick={() => setView("signup")}>
@@ -59,10 +55,7 @@ const Auth = () => {
       description: "Enter your details to get started with FinFlow",
       content: (
         <>
-          <SignupForm />
-          <div className="mt-6">
-            <SocialAuth />
-          </div>
+          <SignupForm onSuccess={() => setView("login")} />
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
             <button type="button" className="text-primary hover:underline font-medium" onClick={() => setView("login")}>
