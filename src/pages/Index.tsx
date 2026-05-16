@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { BookDemoModal } from "@/features/demo/BookDemoModal";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
-import { isTauri } from "@tauri-apps/api/core";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +27,6 @@ import {
   AlertCircle
 } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { motion, useScroll, useTransform, useSpring, useMotionValue } from "framer-motion";
 
 // --- Components for the Landing Page ---
@@ -73,7 +71,6 @@ const Index = () => {
   const navigate = useNavigate();
   const targetRef = useRef<HTMLDivElement>(null);
   const [demoOpen, setDemoOpen] = useState(false);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   // Hero Parallax Logic
   const { scrollYProgress } = useScroll({
@@ -96,37 +93,6 @@ const Index = () => {
     y.set((clientY / innerHeight - 0.5) * 20);
   }
 
-  const handleDownload = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setShowInstallGuide(true);
-    
-    // Slight delay to allow modal to open before download starts
-    setTimeout(() => {
-      const link = document.createElement("a");
-      link.href = "/downloads/FinFlow-Installer.exe";
-      link.download = "FinFlow-Installer.exe";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      const toast = (window as any).toast || console.log;
-      toast("Download started! Check your downloads folder.");
-    }, 500);
-  };
-
-  useEffect(() => {
-    // If desktop, skip landing page and go to auth directly
-    if (!loading && !user) {
-      try {
-        if (isTauri()) {
-          navigate("/auth", { replace: true });
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-  }, [user, loading, navigate]);
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -142,39 +108,6 @@ const Index = () => {
   return (
     <>
     <div className="min-h-screen bg-background font-sans selection:bg-primary/20 overflow-x-hidden" onMouseMove={handleMouseMove}>
-      {/* Installation Guide Modal */}
-      <Dialog open={showInstallGuide} onOpenChange={setShowInstallGuide}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <Download className="w-5 h-5 text-primary" /> Download Started!
-            </DialogTitle>
-            <DialogDescription className="text-base pt-2">
-              Because FinFlow is new, Windows might block the installation. Here is how to install it safely:
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
-              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">1</div>
-              <p className="text-sm">Click on the downloaded <strong>FinFlow-Installer.exe</strong> file.</p>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
-              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">2</div>
-              <p className="text-sm">If you see a blue "Windows protected your PC" screen, click on <strong>More info</strong>.</p>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
-              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">3</div>
-              <p className="text-sm">Click the <strong>Run anyway</strong> button at the bottom to start the installation.</p>
-            </div>
-          </div>
-          <DialogFooter className="sm:justify-start">
-            <Button type="button" onClick={() => setShowInstallGuide(false)} className="w-full">
-              I understand, close this window
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Navigation */}
       <motion.nav
         initial={{ y: -100 }}
@@ -194,8 +127,8 @@ const Index = () => {
             <Button onClick={() => navigate("/auth")} variant="ghost" className="hidden sm:flex font-medium">
               Log In
             </Button>
-            <Button onClick={handleDownload} className="shadow-lg shadow-primary/20 rounded-full px-6 transition-all hover:scale-105">
-              <Download className="mr-2 w-4 h-4" /> Download App
+            <Button onClick={() => navigate("/auth")} className="shadow-lg shadow-primary/20 rounded-full px-6 transition-all hover:scale-105">
+              Get Started
             </Button>
           </div>
         </div>
@@ -232,12 +165,12 @@ const Index = () => {
               Stop guessing. Start growing. The financial operating system designed for modern freelancers and businesses to scale with confidence.
             </p>
 
-            <div id="download" className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
               <Button onClick={() => setDemoOpen(true)} size="lg" className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">
                 <Star className="mr-2 w-5 h-5" /> Book a Demo
               </Button>
-              <Button onClick={handleDownload} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
-                Download for Windows <Download className="ml-2 w-5 h-5" />
+              <Button onClick={() => navigate("/auth")} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
+                Start Free <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </div>
           </motion.div>

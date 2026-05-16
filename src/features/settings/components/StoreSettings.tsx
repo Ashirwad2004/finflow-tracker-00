@@ -90,7 +90,7 @@ export function StoreSettings() {
     const publicUrl = `${window.location.origin}/store/${storeSlug}`;
 
     const handleCopyLink = () => {
-        const cleanUrl = window.location.hostname.includes("localhost") || window.location.hostname.includes("tauri") 
+        const cleanUrl = window.location.hostname.includes("localhost")
             ? `https://finflow.app/store/${storeSlug}` 
             : publicUrl;
         navigator.clipboard.writeText(cleanUrl);
@@ -193,7 +193,7 @@ export function StoreSettings() {
                                 {isStoreActive ? "Share this link with customers to accept orders." : "Enable the store above to let customers visit this link."}
                             </p>
                             <div className="bg-white rounded-lg border px-3 py-2 text-xs font-mono text-muted-foreground break-all mb-3 select-all max-w-fit">
-                                {window.location.hostname.includes("localhost") || window.location.hostname.includes("tauri") 
+                                {window.location.hostname.includes("localhost")
                                     ? `https://finflow.app/store/${storeSlug}` 
                                     : publicUrl}
                             </div>
