@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/core/lib/auth";
 import { ThemeInitializer } from "@/components/shared/ThemeToggle";
 import { AIAssistantChat } from "@/components/shared/AIAssistantChat";
+import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "@/pages/Index";
 
 // Lazy-loaded pages
@@ -90,7 +91,7 @@ const AppRoutes = () => {
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
-        <Route path="/business-dashboard" element={<ProtectedRoute><BusinessDashboardPage /></ProtectedRoute>} />
+        <Route path="/business-dashboard" element={<ProtectedRoute><AppLayout><BusinessDashboardPage /></AppLayout></ProtectedRoute>} />
         <Route path="/print-studio" element={<ProtectedRoute><PrintStudioPage /></ProtectedRoute>} />
         <Route path="/parties" element={<ProtectedRoute><PartiesPage /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
