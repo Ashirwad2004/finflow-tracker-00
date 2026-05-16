@@ -22,8 +22,6 @@ interface SettingsDialogProps {
     onOpenChange: (open: boolean) => void;
 }
 
-// ... inside SettingsDialog ...
-
 export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     const { currency, setCurrency } = useCurrency();
     const { isBusinessMode, toggleBusinessMode } = useBusiness();
@@ -32,7 +30,6 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     const [localCurrencyCode, setLocalCurrencyCode] = useState(currency.code);
     const [showBusinessDialog, setShowBusinessDialog] = useState(false);
 
-    // Sync local state... (existing useEffect)
     useEffect(() => {
         if (open) {
             setLocalCurrencyCode(currency.code);
@@ -40,7 +37,6 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     }, [open, currency.code]);
 
     const handleBusinessToggle = async (checked: boolean) => {
-        console.log("Toggle clicked. Checked:", checked);
         if (checked) {
             // Check if business details exist
             const { data, error } = await supabase
@@ -49,18 +45,12 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
                 .eq("user_id", user?.id)
                 .single();
 
-            console.log("Profile Data:", data);
-            console.log("Profile Error:", error);
-
             const hasDetails = (data as any)?.business_name;
-            console.log("Has Details:", hasDetails);
 
-            if (!hasDetails) {
-                console.log("Opening Business Dialog...");
+            if (error || !hasDetails) {
                 // Open setup dialog
                 setShowBusinessDialog(true);
             } else {
-                console.log("Already has details. Enabling mode.");
                 // Already setup, just toggle
                 toggleBusinessMode(true);
             }
@@ -70,7 +60,6 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     };
 
     const handleSave = () => {
-        // ... existing save logic ...
         const selected = CURRENCIES.find((c) => c.code === localCurrencyCode);
         if (selected) {
             setCurrency(selected);

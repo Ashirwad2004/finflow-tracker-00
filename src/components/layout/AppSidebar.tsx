@@ -199,7 +199,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "h-full flex flex-col border-r bg-card transition-all duration-300 shrink-0",
+        "relative h-full flex flex-col border-r bg-card transition-all duration-300 shrink-0",
         collapsed ? "w-16" : "w-64"
       )}
     >

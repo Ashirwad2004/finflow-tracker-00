@@ -49,7 +49,6 @@ import { BusinessDetailsDialog } from "@/features/business/components/BusinessDe
 import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 export const Dashboard = () => {
-  console.log("Dashboard component rendering...");
   const { user, signOut } = useAuth();
   const { isBusinessMode } = useBusiness();
   const { formatCurrency } = useCurrency();
@@ -85,8 +84,6 @@ export const Dashboard = () => {
     }
     setShowOnboarding(false);
   };
-
-  console.log("Dashboard user state:", user);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
