@@ -18,7 +18,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DesktopSettings } from "../components/DesktopSettings";
 import { StoreSettings } from "../components/StoreSettings";
 
 type BackupFormat = "json" | "csv";
@@ -272,8 +271,6 @@ const SettingsPage = () => {
                     </Card>
 
                     <StoreSettings />
-
-                    <DesktopSettings />
                 </div>
             </div>
 
