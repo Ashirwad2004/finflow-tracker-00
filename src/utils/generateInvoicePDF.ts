@@ -33,6 +33,8 @@ export interface InvoiceDetails {
     };
 }
 
+export type InvoicePdfTheme = 'corporate' | 'minimalist' | 'retail' | 'tally' | 'gst1' | 'service' | 'manufacturing' | 'wholesale';
+
 const sanitizeText = (text: string) => {
     return text.replace(/[^\x00-\x7F]/g, "");
 };
@@ -72,12 +74,13 @@ const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width
 
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
-    options?: { action?: 'download' | 'preview', theme?: 'corporate' | 'minimalist' | 'retail' | 'tally' | 'gst1', documentTitle?: string }
+    options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string }
 ) => {
     try {
         const doc = new jsPDF();
         const action = options?.action || 'download';
-        const theme = options?.theme || localStorage.getItem("finflow_invoice_theme") || 'corporate';
+        const savedTheme = options?.theme || localStorage.getItem("finflow_invoice_theme") || 'corporate';
+        const theme = savedTheme === 'thermal' ? 'corporate' : savedTheme;
         const documentTitle = options?.documentTitle;
 
         const safeText = (txt: string | undefined | null) => sanitizeText(txt || "");
@@ -90,7 +93,7 @@ export const generateInvoicePDF = async (
             safeText(item.description),
             item.quantity.toString(),
             formatCurrencySafe(item.price),
-            formatCurrencySafe(Number(item.quantity) * Number(item.price))
+            formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
         ]);
 
         // Fetch images
@@ -127,6 +130,32 @@ export const generateInvoicePDF = async (
                 sgstVal = Number((data.tax_amount - cgstVal).toFixed(2));
             }
         }
+
+        const getTaxRows = (style: "paren" | "at" = "paren") => {
+            const rows: { label: string; value: number }[] = [];
+            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const cgstLabel = splitRate ? (style === "at" ? `CGST @ ${splitRate}%` : `CGST (${splitRate}%)`) : "CGST";
+            const sgstLabel = splitRate ? (style === "at" ? `SGST @ ${splitRate}%` : `SGST (${splitRate}%)`) : "SGST";
+            const igstLabel = data.tax_rate ? (style === "at" ? `IGST @ ${data.tax_rate}%` : `IGST (${data.tax_rate}%)`) : "IGST";
+
+            if (isInterState && igstVal > 0) {
+                rows.push({ label: igstLabel, value: igstVal });
+            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
+                if (cgstVal > 0) rows.push({ label: cgstLabel, value: cgstVal });
+                if (sgstVal > 0) rows.push({ label: sgstLabel, value: sgstVal });
+            } else if (data.tax_amount && data.tax_amount > 0) {
+                rows.push({ label: data.tax_rate ? `Tax (${data.tax_rate}%)` : "Tax", value: data.tax_amount });
+            }
+
+            return rows;
+        };
+
+        const totalRows = [
+            { label: "Subtotal", value: data.subtotal },
+            ...(data.discount_amount && data.discount_amount > 0 ? [{ label: "Discount", value: -data.discount_amount }] : []),
+            ...getTaxRows("at"),
+            { label: "Grand Total", value: data.total_amount, bold: true }
+        ];
 
         if (theme === 'corporate') {
             // --- CORPORATE THEME (Blue Header) ---
@@ -763,7 +792,7 @@ export const generateInvoicePDF = async (
                     safeText(item.description),
                     item.quantity.toString(),
                     formatCurrencySafe(item.price),
-                    formatCurrencySafe(Number(item.quantity) * Number(item.price))
+                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
                 ]),
                 theme: 'grid',
                 headStyles: { fillColor: [255, 255, 255], textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: 0.3, halign: 'center' },
@@ -983,7 +1012,7 @@ export const generateInvoicePDF = async (
                     "-", // HSN placeholder
                     item.quantity.toString(),
                     formatCurrencySafe(item.price),
-                    formatCurrencySafe(Number(item.quantity) * Number(item.price))
+                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
                 ]),
                 theme: 'grid',
                 headStyles: { fillColor: [240, 240, 240], textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: 0.3, halign: 'center' },
@@ -1090,6 +1119,375 @@ export const generateInvoicePDF = async (
 
             doc.setFont("helvetica", "normal");
             doc.text("Authorised Signatory", 198, pageHeight - 15, { align: "right" });
+
+        } else if (theme === 'service') {
+            // --- SERVICE PRO THEME (consulting/agencies/professional services) ---
+            const brand: [number, number, number] = [20, 184, 166];
+            const ink: [number, number, number] = [15, 23, 42];
+            const muted: [number, number, number] = [100, 116, 139];
+            const soft: [number, number, number] = [240, 253, 250];
+
+            doc.setFillColor(...soft);
+            doc.rect(0, 0, pageWidth, 52, "F");
+            doc.setFillColor(...brand);
+            doc.rect(0, 0, 6, pageHeight, "F");
+
+            if (logoBase64) {
+                const maxDim = 22;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
+                renderW *= ratio;
+                renderH *= ratio;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, 15, renderW, renderH);
+                doc.setFontSize(18);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(...ink);
+                doc.text(bizName, 18 + renderW, 24);
+            } else {
+                doc.setFontSize(22);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(...ink);
+                doc.text(bizName, 14, 24);
+            }
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(...muted);
+            let bizY = 31;
+            if (data.business_details?.address) {
+                const lines = doc.splitTextToSize(safeText(data.business_details.address), 92);
+                doc.text(lines, 14, bizY);
+                bizY += lines.length * 4;
+            }
+            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 14, bizY); bizY += 4; }
+            if (data.business_details?.gst) { doc.text(`GSTIN: ${safeText(data.business_details.gst)}`, 14, bizY); }
+
+            doc.setTextColor(...brand);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(24);
+            doc.text((documentTitle || "SERVICE INVOICE").toUpperCase(), 196, 22, { align: "right" });
+            doc.setFontSize(10);
+            doc.setTextColor(...ink);
+            doc.text(`# ${safeText(data.invoice_number)}`, 196, 31, { align: "right" });
+            doc.text(dateFormatted, 196, 37, { align: "right" });
+
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(14, 64, 182, 29, 3, 3, "F");
+            doc.setDrawColor(204, 251, 241);
+            doc.roundedRect(14, 64, 182, 29, 3, 3, "S");
+
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...brand);
+            doc.text("CLIENT", 20, 73);
+            doc.setTextColor(...ink);
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 20, 80);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(...muted);
+            const clientLines = [
+                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
+                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
+                custGSTIN ? `GSTIN: ${custGSTIN}` : ""
+            ].filter(Boolean);
+            doc.text(clientLines.join("  |  "), 20, 87, { maxWidth: 160 });
+
+            autoTable(doc, {
+                startY: 104,
+                head: [["Service / Description", "Qty", "Rate", "Amount"]],
+                body: tableRows,
+                theme: "plain",
+                headStyles: { fillColor: brand, textColor: 255, fontStyle: "bold", fontSize: 9, cellPadding: 4 },
+                bodyStyles: { textColor: ink, fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, lineColor: [204, 251, 241], lineWidth: { bottom: 0.2 } },
+                columnStyles: { 0: { cellWidth: 92 }, 1: { cellWidth: 20, halign: "center" }, 2: { cellWidth: 32, halign: "right" }, 3: { cellWidth: 38, halign: "right" } },
+                margin: { left: 14, right: 14 },
+                didParseCell: (hookData) => {
+                    if (hookData.section === "head") {
+                        if (hookData.column.index === 1) hookData.cell.styles.halign = "center";
+                        if (hookData.column.index === 2 || hookData.column.index === 3) hookData.cell.styles.halign = "right";
+                    }
+                }
+            });
+
+            let totalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFontSize(10);
+            totalRows.forEach((row) => {
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                doc.setTextColor(row.bold ? brand[0] : muted[0], row.bold ? brand[1] : muted[1], row.bold ? brand[2] : muted[2]);
+                if (row.bold) {
+                    doc.setFillColor(240, 253, 250);
+                    doc.roundedRect(118, totalY - 5, 78, 10, 2, 2, "F");
+                }
+                doc.text(row.label, 124, totalY);
+                doc.setTextColor(...ink);
+                doc.text(formatCurrencySafe(row.value), 190, totalY, { align: "right" });
+                totalY += row.bold ? 9 : 6;
+            });
+
+            doc.setTextColor(...muted);
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8);
+            doc.text("Thank you for choosing our services.", 14, pageHeight - 14);
+
+            if (signatureBase64) {
+                const maxDim = 28;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
+                renderW *= ratio;
+                renderH *= ratio;
+                doc.addImage(signatureBase64.dataUrl, "PNG", 162, pageHeight - 42, renderW, renderH);
+            }
+            doc.setTextColor(...ink);
+            doc.setFont("helvetica", "normal");
+            doc.text("Authorized Signature", 196, pageHeight - 14, { align: "right" });
+
+        } else if (theme === 'manufacturing') {
+            // --- MANUFACTURING THEME (parts, job work, stock movement) ---
+            const ink: [number, number, number] = [17, 24, 39];
+            const steel: [number, number, number] = [71, 85, 105];
+            const accent: [number, number, number] = [234, 88, 12];
+
+            doc.setDrawColor(15, 23, 42);
+            doc.setLineWidth(0.4);
+            doc.rect(10, 10, 190, pageHeight - 20);
+            doc.setFillColor(255, 247, 237);
+            doc.rect(10, 10, 190, 18, "F");
+            doc.setDrawColor(251, 146, 60);
+            doc.line(10, 28, 200, 28);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(17);
+            doc.setTextColor(...accent);
+            doc.text((documentTitle || "TAX INVOICE").toUpperCase(), 105, 21, { align: "center" });
+
+            let leftY = 38;
+            if (logoBase64) {
+                const maxDim = 20;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
+                renderW *= ratio;
+                renderH *= ratio;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, 34, renderW, renderH);
+                doc.setTextColor(...ink);
+                doc.setFontSize(13);
+                doc.text(bizName, 17 + renderW, 40);
+                leftY = Math.max(48, 34 + renderH + 5);
+            } else {
+                doc.setTextColor(...ink);
+                doc.setFontSize(14);
+                doc.text(bizName, 14, 39);
+                leftY = 46;
+            }
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(...steel);
+            if (data.business_details?.address) {
+                const lines = doc.splitTextToSize(safeText(data.business_details.address), 86);
+                doc.text(lines, 14, leftY);
+                leftY += lines.length * 4;
+            }
+            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 14, leftY); leftY += 4; }
+            if (data.business_details?.gst) { doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 14, leftY); leftY += 4; }
+
+            doc.setDrawColor(203, 213, 225);
+            doc.line(105, 28, 105, 70);
+            doc.setTextColor(...ink);
+            doc.setFont("helvetica", "bold");
+            doc.text("Invoice No.", 110, 38);
+            doc.text("Invoice Date", 155, 38);
+            doc.setFont("helvetica", "normal");
+            doc.text(safeText(data.invoice_number), 110, 44);
+            doc.text(dateFormatted, 155, 44);
+            doc.setFont("helvetica", "bold");
+            doc.text("Buyer / Consignee", 110, 56);
+            doc.setFont("helvetica", "normal");
+            doc.text(doc.splitTextToSize(safeText(data.customer_name), 82), 110, 62);
+
+            const buyerY = Math.max(76, leftY + 4);
+            doc.setDrawColor(15, 23, 42);
+            doc.line(10, buyerY - 5, 200, buyerY - 5);
+            doc.setFont("helvetica", "bold");
+            doc.text("Bill To", 14, buyerY);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...steel);
+            const buyerDetails = [
+                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
+                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
+                custGSTIN ? `GSTIN/UIN: ${custGSTIN}` : ""
+            ].filter(Boolean);
+            doc.text(buyerDetails.join("  |  ") || "-", 14, buyerY + 6, { maxWidth: 180 });
+
+            autoTable(doc, {
+                startY: buyerY + 15,
+                head: [["No.", "Item / Part Description", "Qty", "Unit Rate", "Line Total"]],
+                body: data.items.map((item, index) => [
+                    (index + 1).toString(),
+                    safeText(item.description),
+                    item.quantity.toString(),
+                    formatCurrencySafe(item.price),
+                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+                ]),
+                theme: "grid",
+                headStyles: { fillColor: [31, 41, 55], textColor: 255, fontStyle: "bold", fontSize: 8.5, cellPadding: 3, halign: "center" },
+                bodyStyles: { textColor: ink, fontSize: 8.5, cellPadding: 3, lineColor: [203, 213, 225], lineWidth: 0.2 },
+                alternateRowStyles: { fillColor: [249, 250, 251] },
+                columnStyles: {
+                    0: { cellWidth: 12, halign: "center" },
+                    1: { cellWidth: 82 },
+                    2: { cellWidth: 20, halign: "center" },
+                    3: { cellWidth: 32, halign: "right" },
+                    4: { cellWidth: 34, halign: "right" }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            let totalY = (doc as any).lastAutoTable.finalY + 8;
+            doc.setFontSize(9);
+            totalRows.forEach((row) => {
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                doc.setTextColor(row.bold ? accent[0] : steel[0], row.bold ? accent[1] : steel[1], row.bold ? accent[2] : steel[2]);
+                doc.text(row.label, 132, totalY);
+                doc.setTextColor(...ink);
+                doc.text(formatCurrencySafe(row.value), 196, totalY, { align: "right" });
+                totalY += row.bold ? 8 : 5.5;
+            });
+
+            doc.setDrawColor(15, 23, 42);
+            doc.line(10, pageHeight - 44, 200, pageHeight - 44);
+            doc.line(126, pageHeight - 44, 126, pageHeight - 10);
+            doc.setFontSize(8);
+            doc.setTextColor(...steel);
+            doc.text("Declaration", 14, pageHeight - 36);
+            doc.text("Goods and values shown above are correct as per our records.", 14, pageHeight - 30, { maxWidth: 100 });
+            doc.setTextColor(...ink);
+            doc.setFont("helvetica", "bold");
+            doc.text(`for ${bizName}`, 196, pageHeight - 36, { align: "right" });
+            if (signatureBase64) {
+                const maxDim = 25;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
+                renderW *= ratio;
+                renderH *= ratio;
+                doc.addImage(signatureBase64.dataUrl, "PNG", 198 - renderW, pageHeight - 32, renderW, renderH);
+            }
+            doc.setFont("helvetica", "normal");
+            doc.text("Authorized Signature", 196, pageHeight - 15, { align: "right" });
+
+        } else if (theme === 'wholesale') {
+            // --- WHOLESALE LEDGER THEME (compact, high-volume billing) ---
+            const navy: [number, number, number] = [30, 64, 175];
+            const ink: [number, number, number] = [15, 23, 42];
+            const muted: [number, number, number] = [71, 85, 105];
+
+            doc.setFillColor(239, 246, 255);
+            doc.rect(0, 0, pageWidth, 36, "F");
+            doc.setFillColor(...navy);
+            doc.rect(0, 0, pageWidth, 7, "F");
+
+            doc.setTextColor(...ink);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.text(bizName, 14, 21);
+            doc.setFontSize(20);
+            doc.setTextColor(...navy);
+            doc.text((documentTitle || "WHOLESALE INVOICE").toUpperCase(), 196, 21, { align: "right" });
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8.5);
+            doc.setTextColor(...muted);
+            let headerY = 27;
+            const headerDetails = [
+                data.business_details?.address ? safeText(data.business_details.address) : "",
+                data.business_details?.phone ? `Phone: ${safeText(data.business_details.phone)}` : "",
+                data.business_details?.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ""
+            ].filter(Boolean).join(" | ");
+            doc.text(doc.splitTextToSize(headerDetails, 118), 14, headerY);
+            doc.text(`No: ${safeText(data.invoice_number)}`, 196, 28, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 33, { align: "right" });
+
+            doc.setDrawColor(191, 219, 254);
+            doc.roundedRect(14, 45, 182, 25, 2, 2, "S");
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...navy);
+            doc.text("Customer", 20, 53);
+            doc.setTextColor(...ink);
+            doc.setFontSize(10);
+            doc.text(safeText(data.customer_name), 20, 60);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8.5);
+            doc.setTextColor(...muted);
+            const customerDetails = [
+                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
+                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
+                custGSTIN ? `GSTIN/UIN: ${custGSTIN}` : ""
+            ].filter(Boolean).join(" | ");
+            doc.text(customerDetails || "-", 20, 66, { maxWidth: 164 });
+
+            autoTable(doc, {
+                startY: 80,
+                head: [["#", "Product / Item", "Qty", "Rate", "Amount"]],
+                body: data.items.map((item, index) => [
+                    (index + 1).toString(),
+                    safeText(item.description),
+                    item.quantity.toString(),
+                    formatCurrencySafe(item.price),
+                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+                ]),
+                theme: "striped",
+                headStyles: { fillColor: navy, textColor: 255, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
+                bodyStyles: { textColor: ink, fontSize: 8.2, cellPadding: 2.8, lineColor: [226, 232, 240], lineWidth: { bottom: 0.1 } },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                columnStyles: {
+                    0: { cellWidth: 10, halign: "center" },
+                    1: { cellWidth: 90 },
+                    2: { cellWidth: 18, halign: "center" },
+                    3: { cellWidth: 30, halign: "right" },
+                    4: { cellWidth: 34, halign: "right" }
+                },
+                margin: { left: 14, right: 14 },
+                didParseCell: (hookData) => {
+                    if (hookData.section === "head") {
+                        if (hookData.column.index === 2) hookData.cell.styles.halign = "center";
+                        if (hookData.column.index === 3 || hookData.column.index === 4) hookData.cell.styles.halign = "right";
+                    }
+                }
+            });
+
+            let totalY = (doc as any).lastAutoTable.finalY + 7;
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(118, totalY - 5, 78, totalRows.length * 5.8 + 6, 2, 2, "F");
+            doc.setFontSize(8.8);
+            totalRows.forEach((row) => {
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                doc.setTextColor(row.bold ? navy[0] : muted[0], row.bold ? navy[1] : muted[1], row.bold ? navy[2] : muted[2]);
+                doc.text(row.label, 124, totalY);
+                doc.setTextColor(...ink);
+                doc.text(formatCurrencySafe(row.value), 190, totalY, { align: "right" });
+                totalY += row.bold ? 7 : 5.5;
+            });
+
+            doc.setDrawColor(191, 219, 254);
+            doc.line(14, pageHeight - 22, 196, pageHeight - 22);
+            doc.setFontSize(8);
+            doc.setTextColor(...muted);
+            doc.text("Bulk invoice generated by FinFlow. Please verify item quantities at delivery.", 14, pageHeight - 14);
+            if (signatureBase64) {
+                const maxDim = 24;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
+                renderW *= ratio;
+                renderH *= ratio;
+                doc.addImage(signatureBase64.dataUrl, "PNG", 198 - renderW, pageHeight - 46, renderW, renderH);
+            }
+            doc.setTextColor(...ink);
+            doc.text("Authorized Signature", 196, pageHeight - 14, { align: "right" });
 
         }
 
