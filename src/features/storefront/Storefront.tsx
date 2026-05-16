@@ -447,18 +447,35 @@ function OrdersDrawer({
     formatCurrency: (n: number) => string;
 }) {
     const savedOrders = useMemo(() => {
-        try { return JSON.parse(localStorage.getItem('storefront_orders') || '[]'); } catch { return []; }
+        try { 
+            const orders = JSON.parse(localStorage.getItem('storefront_orders') || '[]');
+            console.log('Saved orders from localStorage:', orders);
+            return orders; 
+        } catch (e) { 
+            console.error('Error parsing saved orders:', e);
+            return []; 
+        }
     }, [open]);
 
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['orderHistory', savedOrders],
+    const { data: orders, isLoading, error: queryError } = useQuery({
+        queryKey: ['orderHistory', JSON.stringify(savedOrders)],
         queryFn: async () => {
-            if (!savedOrders.length) return [];
+            if (!savedOrders || !savedOrders.length) {
+                console.log('No saved orders found');
+                return [];
+            }
+            console.log('Fetching orders for IDs:', savedOrders);
             const { data, error } = await (supabase as any).rpc('get_customer_orders', { p_order_ids: savedOrders });
-            if (error) throw error;
+            if (error) {
+                console.error('RPC error fetching orders:', error);
+                throw error;
+            }
+            console.log('Orders fetched successfully:', data);
             return data || [];
         },
-        enabled: open && savedOrders.length > 0
+        enabled: open && savedOrders && savedOrders.length > 0,
+        retry: 2,
+        retryDelay: 1000,
     });
 
     return (
@@ -479,53 +496,92 @@ function OrdersDrawer({
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
-                        {!savedOrders.length ? (
+                        {!savedOrders || !savedOrders.length ? (
                             <div className="flex flex-col items-center justify-center h-64 gap-4">
                                 <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center">
                                     <PackageOpen className="w-10 h-10 text-slate-300" />
                                 </div>
                                 <p className="font-semibold text-slate-400 text-sm">No past orders found.</p>
+                                <p className="text-xs text-slate-300 text-center">Your orders will appear here after you place one.</p>
                             </div>
                         ) : isLoading ? (
-                            <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
-                        ) : (
-                            orders?.map((order: any) => (
-                                <div key={order.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-                                    <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                                        <div>
-                                            <p className="text-xs font-bold text-slate-400 mb-1">
-                                                {new Date(order.created_at).toLocaleDateString()} at {new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                            </p>
-                                            <p className="font-black text-slate-900">{formatCurrency(order.total_amount)}</p>
-                                        </div>
-                                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                            order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                            order.status === 'accepted' ? 'bg-orange-100 text-orange-700' :
-                                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                            'bg-blue-100 text-blue-700'
-                                        }`}>
-                                            {order.status}
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {(order.items || []).map((item: any, i: number) => (
-                                            <div key={i} className="flex justify-between text-sm">
-                                                <span className="text-slate-600 flex items-center gap-2">
-                                                    <span className="w-5 h-5 bg-slate-100 rounded flex items-center justify-center text-[10px] font-bold text-slate-500">{item.quantity}x</span>
-                                                    {item.product_name}
-                                                </span>
-                                                <span className="font-bold text-slate-900">{formatCurrency(item.price_at_time * item.quantity)}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {order.delivery_charge > 0 && (
-                                        <div className="flex justify-between text-xs pt-2 border-t border-slate-50">
-                                            <span className="text-slate-400">Delivery Fee</span>
-                                            <span className="font-semibold text-slate-600">{formatCurrency(order.delivery_charge)}</span>
-                                        </div>
-                                    )}
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                                <p className="text-xs text-slate-400">Loading your orders...</p>
+                            </div>
+                        ) : queryError ? (
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-20 h-20 rounded-3xl bg-red-50 flex items-center justify-center">
+                                    <AlertCircle className="w-10 h-10 text-red-300" />
                                 </div>
-                            ))
+                                <p className="font-semibold text-red-600 text-sm">Could not load orders</p>
+                                <p className="text-xs text-slate-400 text-center">{String(queryError) || 'Please try again later.'}</p>
+                            </div>
+                        ) : !orders || orders.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center">
+                                    <PackageOpen className="w-10 h-10 text-slate-300" />
+                                </div>
+                                <p className="font-semibold text-slate-400 text-sm">No orders found</p>
+                                <p className="text-xs text-slate-300 text-center">Your orders will appear here.</p>
+                            </div>
+                        ) : (
+                            orders.map((order: any) => {
+                                // Parse items if it's a string, otherwise use as-is
+                                let orderItems = [];
+                                try {
+                                    if (typeof order.items === 'string') {
+                                        orderItems = JSON.parse(order.items);
+                                    } else if (Array.isArray(order.items)) {
+                                        orderItems = order.items;
+                                    }
+                                } catch (e) {
+                                    console.error('Error parsing items for order', order.id, e);
+                                    orderItems = [];
+                                }
+
+                                return (
+                                    <div key={order.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+                                        <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-400 mb-1">
+                                                    {new Date(order.created_at).toLocaleDateString()} at {new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </p>
+                                                <p className="font-black text-slate-900">{formatCurrency(order.total_amount)}</p>
+                                            </div>
+                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                order.status === 'accepted' ? 'bg-orange-100 text-orange-700' :
+                                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                                'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {order.status}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {orderItems && orderItems.length > 0 ? (
+                                                orderItems.map((item: any, i: number) => (
+                                                    <div key={i} className="flex justify-between text-sm">
+                                                        <span className="text-slate-600 flex items-center gap-2">
+                                                            <span className="w-5 h-5 bg-slate-100 rounded flex items-center justify-center text-[10px] font-bold text-slate-500">{item.quantity}x</span>
+                                                            {item.product_name || 'Unknown Product'}
+                                                        </span>
+                                                        <span className="font-bold text-slate-900">{formatCurrency((item.price_at_time || 0) * (item.quantity || 1))}</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-xs text-slate-400 italic">No items in this order</p>
+                                            )}
+                                        </div>
+                                        {order.delivery_charge > 0 && (
+                                            <div className="flex justify-between text-xs pt-2 border-t border-slate-50">
+                                                <span className="text-slate-400">Delivery Fee</span>
+                                                <span className="font-semibold text-slate-600">{formatCurrency(order.delivery_charge)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
                 </DialogPrimitive.Content>
@@ -1111,6 +1167,13 @@ export default function Storefront() {
                 onClearItem={handleClear}
                 onSubmit={submitOrder}
                 isSubmitting={isSubmitting}
+            />
+
+            {/* ── Orders Drawer ── */}
+            <OrdersDrawer
+                open={isOrdersOpen}
+                onClose={() => setIsOrdersOpen(false)}
+                formatCurrency={formatCurrency}
             />
         </div>
     );
