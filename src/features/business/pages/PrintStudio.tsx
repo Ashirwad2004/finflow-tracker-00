@@ -6,11 +6,23 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { format } from "date-fns";
-import { generateInvoicePDF, InvoiceDetails } from "@/utils/generateInvoicePDF";
+import { generateInvoicePDF, InvoiceDetails, InvoicePdfTheme } from "@/utils/generateInvoicePDF";
 import { printThermalReceipt } from "@/utils/printThermalReceipt";
 import { toast } from "sonner";
 
-export type InvoiceTheme = 'corporate' | 'minimalist' | 'retail' | 'tally' | 'thermal' | 'gst1';
+export type InvoiceTheme = InvoicePdfTheme | 'thermal';
+
+const invoiceThemes: InvoiceTheme[] = [
+    "corporate",
+    "minimalist",
+    "retail",
+    "tally",
+    "thermal",
+    "gst1",
+    "service",
+    "manufacturing",
+    "wholesale"
+];
 
 const PrintStudioPage = () => {
     const { user } = useAuth();
@@ -20,7 +32,7 @@ const PrintStudioPage = () => {
 
     useEffect(() => {
         const savedTheme = localStorage.getItem("finflow_invoice_theme") as InvoiceTheme;
-        if (savedTheme && ["corporate", "minimalist", "retail", "tally", "thermal", "gst1"].includes(savedTheme)) {
+        if (savedTheme && invoiceThemes.includes(savedTheme)) {
             setSelectedTheme(savedTheme);
         }
     }, []);
@@ -38,6 +50,7 @@ const PrintStudioPage = () => {
             const { data, error } = await supabase
                 .from("sales")
                 .select("*")
+                .eq("user_id", user?.id)
                 .order("created_at", { ascending: false })
                 .limit(10); // Last 10 sales
 
@@ -78,7 +91,7 @@ const PrintStudioPage = () => {
             business_details: profile ? {
                 name: profile.business_name || profile.display_name || "My Business",
                 address: profile.business_address || undefined,
-                phone: profile.phone || undefined,
+                phone: profile.business_phone || profile.phone || undefined,
                 gst: profile.gst_number || undefined,
                 logo_url: profile.business_logo || undefined,
                 signature_url: profile.signature_url || undefined,
@@ -90,7 +103,7 @@ const PrintStudioPage = () => {
             await printThermalReceipt(invoiceDetails);
         } else {
             toast.success(`Preparing invoice ${invoiceDetails.invoice_number}...`);
-            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme });
+            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme as InvoicePdfTheme });
         }
     };
 
@@ -348,6 +361,100 @@ const PrintStudioPage = () => {
                                         </div>
                                     </div>
                                     <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">GST Theme 1</div>
+                                </div>
+
+                                {/* Service Pro Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("service")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'service' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'service' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-teal-50 relative p-4 pointer-events-none">
+                                        <div className="absolute inset-y-0 left-0 w-2 bg-teal-500"></div>
+                                        <div className="flex justify-between mb-5 pl-2">
+                                            <div className="space-y-1">
+                                                <div className="w-24 h-3 bg-slate-900 rounded"></div>
+                                                <div className="w-20 h-2 bg-teal-400 rounded"></div>
+                                            </div>
+                                            <div className="w-14 h-5 bg-teal-500 rounded"></div>
+                                        </div>
+                                        <div className="ml-2 h-9 bg-white border border-teal-100 rounded-md mb-5"></div>
+                                        <div className="ml-2 space-y-2">
+                                            <div className="h-4 bg-teal-500 rounded"></div>
+                                            <div className="h-3 bg-white border border-teal-100 rounded"></div>
+                                            <div className="h-3 bg-white border border-teal-100 rounded"></div>
+                                        </div>
+                                        <div className="absolute bottom-5 right-4 w-24 h-11 bg-white border border-teal-100 rounded-md"></div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Service Pro <span className="text-[10px] bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded text-teal-700">New</span></div>
+                                </div>
+
+                                {/* Manufacturing Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("manufacturing")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'manufacturing' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'manufacturing' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none">
+                                        <div className="w-full h-full border-2 border-slate-800">
+                                            <div className="h-7 bg-orange-50 border-b-2 border-orange-300 flex items-center justify-center">
+                                                <div className="w-20 h-2 bg-orange-600 rounded"></div>
+                                            </div>
+                                            <div className="grid grid-cols-2 border-b border-slate-800 h-12">
+                                                <div className="border-r border-slate-800 p-2 space-y-1">
+                                                    <div className="w-16 h-2 bg-slate-800 rounded"></div>
+                                                    <div className="w-20 h-1.5 bg-slate-300 rounded"></div>
+                                                </div>
+                                                <div className="p-2 space-y-1">
+                                                    <div className="w-14 h-1.5 bg-slate-500 rounded"></div>
+                                                    <div className="w-20 h-1.5 bg-slate-300 rounded"></div>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-[1fr_4fr_1fr_1fr] h-24 border-b border-slate-800 bg-slate-50">
+                                                <div className="border-r border-slate-300"></div>
+                                                <div className="border-r border-slate-300"></div>
+                                                <div className="border-r border-slate-300"></div>
+                                                <div></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Manufacturing <span className="text-[10px] bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded text-orange-700">New</span></div>
+                                </div>
+
+                                {/* Wholesale Ledger Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("wholesale")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'wholesale' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'wholesale' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-blue-50 relative p-4 pointer-events-none">
+                                        <div className="absolute top-0 left-0 right-0 h-3 bg-blue-700"></div>
+                                        <div className="pt-4 flex justify-between mb-4">
+                                            <div className="w-24 h-3 bg-slate-900 rounded"></div>
+                                            <div className="w-16 h-3 bg-blue-700 rounded"></div>
+                                        </div>
+                                        <div className="bg-white border border-blue-100 rounded h-9 mb-4"></div>
+                                        <div className="space-y-1.5">
+                                            <div className="h-4 bg-blue-700 rounded"></div>
+                                            <div className="h-3 bg-white rounded border border-blue-100"></div>
+                                            <div className="h-3 bg-slate-50 rounded border border-blue-100"></div>
+                                            <div className="h-3 bg-white rounded border border-blue-100"></div>
+                                        </div>
+                                        <div className="absolute bottom-5 right-4 w-24 h-10 bg-white border border-blue-100 rounded"></div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Wholesale <span className="text-[10px] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded text-blue-700">New</span></div>
                                 </div>
 
                             </div>
