@@ -440,12 +440,24 @@ function CartDrawer({
 function OrdersDrawer({
     open,
     onClose,
-    formatCurrency
+    formatCurrency,
+    storeId,
 }: {
     open: boolean;
     onClose: () => void;
     formatCurrency: (n: number) => string;
+    storeId: string | null;
 }) {
+    // Get phone and order IDs from localStorage
+    const savedPhone = useMemo(() => {
+        try { 
+            const phone = localStorage.getItem('storefront_phone') || '';
+            return phone; 
+        } catch { 
+            return ''; 
+        }
+    }, [open]);
+
     const savedOrders = useMemo(() => {
         try { 
             const orders = JSON.parse(localStorage.getItem('storefront_orders') || '[]');
@@ -457,23 +469,42 @@ function OrdersDrawer({
         }
     }, [open]);
 
+    // Primary: Fetch by phone (works across browsers/devices)
+    // Fallback: Fetch by order IDs (legacy support)
     const { data: orders, isLoading, error: queryError } = useQuery({
-        queryKey: ['orderHistory', JSON.stringify(savedOrders)],
+        queryKey: ['orderHistory', savedPhone, JSON.stringify(savedOrders), storeId],
         queryFn: async () => {
+            // Try phone-based lookup first (cross-device support)
+            if (savedPhone && savedPhone.trim()) {
+                console.log('Fetching orders for phone:', savedPhone);
+                const { data, error } = await (supabase as any).rpc('get_orders_by_phone', { 
+                    p_phone: savedPhone.trim(),
+                    p_store_id: storeId || null
+                });
+                if (error) {
+                    console.error('RPC error fetching orders by phone:', error);
+                    // Fall through to order ID lookup below
+                } else if (data && data.length > 0) {
+                    console.log('Orders fetched by phone:', data);
+                    return data;
+                }
+            }
+
+            // Fallback: Fetch by order IDs (if no phone or phone lookup failed)
             if (!savedOrders || !savedOrders.length) {
-                console.log('No saved orders found');
+                console.log('No saved orders or phone found');
                 return [];
             }
             console.log('Fetching orders for IDs:', savedOrders);
             const { data, error } = await (supabase as any).rpc('get_customer_orders', { p_order_ids: savedOrders });
             if (error) {
-                console.error('RPC error fetching orders:', error);
+                console.error('RPC error fetching orders by ID:', error);
                 throw error;
             }
-            console.log('Orders fetched successfully:', data);
+            console.log('Orders fetched by ID:', data);
             return data || [];
         },
-        enabled: open && savedOrders && savedOrders.length > 0,
+        enabled: !!(open && (savedPhone.trim() || (savedOrders && savedOrders.length > 0))),
         retry: 2,
         retryDelay: 1000,
     });
@@ -496,13 +527,13 @@ function OrdersDrawer({
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
-                        {!savedOrders || !savedOrders.length ? (
+                        {!savedPhone && !savedOrders?.length ? (
                             <div className="flex flex-col items-center justify-center h-64 gap-4">
                                 <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center">
                                     <PackageOpen className="w-10 h-10 text-slate-300" />
                                 </div>
-                                <p className="font-semibold text-slate-400 text-sm">No past orders found.</p>
-                                <p className="text-xs text-slate-300 text-center">Your orders will appear here after you place one.</p>
+                                <p className="font-semibold text-slate-400 text-sm">No orders yet</p>
+                                <p className="text-xs text-slate-300 text-center">Place an order to get started. Your order history will appear here and be accessible from any device using the same phone number.</p>
                             </div>
                         ) : isLoading ? (
                             <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -523,7 +554,7 @@ function OrdersDrawer({
                                     <PackageOpen className="w-10 h-10 text-slate-300" />
                                 </div>
                                 <p className="font-semibold text-slate-400 text-sm">No orders found</p>
-                                <p className="text-xs text-slate-300 text-center">Your orders will appear here.</p>
+                                <p className="text-xs text-slate-300 text-center">Your order history will show here. Orders are linked to your phone number, so you can see them from any device.</p>
                             </div>
                         ) : (
                             orders.map((order: any) => {
@@ -1174,6 +1205,7 @@ export default function Storefront() {
                 open={isOrdersOpen}
                 onClose={() => setIsOrdersOpen(false)}
                 formatCurrency={formatCurrency}
+                storeId={storeId}
             />
         </div>
     );
