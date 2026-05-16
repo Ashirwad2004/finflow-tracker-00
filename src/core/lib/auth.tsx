@@ -9,9 +9,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
-  signInWithGoogle: () => Promise<{ error: any }>;
-  signInWithGithub: () => Promise<{ error: any }>;
-  signInWithMagicLink: (email: string) => Promise<{ error: any }>;
   loading: boolean;
 }
 
@@ -43,10 +40,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = `${window.location.origin}/auth`;
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
+    const { error } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
       password,
       options: {
         emailRedirectTo: redirectUrl,
@@ -61,58 +58,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
     return { error };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      }
-    });
-    return { error };
-  };
-
-  const signInWithGithub = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      }
-    });
-    return { error };
-  };
-
-  const signInWithMagicLink = async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-      }
-    });
-    return { error };
+    await supabase.auth.signOut({ scope: "global" });
   };
 
   const resetPassword = async (email: string) => {
     // Use the current origin to ensure it works in both dev and production
     const redirectUrl = `${window.location.origin}/auth?reset=true`;
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: redirectUrl,
     });
     return { error };
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, signUp, signIn, signInWithGoogle, signInWithGithub, signInWithMagicLink, signOut, resetPassword, loading }}>
+    <AuthContext.Provider value={{ user, session, signUp, signIn, signOut, resetPassword, loading }}>
       {children}
     </AuthContext.Provider>
   );
