@@ -27,9 +27,12 @@ import {
     User,
     Trash2,
     ChevronRight,
+    Flame,
+    Lightbulb,
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { useTrendingProducts, useSmartSearch, usePersonalizedRecommendations } from "@/core/hooks/useRecommendations";
 
 interface StoreProduct {
     id: string;
@@ -790,6 +793,21 @@ export default function Storefront() {
         };
     }, [trackedOrderId, toast]);
 
+    const savedPhone = useMemo(() => {
+        try { return localStorage.getItem('storefront_phone') || ''; } catch { return ''; }
+    }, []);
+
+    const { data: smartSearchResults = [] } = useSmartSearch(search, storeId);
+    const { data: trendingProducts = [], isLoading: isTrendingLoading } = useTrendingProducts(storeId);
+    const { data: personalizedRecs = [] } = usePersonalizedRecommendations(savedPhone, storeId);
+
+    const filteredProducts = useMemo(() => {
+        if (search.trim()) {
+            return smartSearchResults.slice(0, 12);
+        }
+        return products;
+    }, [search, smartSearchResults, products]);
+
     // ── Loading ────────────────────────────────────────────────────────────
     if (isLoadingStore) {
         return (
@@ -941,10 +959,7 @@ export default function Storefront() {
     const businessLogo = storeProfile?.business_logo || brandingData?.business_logo || null;
     const logoInitial = businessName.charAt(0).toUpperCase();
 
-    const filteredProducts = search.trim()
-        ? products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
-        : products;
-
+    // ── Smart Search & Recommendations ─────────────────────────────────────
     return (
         <div className="min-h-screen bg-slate-50">
             {/* ── HEADER ── */}
