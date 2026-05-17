@@ -315,8 +315,11 @@ export default function OnlineStore() {
                 .eq("id", orderId);
             if (error) throw error;
         },
-        onSuccess: () => {
+        onSuccess: (_data, { status }) => {
             queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+            if (status === "rejected") {
+                queryClient.invalidateQueries({ queryKey: ["products"] });
+            }
             toast({ title: "Status Updated", description: "Order status has been updated." });
         },
     });
