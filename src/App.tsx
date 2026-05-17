@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/core/lib/auth";
 import { ThemeInitializer } from "@/components/shared/ThemeToggle";
-import { AIAssistantChat } from "@/components/shared/AIAssistantChat";
+import { AppAssistantGate } from "@/components/shared/AppAssistantGate";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "@/pages/Index";
 
@@ -115,7 +115,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <ThemeInitializer />
-              <AIAssistantChat />
+              <AppAssistantGate />
               <AppRoutes />
             </BrowserRouter>
           </TooltipProvider>

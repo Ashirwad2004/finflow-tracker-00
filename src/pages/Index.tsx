@@ -120,7 +120,7 @@ const Index = () => {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-lg shadow-primary/25">
               <Wallet className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight">ExpenseTracker</span>
+            <span className="font-bold text-xl tracking-tight">FinFlow</span>
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -202,7 +202,7 @@ const Index = () => {
                   {/* Mock Dashboard Header */}
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                     <div>
-                      <h2 className="text-2xl font-bold">Good Morning, Ashirwad 🔥</h2>
+                      <h2 className="text-2xl font-bold">Good morning — your business at a glance</h2>
                       <p className="text-muted-foreground">Here's what's happening with your store today.</p>
                     </div>
                     <div className="flex gap-3">
@@ -851,7 +851,7 @@ const Index = () => {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Wallet className="w-5 h-5 text-white" />
               </div>
-              <span className="font-bold text-lg">ExpenseTracker</span>
+              <span className="font-bold text-lg">FinFlow</span>
             </div>
             <div className="flex gap-8 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Product</a>
@@ -860,7 +860,7 @@ const Index = () => {
               <a href="#" className="hover:text-foreground transition-colors">Terms</a>
             </div>
             <div className="text-sm text-muted-foreground">
-              © 2025 ExpenseTracker Inc.
+              © 2025 FinFlow
             </div>
           </div>
         </div>

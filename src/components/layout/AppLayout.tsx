@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
+import { BRAND } from "@/core/constants/brand";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -27,7 +28,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <AppSidebar onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
           </Sheet>
-          <span className="text-sm font-semibold">FinFlow</span>
+          <span className="text-sm font-semibold">{BRAND.name}</span>
         </div>
       </header>
       <div className="flex-1 flex overflow-hidden">

@@ -32,6 +32,8 @@ import { Calculator as CalculatorComponent } from "@/components/shared/calculato
 import { Settings } from "lucide-react";
 import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { useBusiness } from "@/core/contexts/BusinessContext";
+import { BRAND } from "@/core/constants/brand";
+import { Badge } from "@/components/ui/badge";
 
 const personalMenuItems = [
   {
@@ -178,6 +180,21 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
     }
   };
 
+  const { data: pendingOrderCount = 0 } = useQuery({
+    queryKey: ["online_orders_pending_count", user?.id],
+    queryFn: async () => {
+      const { count, error } = await (supabase as any)
+        .from("online_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("store_id", user!.id)
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!user && isBusinessMode,
+    refetchInterval: 20_000,
+  });
+
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
@@ -211,9 +228,11 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-lg text-foreground truncate">
-              {isBusinessMode ? "FinFlow Bus." : "ExpenseTracker"}
+              {isBusinessMode ? BRAND.businessLabel : BRAND.name}
             </h1>
-            <p className="text-xs text-muted-foreground truncate">{profile?.display_name ?? "Welcome!"}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {profile?.display_name ?? profile?.business_name ?? "Welcome"}
+            </p>
           </div>
         )}
       </div>
@@ -245,6 +264,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {currentMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
+          const showPendingBadge =
+            item.path === "/online-store" && isBusinessMode && pendingOrderCount > 0;
 
           return (
             <NavLink
@@ -263,14 +284,24 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
                 isActive && "text-primary-foreground"
               )} />
               {!collapsed && (
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm truncate">{item.title}</p>
-                  <p className={cn(
-                    "text-xs truncate",
-                    isActive ? "text-primary-foreground/80" : "text-muted-foreground"
-                  )}>
-                    {item.description}
-                  </p>
+                <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{item.title}</p>
+                    <p className={cn(
+                      "text-xs truncate",
+                      isActive ? "text-primary-foreground/80" : "text-muted-foreground"
+                    )}>
+                      {item.description}
+                    </p>
+                  </div>
+                  {showPendingBadge && (
+                    <Badge
+                      variant={isActive ? "secondary" : "destructive"}
+                      className="h-5 min-w-5 px-1.5 text-[10px] font-bold shrink-0"
+                    >
+                      {pendingOrderCount > 99 ? "99+" : pendingOrderCount}
+                    </Badge>
+                  )}
                 </div>
               )}
             </NavLink>

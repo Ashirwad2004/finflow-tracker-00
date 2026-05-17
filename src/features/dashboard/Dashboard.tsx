@@ -285,7 +285,7 @@ export const Dashboard = () => {
                   <SheetHeader className="p-4 border-b text-left flex flex-row items-center justify-between space-y-0">
                     <SheetTitle className="text-xl font-bold flex items-center gap-2">
                       <Wallet className="w-5 h-5 text-primary" />
-                      ExpenseTracker
+                      FinFlow
                     </SheetTitle>
                     {/* Close button is automatically rendered by SheetContent, we ensure spacing via layout if needed, 
                         but standard SheetContent usually places it absolutely. 
@@ -339,7 +339,7 @@ export const Dashboard = () => {
                 <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">ExpenseTracker</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">FinFlow</h1>
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {profile?.display_name || "User"}!</p>
               </div>
             </div>
