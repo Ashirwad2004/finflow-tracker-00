@@ -454,69 +454,59 @@ function OrdersDrawer({
     onClose,
     formatCurrency,
     storeId,
+    savedOrderIds,
 }: {
     open: boolean;
     onClose: () => void;
     formatCurrency: (n: number) => string;
     storeId: string | null;
+    /** Live list from parent — updates as soon as a new order is placed */
+    savedOrderIds: string[];
 }) {
-    // Get phone and order IDs from localStorage
-    const savedPhone = useMemo(() => {
-        try { 
-            const phone = localStorage.getItem('storefront_phone') || '';
-            return phone; 
-        } catch { 
-            return ''; 
-        }
-    }, [open]);
+    const savedOrderIdsKey = savedOrderIds.join(",");
 
-    const savedOrders = useMemo(() => {
-        try { 
-            const orders = JSON.parse(localStorage.getItem('storefront_orders') || '[]');
-            console.log('Saved orders from localStorage:', orders);
-            return orders; 
-        } catch (e) { 
-            console.error('Error parsing saved orders:', e);
-            return []; 
+    // Re-read phone when drawer opens or when order list changes (checkout may have just saved it)
+    const savedPhone = useMemo(() => {
+        try {
+            return localStorage.getItem("storefront_phone") || "";
+        } catch {
+            return "";
         }
-    }, [open]);
+    }, [open, savedOrderIdsKey]);
 
     // Primary: Fetch by phone (works across browsers/devices)
     // Fallback: Fetch by order IDs (legacy support)
     const { data: orders, isLoading, error: queryError } = useQuery({
-        queryKey: ['orderHistory', savedPhone, JSON.stringify(savedOrders), storeId],
+        queryKey: ["orderHistory", savedPhone, savedOrderIdsKey, storeId],
         queryFn: async () => {
             // Try phone-based lookup first (cross-device support)
             if (savedPhone && savedPhone.trim()) {
-                console.log('Fetching orders for phone:', savedPhone);
-                const { data, error } = await (supabase as any).rpc('get_orders_by_phone', { 
+                const { data, error } = await (supabase as any).rpc("get_orders_by_phone", {
                     p_phone: savedPhone.trim(),
-                    p_store_id: storeId || null
+                    p_store_id: storeId || null,
                 });
                 if (error) {
-                    console.error('RPC error fetching orders by phone:', error);
+                    console.error("RPC error fetching orders by phone:", error);
                     // Fall through to order ID lookup below
                 } else if (data && data.length > 0) {
-                    console.log('Orders fetched by phone:', data);
                     return data;
                 }
             }
 
             // Fallback: Fetch by order IDs (if no phone or phone lookup failed)
-            if (!savedOrders || !savedOrders.length) {
-                console.log('No saved orders or phone found');
+            if (!savedOrderIds.length) {
                 return [];
             }
-            console.log('Fetching orders for IDs:', savedOrders);
-            const { data, error } = await (supabase as any).rpc('get_customer_orders', { p_order_ids: savedOrders });
+            const { data, error } = await (supabase as any).rpc("get_customer_orders", {
+                p_order_ids: savedOrderIds,
+            });
             if (error) {
-                console.error('RPC error fetching orders by ID:', error);
+                console.error("RPC error fetching orders by ID:", error);
                 throw error;
             }
-            console.log('Orders fetched by ID:', data);
             return data || [];
         },
-        enabled: !!(open && (savedPhone.trim() || (savedOrders && savedOrders.length > 0))),
+        enabled: !!(open && (savedPhone.trim() || savedOrderIds.length > 0)),
         retry: 2,
         retryDelay: 1000,
         staleTime: 0,
@@ -541,7 +531,7 @@ function OrdersDrawer({
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
-                        {!savedPhone && !savedOrders?.length ? (
+                        {!savedPhone && !savedOrderIds.length ? (
                             <div className="flex flex-col items-center justify-center h-64 gap-4">
                                 <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center">
                                     <PackageOpen className="w-10 h-10 text-slate-300" />
@@ -1331,6 +1321,7 @@ export default function Storefront() {
                 onClose={() => setIsOrdersOpen(false)}
                 formatCurrency={formatCurrency}
                 storeId={storeId}
+                savedOrderIds={customerOrderIds}
             />
         </div>
     );
