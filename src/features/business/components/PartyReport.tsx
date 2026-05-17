@@ -12,6 +12,8 @@ import { useAuth } from "@/core/lib/auth";
 import { useState, useMemo } from "react";
 import { exportPartyReportPDF, PartyReportItem } from "@/utils/exportPartyReportPDF";
 import { exportPartyReportCSV } from "@/utils/exportPartyReportCSV";
+import { TableLoadingRows } from "@/components/shared/PageStates";
+
 
 export const PartyReport = () => {
     const { formatCurrency, currency } = useCurrency();
@@ -199,7 +201,19 @@ export const PartyReport = () => {
                 </CardHeader>
                 <CardContent className="p-0">
                     {(salesLoading || purchasesLoading) ? (
-                        <div className="text-center py-12 text-muted-foreground animate-pulse">Aggregating records...</div>
+                        <Table>
+                            <TableHeader className="bg-muted/50">
+                                <TableRow>
+                                    <TableHead className="font-semibold text-foreground">Party Name</TableHead>
+                                    <TableHead className="text-right font-semibold text-foreground">Total Sales</TableHead>
+                                    <TableHead className="text-right font-semibold text-foreground">Total Purchases</TableHead>
+                                    <TableHead className="text-right font-semibold text-foreground">Net Balance ({currency.symbol})</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableLoadingRows cols={4} rows={5} />
+                            </TableBody>
+                        </Table>
                     ) : filteredData.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                             {searchTerm ? "No parties found matching your search." : "No business records available yet."}

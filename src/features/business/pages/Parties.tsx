@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/core/hooks/use-toast";
 import { PartyDialog } from "../components/PartyDialog";
+import { TableLoadingRows } from "@/components/shared/PageStates";
 
 export interface Party {
     id: string;
@@ -289,9 +290,7 @@ const PartiesPage = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">Loading parties...</td>
-                                    </tr>
+                                    <TableLoadingRows cols={5} rows={5} />
                                 ) : filteredParties.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-16 text-center text-slate-500 flex flex-col items-center justify-center">

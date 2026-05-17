@@ -356,7 +356,7 @@ export default function PurchasesPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
-                                    <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Loading purchases...</td></tr>
+                                    <TableLoadingRows cols={7} rows={5} />
                                 ) : filteredPurchases.length === 0 ? (
                                     <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No purchases matching your criteria.</td></tr>
                                 ) : (
