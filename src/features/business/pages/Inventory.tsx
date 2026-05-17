@@ -40,6 +40,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
+import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
 import { ProductImageUpload } from "@/features/business/components/ProductImageUpload";
 
 interface Product {
@@ -93,6 +94,8 @@ export default function Inventory() {
             image_url: ""
         }
     });
+
+    useProductsRealtime(user?.id);
 
     // Fetch products
     const { data: products = [], isLoading } = useQuery({

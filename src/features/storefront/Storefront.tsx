@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { supabase } from "@/core/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,12 @@ import {
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useTrendingProducts, useSmartSearch, usePersonalizedRecommendations } from "@/core/hooks/useRecommendations";
+import { useStorefrontInventoryRealtime } from "@/core/hooks/useStorefrontInventoryRealtime";
+import {
+    useStorefrontOrdersRealtime,
+    loadCustomerOrderIds,
+    isOrderDeclined,
+} from "@/core/hooks/useStorefrontOrdersRealtime";
 
 interface StoreProduct {
     id: string;
@@ -70,6 +76,7 @@ function CartDrawer({
     formatCurrency,
     onRemoveOne,
     onAddOne,
+    canAddOne,
     onClearItem,
     onSubmit,
     isSubmitting,
@@ -86,6 +93,7 @@ function CartDrawer({
     formatCurrency: (n: number) => string;
     onRemoveOne: (id: string) => void;
     onAddOne: (id: string) => void;
+    canAddOne: (id: string) => boolean;
     onClearItem: (id: string) => void;
     onSubmit: (name: string, phone: string, address: string) => Promise<void>;
     isSubmitting: boolean;
@@ -245,7 +253,8 @@ function CartDrawer({
                                                             <span className="w-6 text-center text-sm font-black text-slate-900">{qty}</span>
                                                             <button
                                                                 onClick={() => onAddOne(pid)}
-                                                                className="w-6 h-6 rounded-full flex items-center justify-center text-white transition-colors"
+                                                                disabled={!canAddOne(pid)}
+                                                                className="w-6 h-6 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                                                 style={{ background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))" }}
                                                             >
                                                                 <Plus className="w-3 h-3" />
@@ -510,6 +519,8 @@ function OrdersDrawer({
         enabled: !!(open && (savedPhone.trim() || (savedOrders && savedOrders.length > 0))),
         retry: 2,
         retryDelay: 1000,
+        staleTime: 0,
+        refetchInterval: open ? 10_000 : false,
     });
 
     return (
@@ -586,10 +597,10 @@ function OrdersDrawer({
                                             <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                                                 order.status === 'completed' ? 'bg-green-100 text-green-700' :
                                                 order.status === 'accepted' ? 'bg-orange-100 text-orange-700' :
-                                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                                isOrderDeclined(order.status) ? 'bg-red-100 text-red-700' :
                                                 'bg-blue-100 text-blue-700'
                                             }`}>
-                                                {order.status}
+                                                {isOrderDeclined(order.status) ? 'rejected' : order.status}
                                             </div>
                                         </div>
                                         <div className="space-y-2">
@@ -629,6 +640,7 @@ export default function Storefront() {
     const { storeSlug } = useParams<{ storeSlug: string }>();
     const { toast } = useToast();
     const { formatCurrency } = useCurrency();
+    const queryClient = useQueryClient();
 
     const [cart, setCart] = useState<Record<string, number>>({});
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -639,6 +651,21 @@ export default function Storefront() {
     const [orderStatus, setOrderStatus] = useState<string>("pending");
     const [submittedName, setSubmittedName] = useState("");
     const [search, setSearch] = useState("");
+    const [customerOrderIds, setCustomerOrderIds] = useState<string[]>(loadCustomerOrderIds);
+
+    const notifyOrderStatus = (status: string) => {
+        if (status === "accepted") {
+            toast({ title: "Order Accepted! 🎉", description: "The store has accepted your order." });
+        } else if (status === "completed") {
+            toast({ title: "Order Completed! ✅", description: "Your order is ready." });
+        } else if (isOrderDeclined(status)) {
+            toast({
+                title: "Order Rejected",
+                description: "Your order could not be fulfilled. Stock has been restored.",
+                variant: "destructive",
+            });
+        }
+    };
 
     // ── Fetch store profile ────────────────────────────────────────────────
     const {
@@ -679,7 +706,9 @@ export default function Storefront() {
         staleTime: 30_000,
     });
 
-    // ── Fetch products ─────────────────────────────────────────────────────
+    // ── Fetch products (live inventory via realtime + polling fallback) ───
+    useStorefrontInventoryRealtime(storeId);
+
     const { data: products = [], isLoading: isLoadingProducts } = useQuery<StoreProduct[]>({
         queryKey: ["publicStoreProducts", storeId],
         queryFn: async () => {
@@ -688,11 +717,62 @@ export default function Storefront() {
             return (Array.isArray(data) ? data : []) as StoreProduct[];
         },
         enabled: !!storeId,
-        staleTime: 30_000,
+        staleTime: 5_000,
+        refetchInterval: 15_000,
     });
 
+    const getStock = (productId: string) => {
+        const stock = products.find(p => p.id === productId)?.stock_quantity;
+        return typeof stock === "number" ? Math.max(0, stock) : 0;
+    };
+
+    const canAddOne = (id: string) => {
+        const stock = getStock(id);
+        if (stock <= 0) return false;
+        return (cart[id] || 0) < stock;
+    };
+
+    // Keep cart in sync when stock drops (another customer, invoice, or admin edit)
+    useEffect(() => {
+        if (!products.length) return;
+        setCart(prev => {
+            let changed = false;
+            const next = { ...prev };
+            for (const [id, qty] of Object.entries(prev)) {
+                const stock = getStock(id);
+                if (stock <= 0) {
+                    delete next[id];
+                    changed = true;
+                } else if (qty > stock) {
+                    next[id] = stock;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [products]);
+
     // ── Cart helpers ───────────────────────────────────────────────────────
-    const handleAdd = (id: string) => setCart(p => ({ ...p, [id]: (p[id] || 0) + 1 }));
+    const handleAdd = (id: string) => {
+        const stock = getStock(id);
+        const current = cart[id] || 0;
+        if (stock <= 0) {
+            toast({
+                title: "Out of stock",
+                description: "This item is currently unavailable.",
+                variant: "destructive",
+            });
+            return;
+        }
+        if (current >= stock) {
+            toast({
+                title: "Maximum quantity reached",
+                description: stock === 1 ? "Only 1 left in stock." : `Only ${stock} available.`,
+            });
+            return;
+        }
+        setCart(p => ({ ...p, [id]: current + 1 }));
+    };
     const handleRemove = (id: string) => setCart(p => {
         if ((p[id] || 0) <= 1) { const { [id]: _, ...r } = p; return r; }
         return { ...p, [id]: p[id] - 1 };
@@ -736,62 +816,87 @@ export default function Storefront() {
             setCart({});
             setIsCartOpen(false);
 
-            // Save order ID to localStorage for order history
+            // Save order ID to localStorage for order history + live tracking
             try {
-                const currentOrders = JSON.parse(localStorage.getItem('storefront_orders') || '[]');
+                const currentOrders = loadCustomerOrderIds();
                 if (!currentOrders.includes(orderId)) {
-                    localStorage.setItem('storefront_orders', JSON.stringify([orderId, ...currentOrders]));
+                    const next = [orderId, ...currentOrders];
+                    localStorage.setItem("storefront_orders", JSON.stringify(next));
+                    setCustomerOrderIds(next);
                 }
             } catch (e) {
                 console.error("Could not save order to history");
             }
 
         } catch (err: any) {
-            toast({ title: "Couldn't place order", description: err?.message ?? "Please try again.", variant: "destructive" });
+            const msg = err?.message ?? "Please try again.";
+            toast({
+                title: msg.toLowerCase().includes("stock") ? "Stock unavailable" : "Couldn't place order",
+                description: msg,
+                variant: "destructive",
+            });
+            if (storeId) {
+                queryClient.invalidateQueries({ queryKey: ["publicStoreProducts", storeId] });
+            }
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // ── Live Order Tracking ────────────────────────────────────────────────
+    // ── Live order tracking (all saved orders + active checkout order) ───────
+    const watchedOrderIds = useMemo(() => {
+        const ids = new Set(customerOrderIds);
+        if (trackedOrderId) ids.add(trackedOrderId);
+        return [...ids];
+    }, [customerOrderIds, trackedOrderId]);
+
+    useStorefrontOrdersRealtime(watchedOrderIds, {
+        onOrderStatusChange: (orderId, status) => {
+            if (orderId === trackedOrderId) {
+                setOrderStatus(status);
+                notifyOrderStatus(status);
+            }
+            if (isOrderDeclined(status) && storeId) {
+                queryClient.invalidateQueries({ queryKey: ["publicStoreProducts", storeId] });
+            }
+        },
+    });
+
+    // Sync saved order IDs when returning to the store or opening order history
+    useEffect(() => {
+        setCustomerOrderIds(loadCustomerOrderIds());
+    }, [storeSlug, isOrdersOpen]);
+
+    // Fetch current status immediately (covers missed events before subscription connects)
     useEffect(() => {
         if (!trackedOrderId) return;
+        let cancelled = false;
+        (async () => {
+            const { data } = await (supabase as any).rpc("get_customer_orders", {
+                p_order_ids: [trackedOrderId],
+            });
+            if (!cancelled && data?.[0]?.status) {
+                setOrderStatus(data[0].status);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [trackedOrderId]);
 
-        const channel = supabase
-            .channel(`public-order-${trackedOrderId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'order_status_events',
-                    filter: `order_id=eq.${trackedOrderId}`,
-                },
-                (payload) => {
-                    const newStatus = payload.new.status;
-                    setOrderStatus(newStatus);
-                    
-                    if (newStatus === "accepted") {
-                        toast({ title: "Order Accepted! 🎉", description: "The store has accepted your order." });
-                        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-                        audio.volume = 0.5;
-                        audio.play().catch(() => {});
-                    } else if (newStatus === "completed") {
-                        toast({ title: "Order Completed! ✅", description: "Your order is ready." });
-                        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-                        audio.volume = 0.5;
-                        audio.play().catch(() => {});
-                    } else if (newStatus === "cancelled") {
-                        toast({ title: "Order Cancelled ❌", description: "Your order has been cancelled by the store.", variant: "destructive" });
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
+    // Polling fallback while the live tracking screen is open
+    useEffect(() => {
+        if (!orderComplete || !trackedOrderId) return;
+        const poll = async () => {
+            const { data } = await (supabase as any).rpc("get_customer_orders", {
+                p_order_ids: [trackedOrderId],
+            });
+            const latest = data?.[0]?.status;
+            if (latest) {
+                setOrderStatus((prev) => (prev !== latest ? latest : prev));
+            }
         };
-    }, [trackedOrderId, toast]);
+        const interval = setInterval(poll, 8_000);
+        return () => clearInterval(interval);
+    }, [orderComplete, trackedOrderId]);
 
     const savedPhone = useMemo(() => {
         try { return localStorage.getItem('storefront_phone') || ''; } catch { return ''; }
@@ -892,7 +997,7 @@ export default function Storefront() {
                                 </div>
                             </>
                         )}
-                        {orderStatus === "cancelled" && (
+                        {isOrderDeclined(orderStatus) && (
                             <div className="relative w-24 h-24 bg-gradient-to-br from-red-400 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
                                 <AlertCircle className="w-12 h-12 text-white" />
                             </div>
@@ -903,14 +1008,14 @@ export default function Storefront() {
                         {orderStatus === "pending" && "Order Placed!"}
                         {orderStatus === "accepted" && "Order Accepted!"}
                         {orderStatus === "completed" && "Order Completed!"}
-                        {orderStatus === "cancelled" && "Order Cancelled"}
+                        {isOrderDeclined(orderStatus) && "Order Rejected"}
                     </h1>
                     
                     <p className="text-slate-500 text-sm leading-relaxed mb-6">
                         {orderStatus === "pending" && `Thank you, ${submittedName}! Waiting for the store to accept your order...`}
                         {orderStatus === "accepted" && "The store is now preparing your order. It will be on its way soon!"}
                         {orderStatus === "completed" && "Your order has been successfully completed. Enjoy!"}
-                        {orderStatus === "cancelled" && "Unfortunately, your order could not be fulfilled at this time."}
+                        {isOrderDeclined(orderStatus) && "Unfortunately, your order could not be fulfilled at this time."}
                     </p>
 
                     {/* Live Tracker UI */}
@@ -991,7 +1096,10 @@ export default function Storefront() {
                             <p className="font-bold text-[13px] text-slate-900 leading-tight">{businessName}</p>
                             <div className="flex items-center gap-1 mt-0.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                                <p className="text-[10px] text-slate-400 font-medium">{products.length} products available</p>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                    {products.filter(p => (p.stock_quantity ?? 0) > 0).length} in stock
+                                    {products.some(p => (p.stock_quantity ?? 0) <= 0) && ` · ${products.filter(p => (p.stock_quantity ?? 0) <= 0).length} out of stock`}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -1158,6 +1266,7 @@ export default function Storefront() {
                                 formatCurrency={formatCurrency}
                                 onAdd={() => handleAdd(product.id)}
                                 onRemove={() => handleRemove(product.id)}
+                                canAddMore={canAddOne(product.id)}
                                 index={i}
                             />
                         ))}
@@ -1210,6 +1319,7 @@ export default function Storefront() {
                 formatCurrency={formatCurrency}
                 onRemoveOne={handleRemove}
                 onAddOne={handleAdd}
+                canAddOne={canAddOne}
                 onClearItem={handleClear}
                 onSubmit={submitOrder}
                 isSubmitting={isSubmitting}
@@ -1233,6 +1343,7 @@ function ProductCard({
     formatCurrency,
     onAdd,
     onRemove,
+    canAddMore,
     index,
 }: {
     product: StoreProduct;
@@ -1240,14 +1351,17 @@ function ProductCard({
     formatCurrency: (n: number) => string;
     onAdd: () => void;
     onRemove: () => void;
+    canAddMore: boolean;
     index: number;
 }) {
     const [imgErr, setImgErr] = useState(false);
     const inCart = qty > 0;
+    const stock = typeof product.stock_quantity === "number" ? Math.max(0, product.stock_quantity) : 0;
+    const isOutOfStock = stock <= 0;
 
     return (
         <div
-            className="group bg-white rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 cursor-default"
+            className={`group bg-white rounded-2xl overflow-hidden flex flex-col transition-all duration-300 cursor-default ${isOutOfStock ? "opacity-85" : "hover:-translate-y-1"}`}
             style={{
                 boxShadow: inCart
                     ? "0 0 0 2px hsl(262 83% 58%), 0 8px 30px hsl(262 83% 58% / 0.15)"
@@ -1281,10 +1395,18 @@ function ProductCard({
                     </div>
                 )}
 
+                {isOutOfStock && (
+                    <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center">
+                        <span className="px-3 py-1.5 rounded-lg bg-slate-900 text-[11px] font-black text-white uppercase tracking-wider shadow-lg">
+                            Out of Stock
+                        </span>
+                    </div>
+                )}
+
                 {/* Low stock */}
-                {typeof product.stock_quantity === "number" && product.stock_quantity <= 5 && product.stock_quantity > 0 && (
+                {!isOutOfStock && stock <= 5 && (
                     <div className="absolute top-2.5 left-2.5 px-2 py-1 rounded-lg bg-orange-500 text-[10px] font-bold text-white shadow-md">
-                        Only {product.stock_quantity} left
+                        Only {stock} left
                     </div>
                 )}
             </div>
@@ -1306,7 +1428,11 @@ function ProductCard({
                         <span className="text-[11px] text-slate-400 ml-0.5">/{product.unit}</span>
                     </div>
 
-                    {qty > 0 ? (
+                    {isOutOfStock && qty === 0 ? (
+                        <span className="h-8 px-3 rounded-xl text-[10px] font-black uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200 flex items-center">
+                            Unavailable
+                        </span>
+                    ) : qty > 0 ? (
                         <div
                             className="flex items-center gap-0.5 rounded-xl overflow-hidden border"
                             style={{ borderColor: "hsl(262 83% 58% / 0.25)", background: "hsl(262 83% 58% / 0.04)" }}
@@ -1320,7 +1446,8 @@ function ProductCard({
                             <span className="w-6 text-center text-sm font-black" style={{ color: "hsl(262 83% 58%)" }}>{qty}</span>
                             <button
                                 onClick={onAdd}
-                                className="w-8 h-8 flex items-center justify-center text-white transition-opacity hover:opacity-85"
+                                disabled={!canAddMore}
+                                className="w-8 h-8 flex items-center justify-center text-white transition-opacity hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))" }}
                             >
                                 <Plus className="w-3.5 h-3.5" />
@@ -1329,7 +1456,8 @@ function ProductCard({
                     ) : (
                         <button
                             onClick={onAdd}
-                            className="h-8 px-3.5 rounded-xl text-xs font-bold text-white transition-all hover:opacity-90 active:scale-95 flex items-center gap-1.5"
+                            disabled={!canAddMore}
+                            className="h-8 px-3.5 rounded-xl text-xs font-bold text-white transition-all hover:opacity-90 active:scale-95 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:from-slate-400 disabled:to-slate-400"
                             style={{
                                 background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))",
                                 boxShadow: "0 2px 10px hsl(262 83% 58% / 0.3)",
