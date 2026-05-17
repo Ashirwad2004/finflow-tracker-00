@@ -317,6 +317,7 @@ export default function OnlineStore() {
         },
         onSuccess: (_data, { status }) => {
             queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+            queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
             if (status === "rejected") {
                 queryClient.invalidateQueries({ queryKey: ["products"] });
             }
@@ -357,6 +358,7 @@ export default function OnlineStore() {
                     
                     // Invalidate to fetch fresh data including nested items
                     queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+                    queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
                 }
             )
             .on(
@@ -368,8 +370,8 @@ export default function OnlineStore() {
                     filter: `store_id=eq.${user.id}`,
                 },
                 () => {
-                    // Silently update if an order is modified (e.g., status changed from customer side or another device)
                     queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+                    queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
                 }
             )
             .subscribe();

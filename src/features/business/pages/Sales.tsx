@@ -17,6 +17,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useSalesSettings } from "@/core/hooks/use-sales-settings";
+import { TableLoadingRows } from "@/components/shared/PageStates";
 
 export default function SalesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -370,7 +371,7 @@ export default function SalesPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
-                                    <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Loading invoices...</td></tr>
+                                    <TableLoadingRows cols={7} rows={6} />
                                 ) : filteredInvoices.length === 0 ? (
                                     <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No invoices matching your criteria.</td></tr>
                                 ) : (
