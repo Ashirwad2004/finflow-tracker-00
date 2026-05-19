@@ -28,6 +28,21 @@ export interface Party {
 
 const getPartiesTable = () => (supabase as any).from("parties");
 
+// Helper function to build a type-safe update payload
+const buildPartyUpdatePayload = (updatedParty: Partial<Party>): Record<string, any> => {
+    const updatePayload: Record<string, any> = {};
+    
+    // Only include fields that are present in the update
+    if (updatedParty.name !== undefined) updatePayload.name = updatedParty.name;
+    if (updatedParty.type !== undefined) updatePayload.type = updatedParty.type;
+    if (updatedParty.phone !== undefined) updatePayload.phone = updatedParty.phone;
+    if (updatedParty.email !== undefined) updatePayload.email = updatedParty.email;
+    if (updatedParty.address !== undefined) updatePayload.address = updatedParty.address;
+    if (updatedParty.gst_number !== undefined) updatePayload.gst_number = updatedParty.gst_number;
+    
+    return updatePayload;
+};
+
 const PartiesPage = () => {
     const { user } = useAuth();
     const { toast } = useToast();
@@ -79,7 +94,7 @@ const PartiesPage = () => {
             }
 
             const { data, error } = await getPartiesTable()
-                .insert([{ ...newParty, user_id: currentUser.id }]) // Use user.id
+                .insert([{ ...newParty, user_id: currentUser.id }])
                 .select()
                 .single();
             if (error) throw error;
@@ -99,7 +114,10 @@ const PartiesPage = () => {
 
     const updateMutation = useMutation({
         mutationFn: async (updatedParty: Partial<Party>) => {
-            if (!selectedParty?.id) return;
+            // Fixed: Throw error instead of silent return
+            if (!selectedParty?.id) {
+                throw new Error("No party selected for update");
+            }
 
             const { data: { user: currentUser } } = await supabase.auth.getUser();
             if (!currentUser) throw new Error("User not authenticated");
@@ -116,8 +134,11 @@ const PartiesPage = () => {
                 }
             }
 
+            // Fixed: Use type-safe payload builder instead of 'as any' casting
+            const updatePayload = buildPartyUpdatePayload(updatedParty);
+
             const { data, error } = await getPartiesTable()
-                .update(updatedParty as any) // Casting to any for update payload flexibility
+                .update(updatePayload)
                 .eq("id", selectedParty.id)
                 .select()
                 .single();
@@ -159,10 +180,10 @@ const PartiesPage = () => {
                 localStorage.setItem(key, JSON.stringify([deletedItem, ...existing]));
             }
 
-            const { error } = await getPartiesTable() // Use getPartiesTable
+            const { error } = await getPartiesTable()
                 .delete()
                 .eq("id", id)
-                .eq("user_id", currentUser.id); // Add user_id check for security
+                .eq("user_id", currentUser.id);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -265,7 +286,7 @@ const PartiesPage = () => {
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value as any)}
-                            className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-semibold px-4 h-11 focus:ring-1 focus:ring-primary/50 text-slate-700 dark:text-slate-300 outline-none"
+                            className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-semibold px-4 h-11 focus:ring-1 focus:ring-primary/50 text-slate-700 dark:text-slate-300"
                         >
                             <option>All Types</option>
                             <option>Customer</option>
@@ -349,7 +370,7 @@ const PartiesPage = () => {
                                                             </button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                                                            <DropdownMenuItem onClick={() => handleDeleteClick(party)} className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/50">
+                                                            <DropdownMenuItem onClick={() => handleDeleteClick(party)} className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-900/30">
                                                                 <Trash2 className="h-4 w-4 mr-2" /> Delete Party
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
