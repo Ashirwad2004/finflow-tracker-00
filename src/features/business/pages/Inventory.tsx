@@ -27,6 +27,8 @@ import { useToast } from "@/core/hooks/use-toast";
 import { useForm, Controller } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { Badge } from "@/components/ui/badge";
+import { TableLoadingRows } from "@/components/shared/PageStates";
+
 import {
     AlertDialog,
     AlertDialogAction,
@@ -301,9 +303,21 @@ export default function Inventory() {
                 {/* Products Table */}
                 <div className="border rounded-lg overflow-hidden bg-card">
                     {isLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Product Name</TableHead>
+                                    <TableHead>Price</TableHead>
+                                    <TableHead>Cost Price</TableHead>
+                                    <TableHead>Stock</TableHead>
+                                    <TableHead>Unit</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableLoadingRows cols={6} rows={5} />
+                            </TableBody>
+                        </Table>
                     ) : filteredProducts.length === 0 ? (
                         <div className="text-center py-12">
                             <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
