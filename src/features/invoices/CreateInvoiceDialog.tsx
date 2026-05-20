@@ -13,6 +13,9 @@ import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
 import { SalesSettings } from "@/core/hooks/use-sales-settings";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
+import { useAuth } from "@/core/lib/auth";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
@@ -48,12 +51,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
+    const { user: authUser } = useAuth();
+    const currentUserId = authUser?.id;
 
     // Load item settings (keyed by current user)
-    const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
-    }, [open]);
     const { settings } = useItemSettings(currentUserId);
 
     const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<InvoiceFormValues>({
@@ -86,13 +87,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     const { data: parties = [] } = useQuery({
         queryKey: ["invoice-parties"],
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = authUser;
             if (!user) return [];
-            const { data } = await supabase.from("parties" as any)
-                .select("*")
-                .eq("user_id", user.id)
-                .in("type", ["customer", "both"]);
-            return data || [];
+            try {
+                const { data } = await supabase.from("parties" as any)
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .in("type", ["customer", "both"]);
+                if (data) return data;
+            } catch (e) {
+                // Ignore network error and fall back to cache
+            }
+            const cachedParties = (queryClient.getQueryData(["parties", user.id]) as any[]) || [];
+            return cachedParties.filter((p: any) => ["customer", "both"].includes(p.type));
         },
         enabled: open
     });
@@ -143,17 +150,22 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
         queryKey: ["last-invoice-number"],
         queryFn: async () => {
             if (invoiceToEdit) return null;
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = authUser;
             if (!user) return null;
-            const { data, error } = await supabase
-                .from("sales")
-                .select("invoice_number")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-            if (error) return null;
-            return data?.invoice_number;
+            try {
+                const { data, error } = await supabase
+                    .from("sales" as any)
+                    .select("invoice_number")
+                    .eq("user_id", user.id)
+                    .order("created_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (!error && data) return (data as any).invoice_number;
+            } catch (e) {
+                // Ignore network error and fall back to cache
+            }
+            const cachedSales = (queryClient.getQueryData(["sales", user.id]) as any[]) || [];
+            return cachedSales[0]?.invoice_number || null;
         },
         enabled: open && !invoiceToEdit,
     });
@@ -181,14 +193,18 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
     // Fetch Products
     const { data: products = [] } = useQuery({
-        queryKey: ["products", -1],
+        queryKey: ["products-invoice-picker", currentUserId],
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return [];
-            const { data } = await supabase.from("products" as any).select("*").eq("user_id", user.id);
-            return data || [];
+            if (!currentUserId) return [];
+            try {
+                const { data } = await supabase.from("products" as any).select("*").eq("user_id", currentUserId);
+                if (data) return data || [];
+            } catch (e) {
+                // Ignore network error and fall back to cache
+            }
+            return (queryClient.getQueryData(["products", currentUserId]) as any[]) || [];
         },
-        enabled: open
+        enabled: open && !!currentUserId
     });
 
     const handleProductSelect = (index: number, productName: string) => {
@@ -199,15 +215,24 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     // Outstanding balance check helper
     const checkOutstandingBalance = async (customerName: string): Promise<boolean> => {
         if (!salesSettings?.warnOnOutstandingBalance || !customerName.trim()) return true;
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = authUser;
         if (!user) return true;
-        const { data } = await supabase
-            .from("sales" as any)
-            .select("id, status, total_amount, invoice_number")
-            .eq("user_id", user.id)
-            .eq("customer_name", customerName)
-            .in("status", ["pending", "overdue"]);
-        const outstanding = (data as any[] | null) ?? [];
+        
+        let outstanding: any[] = [];
+        try {
+            const { data } = await supabase
+                .from("sales" as any)
+                .select("id, status, total_amount, invoice_number")
+                .eq("user_id", user.id)
+                .eq("customer_name", customerName)
+                .in("status", ["pending", "overdue"]);
+            outstanding = (data as any[] | null) ?? [];
+        } catch (e) {
+            // Fallback to cached sales
+            const cachedSales = (queryClient.getQueryData(["sales", user.id]) as any[]) || [];
+            outstanding = cachedSales.filter((s: any) => s.customer_name === customerName && ["pending", "overdue"].includes(s.status));
+        }
+
         if (outstanding.length > 0) {
             const total = outstanding.reduce((s: number, inv: any) => s + Number(inv.total_amount || 0), 0);
             const formatted = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(total);
@@ -241,14 +266,23 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     // --- Mutation ---
     const createInvoiceMutation = useMutation({
         mutationFn: async (values: InvoiceFormValues) => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = authUser;
             if (!user) throw new Error("Not authenticated");
 
-            const { data: profileData } = await supabase
-                .from("profiles")
-                .select("business_name, gst_number, business_address, business_phone")
-                .eq("user_id", user.id)
-                .single();
+            // Optimistic profile fetch: check query cache first
+            let profileData = queryClient.getQueryData(["profile", user.id]) as any;
+            if (!profileData) {
+                try {
+                    const { data } = await supabase
+                        .from("profiles")
+                        .select("business_name, gst_number, business_address, business_phone")
+                        .eq("user_id", user.id)
+                        .single();
+                    profileData = data;
+                } catch (e) {
+                    // Ignore network failure, fall back to empty profile block
+                }
+            }
 
             const processedItems = values.items.map(item => {
                 const qty = Number(item.quantity) || 0;
@@ -278,41 +312,27 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 payment_method: values.status === 'paid' ? "cash" : null
             };
 
-            if (invoiceToEdit) {
-                // If editing, check if changed invoice number conflicts with an existing one
-                if (invoiceToEdit.invoice_number !== values.invoice_number) {
-                    const { data: existingInvoice } = await supabase
-                        .from("sales")
-                        .select("id")
-                        .eq("user_id", user.id)
-                        .eq("invoice_number", values.invoice_number)
-                        .limit(1);
+            // Invoice number conflicts: check React Query cache
+            const cachedSales = (queryClient.getQueryData(["sales", user.id]) as any[]) || [];
+            const hasConflict = cachedSales.some((s: any) => s.invoice_number === values.invoice_number && (!invoiceToEdit || s.id !== invoiceToEdit.id));
+            if (hasConflict) {
+                throw new Error(`An invoice with number "${values.invoice_number}" already exists.`);
+            }
 
-                    if (existingInvoice && existingInvoice.length > 0) {
-                        throw new Error(`An invoice with number "${values.invoice_number}" already exists.`);
-                    }
-                }
+            const recordId = invoiceToEdit ? invoiceToEdit.id : uuidv4();
+            
+            // Route through offlineMutate
+            const result = await offlineMutate({
+                table: "sales",
+                action: invoiceToEdit ? "update" : "insert",
+                recordId,
+                payload: { id: recordId, ...saleData, created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString() },
+                userId: user.id
+            });
+            if (result.error) throw result.error;
 
-                const { error } = await supabase.from("sales" as any).update(saleData as any).eq("id", invoiceToEdit.id);
-                if (error) throw error;
-                return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount, id: invoiceToEdit.id };
-            } else {
-                // If creating, check if invoice number conflicts
-                const { data: existingInvoice } = await supabase
-                    .from("sales")
-                    .select("id")
-                    .eq("user_id", user.id)
-                    .eq("invoice_number", values.invoice_number)
-                    .limit(1);
-
-                if (existingInvoice && existingInvoice.length > 0) {
-                    throw new Error(`An invoice with number "${values.invoice_number}" already exists.`);
-                }
-
-                const { error } = await supabase.from("sales" as any).insert(saleData as any);
-                if (error) throw error;
-
-                // Update Inventory
+            // Update Inventory (Optimistically and in IndexedDB queue)
+            if (!invoiceToEdit) {
                 const shouldDeduct = settings.deductStockOnlyOnPaid
                     ? values.status === "paid"
                     : true;
@@ -323,14 +343,45 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                         if (product) {
                             const qtySold = Number(item.quantity) || 0;
                             const currentStock = Number(product.stock_quantity) || 0;
-                            await supabase.from("products" as any).update({ stock_quantity: currentStock - qtySold }).eq("id", product.id);
+                            const updatedStock = currentStock - qtySold;
+
+                            // Mutate the product stock in offline queue
+                            await offlineMutate({
+                                table: "products",
+                                action: "update",
+                                recordId: product.id,
+                                payload: { ...product, stock_quantity: updatedStock },
+                                userId: user.id
+                            });
+
+                            // Update React Query products cache immediately
+                            queryClient.setQueryData(["products", user.id], (old: any[] | undefined) => {
+                                if (!old) return [];
+                                return old.map((p: any) => p.id === product.id ? { ...p, stock_quantity: updatedStock } : p);
+                            });
                         }
                     }
                 }
-                return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount };
             }
+
+            return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount, id: recordId, created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString() };
         },
         onSuccess: (data: any) => {
+            // Optimistically update React Query sales cache
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                const userId = session?.user?.id;
+                if (userId) {
+                    queryClient.setQueryData(["sales", userId], (old: any[] | undefined) => {
+                        const salesList = old || [];
+                        if (invoiceToEdit) {
+                            return salesList.map((s: any) => s.id === data.id ? { ...s, ...data } : s);
+                        } else {
+                            return [data, ...salesList];
+                        }
+                    });
+                }
+            });
+
             queryClient.invalidateQueries({ queryKey: ["sales"] });
             queryClient.invalidateQueries({ queryKey: ["last-invoice-number"] });
             toast({
@@ -340,7 +391,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             onOpenChange(false);
             reset();
         },
-        onError: (error) => {
+        onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         }
     });

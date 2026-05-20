@@ -74,7 +74,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+import { useQueryCacheOffline } from "@/core/hooks/useQueryCacheOffline";
+
 const AppRoutes = () => {
+  useQueryCacheOffline();
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>

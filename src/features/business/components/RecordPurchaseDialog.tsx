@@ -91,6 +91,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
         enabled: open
     });
 
+
     const createPurchaseMutation = useMutation({
         mutationFn: async (values: PurchaseFormValues) => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -112,25 +113,70 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
             };
 
             if (purchaseToEdit) {
-                // UPDATE existing
+                // UPDATE existing purchase (no inventory change)
                 const { error } = await supabase
                     .from("purchases" as any)
                     .update(purchaseData)
                     .eq("id", purchaseToEdit.id);
                 if (error) throw error;
             } else {
-                // INSERT new
-                const { error } = await supabase.from("purchases" as any).insert(purchaseData);
-                if (error) throw error;
+                // INSERT new purchase
+                const { error: purchaseError } = await supabase
+                    .from("purchases" as any)
+                    .insert(purchaseData);
+                if (purchaseError) throw purchaseError;
+
+                // Sync inventory for each purchased item
+                for (const item of values.items) {
+                    if (!item.description.trim()) continue;
+
+                    // Look for existing product by name (case-insensitive match via ilike)
+                    const { data: existingProducts } = await supabase
+                        .from("products" as any)
+                        .select("id, stock_quantity")
+                        .eq("user_id", user.id)
+                        .ilike("name", item.description.trim());
+
+                    const existingProduct = existingProducts && existingProducts.length > 0
+                        ? existingProducts[0]
+                        : null;
+
+                    if (existingProduct) {
+                        // Existing product → increase stock
+                        const newQty = Number(existingProduct.stock_quantity) + Number(item.quantity);
+                        const { error: updateError } = await supabase
+                            .from("products" as any)
+                            .update({ stock_quantity: newQty })
+                            .eq("id", existingProduct.id);
+                        if (updateError) throw updateError;
+                    } else {
+                        // New product → create inventory entry
+                        const { error: insertProdError } = await supabase
+                            .from("products" as any)
+                            .insert({
+                                user_id: user.id,
+                                name: item.description.trim(),
+                                price: Number(item.price),
+                                cost_price: 0,
+                                stock_quantity: Number(item.quantity),
+                                unit: "pc",
+                            });
+                        if (insertProdError) throw insertProdError;
+                    }
+                }
             }
 
             return values;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["purchases"] });
+            // Refresh inventory page automatically
+            queryClient.invalidateQueries({ queryKey: ["products"] });
             toast({
                 title: purchaseToEdit ? "Purchase Updated" : "Purchase Recorded",
-                description: `Bill has been ${purchaseToEdit ? "updated" : "saved"} successfully.`
+                description: purchaseToEdit
+                    ? "Bill has been updated successfully."
+                    : "Purchase saved and inventory updated successfully."
             });
             onOpenChange(false);
             reset();

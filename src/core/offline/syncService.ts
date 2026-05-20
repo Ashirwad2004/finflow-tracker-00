@@ -29,8 +29,7 @@ export const processSyncQueue = async (userId: string) => {
                 await new Promise(res => setTimeout(res, backoffDelay));
             }
             
-            const rawPayload = decryptPayload(item.payload_encrypted, userId);
-            const payload = rawPayload ? JSON.parse(rawPayload) : {};
+            const payload = decryptPayload(item.payload_encrypted, userId) || {};
 
             // Supabase API Execution
             if (item.action === 'insert') {
