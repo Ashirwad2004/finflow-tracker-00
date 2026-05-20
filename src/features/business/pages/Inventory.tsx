@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,14 +125,30 @@ export default function Inventory() {
     // Add product mutation
     const addProductMutation = useMutation({
         mutationFn: async (values: ProductFormValues) => {
-            const { error } = await supabase.from("products" as any).insert({
+            const recordId = uuidv4();
+            const recordPayload = {
+                id: recordId,
                 user_id: user?.id,
-                ...values
+                ...values,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            const result = await offlineMutate({
+                table: "products",
+                action: "insert",
+                recordId,
+                payload: recordPayload,
+                userId: user?.id || ""
             });
-            if (error) throw error;
+            if (result.error) throw result.error;
+            return recordPayload;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+        onSuccess: (newProduct: any) => {
+            // Optimistically update React Query Cache
+            queryClient.setQueryData(["products", user?.id], (old: any[] | undefined) => {
+                return [newProduct, ...(old || [])];
+            });
+            queryClient.invalidateQueries({ queryKey: ["products", user?.id] });
             toast({
                 title: "Product Added",
                 description: "The product has been added to your inventory."
@@ -151,14 +169,28 @@ export default function Inventory() {
     const updateProductMutation = useMutation({
         mutationFn: async (values: ProductFormValues) => {
             if (!selectedProduct) return;
-            const { error } = await supabase
-                .from("products" as any)
-                .update(values)
-                .eq("id", selectedProduct.id);
-            if (error) throw error;
+            const recordPayload = {
+                ...selectedProduct,
+                ...values,
+                updated_at: new Date().toISOString()
+            };
+            const result = await offlineMutate({
+                table: "products",
+                action: "update",
+                recordId: selectedProduct.id,
+                payload: recordPayload,
+                userId: user?.id || ""
+            });
+            if (result.error) throw result.error;
+            return recordPayload;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+        onSuccess: (updatedProduct: any) => {
+            // Optimistically update React Query Cache
+            queryClient.setQueryData(["products", user?.id], (old: any[] | undefined) => {
+                if (!old) return [];
+                return old.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+            });
+            queryClient.invalidateQueries({ queryKey: ["products", user?.id] });
             toast({
                 title: "Product Updated",
                 description: "The product has been updated successfully."
@@ -192,14 +224,23 @@ export default function Inventory() {
                 localStorage.setItem(key, JSON.stringify([deletedItem, ...existing]));
             }
 
-            const { error } = await supabase
-                .from("products" as any)
-                .delete()
-                .eq("id", productId);
-            if (error) throw error;
+            const result = await offlineMutate({
+                table: "products",
+                action: "delete",
+                recordId: productId,
+                payload: {},
+                userId: user?.id || ""
+            });
+            if (result.error) throw result.error;
+            return productId;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+        onSuccess: (deletedId: string) => {
+            // Optimistically update React Query Cache
+            queryClient.setQueryData(["products", user?.id], (old: any[] | undefined) => {
+                if (!old) return [];
+                return old.filter(p => p.id !== deletedId);
+            });
+            queryClient.invalidateQueries({ queryKey: ["products", user?.id] });
             toast({
                 title: "Product Deleted",
                 description: "The product has been removed from your inventory."
@@ -237,10 +278,34 @@ export default function Inventory() {
     };
 
     const onAddSubmit = (data: ProductFormValues) => {
+        const isDuplicate = products.some(
+            (p) => p.name.trim().toLowerCase() === data.name.trim().toLowerCase()
+        );
+        if (isDuplicate) {
+            toast({
+                title: "Duplicate Product",
+                description: `A product named "${data.name.trim()}" already exists in your inventory.`,
+                variant: "destructive"
+            });
+            return;
+        }
         addProductMutation.mutate(data);
     };
 
     const onEditSubmit = (data: ProductFormValues) => {
+        const isDuplicate = products.some(
+            (p) =>
+                p.id !== selectedProduct?.id &&
+                p.name.trim().toLowerCase() === data.name.trim().toLowerCase()
+        );
+        if (isDuplicate) {
+            toast({
+                title: "Duplicate Product",
+                description: `A product named "${data.name.trim()}" already exists in your inventory.`,
+                variant: "destructive"
+            });
+            return;
+        }
         updateProductMutation.mutate(data);
     };
 
