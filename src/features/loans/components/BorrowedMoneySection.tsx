@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -142,27 +143,56 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
 
     const markAsRepaid = useMutation({
         mutationFn: async (id: string) => {
-            // @ts-ignore: types.ts might be incomplete
-            const { error } = await supabase
-                .from("borrowed_money")
-                .update({ status: "paid" })
-                .eq("id", id);
+            if (!userId) return;
+            const { error } = await offlineMutate({
+                table: "borrowed_money",
+                action: "update",
+                recordId: id,
+                payload: { status: "paid" },
+                userId
+            });
 
             if (error) throw error;
+            return id;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
-            // Also invalidate parties
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
+        onSuccess: (id) => {
+            // Optimistic cache update
+            queryClient.setQueryData(["borrowed-money", userId], (old: any) => {
+                const updated = old ? old.map((debt: any) => debt.id === id ? { ...debt, status: "paid" } : debt) : [];
+                
+                // Update borrowed-money-parties optimistically
+                const pendingDebts = updated.filter((record: any) => record.status === "pending");
+                const partyMap = new Map<string, any>();
+                pendingDebts.forEach((record: any) => {
+                    const name = record.person_name.trim();
+                    const current = partyMap.get(name) || {
+                        personName: name,
+                        totalPending: 0,
+                        count: 0,
+                        lastTransactionDate: record.created_at,
+                    };
+                    current.totalPending += Number(record.amount);
+                    current.count += 1;
+                    partyMap.set(name, current);
+                });
+                queryClient.setQueryData(["borrowed-money-parties", userId], Array.from(partyMap.values()));
+
+                return updated;
+            });
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
+            }
             toast({
                 title: "Marked as repaid",
                 description: "The debt has been marked as repaid.",
             });
         },
-        onError: () => {
+        onError: (error: any) => {
             toast({
                 title: "Error",
-                description: "Failed to update status. Please try again.",
+                description: "Failed to update status: " + (error?.message || "Please try again."),
                 variant: "destructive",
             });
         },
@@ -170,11 +200,13 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
 
     const deleteDebt = useMutation({
         mutationFn: async (debt: BorrowedMoneyRecord) => {
-            // @ts-ignore: types.ts might be incomplete
-            const { error } = await supabase
-                .from("borrowed_money")
-                .delete()
-                .eq("id", debt.id);
+            if (!userId) return;
+            const { error } = await offlineMutate({
+                table: "borrowed_money",
+                action: "delete",
+                recordId: debt.id,
+                userId
+            });
 
             if (error) throw error;
 
@@ -184,9 +216,35 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
             existing.push({ ...debt, deleted_at: new Date().toISOString() });
             localStorage.setItem(key, JSON.stringify(existing));
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
+        onSuccess: (_data, debt) => {
+            // Optimistic cache update
+            queryClient.setQueryData(["borrowed-money", userId], (old: any) => {
+                const updated = old ? old.filter((item: any) => item.id !== debt.id) : [];
+
+                // Update borrowed-money-parties optimistically
+                const pendingDebts = updated.filter((record: any) => record.status === "pending");
+                const partyMap = new Map<string, any>();
+                pendingDebts.forEach((record: any) => {
+                    const name = record.person_name.trim();
+                    const current = partyMap.get(name) || {
+                        personName: name,
+                        totalPending: 0,
+                        count: 0,
+                        lastTransactionDate: record.created_at,
+                    };
+                    current.totalPending += Number(record.amount);
+                    current.count += 1;
+                    partyMap.set(name, current);
+                });
+                queryClient.setQueryData(["borrowed-money-parties", userId], Array.from(partyMap.values()));
+
+                return updated;
+            });
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
+            }
             toast({
                 title: "Record deleted",
                 description: "The borrowed money record has been moved to recently deleted.",
@@ -194,10 +252,10 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
             setDeleteDialogOpen(false);
             setSelectedDebt(null);
         },
-        onError: () => {
+        onError: (error: any) => {
             toast({
                 title: "Error",
-                description: "Failed to delete record. Please try again.",
+                description: "Failed to delete record: " + (error?.message || "Please try again."),
                 variant: "destructive",
             });
         },

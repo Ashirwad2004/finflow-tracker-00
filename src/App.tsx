@@ -38,6 +38,7 @@ const StorefrontPage = lazy(() => import("@/features/storefront/Storefront"));
 // Optimize React Query: 
 // 1. Keep data fresh for 5 mins (reduces duplicate network requests)
 // 2. Keep unused cache around for 15 mins
+// 3. Set networkMode to offlineFirst to prevent pausing queries/mutations when offline
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -45,6 +46,10 @@ const queryClient = new QueryClient({
       gcTime: 1000 * 60 * 15,
       retry: 1,
       refetchOnWindowFocus: false, // Prevents sudden UI slowdowns when switching tabs
+      networkMode: "offlineFirst",
+    },
+    mutations: {
+      networkMode: "offlineFirst",
     },
   },
 });

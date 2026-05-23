@@ -2,21 +2,35 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import db from "@/core/offline/db";
 
-const STORAGE_KEY = "FINFLOW_OFFLINE_CACHE";
-const PERSIST_KEYS = ["expenses", "sales", "purchases", "parties", "products", "profile"];
+const PERSIST_KEYS = [
+  "expenses",
+  "sales",
+  "purchases",
+  "parties",
+  "products",
+  "profile",
+  "categories",
+  "lent-money",
+  "borrowed-money",
+  "lent-money-parties",
+  "borrowed-money-parties",
+  "budget",
+  "groups",
+  "group-members",
+  "group-expenses",
+  "all-group-members",
+  "online_orders",
+  "online_orders_pending_count"
+];
 
-// Global module state for debounced localStorage persistence (keeps memory lightweight)
-let pendingCacheUpdate: any = null;
+// Global module state for debounced Dexie persistence (keeps memory lightweight)
+let pendingCacheUpdate: Record<string, any> = {};
 let debounceTimeoutId: any = null;
 
-const debouncedSaveToLocalStorage = (queryKey: any, data: any) => {
+const debouncedSaveToIndexedDB = (queryKey: any, data: any) => {
   try {
-    if (!pendingCacheUpdate) {
-      const cachedDataStr = localStorage.getItem(STORAGE_KEY);
-      pendingCacheUpdate = cachedDataStr ? JSON.parse(cachedDataStr) : {};
-    }
-    
     const serializedKey = JSON.stringify(queryKey);
     pendingCacheUpdate[serializedKey] = data;
 
@@ -24,21 +38,30 @@ const debouncedSaveToLocalStorage = (queryKey: any, data: any) => {
       clearTimeout(debounceTimeoutId);
     }
 
-    debounceTimeoutId = setTimeout(() => {
+    debounceTimeoutId = setTimeout(async () => {
       try {
-        if (pendingCacheUpdate) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingCacheUpdate));
-          console.log("[Offline Cache] Persisted batched updates to localStorage");
+        const updates = Object.entries(pendingCacheUpdate);
+        if (updates.length > 0) {
+          await db.transaction("rw", db.queryCache, async () => {
+            for (const [key, val] of updates) {
+              await db.queryCache.put({
+                key,
+                data: val,
+                updatedAt: Date.now()
+              });
+            }
+          });
+          console.log(`[Offline Cache] Persisted ${updates.length} batched updates to IndexedDB`);
         }
       } catch (e) {
-        console.warn("[Offline Cache] Failed to write to localStorage:", e);
+        console.warn("[Offline Cache] Failed to write to IndexedDB:", e);
       } finally {
-        pendingCacheUpdate = null;
+        pendingCacheUpdate = {};
         debounceTimeoutId = null;
       }
     }, 300); // 300ms batch debounce
   } catch (err) {
-    console.warn("[Offline Cache] Error in debouncedSaveToLocalStorage:", err);
+    console.warn("[Offline Cache] Error in debouncedSaveToIndexedDB:", err);
   }
 };
 
@@ -46,25 +69,25 @@ export const useQueryCacheOffline = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // 1. Restore cache from localStorage on startup/mount
+  // 1. Restore cache from IndexedDB on startup/mount
   useEffect(() => {
-    try {
-      const cachedDataStr = localStorage.getItem(STORAGE_KEY);
-      if (cachedDataStr) {
-        const cachedQueries = JSON.parse(cachedDataStr);
-        Object.entries(cachedQueries).forEach(([keyStr, value]) => {
+    const restoreCache = async () => {
+      try {
+        const records = await db.queryCache.toArray();
+        records.forEach((record) => {
           try {
-            const key = JSON.parse(keyStr);
-            queryClient.setQueryData(key, value);
-            console.log(`[Offline Cache] Successfully restored: ${keyStr}`);
+            const key = JSON.parse(record.key);
+            queryClient.setQueryData(key, record.data);
+            console.log(`[Offline Cache] Successfully restored from IndexedDB: ${record.key}`);
           } catch (err) {
-            console.warn("[Offline Cache] Error restoring key", keyStr, err);
+            console.warn("[Offline Cache] Error restoring key", record.key, err);
           }
         });
+      } catch (e) {
+        console.error("[Offline Cache] Failed to load cache from IndexedDB", e);
       }
-    } catch (e) {
-      console.error("[Offline Cache] Failed to load cache from localStorage", e);
-    }
+    };
+    restoreCache();
   }, [queryClient]);
 
   // 2. Subscribe to React Query Cache updates to persist future successful fetches (Debounced)
@@ -77,7 +100,7 @@ export const useQueryCacheOffline = () => {
         const mainKey = String(queryKey[0]);
 
         if (PERSIST_KEYS.includes(mainKey)) {
-          debouncedSaveToLocalStorage(queryKey, event.query.state.data);
+          debouncedSaveToIndexedDB(queryKey, event.query.state.data);
         }
       }
     });
@@ -197,6 +220,191 @@ export const useQueryCacheOffline = () => {
               }
             } catch (e) {
               console.warn("[Offline Cache] Pre-fetch failed for products", e);
+            }
+          },
+
+          // G. Categories (Expense selection helper)
+          async () => {
+            try {
+              const { data } = await supabase
+                .from("categories")
+                .select("*")
+                .order("name");
+              if (data) {
+                queryClient.setQueryData(["categories"], data);
+                console.log("[Offline Cache] Pre-fetched categories");
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for categories", e);
+            }
+          },
+
+          // H. Lent Money
+          async () => {
+            try {
+              const { data } = await supabase
+                .from("lent_money")
+                .select("*")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false });
+              if (data) {
+                queryClient.setQueryData(["lent-money", userId], data);
+                console.log("[Offline Cache] Pre-fetched lent-money");
+
+                // Generate lent-money-parties
+                const pendingData = data.filter(record => record.status === "pending");
+                const partyMap = new Map<string, any>();
+                pendingData.forEach((record) => {
+                  const name = record.person_name.trim();
+                  const current = partyMap.get(name) || {
+                    personName: name,
+                    totalPending: 0,
+                    count: 0,
+                    lastTransactionDate: record.created_at,
+                  };
+                  current.totalPending += Number(record.amount);
+                  current.count += 1;
+                  partyMap.set(name, current);
+                });
+                queryClient.setQueryData(["lent-money-parties", userId], Array.from(partyMap.values()));
+                console.log("[Offline Cache] Pre-fetched lent-money-parties");
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for lent-money", e);
+            }
+          },
+
+          // I. Borrowed Money
+          async () => {
+            try {
+              const { data } = await supabase
+                .from("borrowed_money")
+                .select("*")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false });
+              if (data) {
+                queryClient.setQueryData(["borrowed-money", userId], data);
+                console.log("[Offline Cache] Pre-fetched borrowed-money");
+
+                // Generate borrowed-money-parties
+                const pendingData = data.filter(record => record.status === "pending");
+                const partyMap = new Map<string, any>();
+                pendingData.forEach((record) => {
+                  const name = record.person_name.trim();
+                  const current = partyMap.get(name) || {
+                    personName: name,
+                    totalPending: 0,
+                    count: 0,
+                    lastTransactionDate: record.created_at,
+                  };
+                  current.totalPending += Number(record.amount);
+                  current.count += 1;
+                  partyMap.set(name, current);
+                });
+                queryClient.setQueryData(["borrowed-money-parties", userId], Array.from(partyMap.values()));
+                console.log("[Offline Cache] Pre-fetched borrowed-money-parties");
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for borrowed-money", e);
+            }
+          },
+
+          // J. Groups hierarchy
+          async () => {
+            try {
+              const { data: memberships } = await supabase
+                .from("group_members")
+                .select("group_id")
+                .eq("user_id", userId);
+              if (memberships && memberships.length > 0) {
+                const groupIds = memberships.map((m) => m.group_id);
+                const { data: groupsData } = await supabase
+                  .from("groups")
+                  .select("*")
+                  .in("id", groupIds);
+                if (groupsData) {
+                  queryClient.setQueryData(["groups", userId], groupsData);
+                  console.log("[Offline Cache] Pre-fetched groups");
+                  for (const group of groupsData) {
+                    queryClient.setQueryData(["group", group.id], group);
+                    const { data: mems } = await supabase
+                      .from("group_members")
+                      .select("*")
+                      .eq("group_id", group.id)
+                      .order("joined_at");
+                    if (mems) {
+                      queryClient.setQueryData(["group-members", group.id], mems);
+                    }
+                    const { data: exps } = await supabase
+                      .from("group_expenses")
+                      .select("*, categories(name, color, icon)")
+                      .eq("group_id", group.id)
+                      .order("date", { ascending: false });
+                    if (exps) {
+                      queryClient.setQueryData(["group-expenses", group.id], exps);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for groups hierarchy", e);
+            }
+          },
+
+          // K. All group members list
+          async () => {
+            try {
+              const { data } = await supabase
+                .from("group_members")
+                .select("group_id, user_id, username");
+              if (data) {
+                queryClient.setQueryData(["all-group-members"], data);
+                console.log("[Offline Cache] Pre-fetched all-group-members");
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for all-group-members", e);
+            }
+          },
+
+          // L. Online orders
+          async () => {
+            try {
+              const { data } = await (supabase.from as any)("online_orders")
+                .select(`
+                  *,
+                  online_order_items (
+                    id,
+                    product_id,
+                    quantity,
+                    price_at_time,
+                    products ( name )
+                  )
+                `)
+                .eq("store_id", userId)
+                .order("created_at", { ascending: false });
+              if (data) {
+                queryClient.setQueryData(["online_orders", userId], data);
+                console.log("[Offline Cache] Pre-fetched online orders");
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for online orders", e);
+            }
+          },
+
+          // M. Online orders pending count
+          async () => {
+            try {
+              const { count, error } = await (supabase as any)
+                .from("online_orders")
+                .select("id", { count: "exact", head: true })
+                .eq("store_id", userId)
+                .eq("status", "pending");
+              if (!error && count !== null) {
+                queryClient.setQueryData(["online_orders_pending_count", userId], count);
+                console.log("[Offline Cache] Pre-fetched pending order count");
+              }
+            } catch (e) {
+              console.warn("[Offline Cache] Pre-fetch failed for online orders pending count", e);
             }
           }
         ];

@@ -12,9 +12,16 @@ export interface SyncRecord {
     retryCount: number;  // Max 5 attempts
 }
 
+export interface CacheRecord {
+    key: string;         // Serialized JSON query key
+    data: any;           // The cached data payload
+    updatedAt: number;   // Epoch timestamp of last cache update
+}
+
 // Ensure the db adheres to Typescript strict typing
 const db = new Dexie('FinFlowOfflineDB') as Dexie & {
   syncQueue: EntityTable<SyncRecord, 'id'>;
+  queryCache: EntityTable<CacheRecord, 'key'>;
 };
 
 // Declaring the indexes
@@ -25,6 +32,11 @@ db.version(1).stores({
 
 db.version(2).stores({
     syncQueue: 'id, userId, status, createdAt, recordId, table'
+});
+
+db.version(3).stores({
+    syncQueue: 'id, userId, status, createdAt, recordId, table',
+    queryCache: 'key'
 });
 
 export default db;

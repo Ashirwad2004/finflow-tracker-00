@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
 import {
   Card,
   CardContent,
@@ -29,7 +31,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { PullToRefresh } from "@/components/layout/PullToRefresh";
 
 const AVATAR_EMOJIS = [
-  "🦊", "🐼", "🐸", "🦁", "🐯", "🐨", "🐷", "🦄", "🐙", "🐵",
+  "🦊", "🐼", "🐸", "🦁", "🐯", "KOALA", "🐷", "🦄", "🐙", "🐵",
   "🤖", "👻", "👽", "👾", "🤡", "🤠", "🎃", "⛄", "🐻", "🐝"
 ];
 
@@ -74,6 +76,7 @@ const GroupsSkeleton = () => (
 const Groups = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -125,7 +128,9 @@ const Groups = () => {
     allMembers.filter((m) => m.group_id === groupId);
 
   const handleRefresh = async () => {
-    await refetch();
+    if (navigator.onLine) {
+      await refetch();
+    }
     toast({
       title: "Refreshed",
       description: "Groups updated successfully.",
@@ -133,7 +138,7 @@ const Groups = () => {
   };
 
   const createGroup = async () => {
-    if (!newGroupName.trim()) {
+    if (!newGroupName.trim() || !user?.id) {
       toast({
         title: "Error",
         description: "Group name is required",
@@ -154,41 +159,69 @@ const Groups = () => {
 
     try {
       const fallbackInviteCode = generateFallbackCode();
+      const groupId = uuidv4();
+      const memberId = uuidv4();
 
-      const { data: group, error: groupErr } = await supabase
-        .from("groups")
-        .insert({
+      const { error: groupErr } = await offlineMutate({
+        table: "groups",
+        action: "insert",
+        recordId: groupId,
+        payload: {
+          id: groupId,
           name: newGroupName.trim(),
           description: newGroupDescription.trim() || null,
-          created_by: user?.id,
+          created_by: user.id,
           invite_code: fallbackInviteCode,
-        })
-        .select()
-        .single();
+        },
+        userId: user.id,
+      });
 
       if (groupErr) throw groupErr;
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name")
-        .eq("user_id", user?.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       const username =
-        profile?.display_name || user?.user_metadata?.display_name || user?.email?.split('@')[0] || `user_${user?.id?.slice(0, 8)}`;
+        profile?.display_name || user.user_metadata?.display_name || user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`;
 
-      const { error: memberErr } = await supabase
-        .from("group_members")
-        .upsert({
-          group_id: group.id,
-          user_id: user?.id,
+      const { error: memberErr } = await offlineMutate({
+        table: "group_members",
+        action: "insert",
+        recordId: memberId,
+        payload: {
+          id: memberId,
+          group_id: groupId,
+          user_id: user.id,
           username,
-        }, {
-          onConflict: 'group_id, user_id',
-          ignoreDuplicates: true
-        });
+        },
+        userId: user.id,
+      });
 
       if (memberErr) throw memberErr;
+
+      // Optimistic updates
+      queryClient.setQueryData(["groups", user.id], (old: any) => {
+        const newGroup = {
+          id: groupId,
+          name: newGroupName.trim(),
+          description: newGroupDescription.trim() || null,
+          created_by: user.id,
+          invite_code: fallbackInviteCode,
+        };
+        return old ? [...old, newGroup] : [newGroup];
+      });
+
+      queryClient.setQueryData(["all-group-members"], (old: any) => {
+        const newMember = {
+          group_id: groupId,
+          user_id: user.id,
+          username,
+        };
+        return old ? [...old, newMember] : [newMember];
+      });
 
       toast({
         title: "Success",
@@ -198,7 +231,9 @@ const Groups = () => {
       setIsCreateDialogOpen(false);
       setNewGroupName("");
       setNewGroupDescription("");
-      refetch();
+      if (navigator.onLine) {
+        refetch();
+      }
     } catch (err: any) {
       toast({
         title: "Error",

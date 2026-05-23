@@ -6,6 +6,7 @@ import { CreateInvoiceDialog } from "@/features/invoices/CreateInvoiceDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { format, isSameMonth } from "date-fns";
 import {
@@ -208,17 +209,27 @@ export default function SalesPage() {
             console.warn("Failed to save to local recycle bin", e);
         }
 
-        // 2. Remove from Supabase
-        const { error } = await supabase
-            .from("sales" as any)
-            .delete()
-            .eq("id", invoice.id);
+        // 2. Remove from Supabase/Queue
+        if (!user?.id) return;
+        try {
+            await offlineMutate({
+                table: "sales",
+                action: "delete",
+                recordId: invoice.id,
+                userId: user.id
+            });
 
-        if (error) {
-            console.error("Error deleting invoice:", error);
+            // Optimistic update
+            queryClient.setQueryData(["sales", user.id], (old: any) => {
+                return old ? old.filter((inv: any) => inv.id !== invoice.id) : [];
+            });
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
+            }
+        } catch (err: any) {
+            console.error("Error deleting invoice:", err);
             alert("Failed to delete invoice.");
-        } else {
-            queryClient.invalidateQueries({ queryKey: ["sales", user?.id] });
         }
     };
 

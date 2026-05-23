@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
 import { Plus, Users, Search, MoreVertical, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,30 +82,54 @@ const PartiesPage = () => {
         mutationFn: async (newParty: Partial<Party>) => {
             if (!newParty.name) throw new Error("Party name is required");
 
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            const currentUser = user;
             if (!currentUser) throw new Error("User not authenticated");
 
-            const { data: existingParty } = await getPartiesTable()
-                .select("id")
-                .eq("user_id", currentUser.id)
-                .ilike("name", newParty.name)
-                .limit(1);
+            // Check locally in cache
+            const cachedParties: Party[] = queryClient.getQueryData(["parties", currentUser.id]) || [];
+            const exists = cachedParties.some(p => p.name.toLowerCase() === newParty.name!.toLowerCase());
 
-            if (existingParty && existingParty.length > 0) {
+            if (exists) {
                 throw new Error(`A party with the name "${newParty.name}" already exists.`);
             }
 
-            const { data, error } = await getPartiesTable()
-                .insert([{ ...newParty, user_id: currentUser.id }])
-                .select()
-                .single();
+            const partyId = uuidv4();
+            const partyPayload = {
+                id: partyId,
+                user_id: currentUser.id,
+                name: newParty.name,
+                type: newParty.type || "customer",
+                phone: newParty.phone || null,
+                email: newParty.email || null,
+                address: newParty.address || null,
+                gst_number: newParty.gst_number || null,
+                created_at: new Date().toISOString()
+            } as Party;
+
+            const { error } = await offlineMutate({
+                table: "parties",
+                action: "insert",
+                recordId: partyId,
+                payload: partyPayload,
+                userId: currentUser.id
+            });
             if (error) throw error;
-            return data;
+            return partyPayload;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["parties"] });
-            queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
-            queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
+        onSuccess: (data) => {
+            // Optimistic update
+            if (user?.id) {
+                queryClient.setQueryData(["parties", user.id], (old: any) => {
+                    const sorted = old ? [...old, data] : [data];
+                    return sorted.sort((a: any, b: any) => a.name.localeCompare(b.name));
+                });
+            }
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["parties"] });
+                queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
+                queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
+            }
             toast({ title: "Party created successfully" });
             setIsDialogOpen(false);
         },
@@ -114,41 +140,47 @@ const PartiesPage = () => {
 
     const updateMutation = useMutation({
         mutationFn: async (updatedParty: Partial<Party>) => {
-            // Fixed: Throw error instead of silent return
             if (!selectedParty?.id) {
                 throw new Error("No party selected for update");
             }
 
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            const currentUser = user;
             if (!currentUser) throw new Error("User not authenticated");
 
             if (updatedParty.name && updatedParty.name !== selectedParty.name) {
-                const { data: existingParty } = await getPartiesTable()
-                    .select("id")
-                    .eq("user_id", currentUser.id)
-                    .ilike("name", updatedParty.name)
-                    .limit(1);
+                const cachedParties: Party[] = queryClient.getQueryData(["parties", currentUser.id]) || [];
+                const exists = cachedParties.some(p => p.name.toLowerCase() === updatedParty.name!.toLowerCase());
 
-                if (existingParty && existingParty.length > 0) {
+                if (exists) {
                     throw new Error(`A party with the name "${updatedParty.name}" already exists.`);
                 }
             }
 
-            // Fixed: Use type-safe payload builder instead of 'as any' casting
             const updatePayload = buildPartyUpdatePayload(updatedParty);
 
-            const { data, error } = await getPartiesTable()
-                .update(updatePayload)
-                .eq("id", selectedParty.id)
-                .select()
-                .single();
+            const { error } = await offlineMutate({
+                table: "parties",
+                action: "update",
+                recordId: selectedParty.id,
+                payload: updatePayload,
+                userId: currentUser.id
+            });
             if (error) throw error;
-            return data;
+            return { id: selectedParty.id, ...updatedParty };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["parties"] });
-            queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
-            queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
+        onSuccess: (data) => {
+            // Optimistic update
+            if (user?.id) {
+                queryClient.setQueryData(["parties", user.id], (old: any) => {
+                    return old ? old.map((p: any) => p.id === data.id ? { ...p, ...data } : p).sort((a: any, b: any) => a.name.localeCompare(b.name)) : [];
+                });
+            }
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["parties"] });
+                queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
+                queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
+            }
             toast({ title: "Party updated successfully" });
             setIsDialogOpen(false);
         },
@@ -159,7 +191,7 @@ const PartiesPage = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            const currentUser = user;
             if (!currentUser) throw new Error("User not authenticated");
 
             const currentPartyToDelete = parties.find(p => p.id === id);
@@ -170,7 +202,6 @@ const PartiesPage = () => {
                     party_type: currentPartyToDelete.type,
                     deleted_at: new Date().toISOString()
                 };
-                // Removing original `type` property after renaming it to party_type
                 delete (deletedItem as any).type;
                 deletedItem.type = "party";
 
@@ -180,16 +211,27 @@ const PartiesPage = () => {
                 localStorage.setItem(key, JSON.stringify([deletedItem, ...existing]));
             }
 
-            const { error } = await getPartiesTable()
-                .delete()
-                .eq("id", id)
-                .eq("user_id", currentUser.id);
+            const { error } = await offlineMutate({
+                table: "parties",
+                action: "delete",
+                recordId: id,
+                userId: currentUser.id
+            });
             if (error) throw error;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["parties"] });
-            queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
-            queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
+        onSuccess: (_data, id) => {
+            // Optimistic update
+            if (user?.id) {
+                queryClient.setQueryData(["parties", user.id], (old: any) => {
+                    return old ? old.filter((p: any) => p.id !== id) : [];
+                });
+            }
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["parties"] });
+                queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
+                queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
+            }
             toast({ title: "Party deleted successfully" });
             setIsDeleteDialogOpen(false);
         },

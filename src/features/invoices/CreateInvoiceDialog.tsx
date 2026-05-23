@@ -382,8 +382,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 }
             });
 
-            queryClient.invalidateQueries({ queryKey: ["sales"] });
-            queryClient.invalidateQueries({ queryKey: ["last-invoice-number"] });
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["sales"] });
+                queryClient.invalidateQueries({ queryKey: ["last-invoice-number"] });
+            }
             toast({
                 title: invoiceToEdit ? "✅ Invoice Updated" : "✅ Invoice Created",
                 description: `Invoice ${data.invoice_number} saved successfully.`,

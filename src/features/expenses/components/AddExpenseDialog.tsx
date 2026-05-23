@@ -312,7 +312,9 @@ export const AddExpenseDialog = ({
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ["expenses", userId] });
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["expenses", userId] });
+      }
       toast({ title: "Success", description: "All expenses saved successfully." });
       onOpenChange(false);
       // Reset

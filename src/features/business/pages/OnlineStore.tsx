@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -310,16 +311,37 @@ export default function OnlineStore() {
 
     const updateOrderStatus = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-            const { error } = await (supabase.from as any)("online_orders")
-                .update({ status })
-                .eq("id", orderId);
+            if (!user?.id) throw new Error("User not authenticated");
+            const { error } = await offlineMutate({
+                table: "online_orders",
+                action: "update",
+                recordId: orderId,
+                payload: { status },
+                userId: user.id
+            });
             if (error) throw error;
+            return { orderId, status };
         },
-        onSuccess: (_data, { status }) => {
-            queryClient.invalidateQueries({ queryKey: ["online_orders"] });
-            queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
-            if (status === "rejected") {
-                queryClient.invalidateQueries({ queryKey: ["products"] });
+        onSuccess: (data) => {
+            const { orderId, status } = data;
+
+            // Optimistic update for online_orders
+            queryClient.setQueryData(["online_orders", user?.id], (old: any) => {
+                return old ? old.map((o: any) => o.id === orderId ? { ...o, status } : o) : [];
+            });
+
+            // Optimistic update for pending count
+            queryClient.setQueryData(["online_orders_pending_count", user?.id], (old: any) => {
+                const orders: any[] = queryClient.getQueryData(["online_orders", user?.id]) || [];
+                return orders.filter((o: any) => o.status === "pending").length;
+            });
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["online_orders"] });
+                queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
+                if (status === "rejected") {
+                    queryClient.invalidateQueries({ queryKey: ["products"] });
+                }
             }
             toast({ title: "Status Updated", description: "Order status has been updated." });
         },

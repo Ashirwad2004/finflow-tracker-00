@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ interface LentMoneyRecord {
   description: string;
   due_date: string | null;
   status: string;
+  user_id: string;
 }
 
 interface EditLentMoneyDialogProps {
@@ -64,20 +66,62 @@ export const EditLentMoneyDialog = ({ open, onOpenChange, lentMoney }: EditLentM
       description: string;
       dueDate?: string;
     }) => {
-      const { error } = await supabase
-        .from("lent_money")
-        .update({
+      const userId = lentMoney?.user_id;
+      if (!userId) throw new Error("User ID is required to perform this action");
+
+      const { error } = await offlineMutate({
+        table: "lent_money",
+        action: "update",
+        recordId: data.id,
+        payload: {
           amount: data.amount,
           person_name: data.personName,
           description: data.description,
           due_date: data.dueDate || null,
-        })
-        .eq("id", data.id);
+        },
+        userId
+      });
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+    onSuccess: (_data, variables) => {
+      const userId = lentMoney?.user_id;
+      if (userId) {
+        queryClient.setQueryData(["lent-money", userId], (old: any) => {
+          const updated = old ? old.map((loan: any) => loan.id === variables.id ? { 
+            ...loan, 
+            amount: variables.amount,
+            person_name: variables.personName,
+            description: variables.description,
+            due_date: variables.dueDate || null,
+            updated_at: new Date().toISOString()
+          } : loan) : [];
+
+          // Update lent-money-parties optimistically
+          const pendingLoans = updated.filter((record: any) => record.status === "pending");
+          const partyMap = new Map<string, any>();
+          pendingLoans.forEach((record: any) => {
+            const name = record.person_name.trim();
+            const current = partyMap.get(name) || {
+              personName: name,
+              totalPending: 0,
+              count: 0,
+              lastTransactionDate: record.created_at,
+            };
+            current.totalPending += Number(record.amount);
+            current.count += 1;
+            partyMap.set(name, current);
+          });
+          queryClient.setQueryData(["lent-money-parties", userId], Array.from(partyMap.values()));
+
+          return updated;
+        });
+      }
+
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+        queryClient.invalidateQueries({ queryKey: ["lent-money-parties"] });
+      }
       toast({
         title: "Lent money updated",
         description: "The record has been successfully updated.",

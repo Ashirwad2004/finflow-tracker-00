@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
 import {
     Dialog,
     DialogContent,
@@ -103,33 +105,60 @@ export const GroupExpenseDialog = ({
 
     const addExpenseMutation = useMutation({
         mutationFn: async () => {
-            // Prepare split_data
-            // If ALL members are selected, we can technically leave split_data as NULL for backward compatibility,
-            // OR we can explicitly save the IDs. Let's explicitly save IDs for consistency if it's a subset.
-            // If it matches exactly all members, we could set it to null (to mean "everyone").
-            // But to be "party-wise" specific, explicit is better. 
-            // However, for the SQL logic I wrote (comment says NULL = all), let's stick to that for "Equal All".
-
             let splitData = null;
             if (selectedMembers.length !== members.length) {
                 splitData = selectedMembers;
             }
 
-            const { error } = await supabase.from("group_expenses").insert({
-                group_id: groupId,
-                user_id: userId,
-                username: currentMemberUsername || "Unknown",
-                amount: parseFloat(amount),
-                description: description.trim(),
-                date,
-                category_id: categoryId || null,
-                split_data: splitData ? JSON.stringify(splitData) : null,
+            const expenseId = uuidv4();
+
+            const { error } = await offlineMutate({
+                table: "group_expenses",
+                action: "insert",
+                recordId: expenseId,
+                payload: {
+                    id: expenseId,
+                    group_id: groupId,
+                    user_id: userId,
+                    username: currentMemberUsername || "Unknown",
+                    amount: parseFloat(amount),
+                    description: description.trim(),
+                    date,
+                    category_id: categoryId || null,
+                    split_data: splitData ? JSON.stringify(splitData) : null,
+                },
+                userId
             });
 
             if (error) throw error;
+
+            return { expenseId, splitData };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+        onSuccess: (data) => {
+            const { expenseId, splitData } = data;
+            
+            // Optimistic cache update
+            queryClient.setQueryData(["group-expenses", groupId], (old: any) => {
+                const selectedCat = categories.find(c => c.id === categoryId);
+                const newExpense = {
+                    id: expenseId,
+                    group_id: groupId,
+                    user_id: userId,
+                    username: currentMemberUsername || "Unknown",
+                    amount: parseFloat(amount),
+                    description: description.trim(),
+                    date,
+                    category_id: categoryId || null,
+                    split_data: splitData,
+                    categories: selectedCat ? { name: selectedCat.name, color: "hsl(var(--primary))", icon: "receipt" } : undefined
+                };
+                return old ? [newExpense, ...old] : [newExpense];
+            });
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+            }
+
             toast({ title: "Expense added", description: "Split recorded successfully." });
             onOpenChange(false);
         },

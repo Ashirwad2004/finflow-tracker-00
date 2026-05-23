@@ -23,7 +23,7 @@ export const offlineMutate = async ({ table, action, recordId, payload, userId }
   // Idempotency: Map 'insert' seamlessly into Supabase 'upsert'
   const performLiveCall = async () => {
     if (action === 'insert') {
-      const { data, error } = await (supabase as any).from(table).insert({ ...payload, id: recordId }).select().single();
+      const { data, error } = await (supabase as any).from(table).upsert({ ...payload, id: recordId }).select().single();
       if (error) throw error;
       return data;
     } else if (action === 'update') {
