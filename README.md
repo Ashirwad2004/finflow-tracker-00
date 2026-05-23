@@ -1,73 +1,50 @@
-# Welcome to expense tracker
+# FinFlow Tracker 🚀
 
-## Project info
+FinFlow Tracker is a modern, high-performance financial management ecosystem. It blends personal financial planning (expenses, splits, peer loans) with commercial operation tools (sales/purchase journals, real-time inventory, CRM, custom invoice generator, and customer-facing digital storefronts).
 
-**URL**: https://lovable.dev/projects/9ead9071-c587-4332-bd9b-04cc6e586777
+---
 
-## How can I edit this code?
+## 📖 Project Documentation Hub
 
-There are several ways of editing your application.
+We have written detailed guides to cover every aspect of the project. Please follow the links below depending on your goal:
 
-**Use Lovable**
+*   **[Product Overview & Architecture](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/product-overview.md)**
+    *   *System vision, architectural flow diagram, client-server models, and folder structures.*
+*   **[Feature Manual & User Guide](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/features-guide.md)**
+    *   *Step-by-step descriptions of Personal, Groups, Loans, Business Mode, and Storefront modules.*
+*   **[Database Schema & Security](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/database-schema.md)**
+    *   *Entity-Relationship Diagram, table definitions, RLS (Row-Level Security) policies, and database triggers/RPC functions.*
+*   **[Developer Setup & Deployment](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**
+    *   *Local setup guide for running Vite/React client, Supabase migrations, and FastAPI backend.*
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/9ead9071-c587-4332-bd9b-04cc6e586777) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## ✨ Features at a Glance
 
-**Use your preferred IDE**
+*   **👤 Personal Finance**: Dynamic expense categorization, charts, monthly reports, receipt scanner, and "Magic Add" natural language processing.
+*   **👥 Group splits**: Create invite links to group rooms, record shared expenses, customize splits, and settle balances instantly.
+*   **🤝 Peer-to-Peer Loans**: Separate lent/borrowed books with due-date reminders.
+*   **💼 Business Mode (Micro-ERP)**: Complete GST-compliant billing, vendor invoice attachments, and contact list CRM.
+*   **📦 Real-time Inventory**: Catalog products, track cost-to-sale profit margins, and get out-of-stock alerts.
+*   **🛍️ Digital Storefront**: Launch a public-facing e-commerce shop under `/store/:storeSlug` featuring cart checkouts, real-time notifications, and item recommendations.
+*   **🖨️ Print Studio**: Thermal custom receipt layouts and barcode sticker label generator.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## ⚡ Quick Start (Local Frontend Client)
 
-Follow these steps:
+Ensure you have [Node.js](https://nodejs.org/) installed.
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
+cd finflow-tracker
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install client-side dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the Vite React development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/9ead9071-c587-4332-bd9b-04cc6e586777) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+The app will start at `http://localhost:5173`. Make sure to configure your `.env` file with Supabase credentials as described in the **[Developer Setup](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**.
