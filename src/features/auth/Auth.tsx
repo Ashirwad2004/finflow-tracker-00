@@ -10,7 +10,14 @@ type AuthView = "login" | "signup" | "forgot" | "reset";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
-  const [view, setView] = useState<AuthView>("login");
+  const [view, setView] = useState<AuthView>(() => {
+    const hasResetParam = searchParams.get("reset") === "true";
+    const isRecoveryHash = window.location.hash.includes("type=recovery");
+    if (hasResetParam || isRecoveryHash) {
+      return "reset";
+    }
+    return "login";
+  });
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -83,7 +90,7 @@ const Auth = () => {
       title: "Set new password",
       description: "Enter a strong password for your account",
       content: (
-        <ResetPasswordForm onSuccess={() => navigate(searchParams.get("redirect") || "/")} />
+        <ResetPasswordForm onSuccess={() => setView("login")} />
       )
     }
   };

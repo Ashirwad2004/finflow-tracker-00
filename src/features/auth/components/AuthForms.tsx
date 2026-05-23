@@ -9,6 +9,24 @@ import { supabase } from "@/core/integrations/supabase/client";
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+const DISPOSABLE_DOMAINS = [
+  "mailinator.com", "yopmail.com", "tempmail.com", "guerrillamail.com",
+  "dispostable.com", "getairmail.com", "sharklasers.com", "trashmail.com",
+  "10minutemail.com", "maildrop.cc", "temp-mail.org", "fakeinbox.com"
+];
+
+const COMMON_TYPOS: Record<string, string> = {
+  "gamil.com": "gmail.com",
+  "gmal.com": "gmail.com",
+  "gmaill.com": "gmail.com",
+  "gamil.co": "gmail.com",
+  "gmail.co": "gmail.com",
+  "yaho.com": "yahoo.com",
+  "hotmal.com": "hotmail.com",
+};
+
 const passwordChecks = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
   { label: "One uppercase letter", test: (value: string) => /[A-Z]/.test(value) },
@@ -117,6 +135,8 @@ export const SignupForm = ({ onSuccess }: { onSuccess: () => void }) => {
   const { signUp } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [emailSuggestion, setEmailSuggestion] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -127,10 +147,20 @@ export const SignupForm = ({ onSuccess }: { onSuccess: () => void }) => {
     () => passwordChecks.filter((check) => check.test(password)).length,
     [password]
   );
+
+  const isEmailValid = useMemo(() => {
+    const trimmed = email.trim();
+    if (!trimmed) return false;
+    if (!EMAIL_REGEX.test(trimmed)) return false;
+    const domain = trimmed.split("@")[1]?.toLowerCase();
+    if (DISPOSABLE_DOMAINS.includes(domain)) return false;
+    return true;
+  }, [email]);
+
   const passwordsMatch = confirmPassword.length === 0 || password === confirmPassword;
   const canSubmit =
     name.trim().length >= 2 &&
-    normalizeEmail(email).length > 0 &&
+    isEmailValid &&
     passwordIsStrong(password) &&
     password === confirmPassword &&
     !loading;
@@ -196,10 +226,73 @@ export const SignupForm = ({ onSuccess }: { onSuccess: () => void }) => {
           autoComplete="email"
           placeholder="you@company.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setEmail(val);
+            
+            // Clear errors/suggestions immediately when empty
+            if (!val.trim()) {
+              setEmailError("");
+              setEmailSuggestion("");
+              return;
+            }
+
+            const trimmed = val.trim();
+            if (!EMAIL_REGEX.test(trimmed)) {
+              setEmailError("Please enter a valid email address.");
+              setEmailSuggestion("");
+              return;
+            }
+
+            const domain = trimmed.split("@")[1]?.toLowerCase();
+            if (domain) {
+              if (DISPOSABLE_DOMAINS.includes(domain)) {
+                setEmailError("Disposable email addresses are not allowed.");
+                setEmailSuggestion("");
+                return;
+              }
+              setEmailError(""); // Clear if it's a valid, non-disposable email
+              
+              if (COMMON_TYPOS[domain]) {
+                setEmailSuggestion(`Did you mean ${COMMON_TYPOS[domain]}?`);
+              } else {
+                setEmailSuggestion("");
+              }
+            }
+          }}
           disabled={loading}
           required
         />
+        {emailError && (
+          <p className="flex items-center gap-1.5 text-xs text-destructive font-medium mt-1">
+            <AlertCircle className="h-3.5 w-3.5" />
+            {emailError}
+          </p>
+        )}
+        {emailSuggestion && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1 flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <span>
+              {emailSuggestion}{" "}
+              <button
+                type="button"
+                className="underline hover:text-amber-800 dark:hover:text-amber-300 font-semibold"
+                onClick={() => {
+                  const parts = email.split("@");
+                  const domain = parts[1]?.toLowerCase();
+                  if (domain && COMMON_TYPOS[domain]) {
+                    const correctedEmail = `${parts[0]}@${COMMON_TYPOS[domain]}`;
+                    setEmail(correctedEmail);
+                    setEmailError("");
+                    setEmailSuggestion("");
+                  }
+                }}
+              >
+                Use suggestion
+              </button>
+            </span>
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -345,7 +438,11 @@ export const ResetPasswordForm = ({ onSuccess }: { onSuccess: () => void }) => {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      toast.success("Password updated successfully");
+      
+      // Sign out the user to clear the session so they must log in using the new password
+      await supabase.auth.signOut({ scope: "global" });
+      
+      toast.success("Password updated successfully. Please sign in with your new password.");
       onSuccess();
     } catch (err: any) {
       toast.error(err?.message || "Unable to update password. Please try again.");
