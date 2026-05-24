@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import {
@@ -27,6 +27,7 @@ import {
 import { ProductCard, StoreProduct } from "./ProductCard";
 import { CartDrawer } from "./CartDrawer";
 import { OrdersDrawer } from "./OrdersDrawer";
+import { PaymentPortal } from "./components/PaymentPortal";
 
 interface StoreProfile {
     user_id: string;
@@ -58,6 +59,16 @@ export default function Storefront() {
     const [submittedName, setSubmittedName] = useState("");
     const [search, setSearch] = useState("");
     const [customerOrderIds, setCustomerOrderIds] = useState<string[]>(loadCustomerOrderIds);
+
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    // Payment integration states
+    const [isPaymentPortalOpen, setIsPaymentPortalOpen] = useState(false);
+    const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<any>(null);
+
+    // Payment retry order ID (read from query params, used in useEffect below after storeId is declared)
+    const retryOrderId = searchParams.get("retryOrder");
 
     const notifyOrderStatus = (status: string) => {
         if (status === "accepted") {
@@ -111,11 +122,44 @@ export default function Storefront() {
 
     const storeId = storeProfile?.user_id ?? null;
 
-    const { data: brandingData } = useQuery<{ business_name: string | null; business_logo: string | null; delivery_charge: number | null; free_delivery_min_amount: number | null } | null>({
+    // Auto-load payment retry if query parameter (?retryOrder=xxx) is set
+    useEffect(() => {
+        if (retryOrderId && storeId) {
+            const initRetry = async () => {
+                try {
+                    const { data: order, error } = await supabase
+                        .from("online_orders")
+                        .select("*")
+                        .eq("id", retryOrderId)
+                        .single();
+
+                    if (error || !order) throw new Error("Order not found");
+
+                    setSelectedOrderForPayment({
+                        id: order.id,
+                        total_amount: order.total_amount,
+                        customer_name: order.customer_name,
+                        customer_phone: order.customer_phone
+                    });
+                    setIsPaymentPortalOpen(true);
+                } catch (err) {
+                    console.error("Failed to load order for retry:", err);
+                    toast({
+                        title: "Retry failed",
+                        description: "Could not load the requested order to retry payment.",
+                        variant: "destructive"
+                    });
+                }
+            };
+            initRetry();
+        }
+    }, [retryOrderId, storeId]);
+
+    const { data: brandingData } = useQuery<{ business_name: string | null; business_logo: string | null; delivery_charge: number | null; free_delivery_min_amount: number | null; upi_id: string | null; online_payment_enabled: boolean | null } | null>({
         queryKey: ["publicStoreBranding", storeId],
         queryFn: async () => {
             const { data, error } = await (supabase as any)
-                .from("profiles").select("business_name, business_logo, delivery_charge, free_delivery_min_amount")
+                .from("profiles").select("business_name, business_logo, delivery_charge, free_delivery_min_amount, upi_id, online_payment_enabled")
                 .eq("user_id", storeId).maybeSingle();
             if (error) return null;
             return data;
@@ -253,7 +297,7 @@ export default function Storefront() {
     const effectiveDeliveryCharge = (deliveryChargeRaw > 0 && freeDeliveryThreshold > 0 && cartTotal >= freeDeliveryThreshold) ? 0 : deliveryChargeRaw;
 
     // ── Submit order ───────────────────────────────────────────────────────
-    const submitOrder = async (name: string, phone: string, address: string) => {
+    const submitOrder = async (name: string, phone: string, address: string, paymentMethod: "cod" | "online") => {
         const items = Object.entries(cart).map(([productId, qty]) => ({
             product_id: productId,
             quantity: qty,
@@ -265,22 +309,34 @@ export default function Storefront() {
                 const orderId = `DEMO-ORD-${Math.floor(1000 + Math.random() * 9000)}`;
                 setSubmittedName(name);
                 setTrackedOrderId(orderId);
-                setOrderStatus("pending");
-                setOrderComplete(true);
-                setCart({});
-                setIsCartOpen(false);
+                
+                if (paymentMethod === "online") {
+                    setSelectedOrderForPayment({
+                        id: orderId,
+                        total_amount: cartTotal + effectiveDeliveryCharge,
+                        customer_name: name,
+                        customer_phone: phone
+                    });
+                    setIsCartOpen(false);
+                    setIsPaymentPortalOpen(true);
+                } else {
+                    setOrderStatus("pending");
+                    setOrderComplete(true);
+                    setCart({});
+                    setIsCartOpen(false);
+                    
+                    // Auto simulation transitions
+                    setTimeout(() => {
+                        setOrderStatus("accepted");
+                        notifyOrderStatus("accepted");
+                    }, 3000);
+
+                    setTimeout(() => {
+                        setOrderStatus("completed");
+                        notifyOrderStatus("completed");
+                    }, 8000);
+                }
                 setIsSubmitting(false);
-
-                // Auto simulation transitions
-                setTimeout(() => {
-                    setOrderStatus("accepted");
-                    notifyOrderStatus("accepted");
-                }, 3000);
-
-                setTimeout(() => {
-                    setOrderStatus("completed");
-                    notifyOrderStatus("completed");
-                }, 8000);
                 return;
             }
 
@@ -295,13 +351,6 @@ export default function Storefront() {
             });
             if (error) throw error;
             
-            setSubmittedName(name);
-            setTrackedOrderId(orderId);
-            setOrderStatus("pending");
-            setOrderComplete(true);
-            setCart({});
-            setIsCartOpen(false);
-
             // Save order ID to localStorage for order history + live tracking
             try {
                 const currentOrders = loadCustomerOrderIds();
@@ -312,6 +361,24 @@ export default function Storefront() {
                 }
             } catch (e) {
                 console.error("Could not save order to history");
+            }
+
+            if (paymentMethod === "online") {
+                setSelectedOrderForPayment({
+                    id: orderId,
+                    total_amount: cartTotal + effectiveDeliveryCharge,
+                    customer_name: name,
+                    customer_phone: phone
+                });
+                setIsCartOpen(false);
+                setIsPaymentPortalOpen(true);
+            } else {
+                setSubmittedName(name);
+                setTrackedOrderId(orderId);
+                setOrderStatus("pending");
+                setOrderComplete(true);
+                setCart({});
+                setIsCartOpen(false);
             }
 
         } catch (err: any) {
@@ -809,6 +876,7 @@ export default function Storefront() {
                 onClearItem={handleClear}
                 onSubmit={submitOrder}
                 isSubmitting={isSubmitting}
+                onlinePaymentEnabled={brandingData?.online_payment_enabled === true}
             />
 
             {/* ── Orders Drawer ── */}
@@ -818,7 +886,46 @@ export default function Storefront() {
                 formatCurrency={formatCurrency}
                 storeId={storeId}
                 savedOrderIds={customerOrderIds}
+                onPayOrder={(order) => {
+                    setSelectedOrderForPayment({
+                        id: order.id,
+                        total_amount: order.total_amount,
+                        customer_name: order.customer_name,
+                        customer_phone: order.customer_phone
+                    });
+                    setIsOrdersOpen(false);
+                    setIsPaymentPortalOpen(true);
+                }}
             />
+
+            {/* ── Payment Portal Modal ── */}
+            {selectedOrderForPayment && (
+                <PaymentPortal
+                    isOpen={isPaymentPortalOpen}
+                    onClose={() => {
+                        setIsPaymentPortalOpen(false);
+                        setSelectedOrderForPayment(null);
+                        setCart({});
+                        setSubmittedName(selectedOrderForPayment.customer_name);
+                        setTrackedOrderId(selectedOrderForPayment.id);
+                        setOrderStatus("pending");
+                        setOrderComplete(true);
+                    }}
+                    orderId={selectedOrderForPayment.id}
+                    amount={selectedOrderForPayment.total_amount}
+                    currency="INR"
+                    storeName={businessName}
+                    customerName={selectedOrderForPayment.customer_name}
+                    customerPhone={selectedOrderForPayment.customer_phone}
+                    storeUpiId={brandingData?.upi_id || undefined}
+                    onPaymentSuccess={(paymentId, invoiceNumber) => {
+                        setIsPaymentPortalOpen(false);
+                        setSelectedOrderForPayment(null);
+                        setCart({});
+                        navigate(`/store/${storeSlug}/payment-success?paymentId=${paymentId}&orderId=${selectedOrderForPayment.id}`);
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -34,6 +34,14 @@ import {
     Clock,
     Calendar,
     BarChart3,
+    Search,
+    Shield,
+    FileText,
+    ArrowRightLeft,
+    FileMinus,
+    Loader2,
+    CreditCard,
+    Save
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -45,6 +53,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { generateInvoicePDF } from "@/core/utils/invoiceGenerator";
+import axios from "axios";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface OrderItem {
@@ -281,8 +293,157 @@ export default function OnlineStore() {
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
     const navigate = useNavigate();
-
     const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "year" | "all">("month");
+
+    // Payment search and filter states
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+    
+    // Refund dialog states
+    const [isRefundOpen, setIsRefundOpen] = useState(false);
+    const [refundTargetId, setRefundTargetId] = useState<string | null>(null);
+    const [refundReason, setRefundReason] = useState("");
+    const [refundAmount, setRefundAmount] = useState("");
+
+    // Payment settings states
+    const [payUpiId, setPayUpiId] = useState("");
+    const [payGateway, setPayGateway] = useState("mock");
+    const [payRazorpayKeyId, setPayRazorpayKeyId] = useState("");
+    const [payStripeKey, setPayStripeKey] = useState("");
+    const [payOnlineEnabled, setPayOnlineEnabled] = useState(false);
+
+    // Authorized request helper to include current Supabase JWT token
+    const fetchWithAuth = async (url: string, options: any = {}) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = {
+            ...options.headers,
+            Authorization: `Bearer ${session?.access_token}`,
+        };
+        return axios({
+            url,
+            ...options,
+            headers,
+        });
+    };
+
+    // React Query: Payments history list (with backend verification tracking)
+    const { data: paymentsHistory = { payments: [], total: 0 }, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
+        queryKey: ["paymentsHistory", user?.id, searchQuery, statusFilter],
+        queryFn: async () => {
+            const res = await fetchWithAuth(`/api/payments/admin/history?storeId=${user?.id}&search=${searchQuery}&status=${statusFilter}`);
+            return res.data;
+        },
+        enabled: !!user,
+    });
+
+    // React Query: Gateway payment aggregated analytics
+    const { data: analyticsData = { stats: null }, isLoading: isLoadingStats } = useQuery({
+        queryKey: ["paymentStats", user?.id],
+        queryFn: async () => {
+            const res = await fetchWithAuth(`/api/payments/admin/stats?storeId=${user?.id}`);
+            return res.data;
+        },
+        enabled: !!user,
+    });
+
+    // React Query: Payment security Audit logs
+    const { data: auditLogs = { logs: [] }, isLoading: isLoadingLogs } = useQuery({
+        queryKey: ["paymentLogs", user?.id],
+        queryFn: async () => {
+            const res = await fetchWithAuth(`/api/payments/admin/logs?storeId=${user?.id}`);
+            return res.data;
+        },
+        enabled: !!user,
+    });
+
+    // React Mutation: Initiate payment refund
+    const refundPayment = useMutation({
+        mutationFn: async ({ paymentId, amount, reason }: { paymentId: string; amount?: number; reason: string }) => {
+            const res = await fetchWithAuth("/api/payments/refund", {
+                method: "POST",
+                data: { paymentId, amount, reason }
+            });
+            return res.data;
+        },
+        onSuccess: () => {
+            toast({
+                title: "Refund Successful 🎉",
+                description: "The payment has been refunded in full and updated.",
+            });
+            refetchHistory();
+            queryClient.invalidateQueries({ queryKey: ["paymentStats", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["paymentLogs", user?.id] });
+        },
+        onError: (err: any) => {
+            console.error("Refund processing error:", err);
+            toast({
+                title: "Refund Denied",
+                description: err.response?.data?.error ?? "Failed to issue refund. Check gateway connection.",
+                variant: "destructive"
+            });
+        }
+    });
+
+    const triggerRefundSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!refundTargetId) return;
+
+        refundPayment.mutate({
+            paymentId: refundTargetId,
+            amount: refundAmount ? Number(refundAmount) : undefined,
+            reason: refundReason
+        });
+        
+        setIsRefundOpen(false);
+        setRefundTargetId(null);
+        setRefundReason("");
+        setRefundAmount("");
+    };
+
+    // Payment Settings Query & Mutation
+    const { isLoading: isLoadingPaySettings } = useQuery({
+        queryKey: ["paymentSettings", user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("upi_id, payment_gateway, razorpay_key_id, stripe_publishable_key, online_payment_enabled")
+                .eq("user_id", user?.id)
+                .maybeSingle();
+            if (error) throw error;
+            if (data) {
+                setPayUpiId((data as any).upi_id || "");
+                setPayGateway((data as any).payment_gateway || "mock");
+                setPayRazorpayKeyId((data as any).razorpay_key_id || "");
+                setPayStripeKey((data as any).stripe_publishable_key || "");
+                setPayOnlineEnabled((data as any).online_payment_enabled || false);
+            }
+            return data;
+        },
+        enabled: !!user,
+    });
+
+    const savePaymentSettings = useMutation({
+        mutationFn: async () => {
+            const { error } = await (supabase as any)
+                .from("profiles")
+                .update({
+                    upi_id: payUpiId || null,
+                    payment_gateway: payGateway,
+                    razorpay_key_id: payRazorpayKeyId || null,
+                    stripe_publishable_key: payStripeKey || null,
+                    online_payment_enabled: payOnlineEnabled,
+                })
+                .eq("user_id", user?.id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast({ title: "Payment settings saved", description: "Your payment configuration has been updated." });
+            queryClient.invalidateQueries({ queryKey: ["paymentSettings", user?.id] });
+        },
+        onError: (err: any) => {
+            toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+        },
+    });
 
     // Fetch Orders — include nested order items + product name in a single query
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
@@ -511,76 +672,650 @@ export default function OnlineStore() {
                 </div>
 
                 <div className="flex-1">
-                    {/* Orders Panel */}
-                    <div>
-                        <div className="bg-card border rounded-xl shadow-sm h-full flex flex-col">
-                            <div className="p-6 border-b flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <h2 className="text-xl font-semibold">Incoming Orders</h2>
-                                    {pendingCount > 0 && (
-                                        <Badge className="bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100 text-xs">
-                                            {pendingCount} pending
-                                        </Badge>
+                    <Tabs defaultValue="orders" className="w-full space-y-6">
+                        <TabsList className="grid grid-cols-6 h-12 w-full max-w-5xl bg-muted/65 p-1 rounded-xl border">
+                            <TabsTrigger value="orders" className="rounded-lg text-xs font-semibold">
+                                Orders
+                            </TabsTrigger>
+                            <TabsTrigger value="payments" className="rounded-lg text-xs font-semibold">
+                                Payments
+                            </TabsTrigger>
+                            <TabsTrigger value="refunds" className="rounded-lg text-xs font-semibold">
+                                Refunds
+                            </TabsTrigger>
+                            <TabsTrigger value="analytics" className="rounded-lg text-xs font-semibold">
+                                Analytics
+                            </TabsTrigger>
+                            <TabsTrigger value="audit" className="rounded-lg text-xs font-semibold">
+                                Audit
+                            </TabsTrigger>
+                            <TabsTrigger value="pay-settings" className="rounded-lg text-xs font-semibold">
+                                <CreditCard className="w-3 h-3 mr-1" /> Pay Setup
+                            </TabsTrigger>
+                        </TabsList>
+
+                        {/* ── 1. INCOMING ORDERS TAB ── */}
+                        <TabsContent value="orders">
+                            <div className="bg-card border rounded-xl shadow-sm h-full flex flex-col">
+                                <div className="p-6 border-b flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-xl font-semibold">Incoming Orders</h2>
+                                        {pendingCount > 0 && (
+                                            <Badge className="bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100 text-xs">
+                                                {pendingCount} pending
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <Badge variant="secondary">{orders.length} total</Badge>
+                                </div>
+
+                                {orders.length > 0 && (
+                                    <div className="px-6 py-2.5 border-b border-dashed border-border bg-muted/20">
+                                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                                            <ChevronDown className="w-3 h-3" />
+                                            Click any row to view delivery address and order items
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="p-0 flex-1 relative">
+                                    {isLoadingOrders ? (
+                                        <div className="flex items-center justify-center py-20">
+                                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                        </div>
+                                    ) : orders.length === 0 ? (
+                                        <div className="text-center py-24 px-4">
+                                            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <ShoppingBag className="w-8 h-8 text-muted-foreground" />
+                                            </div>
+                                            <h3 className="text-lg font-semibold mb-2">No orders yet</h3>
+                                            <p className="text-muted-foreground max-w-sm mx-auto">
+                                                Once customers start placing orders on your storefront, they will appear here.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Customer</TableHead>
+                                                    <TableHead>Date & Time</TableHead>
+                                                    <TableHead>Items</TableHead>
+                                                    <TableHead>Amount</TableHead>
+                                                    <TableHead>Status</TableHead>
+                                                    <TableHead className="text-right">Update</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody className="[&_tr:last-child]:border-0">
+                                                {orders.map((order) => (
+                                                    <OrderRow
+                                                        key={order.id}
+                                                        order={order}
+                                                        formatCurrency={formatCurrency}
+                                                        onStatusChange={(id, status) => updateOrderStatus.mutate({ orderId: id, status })}
+                                                        isUpdating={updateOrderStatus.isPending}
+                                                    />
+                                                ))}
+                                            </TableBody>
+                                        </Table>
                                     )}
                                 </div>
-                                <Badge variant="secondary">{orders.length} total</Badge>
+                            </div>
+                        </TabsContent>
+
+                        {/* ── 2. PAYMENTS LEDGER TAB ── */}
+                        <TabsContent value="payments" className="space-y-4">
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-muted/30 border p-4 rounded-xl">
+                                <div className="relative w-full sm:w-80">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search by customer, invoice..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9 h-10 bg-background"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                    <Label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Status:</Label>
+                                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                        <SelectTrigger className="w-[140px] bg-background">
+                                            <SelectValue placeholder="All Payments" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value=" ">All Payments</SelectItem>
+                                            <SelectItem value="success">Success</SelectItem>
+                                            <SelectItem value="pending">Pending</SelectItem>
+                                            <SelectItem value="failed">Failed</SelectItem>
+                                            <SelectItem value="refunded">Refunded</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
-                            {/* Helper hint */}
-                            {orders.length > 0 && (
-                                <div className="px-6 py-2.5 border-b border-dashed border-border bg-muted/20">
-                                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                                        <ChevronDown className="w-3 h-3" />
-                                        Click any row to view delivery address and order items
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="p-0 flex-1 relative">
-                                {isLoadingOrders ? (
+                            <div className="bg-card border rounded-xl shadow-sm">
+                                {isLoadingHistory ? (
                                     <div className="flex items-center justify-center py-20">
                                         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                                     </div>
-                                ) : orders.length === 0 ? (
-                                    <div className="text-center py-24 px-4">
-                                        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <ShoppingBag className="w-8 h-8 text-muted-foreground" />
+                                ) : !paymentsHistory.payments || paymentsHistory.payments.length === 0 ? (
+                                    <div className="text-center py-20 px-4">
+                                        <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <FileText className="w-6 h-6 text-muted-foreground" />
                                         </div>
-                                        <h3 className="text-lg font-semibold mb-2">No orders yet</h3>
-                                        <p className="text-muted-foreground max-w-sm mx-auto">
-                                            Once customers start placing orders on your public storefront, they will appear here.
-                                        </p>
+                                        <h3 className="text-base font-semibold mb-1">No payment transactions</h3>
+                                        <p className="text-xs text-muted-foreground">Try adjusting your filters or search terms.</p>
                                     </div>
                                 ) : (
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Customer</TableHead>
-                                                <TableHead>Date & Time</TableHead>
-                                                <TableHead>Items</TableHead>
+                                                <TableHead>Invoice & Gateway ID</TableHead>
+                                                <TableHead>Date</TableHead>
                                                 <TableHead>Amount</TableHead>
+                                                <TableHead>Method</TableHead>
                                                 <TableHead>Status</TableHead>
-                                                <TableHead className="text-right">Update</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
-                                        <TableBody className="[&_tr:last-child]:border-0">
-                                            {orders.map((order) => (
-                                                <OrderRow
-                                                    key={order.id}
-                                                    order={order}
-                                                    formatCurrency={formatCurrency}
-                                                    onStatusChange={(id, status) => updateOrderStatus.mutate({ orderId: id, status })}
-                                                    isUpdating={updateOrderStatus.isPending}
-                                                />
-                                            ))}
+                                        <TableBody>
+                                            {paymentsHistory.payments.map((p: any) => {
+                                                const invNum = p.invoices?.[0]?.invoice_number || "Pending";
+                                                return (
+                                                    <TableRow key={p.id}>
+                                                        <TableCell>
+                                                            <div className="font-semibold text-sm">
+                                                                {p.online_orders?.customer_name ?? "Walk-in Guest"}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground mt-0.5">
+                                                                {p.online_orders?.customer_phone ?? "N/A"}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="font-mono text-xs">{invNum}</div>
+                                                            <div className="text-[10px] text-muted-foreground mt-0.5 font-mono truncate max-w-[150px]">
+                                                                {p.gateway_payment_id || p.gateway_order_id}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-xs">
+                                                            {new Date(p.created_at).toLocaleDateString()}
+                                                        </TableCell>
+                                                        <TableCell className="font-bold text-sm">
+                                                            {formatCurrency(p.amount)}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs uppercase font-medium text-muted-foreground">
+                                                            {p.payment_method || "online"}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge className={
+                                                                p.status === 'success' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-100 text-[10px]' :
+                                                                p.status === 'refunded' ? 'bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-100 text-[10px]' :
+                                                                p.status === 'failed' ? 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-100 text-[10px]' :
+                                                                'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100 text-[10px]'
+                                                            }>
+                                                                {p.status}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-right space-x-2" onClick={e => e.stopPropagation()}>
+                                                            {p.status === 'success' && (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-8 rounded-lg text-xs"
+                                                                        onClick={() => {
+                                                                            generateInvoicePDF({
+                                                                                invoiceNumber: invNum,
+                                                                                date: new Date(p.created_at).toLocaleDateString(),
+                                                                                storeName: storeProfile?.business_name || "FinFlow Shop Store",
+                                                                                customerName: p.online_orders?.customer_name || "Customer",
+                                                                                customerPhone: p.online_orders?.customer_phone || "",
+                                                                                customerAddress: p.online_orders?.customer_address || "",
+                                                                                items: p.online_orders?.online_order_items?.map((it: any) => ({
+                                                                                    name: it.products?.name ?? "Product Item",
+                                                                                    quantity: it.quantity || 1,
+                                                                                    price: Number(it.price_at_time || 0)
+                                                                                })) || [],
+                                                                                subtotal: Number(p.amount) - Number(p.online_orders?.delivery_charge || 0),
+                                                                                deliveryCharge: Number(p.online_orders?.delivery_charge || 0),
+                                                                                totalAmount: Number(p.amount),
+                                                                                paymentMethod: p.payment_method || "online",
+                                                                                status: p.status
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        <Download className="w-3.5 h-3.5 mr-1" />
+                                                                        Invoice
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="destructive"
+                                                                        className="h-8 rounded-lg text-xs"
+                                                                        onClick={() => {
+                                                                            setRefundTargetId(p.id);
+                                                                            setRefundAmount(p.amount.toString());
+                                                                            setIsRefundOpen(true);
+                                                                        }}
+                                                                    >
+                                                                        <FileMinus className="w-3.5 h-3.5 mr-1" />
+                                                                        Refund
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
                                         </TableBody>
                                     </Table>
                                 )}
                             </div>
-                        </div>
-                    </div>
+                        </TabsContent>
+
+                        {/* ── 3. REFUNDS HISTORY TAB ── */}
+                        <TabsContent value="refunds">
+                            <div className="bg-card border rounded-xl shadow-sm">
+                                <div className="p-6 border-b">
+                                    <h2 className="text-xl font-semibold">Refunded Transactions Ledger</h2>
+                                </div>
+                                <div className="p-0">
+                                    {isLoadingHistory ? (
+                                        <div className="flex items-center justify-center py-20">
+                                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                        </div>
+                                                                    ) : !paymentsHistory?.payments?.some((p: any) => p.status === 'refunded') ? (
+                                        <div className="text-center py-20 px-4">
+                                            <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                                                <RefreshCw className="w-6 h-6 text-muted-foreground" />
+                                            </div>
+                                            <h3 className="text-base font-semibold mb-1">No refunds processed</h3>
+                                            <p className="text-xs text-muted-foreground">Successful refunds requested by users will appear here.</p>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Customer</TableHead>
+                                                    <TableHead>Payment & Refund ID</TableHead>
+                                                    <TableHead>Refund Date</TableHead>
+                                                    <TableHead>Amount</TableHead>
+                                                    <TableHead>Reason</TableHead>
+                                                    <TableHead>Status</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {(paymentsHistory?.payments || [])
+                                                    .filter((p: any) => p.status === 'refunded')
+                                                    .map((p: any) => {
+                                                        const refund = p.refunds?.[0] || {};
+                                                        return (
+                                                            <TableRow key={p.id}>
+                                                                <TableCell>
+                                                                    <div className="font-semibold text-sm">{p.online_orders?.customer_name}</div>
+                                                                    <div className="text-xs text-muted-foreground">{p.online_orders?.customer_phone}</div>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <div className="font-mono text-xs truncate max-w-[150px]">{p.gateway_payment_id}</div>
+                                                                    <div className="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{refund.gateway_refund_id || "N/A"}</div>
+                                                                </TableCell>
+                                                                <TableCell className="text-xs">
+                                                                    {refund.created_at ? new Date(refund.created_at).toLocaleDateString() : new Date(p.updated_at).toLocaleDateString()}
+                                                                </TableCell>
+                                                                <TableCell className="font-bold text-sm text-purple-700">
+                                                                    {formatCurrency(p.amount)}
+                                                                </TableCell>
+                                                                <TableCell className="text-xs italic text-muted-foreground">
+                                                                    {refund.reason || "Merchant Refund"}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Badge className="bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-100 text-[10px]">
+                                                                        REFUNDED
+                                                                    </Badge>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
+                            </div>
+                        </TabsContent>
+
+                        {/* ── 4. REVENUE ANALYTICS TAB ── */}
+                        <TabsContent value="analytics" className="space-y-6">
+                            {isLoadingStats ? (
+                                <div className="flex items-center justify-center py-20">
+                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                </div>
+                            ) : !analyticsData.stats ? (
+                                <div className="text-center py-20 border rounded-xl bg-card">
+                                    <p className="text-muted-foreground text-sm">No analytics statistics compiled yet.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Left 2 cols: Monthly distribution line chart */}
+                                    <div className="lg:col-span-2 bg-card border rounded-xl shadow-sm p-6">
+                                        <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+                                            <Activity className="w-4 h-4 text-primary" />
+                                            Daily Sales Activity (Gateway Volume)
+                                        </h3>
+                                        <div className="h-[280px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <LineChart data={chartData}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                                                    <XAxis dataKey="name" stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
+                                                    <Tooltip formatter={(value) => [`INR ${value}`, 'Revenue']} />
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="revenue"
+                                                        stroke="hsl(262, 83%, 58%)"
+                                                        strokeWidth={3}
+                                                        dot={{ r: 4, strokeWidth: 1 }}
+                                                        activeDot={{ r: 6 }}
+                                                    />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+
+                                    {/* Right 1 col: payment methods distribution */}
+                                    <div className="bg-card border rounded-xl shadow-sm p-6 flex flex-col">
+                                        <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+                                            <ArrowRightLeft className="w-4 h-4 text-primary" />
+                                            Methods Distribution
+                                        </h3>
+                                        <div className="h-[180px] flex-1 relative flex items-center justify-center">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={analyticsData.stats.paymentMethodsBreakdown}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={50}
+                                                        outerRadius={70}
+                                                        paddingAngle={4}
+                                                        dataKey="value"
+                                                    >
+                                                        {analyticsData.stats.paymentMethodsBreakdown.map((entry: any, index: number) => {
+                                                            const colors = ["#4F46E5", "#10B981", "#F59E0B", "#EF4444"];
+                                                            return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                                                        })}
+                                                    </Pie>
+                                                    <Tooltip />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 mt-4 text-[11px] text-muted-foreground border-t pt-4">
+                                            {analyticsData.stats.paymentMethodsBreakdown.map((entry: any, i: number) => {
+                                                const colors = ["bg-indigo-600", "bg-emerald-500", "bg-amber-500", "bg-red-500"];
+                                                return (
+                                                    <div key={entry.name} className="flex items-center gap-1.5">
+                                                        <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]}`} />
+                                                        <span className="font-semibold text-foreground">{entry.name} ({entry.value})</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        {/* ── 5. PAYMENT AUDIT LOGS TAB ── */}
+                        <TabsContent value="audit">
+                            <div className="bg-card border rounded-xl shadow-sm">
+                                <div className="p-6 border-b flex items-center gap-2">
+                                    <Shield className="w-5 h-5 text-primary" />
+                                    <h2 className="text-xl font-semibold">Payment Security & Audit Ledger</h2>
+                                </div>
+                                <div className="p-0">
+                                    {isLoadingLogs ? (
+                                        <div className="flex items-center justify-center py-20">
+                                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                        </div>
+                                    ) : !auditLogs.logs || auditLogs.logs.length === 0 ? (
+                                        <div className="text-center py-20 px-4">
+                                            <p className="text-muted-foreground text-sm">No transaction audit logs recorded yet.</p>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Audit Date</TableHead>
+                                                    <TableHead>Action</TableHead>
+                                                    <TableHead>IP Address</TableHead>
+                                                    <TableHead>Transaction / Order ID</TableHead>
+                                                    <TableHead>Audit Parameters & Metadata</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {auditLogs.logs.map((log: any) => (
+                                                    <TableRow key={log.id} className="hover:bg-muted/10 font-medium">
+                                                        <TableCell className="text-xs">
+                                                            {new Date(log.created_at).toLocaleString("en-IN")}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="outline" className={
+                                                                log.action === 'payment_success' ? 'border-green-300 text-green-700 bg-green-50/50' :
+                                                                log.action === 'refund_success' ? 'border-purple-300 text-purple-700 bg-purple-50/50' :
+                                                                log.action === 'payment_failed' ? 'border-red-300 text-red-700 bg-red-50/50' :
+                                                                'border-slate-350 text-slate-700 bg-slate-50/50'
+                                                            }>
+                                                                {log.action}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-xs font-mono text-muted-foreground">
+                                                            {log.ip_address || "System Event"}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs font-mono text-muted-foreground truncate max-w-[130px]">
+                                                            {log.payments?.gateway_order_id || "N/A"}
+                                                        </TableCell>
+                                                        <TableCell className="text-[10px] font-mono text-muted-foreground max-w-[200px] truncate" title={JSON.stringify(log.details)}>
+                                                            {JSON.stringify(log.details)}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
+                            </div>
+                        </TabsContent>
+
+                        {/* ── 6. PAYMENT SETTINGS TAB ── */}
+                        <TabsContent value="pay-settings" className="space-y-6">
+                            <div className="bg-card border rounded-2xl p-6 space-y-6">
+                                <div className="flex items-center gap-3 pb-4 border-b">
+                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                        <CreditCard className="w-5 h-5 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold">Payment Gateway Settings</h3>
+                                        <p className="text-xs text-muted-foreground">Configure how you receive online payments from customers</p>
+                                    </div>
+                                </div>
+
+                                {isLoadingPaySettings ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {/* Enable/Disable Online Payments */}
+                                        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-bold">Enable Online Payments</p>
+                                                <p className="text-xs text-muted-foreground">Allow customers to pay online via UPI, Cards, Netbanking, and Wallets</p>
+                                            </div>
+                                            <Switch
+                                                checked={payOnlineEnabled}
+                                                onCheckedChange={setPayOnlineEnabled}
+                                            />
+                                        </div>
+
+                                        {/* UPI VPA Address */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="upi-id" className="text-sm font-bold">Your UPI ID (VPA)</Label>
+                                            <Input
+                                                id="upi-id"
+                                                placeholder="yourshop@upi or yourshop@okhdfcbank"
+                                                value={payUpiId}
+                                                onChange={(e) => setPayUpiId(e.target.value)}
+                                                className="h-11 rounded-xl"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                This UPI ID will be embedded in QR codes shown to your customers during checkout.
+                                                Payments will be sent directly to this address.
+                                            </p>
+                                        </div>
+
+                                        {/* Payment Gateway Selection */}
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold">Payment Gateway</Label>
+                                            <Select value={payGateway} onValueChange={setPayGateway}>
+                                                <SelectTrigger className="h-11 rounded-xl">
+                                                    <SelectValue placeholder="Select gateway" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="mock">Mock Gateway (Testing)</SelectItem>
+                                                    <SelectItem value="razorpay">Razorpay (India)</SelectItem>
+                                                    <SelectItem value="stripe">Stripe (International)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Use Mock Gateway for testing. Switch to Razorpay or Stripe for live payments.
+                                            </p>
+                                        </div>
+
+                                        {/* Conditional Gateway Keys */}
+                                        {payGateway === "razorpay" && (
+                                            <div className="space-y-2 p-4 rounded-xl border border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+                                                <Label htmlFor="rzp-key" className="text-sm font-bold">Razorpay Key ID</Label>
+                                                <Input
+                                                    id="rzp-key"
+                                                    placeholder="rzp_live_xxxxxxxxxxxxxxx"
+                                                    value={payRazorpayKeyId}
+                                                    onChange={(e) => setPayRazorpayKeyId(e.target.value)}
+                                                    className="h-11 rounded-xl"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Find this in your Razorpay Dashboard &rarr; Settings &rarr; API Keys
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {payGateway === "stripe" && (
+                                            <div className="space-y-2 p-4 rounded-xl border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800">
+                                                <Label htmlFor="stripe-key" className="text-sm font-bold">Stripe Publishable Key</Label>
+                                                <Input
+                                                    id="stripe-key"
+                                                    placeholder="pk_live_xxxxxxxxxxxxxxx"
+                                                    value={payStripeKey}
+                                                    onChange={(e) => setPayStripeKey(e.target.value)}
+                                                    className="h-11 rounded-xl"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Find this in your Stripe Dashboard &rarr; Developers &rarr; API Keys
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Status Summary */}
+                                        <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+                                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Current Configuration</p>
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-2 h-2 rounded-full ${payOnlineEnabled ? 'bg-green-500' : 'bg-red-400'}`} />
+                                                    <span className="text-muted-foreground">Online Payments:</span>
+                                                    <span className="font-bold">{payOnlineEnabled ? 'Enabled' : 'Disabled'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Shield className="w-3 h-3 text-muted-foreground" />
+                                                    <span className="text-muted-foreground">Gateway:</span>
+                                                    <span className="font-bold capitalize">{payGateway}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 col-span-2">
+                                                    <CreditCard className="w-3 h-3 text-muted-foreground" />
+                                                    <span className="text-muted-foreground">UPI ID:</span>
+                                                    <span className="font-bold">{payUpiId || 'Not configured'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Save Button */}
+                                        <Button
+                                            onClick={() => savePaymentSettings.mutate()}
+                                            disabled={savePaymentSettings.isPending}
+                                            className="w-full h-12 rounded-xl font-bold text-sm"
+                                        >
+                                            {savePaymentSettings.isPending ? (
+                                                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                                            ) : (
+                                                <><Save className="w-4 h-4 mr-2" /> Save Payment Settings</>
+                                            )}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </div>
+
+            {/* ── Refund Validation Dialog ── */}
+            <Dialog open={isRefundOpen} onOpenChange={setIsRefundOpen}>
+                <DialogContent className="sm:max-w-md rounded-2xl bg-card border border-border shadow-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                            <RefreshCw className="w-5 h-5 text-destructive" />
+                            Trigger Customer Refund
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground">
+                            Specify refund request values. Action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={triggerRefundSubmit} className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="refund-amt">Refund Amount (INR)</Label>
+                            <Input
+                                id="refund-amt"
+                                type="number"
+                                placeholder="Leave blank to refund full amount"
+                                value={refundAmount}
+                                onChange={(e) => setRefundAmount(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="refund-res">Reason for Refund <span className="text-red-400">*</span></Label>
+                            <Input
+                                id="refund-res"
+                                placeholder="Customer cancellation / Stock shortage"
+                                value={refundReason}
+                                onChange={(e) => setRefundReason(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <DialogFooter className="pt-4 border-t gap-2 sm:gap-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsRefundOpen(false)}
+                                className="rounded-xl h-10"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                className="rounded-xl h-10 font-bold"
+                                disabled={refundPayment.isPending}
+                            >
+                                {refundPayment.isPending ? "Refunding..." : "Confirm Refund"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
