@@ -24,20 +24,65 @@ import {
   Home,
   Utensils,
   Car,
-  AlertCircle
+  AlertCircle,
+  Database,
+  Store
 } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { motion, useScroll, useTransform, useSpring, useMotionValue } from "framer-motion";
+import { motion, useScroll, useTransform, useSpring, useMotionValue, AnimatePresence } from "framer-motion";
 
 import { FeatureCard, StatCounter } from "@/features/landing/components/LandingSubComponents";
 import { DashboardMockup } from "@/features/landing/components/DashboardMockup";
 import { CheckoutMockup } from "@/features/landing/components/CheckoutMockup";
+import { InteractivePlayground } from "@/features/landing/components/InteractivePlayground";
 
 const Index = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const targetRef = useRef<HTMLDivElement>(null);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [heroMode, setHeroMode] = useState<"pos" | "storefront">("pos");
+
+  const feedbacks = [
+    { text: "Wi-Fi dropped but counter kept billing!", rating: 5, shop: "Aroma Roasters" },
+    { text: "E-commerce storefront ready in 60s!", rating: 4.5, shop: "Style Studio" },
+    { text: "Clean receipts, WhatsApp invoices are perfect!", rating: 5, shop: "Delhi Grocery" },
+    { text: "Saved our business during a power blackout!", rating: 5, shop: "Baker's Hub" },
+    { text: "Fast inventory sync, very easy to use", rating: 4, shop: "Electro World" },
+    { text: "Automatic local backup is a lifesaver", rating: 5, shop: "Green Organic" },
+    { text: "Our sales doubled after sharing store link!", rating: 4.5, shop: "Sweet Treat" }
+  ];
+
+  const renderStars = (rating: number) => {
+    return Array.from({ length: 5 }).map((_, idx) => {
+      const isGold = idx < Math.floor(rating);
+      const isHalf = idx === Math.floor(rating) && rating % 1 !== 0;
+      if (isGold) {
+        return (
+          <Star
+            key={idx}
+            className="w-3.5 h-3.5 fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+          />
+        );
+      }
+      if (isHalf) {
+        return (
+          <div key={idx} className="relative w-3.5 h-3.5 inline-flex items-center justify-center">
+            <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-slate-350 dark:text-slate-650 fill-transparent" />
+            <div className="absolute top-0 left-0 w-[50%] overflow-hidden h-full">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.65)]" />
+            </div>
+          </div>
+        );
+      }
+      return (
+        <Star
+          key={idx}
+          className="w-3.5 h-3.5 text-slate-350 dark:text-slate-650 fill-transparent"
+        />
+      );
+    });
+  };
 
   // Hero Parallax Logic
   const { scrollYProgress } = useScroll({
@@ -121,16 +166,67 @@ const Index = () => {
               V1.0 is Live: AI Receipt Scanning & More
             </div>
 
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 leading-[1.1]">
-              Know where every <br />
-              <span className="bg-gradient-to-r from-primary via-violet-500 to-blue-500 bg-clip-text text-transparent pb-2">
-                rupee goes.
-              </span>
-            </h1>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={heroMode}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.3 }}
+              >
+                {heroMode === "pos" ? (
+                  <>
+                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 leading-[1.1]">
+                      Run your counter <br />
+                      <span className="bg-gradient-to-r from-violet-650 via-primary to-indigo-600 bg-clip-text text-transparent pb-2">
+                        100% offline.
+                      </span>
+                    </h1>
+                    <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed font-light">
+                      Keep billing customers, updating inventory, and printing receipts even when your store's Wi-Fi is completely down. Zero lag, zero downtime.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 leading-[1.1]">
+                      Add your local shop <br />
+                      <span className="bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 bg-clip-text text-transparent pb-2">
+                        into online mode.
+                      </span>
+                    </h1>
+                    <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed font-light">
+                      Turn your local physical inventory into a live customer-facing e-commerce shop in 60 seconds. Accept online orders, manage stock levels, and sync everything.
+                    </p>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
 
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed font-light">
-              Stop guessing. Start growing. The financial operating system designed for modern freelancers and businesses to scale with confidence.
-            </p>
+            {/* Mode Switcher */}
+            <div className="inline-flex bg-slate-100 dark:bg-slate-900 rounded-full p-1.5 border border-slate-200/50 dark:border-slate-800 mb-12 shadow-xl relative z-20">
+              <button
+                onClick={() => setHeroMode("pos")}
+                className={`flex items-center gap-2 py-2.5 px-6 rounded-full font-bold text-xs sm:text-sm transition-all ${
+                  heroMode === "pos"
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-md scale-[1.03]"
+                    : "text-slate-500 hover:text-slate-950 dark:hover:text-slate-200"
+                }`}
+              >
+                <Store className="w-4 h-4 text-violet-500" />
+                🏪 Billing Counter Mode
+              </button>
+              <button
+                onClick={() => setHeroMode("storefront")}
+                className={`flex items-center gap-2 py-2.5 px-6 rounded-full font-bold text-xs sm:text-sm transition-all ${
+                  heroMode === "storefront"
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-md scale-[1.03]"
+                    : "text-slate-500 hover:text-slate-950 dark:hover:text-slate-200"
+                }`}
+              >
+                <Globe className="w-4 h-4 text-emerald-500" />
+                🌐 Launch Online Store
+              </button>
+            </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
               <Button onClick={() => setDemoOpen(true)} size="lg" className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">
@@ -143,7 +239,7 @@ const Index = () => {
           </motion.div>
 
           {/* --- 3D MOVING DASHBOARD MOCKUP --- */}
-          <DashboardMockup opacity={opacity} scale={scale} mouseX={mouseX} mouseY={mouseY} />
+          <DashboardMockup opacity={opacity} scale={scale} mouseX={mouseX} mouseY={mouseY} heroMode={heroMode} />
         </div>
       </section>
 
@@ -186,6 +282,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* --- INTERACTIVE SYSTEM PLAYGROUND --- */}
+      <InteractivePlayground />
 
       {/* --- IMMERSIVE FEATURES SECTION --- */}
       <section className="py-32 overflow-hidden">
@@ -248,7 +347,7 @@ const Index = () => {
               </motion.div>
             </div>
             <div className="w-full md:w-1/2">
-              <h3 className="text-Primary font-bold text-sm tracking-widest uppercase mb-4">Invoicing</h3>
+              <h3 className="text-primary font-bold text-sm tracking-widest uppercase mb-4">Invoicing</h3>
               <h2 className="text-4xl md:text-5xl font-bold mb-6">Get paid 3x faster.</h2>
               <p className="text-xl text-muted-foreground mb-8">
                 Create professional invoices in seconds. Send them via email or WhatsApp, and track exactly when they're viewed and paid.
@@ -377,6 +476,132 @@ const Index = () => {
                 Visualize your cash flow with stunning clarity. Identify leaks, spot trends, and make decisions based on data, not gut feeling.
               </p>
               <Button variant="outline" className="rounded-full">Explore Analytics <MoveRight className="ml-2 w-4 h-4" /></Button>
+            </div>
+          </div>
+
+          {/* --- DIGITAL STOREFRONT FEATURE DETAIL --- */}
+          <div className="flex flex-col md:flex-row items-center gap-16 mt-32">
+            <div className="w-full md:w-1/2">
+              <motion.div
+                initial={{ opacity: 0, x: -50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6 }}
+                className="relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 rounded-[2rem] blur-2xl -z-10" />
+                <div className="bg-card border rounded-[2rem] shadow-2xl overflow-hidden p-6 md:p-8 flex items-center justify-center">
+                  <div className="w-full max-w-sm bg-background border border-border/50 shadow-xl rounded-2xl p-5 relative">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-border/50 mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded bg-primary text-white flex items-center justify-center text-xs">☕</div>
+                        <span className="font-bold text-xs">Storefront Live</span>
+                      </div>
+                      <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-bold">ACTIVE</span>
+                    </div>
+                    {/* Customer Cart Item */}
+                    <div className="p-3 bg-muted/30 rounded-xl flex items-center justify-between mb-3 border border-border/20">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-amber-700/15 flex items-center justify-center text-sm">☕</div>
+                        <div>
+                          <div className="text-xs font-bold">Organic Coffee Beans</div>
+                          <div className="text-[9px] text-slate-400">Qty: 2 · Subtotal: ₹1,198</div>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold">₹1,198</span>
+                    </div>
+                    {/* Customer Detail */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Customer Name:</span>
+                        <span className="font-semibold text-foreground">Rahul S.</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Address:</span>
+                        <span className="font-semibold text-foreground text-right truncate max-w-[150px]">Koramangala, Bangalore</span>
+                      </div>
+                    </div>
+                    {/* Order Placement Action */}
+                    <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-2 text-center text-[10px] text-violet-400 font-semibold mb-3">
+                      ⚡ New storefront order placed!
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+            <div className="w-full md:w-1/2">
+              <h3 className="text-primary font-bold text-sm tracking-widest uppercase mb-4">E-Commerce Storefront</h3>
+              <h2 className="text-4xl md:text-5xl font-bold mb-6">Launch your online store.</h2>
+              <p className="text-xl text-muted-foreground mb-8">
+                Instantly publish a customer-facing e-commerce storefront linked directly to your inventory. Accept orders, calculate shipping, and manage stock levels in real-time.
+              </p>
+              <ul className="space-y-4 mb-8">
+                {["Custom Store URLs", "Real-Time WebSocket Order Sync", "Self-Updating Inventory Levels", "Customer Order History Tracking"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span className="text-lg">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button onClick={() => navigate("/store/aroma-coffee")} variant="outline" className="rounded-full">Explore Storefront <MoveRight className="ml-2 w-4 h-4" /></Button>
+            </div>
+          </div>
+
+          {/* --- OFFLINE-FIRST SYNC ENGINE FEATURE DETAIL --- */}
+          <div className="flex flex-col md:flex-row-reverse items-center gap-16 mt-32">
+            <div className="w-full md:w-1/2">
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6 }}
+                className="relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/20 to-yellow-500/20 rounded-[2rem] blur-2xl -z-10" />
+                <div className="bg-card border rounded-[2rem] shadow-2xl overflow-hidden p-6 md:p-8 flex items-center justify-center text-slate-800">
+                  <div className="w-full max-w-sm bg-white border border-slate-200 shadow-xl rounded-2xl p-6 relative font-sans">
+                    {/* Receipt Header */}
+                    <div className="text-center border-b border-dashed border-slate-200 pb-4 mb-4">
+                      <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <Database className="w-3.5 h-3.5 text-amber-500" />
+                        Offline Transaction
+                      </div>
+                      <div className="text-2xl font-black text-slate-900 mt-1">₹2,497.00</div>
+                    </div>
+                    {/* Receipt Items */}
+                    <div className="space-y-3.5 mb-6 text-left">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">2x Organic Coffee Beans</span>
+                        <span className="font-bold text-slate-900">₹1,198</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">1x Premium Thermal Flask</span>
+                        <span className="font-bold text-slate-900">₹1,299</span>
+                      </div>
+                    </div>
+                    {/* Status Alert Badge */}
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center text-xs text-amber-700 font-bold flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                      <span>Saved Securely · Ready to Backup</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+            <div className="w-full md:w-1/2">
+              <h3 className="text-amber-500 font-bold text-sm tracking-widest uppercase mb-4">Offline Protection</h3>
+              <h2 className="text-4xl md:text-5xl font-bold mb-6">No Internet? Keep Selling.</h2>
+              <p className="text-xl text-muted-foreground mb-8">
+                Wi-Fi outages or power cuts shouldn't stop your sales. FinFlow securely saves all your transactions, invoices, and expense logs directly on your device. The instant your internet is back, your data automatically backs up to the cloud.
+              </p>
+              <ul className="space-y-4 mb-8">
+                {["Uninterrupted sales billing during outages", "Automatic cloud backup when internet reconnects", "Encrypted device-level local storage", "Instant screen response times with zero loading"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span className="text-lg">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" className="rounded-full">See How It Works <MoveRight className="ml-2 w-4 h-4" /></Button>
             </div>
           </div>
         </div>
@@ -513,21 +738,28 @@ const Index = () => {
           <h2 className="text-3xl font-bold mb-12">Join the <span className="text-primary">fastest growing</span> finance community.</h2>
 
           {/* Infinite Marquee of Logos */}
-          <div className="relative flex overflow-x-hidden group">
-            <div className="animate-marquee whitespace-nowrap flex items-center gap-16 pr-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-              {/* Duplicate logos for infinite loop */}
-              {[1, 2, 3, 4, 5, 1, 2, 3, 4, 5].map((i, index) => (
-                <div key={index} className="inline-flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/20" />
-                  <span className="font-bold text-xl text-muted-foreground">COMPANY {index + 1}</span>
+          <div className="relative flex overflow-x-hidden group py-4">
+            <div className="animate-marquee whitespace-nowrap flex items-center gap-6 pr-6 opacity-100 transition-all duration-500">
+              {[...feedbacks, ...feedbacks].map((f, index) => (
+                <div key={index} className="inline-flex items-center gap-3 bg-card/75 backdrop-blur-sm border border-border/80 rounded-full px-5 py-3 shadow-md hover:scale-[1.02] transition-transform duration-300">
+                  <div className="flex items-center gap-1">
+                    {renderStars(f.rating)}
+                  </div>
+                  <span className="text-slate-350 dark:text-slate-650">|</span>
+                  <span className="text-xs font-semibold text-foreground">"{f.text}"</span>
+                  <span className="text-muted-foreground text-[9px] font-bold uppercase tracking-wider">— {f.shop}</span>
                 </div>
               ))}
             </div>
-            <div className="absolute top-0 animate-marquee2 whitespace-nowrap flex items-center gap-16 pr-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-              {[1, 2, 3, 4, 5, 1, 2, 3, 4, 5].map((i, index) => (
-                <div key={index} className="inline-flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/20" />
-                  <span className="font-bold text-xl text-muted-foreground">COMPANY {index + 1}</span>
+            <div className="absolute top-0 animate-marquee2 whitespace-nowrap flex items-center gap-6 pr-6 opacity-100 transition-all duration-500 py-4">
+              {[...feedbacks, ...feedbacks].map((f, index) => (
+                <div key={index} className="inline-flex items-center gap-3 bg-card/75 backdrop-blur-sm border border-border/80 rounded-full px-5 py-3 shadow-md hover:scale-[1.02] transition-transform duration-300">
+                  <div className="flex items-center gap-1">
+                    {renderStars(f.rating)}
+                  </div>
+                  <span className="text-slate-350 dark:text-slate-650">|</span>
+                  <span className="text-xs font-semibold text-foreground">"{f.text}"</span>
+                  <span className="text-muted-foreground text-[9px] font-bold uppercase tracking-wider">— {f.shop}</span>
                 </div>
               ))}
             </div>

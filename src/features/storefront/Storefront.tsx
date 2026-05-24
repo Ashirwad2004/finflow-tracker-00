@@ -82,6 +82,18 @@ export default function Storefront() {
     } = useQuery<StoreProfile | null>({
         queryKey: ["publicStoreProfile", storeSlug],
         queryFn: async () => {
+            if (storeSlug === "aroma-coffee") {
+                return {
+                    user_id: "demo-user-id",
+                    display_name: "Aroma Coffee Roasters",
+                    store_slug: "aroma-coffee",
+                    is_store_active: true,
+                    business_name: "Aroma Coffee Roasters",
+                    business_logo: null,
+                    delivery_charge: 49,
+                    free_delivery_min_amount: 1000
+                };
+            }
             const { data, error } = await (supabase as any).rpc("get_public_store", { p_slug: storeSlug });
             if (error) {
                 console.error("Supabase RPC Error:", error);
@@ -118,6 +130,26 @@ export default function Storefront() {
     const { data: products = [], isLoading: isLoadingProducts } = useQuery<StoreProduct[]>({
         queryKey: ["publicStoreProducts", storeId],
         queryFn: async () => {
+            if (storeId === "demo-user-id") {
+                return [
+                    {
+                        id: "coffee-beans-id",
+                        name: "Aroma Organic Coffee Beans (500g)",
+                        price: 599,
+                        stock_quantity: 15,
+                        image_url: null,
+                        category: "Coffee"
+                    },
+                    {
+                        id: "thermal-flask-id",
+                        name: "Premium Thermal Flask (750ml)",
+                        price: 1299,
+                        stock_quantity: 8,
+                        image_url: null,
+                        category: "Flasks"
+                    }
+                ];
+            }
             const { data, error } = await (supabase as any).rpc("get_public_store_products", { p_store_id: storeId });
             if (error) return [];
             return (Array.isArray(data) ? data : []) as StoreProduct[];
@@ -229,6 +261,29 @@ export default function Storefront() {
         }));
         setIsSubmitting(true);
         try {
+            if (storeId === "demo-user-id") {
+                const orderId = `DEMO-ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+                setSubmittedName(name);
+                setTrackedOrderId(orderId);
+                setOrderStatus("pending");
+                setOrderComplete(true);
+                setCart({});
+                setIsCartOpen(false);
+                setIsSubmitting(false);
+
+                // Auto simulation transitions
+                setTimeout(() => {
+                    setOrderStatus("accepted");
+                    notifyOrderStatus("accepted");
+                }, 3000);
+
+                setTimeout(() => {
+                    setOrderStatus("completed");
+                    notifyOrderStatus("completed");
+                }, 8000);
+                return;
+            }
+
             const { data: orderId, error } = await (supabase as any).rpc("place_online_order", {
                 p_store_id: storeId,
                 p_customer_name: name,
@@ -300,7 +355,7 @@ export default function Storefront() {
 
     // Fetch current status immediately (covers missed events before subscription connects)
     useEffect(() => {
-        if (!trackedOrderId) return;
+        if (!trackedOrderId || trackedOrderId.startsWith("DEMO-ORD-")) return;
         let cancelled = false;
         (async () => {
             const { data } = await (supabase as any).rpc("get_customer_orders", {
@@ -315,7 +370,7 @@ export default function Storefront() {
 
     // Polling fallback while the live tracking screen is open
     useEffect(() => {
-        if (!orderComplete || !trackedOrderId) return;
+        if (!orderComplete || !trackedOrderId || trackedOrderId.startsWith("DEMO-ORD-")) return;
         const poll = async () => {
             const { data } = await (supabase as any).rpc("get_customer_orders", {
                 p_order_ids: [trackedOrderId],
