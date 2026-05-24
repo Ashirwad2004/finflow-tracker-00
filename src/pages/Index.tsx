@@ -57,19 +57,29 @@ const Index = () => {
     return Array.from({ length: 5 }).map((_, idx) => {
       const isGold = idx < Math.floor(rating);
       const isHalf = idx === Math.floor(rating) && rating % 1 !== 0;
+      if (isGold) {
+        return (
+          <Star
+            key={idx}
+            className="w-3.5 h-3.5 fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+          />
+        );
+      }
+      if (isHalf) {
+        return (
+          <div key={idx} className="relative w-3.5 h-3.5 inline-flex items-center justify-center">
+            <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-slate-350 dark:text-slate-650 fill-transparent" />
+            <div className="absolute top-0 left-0 w-[50%] overflow-hidden h-full">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.65)]" />
+            </div>
+          </div>
+        );
+      }
       return (
-        <span
+        <Star
           key={idx}
-          className={
-            isGold
-              ? "text-yellow-400 text-[11px] drop-shadow-[0_0_3px_rgba(234,179,8,0.5)]"
-              : isHalf
-              ? "text-yellow-400 text-[11px] opacity-75 drop-shadow-[0_0_3px_rgba(234,179,8,0.5)]"
-              : "text-slate-300 dark:text-slate-700 text-[11px]"
-          }
-        >
-          ★
-        </span>
+          className="w-3.5 h-3.5 text-slate-350 dark:text-slate-650 fill-transparent"
+        />
       );
     });
   };
@@ -729,10 +739,10 @@ const Index = () => {
 
           {/* Infinite Marquee of Logos */}
           <div className="relative flex overflow-x-hidden group py-4">
-            <div className="animate-marquee whitespace-nowrap flex items-center gap-6 pr-6 opacity-85 grayscale hover:grayscale-0 transition-all duration-500">
+            <div className="animate-marquee whitespace-nowrap flex items-center gap-6 pr-6 opacity-100 transition-all duration-500">
               {[...feedbacks, ...feedbacks].map((f, index) => (
-                <div key={index} className="inline-flex items-center gap-3 bg-card/65 backdrop-blur-sm border border-border/80 rounded-full px-5 py-3 shadow-md hover:scale-[1.02] transition-transform duration-300">
-                  <div className="flex items-center gap-0.5">
+                <div key={index} className="inline-flex items-center gap-3 bg-card/75 backdrop-blur-sm border border-border/80 rounded-full px-5 py-3 shadow-md hover:scale-[1.02] transition-transform duration-300">
+                  <div className="flex items-center gap-1">
                     {renderStars(f.rating)}
                   </div>
                   <span className="text-slate-350 dark:text-slate-650">|</span>
@@ -741,10 +751,10 @@ const Index = () => {
                 </div>
               ))}
             </div>
-            <div className="absolute top-0 animate-marquee2 whitespace-nowrap flex items-center gap-6 pr-6 opacity-85 grayscale hover:grayscale-0 transition-all duration-500 py-4">
+            <div className="absolute top-0 animate-marquee2 whitespace-nowrap flex items-center gap-6 pr-6 opacity-100 transition-all duration-500 py-4">
               {[...feedbacks, ...feedbacks].map((f, index) => (
-                <div key={index} className="inline-flex items-center gap-3 bg-card/65 backdrop-blur-sm border border-border/80 rounded-full px-5 py-3 shadow-md hover:scale-[1.02] transition-transform duration-300">
-                  <div className="flex items-center gap-0.5">
+                <div key={index} className="inline-flex items-center gap-3 bg-card/75 backdrop-blur-sm border border-border/80 rounded-full px-5 py-3 shadow-md hover:scale-[1.02] transition-transform duration-300">
+                  <div className="flex items-center gap-1">
                     {renderStars(f.rating)}
                   </div>
                   <span className="text-slate-350 dark:text-slate-650">|</span>
