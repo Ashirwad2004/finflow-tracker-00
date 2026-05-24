@@ -5,12 +5,16 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { PackageOpen, X, Loader2, AlertCircle } from "lucide-react";
 import { isOrderDeclined } from "@/core/hooks/useStorefrontOrdersRealtime";
 
+import { generateInvoicePDF } from "@/core/utils/invoiceGenerator";
+import { CreditCard, Download } from "lucide-react";
+
 interface OrdersDrawerProps {
     open: boolean;
     onClose: () => void;
     formatCurrency: (n: number) => string;
     storeId: string | null;
     savedOrderIds: string[];
+    onPayOrder?: (order: any) => void;
 }
 
 export function OrdersDrawer({
@@ -19,6 +23,7 @@ export function OrdersDrawer({
     formatCurrency,
     storeId,
     savedOrderIds,
+    onPayOrder,
 }: OrdersDrawerProps) {
     const savedOrderIdsKey = savedOrderIds.join(",");
 
@@ -36,6 +41,7 @@ export function OrdersDrawer({
     const { data: orders, isLoading, error: queryError } = useQuery({
         queryKey: ["orderHistory", savedPhone, savedOrderIdsKey, storeId],
         queryFn: async () => {
+            let fetchedOrders = [];
             // Try phone-based lookup first (cross-device support)
             if (savedPhone && savedPhone.trim()) {
                 const { data, error } = await (supabase as any).rpc("get_orders_by_phone", {
@@ -45,22 +51,42 @@ export function OrdersDrawer({
                 if (error) {
                     console.error("RPC error fetching orders by phone:", error);
                 } else if (data && data.length > 0) {
-                    return data;
+                    fetchedOrders = data;
                 }
             }
 
-            // Fallback: Fetch by order IDs
-            if (!savedOrderIds.length) {
-                return [];
+            if (fetchedOrders.length === 0 && savedOrderIds.length > 0) {
+                // Fallback: Fetch by order IDs
+                const { data, error } = await (supabase as any).rpc("get_customer_orders", {
+                    p_order_ids: savedOrderIds,
+                });
+                if (error) {
+                    console.error("RPC error fetching orders by ID:", error);
+                    throw error;
+                }
+                fetchedOrders = data || [];
             }
-            const { data, error } = await (supabase as any).rpc("get_customer_orders", {
-                p_order_ids: savedOrderIds,
-            });
-            if (error) {
-                console.error("RPC error fetching orders by ID:", error);
-                throw error;
+
+            if (fetchedOrders.length === 0) return [];
+
+            // Query payment records for these orders
+            const orderIds = fetchedOrders.map((o: any) => o.id);
+            const { data: payments } = await supabase
+                .from("payments")
+                .select("*, invoices(invoice_number)")
+                .in("order_id", orderIds);
+
+            const paymentsMap = new Map();
+            if (payments) {
+                payments.forEach((p: any) => {
+                    paymentsMap.set(p.order_id, p);
+                });
             }
-            return data || [];
+
+            return fetchedOrders.map((o: any) => ({
+                ...o,
+                payment: paymentsMap.get(o.id) || null
+            }));
         },
         enabled: !!(open && (savedPhone.trim() || savedOrderIds.length > 0)),
         retry: 2,
@@ -132,7 +158,7 @@ export function OrdersDrawer({
                                 }
 
                                 return (
-                                    <div key={order.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+                                    <div key={order.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3 hover:border-slate-300 transition-all">
                                         <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                                             <div>
                                                 <p className="text-xs font-bold text-slate-400 mb-1">
@@ -140,13 +166,25 @@ export function OrdersDrawer({
                                                 </p>
                                                 <p className="font-black text-slate-900">{formatCurrency(order.total_amount)}</p>
                                             </div>
-                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                                order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                                order.status === 'accepted' ? 'bg-orange-100 text-orange-700' :
-                                                isOrderDeclined(order.status) ? 'bg-red-100 text-red-700' :
-                                                'bg-blue-100 text-blue-700'
-                                            }`}>
-                                                {isOrderDeclined(order.status) ? 'rejected' : order.status}
+                                            <div className="flex flex-col items-end gap-1.5">
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                    order.status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200' :
+                                                    order.status === 'accepted' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                                    isOrderDeclined(order.status) ? 'bg-red-50 text-red-700 border border-red-200' :
+                                                    'bg-amber-50 text-amber-750 border border-amber-250'
+                                                }`}>
+                                                    {isOrderDeclined(order.status) ? 'rejected' : order.status}
+                                                </span>
+                                                
+                                                {/* Payment Status Badge */}
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                    order.payment?.status === 'success' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                    order.payment?.status === 'refunded' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                                    order.payment?.status === 'failed' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                                    'bg-slate-100 text-slate-500 border border-slate-200'
+                                                }`}>
+                                                    {order.payment ? order.payment.status : 'unpaid'}
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="space-y-2">
@@ -170,6 +208,48 @@ export function OrdersDrawer({
                                                 <span className="font-semibold text-slate-600">{formatCurrency(order.delivery_charge)}</span>
                                             </div>
                                         )}
+
+                                        {/* Action buttons (Download invoice / Pay Online) */}
+                                        <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                            {order.payment?.status === 'success' ? (
+                                                <button
+                                                    onClick={() => {
+                                                        const invoiceNo = order.payment.invoices?.[0]?.invoice_number || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                                                        generateInvoicePDF({
+                                                            invoiceNumber: invoiceNo,
+                                                            date: new Date(order.payment.created_at).toLocaleDateString(),
+                                                            storeName: "FinFlow Storefront",
+                                                            customerName: order.customer_name,
+                                                            customerPhone: order.customer_phone,
+                                                            customerAddress: order.customer_address,
+                                                            items: orderItems.map((it: any) => ({
+                                                                name: it.product_name || "Product Item",
+                                                                quantity: it.quantity || 1,
+                                                                price: Number(it.price_at_time || 0)
+                                                            })),
+                                                            subtotal: Number(order.total_amount) - Number(order.delivery_charge || 0),
+                                                            deliveryCharge: Number(order.delivery_charge || 0),
+                                                            totalAmount: Number(order.total_amount),
+                                                            paymentMethod: order.payment.payment_method || "online",
+                                                            status: order.payment.status
+                                                        });
+                                                    }}
+                                                    className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary/5 active:scale-[0.98] transition-all"
+                                                >
+                                                    <Download className="w-3.5 h-3.5" />
+                                                    Download Invoice
+                                                </button>
+                                            ) : order.payment?.status !== 'refunded' && onPayOrder ? (
+                                                <button
+                                                    onClick={() => onPayOrder(order)}
+                                                    className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl text-white text-xs font-black active:scale-[0.98] transition-all shadow-md"
+                                                    style={{ background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))" }}
+                                                >
+                                                    <CreditCard className="w-3.5 h-3.5" />
+                                                    Pay Online Now
+                                                </button>
+                                            ) : null}
+                                        </div>
                                     </div>
                                 );
                             })

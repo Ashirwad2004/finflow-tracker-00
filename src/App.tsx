@@ -34,6 +34,8 @@ const ReportsPage = lazy(() => import("@/features/business/pages/Reports"));
 const PersonalReportsPage = lazy(() => import("@/features/reports/pages/PersonalReports"));
 const AdminDemoPage = lazy(() => import("@/features/demo/AdminDashboard"));
 const StorefrontPage = lazy(() => import("@/features/storefront/Storefront"));
+const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccess"));
+const PaymentFailurePage = lazy(() => import("@/pages/PaymentFailure"));
 
 // Optimize React Query: 
 // 1. Keep data fresh for 5 mins (reduces duplicate network requests)
@@ -106,6 +108,8 @@ const AppRoutes = () => {
         <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
         <Route path="/online-store" element={<ProtectedRoute><OnlineStorePage /></ProtectedRoute>} />
         <Route path="/store/:storeSlug" element={<StorefrontPage />} />
+        <Route path="/store/:storeSlug/payment-success" element={<PaymentSuccessPage />} />
+        <Route path="/store/:storeSlug/payment-failure" element={<PaymentFailurePage />} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminDemoPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />

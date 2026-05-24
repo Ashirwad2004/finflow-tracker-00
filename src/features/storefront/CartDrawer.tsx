@@ -37,8 +37,9 @@ interface CartDrawerProps {
     onAddOne: (id: string) => void;
     canAddOne: (id: string) => boolean;
     onClearItem: (id: string) => void;
-    onSubmit: (name: string, phone: string, address: string) => Promise<void>;
+    onSubmit: (name: string, phone: string, address: string, paymentMethod: "cod" | "online") => Promise<void>;
     isSubmitting: boolean;
+    onlinePaymentEnabled?: boolean;
 }
 
 export function CartDrawer({
@@ -58,11 +59,13 @@ export function CartDrawer({
     onClearItem,
     onSubmit,
     isSubmitting,
+    onlinePaymentEnabled = false,
 }: CartDrawerProps) {
     const [step, setStep] = useState<"cart" | "form">("cart");
     const [name, setName] = useState(() => localStorage.getItem("storefront_name") || "");
     const [phone, setPhone] = useState(() => localStorage.getItem("storefront_phone") || "");
     const [address, setAddress] = useState(() => localStorage.getItem("storefront_address") || "");
+    const [paymentMethod, setPaymentMethod] = useState<"cod" | "online">("cod");
 
     // Save details to localStorage whenever they change
     useEffect(() => {
@@ -73,11 +76,14 @@ export function CartDrawer({
 
     // reset to cart view whenever drawer opens
     useEffect(() => {
-        if (open) setStep("cart");
-    }, [open]);
+        if (open) {
+            setStep("cart");
+            setPaymentMethod(onlinePaymentEnabled ? "cod" : "cod");
+        }
+    }, [open, onlinePaymentEnabled]);
 
     const handleSubmit = async () => {
-        await onSubmit(name, phone, address);
+        await onSubmit(name, phone, address, paymentMethod);
         setStep("cart");
     };
 
@@ -283,9 +289,38 @@ export function CartDrawer({
                                             onChange={e => setAddress(e.target.value)}
                                             placeholder="Flat/House no., Street, City, PIN"
                                             rows={3}
-                                            className="pl-10 rounded-xl border-slate-200 focus:border-violet-400 bg-slate-50 resize-none"
+                                            className="pl-10 rounded-xl border-slate-200 focus:border-violet-400 bg-slate-50 resize-none animate-fade-in"
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        Payment Method
+                                    </Label>
+                                    {onlinePaymentEnabled ? (
+                                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100/80 rounded-xl border border-slate-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentMethod("cod")}
+                                                className={`py-2 text-xs font-bold rounded-lg transition-all ${paymentMethod === "cod" ? "bg-white text-slate-900 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-700"}`}
+                                            >
+                                                💵 Cash on Delivery
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentMethod("online")}
+                                                className={`py-2 text-xs font-bold rounded-lg transition-all ${paymentMethod === "online" ? "bg-white text-slate-900 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-700"}`}
+                                            >
+                                                💳 Pay Online
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="py-2.5 px-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 flex items-center gap-2">
+                                            💵 Cash on Delivery
+                                            <span className="text-slate-400 font-normal">(Only payment method available)</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Order summary condensed */}
