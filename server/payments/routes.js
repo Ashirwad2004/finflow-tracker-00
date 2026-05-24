@@ -68,7 +68,21 @@ paymentRouter.post(
         return res.status(404).json({ error: 'Order not found.' });
       }
 
-      const driver = getGatewayDriver();
+      // Fetch the store owner's payment configuration from their profile
+      const { data: storeProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('razorpay_key_id, payment_gateway, online_payment_enabled')
+        .eq('user_id', order.store_id)
+        .maybeSingle();
+
+      if (!storeProfile?.online_payment_enabled) {
+        return res.status(400).json({ error: 'Online payments are not enabled for this store.' });
+      }
+
+      const driver = getGatewayDriver({
+        payment_gateway: storeProfile?.payment_gateway || 'mock',
+        razorpay_key_id: storeProfile?.razorpay_key_id || null
+      });
       const gatewayResponse = await driver.createOrder({
         orderId: order.id,
         amount: order.total_amount,

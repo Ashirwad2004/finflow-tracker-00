@@ -306,10 +306,7 @@ export default function OnlineStore() {
     const [refundAmount, setRefundAmount] = useState("");
 
     // Payment settings states
-    const [payUpiId, setPayUpiId] = useState("");
-    const [payGateway, setPayGateway] = useState("mock");
     const [payRazorpayKeyId, setPayRazorpayKeyId] = useState("");
-    const [payStripeKey, setPayStripeKey] = useState("");
     const [payOnlineEnabled, setPayOnlineEnabled] = useState(false);
 
     // Authorized request helper to include current Supabase JWT token
@@ -406,15 +403,12 @@ export default function OnlineStore() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from("profiles")
-                .select("upi_id, payment_gateway, razorpay_key_id, stripe_publishable_key, online_payment_enabled")
+                .select("razorpay_key_id, online_payment_enabled")
                 .eq("user_id", user?.id)
                 .maybeSingle();
             if (error) throw error;
             if (data) {
-                setPayUpiId((data as any).upi_id || "");
-                setPayGateway((data as any).payment_gateway || "mock");
                 setPayRazorpayKeyId((data as any).razorpay_key_id || "");
-                setPayStripeKey((data as any).stripe_publishable_key || "");
                 setPayOnlineEnabled((data as any).online_payment_enabled || false);
             }
             return data;
@@ -424,13 +418,13 @@ export default function OnlineStore() {
 
     const savePaymentSettings = useMutation({
         mutationFn: async () => {
+            // Auto-set gateway based on key presence
+            const gateway = payRazorpayKeyId?.trim() ? 'razorpay' : 'mock';
             const { error } = await (supabase as any)
                 .from("profiles")
                 .update({
-                    upi_id: payUpiId || null,
-                    payment_gateway: payGateway,
-                    razorpay_key_id: payRazorpayKeyId || null,
-                    stripe_publishable_key: payStripeKey || null,
+                    razorpay_key_id: payRazorpayKeyId?.trim() || null,
+                    payment_gateway: gateway,
                     online_payment_enabled: payOnlineEnabled,
                 })
                 .eq("user_id", user?.id);
@@ -1130,8 +1124,8 @@ export default function OnlineStore() {
                                         <CreditCard className="w-5 h-5 text-primary" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold">Payment Gateway Settings</h3>
-                                        <p className="text-xs text-muted-foreground">Configure how you receive online payments from customers</p>
+                                        <h3 className="text-lg font-bold">Online Payment Setup</h3>
+                                        <p className="text-xs text-muted-foreground">Accept payments from customers via UPI, Cards, Netbanking &amp; Wallets</p>
                                     </div>
                                 </div>
 
@@ -1141,11 +1135,14 @@ export default function OnlineStore() {
                                     </div>
                                 ) : (
                                     <div className="space-y-6">
-                                        {/* Enable/Disable Online Payments */}
+                                        {/* Step 1: Enable Online Payments */}
                                         <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
                                             <div className="space-y-1">
-                                                <p className="text-sm font-bold">Enable Online Payments</p>
-                                                <p className="text-xs text-muted-foreground">Allow customers to pay online via UPI, Cards, Netbanking, and Wallets</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary">1</span>
+                                                    <p className="text-sm font-bold">Enable Online Payments</p>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground ml-7">Customers will see "Pay Online" option at checkout</p>
                                             </div>
                                             <Switch
                                                 checked={payOnlineEnabled}
@@ -1153,91 +1150,50 @@ export default function OnlineStore() {
                                             />
                                         </div>
 
-                                        {/* UPI VPA Address */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="upi-id" className="text-sm font-bold">Your UPI ID (VPA)</Label>
+                                        {/* Step 2: Razorpay Key ID */}
+                                        <div className="space-y-3 p-4 rounded-xl border bg-muted/10">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary">2</span>
+                                                <Label htmlFor="rzp-key" className="text-sm font-bold">Your Razorpay Key ID</Label>
+                                            </div>
                                             <Input
-                                                id="upi-id"
-                                                placeholder="yourshop@upi or yourshop@okhdfcbank"
-                                                value={payUpiId}
-                                                onChange={(e) => setPayUpiId(e.target.value)}
-                                                className="h-11 rounded-xl"
+                                                id="rzp-key"
+                                                placeholder="rzp_live_xxxxxxxxxxxxxxx"
+                                                value={payRazorpayKeyId}
+                                                onChange={(e) => setPayRazorpayKeyId(e.target.value)}
+                                                className="h-11 rounded-xl font-mono text-sm"
                                             />
-                                            <p className="text-[10px] text-muted-foreground">
-                                                This UPI ID will be embedded in QR codes shown to your customers during checkout.
-                                                Payments will be sent directly to this address.
-                                            </p>
-                                        </div>
-
-                                        {/* Payment Gateway Selection */}
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-bold">Payment Gateway</Label>
-                                            <Select value={payGateway} onValueChange={setPayGateway}>
-                                                <SelectTrigger className="h-11 rounded-xl">
-                                                    <SelectValue placeholder="Select gateway" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="mock">Mock Gateway (Testing)</SelectItem>
-                                                    <SelectItem value="razorpay">Razorpay (India)</SelectItem>
-                                                    <SelectItem value="stripe">Stripe (International)</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-[10px] text-muted-foreground">
-                                                Use Mock Gateway for testing. Switch to Razorpay or Stripe for live payments.
-                                            </p>
-                                        </div>
-
-                                        {/* Conditional Gateway Keys */}
-                                        {payGateway === "razorpay" && (
-                                            <div className="space-y-2 p-4 rounded-xl border border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
-                                                <Label htmlFor="rzp-key" className="text-sm font-bold">Razorpay Key ID</Label>
-                                                <Input
-                                                    id="rzp-key"
-                                                    placeholder="rzp_live_xxxxxxxxxxxxxxx"
-                                                    value={payRazorpayKeyId}
-                                                    onChange={(e) => setPayRazorpayKeyId(e.target.value)}
-                                                    className="h-11 rounded-xl"
-                                                />
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Find this in your Razorpay Dashboard &rarr; Settings &rarr; API Keys
-                                                </p>
+                                            <div className="bg-muted/40 rounded-lg p-3 space-y-1.5">
+                                                <p className="text-[11px] font-bold text-muted-foreground">How to get your Razorpay Key ID:</p>
+                                                <ol className="text-[10px] text-muted-foreground space-y-1 list-decimal ml-3.5">
+                                                    <li>Sign up at <a href="https://razorpay.com" target="_blank" rel="noopener noreferrer" className="underline text-primary font-medium">razorpay.com</a></li>
+                                                    <li>Go to <strong>Settings → API Keys → Generate Key</strong></li>
+                                                    <li>Copy the <strong>Key ID</strong> (starts with <code className="bg-muted px-1 rounded">rzp_live_</code> or <code className="bg-muted px-1 rounded">rzp_test_</code>)</li>
+                                                    <li>Paste it above and click Save</li>
+                                                </ol>
                                             </div>
-                                        )}
-
-                                        {payGateway === "stripe" && (
-                                            <div className="space-y-2 p-4 rounded-xl border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800">
-                                                <Label htmlFor="stripe-key" className="text-sm font-bold">Stripe Publishable Key</Label>
-                                                <Input
-                                                    id="stripe-key"
-                                                    placeholder="pk_live_xxxxxxxxxxxxxxx"
-                                                    value={payStripeKey}
-                                                    onChange={(e) => setPayStripeKey(e.target.value)}
-                                                    className="h-11 rounded-xl"
-                                                />
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Find this in your Stripe Dashboard &rarr; Developers &rarr; API Keys
+                                            {!payRazorpayKeyId?.trim() && (
+                                                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                                    ⚠️ Without a Razorpay Key, payments will use the test/mock gateway for demo purposes.
                                                 </p>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
 
                                         {/* Status Summary */}
-                                        <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
-                                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Current Configuration</p>
-                                            <div className="grid grid-cols-2 gap-3 text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-2 rounded-full ${payOnlineEnabled ? 'bg-green-500' : 'bg-red-400'}`} />
-                                                    <span className="text-muted-foreground">Online Payments:</span>
-                                                    <span className="font-bold">{payOnlineEnabled ? 'Enabled' : 'Disabled'}</span>
+                                        <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Status</p>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <div className={`w-2.5 h-2.5 rounded-full ${payOnlineEnabled ? 'bg-green-500' : 'bg-red-400'}`} />
+                                                    <span className="font-bold">{payOnlineEnabled ? 'Online payments enabled' : 'Online payments disabled'}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Shield className="w-3 h-3 text-muted-foreground" />
-                                                    <span className="text-muted-foreground">Gateway:</span>
-                                                    <span className="font-bold capitalize">{payGateway}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 col-span-2">
-                                                    <CreditCard className="w-3 h-3 text-muted-foreground" />
-                                                    <span className="text-muted-foreground">UPI ID:</span>
-                                                    <span className="font-bold">{payUpiId || 'Not configured'}</span>
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <div className={`w-2.5 h-2.5 rounded-full ${payRazorpayKeyId?.trim() ? 'bg-green-500' : 'bg-amber-400'}`} />
+                                                    <span className="font-bold">
+                                                        {payRazorpayKeyId?.trim()
+                                                            ? `Razorpay connected (${payRazorpayKeyId.substring(0, 12)}...)`
+                                                            : 'Using mock/demo gateway'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>

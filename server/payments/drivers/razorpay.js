@@ -4,11 +4,11 @@ export class RazorpayGateway {
   name = 'razorpay';
   client = null;
 
-  constructor() {
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (keyId && keySecret) {
-      this.initClient(keyId, keySecret);
+  constructor(options = {}) {
+    this._keyId = options.keyId || process.env.RAZORPAY_KEY_ID;
+    this._keySecret = options.keySecret || process.env.RAZORPAY_KEY_SECRET;
+    if (this._keyId && this._keySecret) {
+      this.initClient(this._keyId, this._keySecret);
     }
   }
 
@@ -26,12 +26,10 @@ export class RazorpayGateway {
 
   async ensureClient() {
     if (!this.client) {
-      const keyId = process.env.RAZORPAY_KEY_ID;
-      const keySecret = process.env.RAZORPAY_KEY_SECRET;
-      if (!keyId || !keySecret) {
-        throw new Error('RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET environment variables are not defined.');
+      if (!this._keyId || !this._keySecret) {
+        throw new Error('RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not configured. Add your Razorpay Key in Online Store → Pay Setup, and set RAZORPAY_KEY_SECRET as a server environment variable.');
       }
-      await this.initClient(keyId, keySecret);
+      await this.initClient(this._keyId, this._keySecret);
       if (!this.client) {
         throw new Error('Razorpay SDK could not be loaded. Please install razorpay dependency.');
       }
@@ -56,7 +54,7 @@ export class RazorpayGateway {
       gatewayOrderId: rzpOrder.id,
       checkoutUrl: null, // Loaded on client side using Razorpay Checkout script
       details: {
-        keyId: process.env.RAZORPAY_KEY_ID,
+        keyId: this._keyId,
         amount: rzpOrder.amount,
         currency: rzpOrder.currency,
         orderId: rzpOrder.id,
