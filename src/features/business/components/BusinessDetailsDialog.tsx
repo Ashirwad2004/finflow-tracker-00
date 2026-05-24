@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
 
 interface BusinessDetailsDialogProps {
     open: boolean;
@@ -96,33 +97,60 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
         mutationFn: async (values: BusinessDetailsFormValues) => {
             if (!user) throw new Error("User not authenticated");
 
+            if ((logoFile || signatureFile) && !navigator.onLine) {
+                toast({
+                    title: "Offline Mode Notice",
+                    description: "Image uploads require an internet connection. Only text changes will be saved offline.",
+                    variant: "destructive"
+                });
+            }
+
             let currentLogoUrl = logoPreview;
-            if (logoFile) {
+            if (logoFile && navigator.onLine) {
                 currentLogoUrl = await uploadImage(logoFile, 'logo');
             }
 
             let currentSignatureUrl = signaturePreview;
-            if (signatureFile) {
+            if (signatureFile && navigator.onLine) {
                 currentSignatureUrl = await uploadImage(signatureFile, 'signature');
             }
 
-            const { error } = await (supabase as any)
-                .from("profiles")
-                .update({
+            const { error } = await offlineMutate({
+                table: "profiles",
+                action: "update",
+                recordId: user.id,
+                payload: {
                     business_name: values.business_name,
                     gst_number: values.gst_number,
                     business_phone: values.business_phone,
                     business_address: values.business_address,
                     business_logo: currentLogoUrl,
                     signature_url: currentSignatureUrl
-                })
-                .eq("user_id", user.id);
+                },
+                userId: user.id
+            });
 
             if (error) throw error;
-            return values;
+            return { ...values, business_logo: currentLogoUrl, signature_url: currentSignatureUrl };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["profile"] });
+        onSuccess: (data) => {
+            // Optimistic cache update
+            queryClient.setQueryData(["profile", user?.id], (old: any) => {
+                return old ? {
+                    ...old,
+                    business_name: data.business_name,
+                    gst_number: data.gst_number,
+                    business_phone: data.business_phone,
+                    business_address: data.business_address,
+                    business_logo: data.business_logo,
+                    signature_url: data.signature_url
+                } : old;
+            });
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["profile"] });
+            }
+
             toast({
                 title: "Business Details Saved",
                 description: "Your business information has been updated successfully."

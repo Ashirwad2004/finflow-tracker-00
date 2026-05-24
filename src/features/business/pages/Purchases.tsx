@@ -6,6 +6,7 @@ import { RecordPurchaseDialog } from "@/features/business/components/RecordPurch
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { format, isSameMonth } from "date-fns";
 import {
@@ -201,17 +202,27 @@ export default function PurchasesPage() {
                 console.warn("Failed to save to local recycle bin", e);
             }
 
-            // 2. Remove from Supabase
-            const { error } = await supabase
-                .from("purchases" as any)
-                .delete()
-                .eq("id", purchase.id);
+            // 2. Remove from Supabase/Queue
+            if (!user?.id) return;
+            try {
+                await offlineMutate({
+                    table: "purchases",
+                    action: "delete",
+                    recordId: purchase.id,
+                    userId: user.id
+                });
 
-            if (error) {
-                console.error("Error deleting purchase:", error);
+                // Optimistic update
+                queryClient.setQueryData(["purchases", user.id], (old: any) => {
+                    return old ? old.filter((p: any) => p.id !== purchase.id) : [];
+                });
+
+                if (navigator.onLine) {
+                    queryClient.invalidateQueries({ queryKey: ["purchases", user.id] });
+                }
+            } catch (err: any) {
+                console.error("Error deleting purchase:", err);
                 alert("Failed to delete purchase.");
-            } else {
-                queryClient.invalidateQueries({ queryKey: ["purchases", user?.id] });
             }
         }
     };

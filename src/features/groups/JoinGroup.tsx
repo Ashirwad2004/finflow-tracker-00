@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
 import {
   Card,
   CardContent,
@@ -19,6 +22,7 @@ const JoinGroup = () => {
   const { inviteCode } = useParams<{ inviteCode: string }>();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [group, setGroup] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -101,13 +105,58 @@ const JoinGroup = () => {
     setJoining(true);
 
     try {
-      const { error } = await supabase.from("group_members").insert({
-        group_id: group.id,
-        user_id: user.id,
-        username: username.trim(),
+      const memberId = uuidv4();
+      
+      const { error } = await offlineMutate({
+        table: "group_members",
+        action: "insert",
+        recordId: memberId,
+        payload: {
+          id: memberId,
+          group_id: group.id,
+          user_id: user.id,
+          username: username.trim(),
+        },
+        userId: user.id
       });
 
       if (error) throw error;
+
+      // Optimistic updates
+      queryClient.setQueryData(["group-members", group.id], (old: any) => {
+        const newMember = {
+          user_id: user.id,
+          username: username.trim(),
+          joined_at: new Date().toISOString(),
+        };
+        return old ? [...old, newMember] : [newMember];
+      });
+
+      queryClient.setQueryData(["all-group-members"], (old: any) => {
+        const newMember = {
+          group_id: group.id,
+          user_id: user.id,
+          username: username.trim(),
+        };
+        return old ? [...old, newMember] : [newMember];
+      });
+
+      queryClient.setQueryData(["groups", user.id], (old: any) => {
+        const newGroup = {
+          id: group.id,
+          name: group.name,
+          description: group.description,
+          created_by: user.id,
+        };
+        const exists = old?.some((g: any) => g.id === group.id);
+        if (exists) return old;
+        return old ? [...old, newGroup] : [newGroup];
+      });
+
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["groups", user.id] });
+        queryClient.invalidateQueries({ queryKey: ["group-members", group.id] });
+      }
 
       toast({
         title: "Success 🎉",

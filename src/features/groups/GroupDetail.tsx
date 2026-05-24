@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
 import {
   Card,
   CardContent,
@@ -247,33 +248,61 @@ const GroupDetail = () => {
 
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
-      // Logic for soft delete / tracking recently deleted (simplified from original)
+      // Logic for soft delete / tracking recently deleted
       const expense = expenses.find(e => e.id === id);
-      if (expense) {
-        const deletedExpenses = JSON.parse(localStorage.getItem(`recently_deleted_${user?.id}`) || "[]");
+      if (expense && user?.id) {
+        const deletedExpenses = JSON.parse(localStorage.getItem(`recently_deleted_${user.id}`) || "[]");
         deletedExpenses.unshift({ ...expense, group_id: groupId, deleted_at: new Date().toISOString() });
-        localStorage.setItem(`recently_deleted_${user?.id}`, JSON.stringify(deletedExpenses.slice(0, 50)));
+        localStorage.setItem(`recently_deleted_${user.id}`, JSON.stringify(deletedExpenses.slice(0, 50)));
       }
 
-      await supabase.from("group_expenses").delete().eq("id", id).eq("user_id", user?.id);
+      if (!user?.id) return;
+      await offlineMutate({
+        table: "group_expenses",
+        action: "delete",
+        recordId: id,
+        userId: user.id
+      });
     },
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       toast({ title: "Expense deleted" });
-      queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+      
+      // Optimistic cache update
+      queryClient.setQueryData(["group-expenses", groupId], (old: any) => {
+        return old ? old.filter((e: any) => e.id !== id) : [];
+      });
+
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+      }
     }
   });
 
   const deleteGroup = useMutation({
     mutationFn: async () => {
       // Soft delete tracking
-      if (group) {
-        const deletedGroups = JSON.parse(localStorage.getItem(`recently_deleted_groups_${user?.id}`) || "[]");
+      if (group && user?.id) {
+        const deletedGroups = JSON.parse(localStorage.getItem(`recently_deleted_groups_${user.id}`) || "[]");
         deletedGroups.unshift({ ...group, deleted_at: new Date().toISOString() });
-        localStorage.setItem(`recently_deleted_groups_${user?.id}`, JSON.stringify(deletedGroups.slice(0, 50)));
+        localStorage.setItem(`recently_deleted_groups_${user.id}`, JSON.stringify(deletedGroups.slice(0, 50)));
       }
-      await supabase.from("groups").delete().eq("id", groupId).eq("created_by", user?.id);
+      if (!user?.id) return;
+      await offlineMutate({
+        table: "groups",
+        action: "delete",
+        recordId: groupId!,
+        userId: user.id
+      });
     },
-    onSuccess: () => navigate("/groups"),
+    onSuccess: () => {
+      // Optimistic cache update
+      if (user?.id) {
+        queryClient.setQueryData(["groups", user.id], (old: any) => {
+          return old ? old.filter((g: any) => g.id !== groupId) : [];
+        });
+      }
+      navigate("/groups");
+    },
   });
 
   const handleExportPDF = () => {

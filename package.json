@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npx kill-port 8080 && vite",
     "clean-dev": "npx kill-port 8080 && vite",
-    "build": "vite build",
+    "build": "vite build && node inject-sw-assets.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",

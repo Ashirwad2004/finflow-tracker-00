@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,9 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-// Update imports and component props
-import { useEffect } from "react";
+import { offlineMutate } from "@/core/offline/apiService";
+import { v4 as uuidv4 } from "uuid";
+import { useAuth } from "@/core/lib/auth";
 
 interface RecordPurchaseDialogProps {
     open: boolean;
@@ -39,6 +39,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
+    const { user } = useAuth();
 
     const { register, control, handleSubmit, watch, reset, formState: { errors } } = useForm<PurchaseFormValues>({
         defaultValues: {
@@ -78,26 +79,29 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
 
     // Fetch Parties for Auto-complete
     const { data: parties = [] } = useQuery({
-        queryKey: ["purchase-parties"],
+        queryKey: ["parties", user?.id],
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return [];
+            if (!user?.id) return [];
             const { data } = await supabase.from("parties" as any)
                 .select("*")
-                .eq("user_id", user.id)
-                .in("type", ["vendor", "both"]);
+                .eq("user_id", user.id);
             return data || [];
         },
-        enabled: open
+        enabled: open && !!user?.id
     });
+
+    const vendorParties = parties.filter((party: any) => 
+        party.type === "vendor" || party.type === "both"
+    );
 
 
     const createPurchaseMutation = useMutation({
         mutationFn: async (values: PurchaseFormValues) => {
-            const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("User not authenticated");
 
+            const purchaseId = purchaseToEdit ? purchaseToEdit.id : uuidv4();
             const purchaseData = {
+                id: purchaseId,
                 user_id: user.id,
                 bill_number: values.bill_number,
                 vendor_name: values.vendor_name,
@@ -112,66 +116,132 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
                 status: "paid"
             };
 
+            const productSyncs: any[] = [];
+            const cachedProducts: any[] = queryClient.getQueryData(["products", user.id]) || [];
+
             if (purchaseToEdit) {
                 // UPDATE existing purchase (no inventory change)
-                const { error } = await supabase
-                    .from("purchases" as any)
-                    .update(purchaseData)
-                    .eq("id", purchaseToEdit.id);
+                const { error } = await offlineMutate({
+                    table: "purchases",
+                    action: "update",
+                    recordId: purchaseToEdit.id,
+                    payload: purchaseData,
+                    userId: user.id
+                });
                 if (error) throw error;
             } else {
                 // INSERT new purchase
-                const { error: purchaseError } = await supabase
-                    .from("purchases" as any)
-                    .insert(purchaseData);
+                const { error: purchaseError } = await offlineMutate({
+                    table: "purchases",
+                    action: "insert",
+                    recordId: purchaseId,
+                    payload: purchaseData,
+                    userId: user.id
+                });
                 if (purchaseError) throw purchaseError;
 
                 // Sync inventory for each purchased item
                 for (const item of values.items) {
                     if (!item.description.trim()) continue;
 
-                    // Look for existing product by name (case-insensitive match via ilike)
-                    const { data: existingProducts } = await supabase
-                        .from("products" as any)
-                        .select("id, stock_quantity")
-                        .eq("user_id", user.id)
-                        .ilike("name", item.description.trim());
-
-                    const existingProduct = existingProducts && existingProducts.length > 0
-                        ? existingProducts[0]
-                        : null;
+                    const existingProduct = cachedProducts.find(p => p.name?.toLowerCase() === item.description.trim().toLowerCase());
 
                     if (existingProduct) {
                         // Existing product → increase stock
                         const newQty = Number(existingProduct.stock_quantity) + Number(item.quantity);
-                        const { error: updateError } = await supabase
-                            .from("products" as any)
-                            .update({ stock_quantity: newQty })
-                            .eq("id", existingProduct.id);
+                        const { error: updateError } = await offlineMutate({
+                            table: "products",
+                            action: "update",
+                            recordId: existingProduct.id,
+                            payload: { stock_quantity: newQty },
+                            userId: user.id
+                        });
                         if (updateError) throw updateError;
+                        productSyncs.push({
+                            id: existingProduct.id,
+                            name: item.description.trim(),
+                            isNew: false,
+                            quantity: Number(item.quantity),
+                            price: Number(item.price)
+                        });
                     } else {
                         // New product → create inventory entry
-                        const { error: insertProdError } = await supabase
-                            .from("products" as any)
-                            .insert({
+                        const productId = uuidv4();
+                        const { error: insertProdError } = await offlineMutate({
+                            table: "products",
+                            action: "insert",
+                            recordId: productId,
+                            payload: {
+                                id: productId,
                                 user_id: user.id,
                                 name: item.description.trim(),
                                 price: Number(item.price),
                                 cost_price: 0,
                                 stock_quantity: Number(item.quantity),
                                 unit: "pc",
-                            });
+                            },
+                            userId: user.id
+                        });
                         if (insertProdError) throw insertProdError;
+                        productSyncs.push({
+                            id: productId,
+                            name: item.description.trim(),
+                            isNew: true,
+                            quantity: Number(item.quantity),
+                            price: Number(item.price)
+                        });
                     }
                 }
             }
 
-            return values;
+            return { purchaseId, purchaseData, productSyncs, userId: user.id };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["purchases"] });
-            // Refresh inventory page automatically
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+        onSuccess: (data) => {
+            const { purchaseId, purchaseData, productSyncs, userId } = data;
+
+            // Optimistic update for purchases
+            queryClient.setQueryData(["purchases", userId], (old: any) => {
+                if (purchaseToEdit) {
+                    return old ? old.map((p: any) => p.id === purchaseToEdit.id ? { ...p, ...purchaseData } : p) : [purchaseData];
+                } else {
+                    return old ? [purchaseData, ...old] : [purchaseData];
+                }
+            });
+
+            // Optimistic update for products
+            if (productSyncs.length > 0) {
+                queryClient.setQueryData(["products", userId], (old: any) => {
+                    const products = old ? [...old] : [];
+                    for (const sync of productSyncs) {
+                        if (sync.isNew) {
+                            products.push({
+                                id: sync.id,
+                                user_id: userId,
+                                name: sync.name,
+                                price: sync.price,
+                                cost_price: 0,
+                                stock_quantity: sync.quantity,
+                                unit: "pc"
+                            });
+                        } else {
+                            const idx = products.findIndex(p => p.id === sync.id);
+                            if (idx !== -1) {
+                                products[idx] = {
+                                    ...products[idx],
+                                    stock_quantity: Number(products[idx].stock_quantity) + sync.quantity
+                                };
+                            }
+                        }
+                    }
+                    return products;
+                });
+            }
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["purchases"] });
+                queryClient.invalidateQueries({ queryKey: ["products"] });
+            }
+
             toast({
                 title: purchaseToEdit ? "Purchase Updated" : "Purchase Recorded",
                 description: purchaseToEdit
@@ -224,7 +294,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
                                     list="vendor-list"
                                 />
                                 <datalist id="vendor-list">
-                                    {parties.map((party: any) => (
+                                    {vendorParties.map((party: any) => (
                                         <option key={party.id} value={party.name} />
                                     ))}
                                 </datalist>

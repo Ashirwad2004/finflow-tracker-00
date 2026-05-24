@@ -6,63 +6,86 @@ import { supabase } from "@/core/integrations/supabase/client";
  * Iteratively flushes the offline synchronization queue strictly in chronological order.
  * If a request fails, it halts the entire batch process to prevent order corruption (Partial Fallback).
  */
+let isSyncingActive = false;
+
+/**
+ * Iteratively flushes the offline synchronization queue strictly in chronological order.
+ * If a request fails, it halts the entire batch process to prevent order corruption (Partial Fallback).
+ */
 export const processSyncQueue = async (userId: string) => {
     if (!navigator.onLine) return;
+    if (isSyncingActive) {
+        console.log("[Sync Engine] Synchronization already in progress, skipping duplicate call.");
+        return;
+    }
 
-    // Strict Ordering by Creation Time (ASC)
-    const rawItems = await db.syncQueue
-        .where('userId').equals(userId)
-        .filter(item => item.status === 'pending')
-        .toArray();
-        
-    const pendingItems = rawItems.sort((a, b) => a.createdAt - b.createdAt);
+    isSyncingActive = true;
 
-    if (pendingItems.length === 0) return;
-
-    for (const item of pendingItems) {
-        if (!navigator.onLine) break; // Halt progressively if connection drops mid-batch
-
-        try {
-            // Progressive Backoff implementation
-            if (item.retryCount > 0) {
-                const backoffDelay = Math.pow(2, item.retryCount) * 1000;
-                await new Promise(res => setTimeout(res, backoffDelay));
-            }
+    try {
+        // Strict Ordering by Creation Time (ASC)
+        const rawItems = await db.syncQueue
+            .where('userId').equals(userId)
+            .filter(item => item.status === 'pending')
+            .toArray();
             
-            const payload = decryptPayload(item.payload_encrypted, userId) || {};
+        const pendingItems = rawItems.sort((a, b) => a.createdAt - b.createdAt);
 
-            // Supabase API Execution
-            if (item.action === 'insert') {
-                const { error } = await (supabase as any).from(item.table).insert({ ...payload, id: item.recordId });
-                if (error) throw error;
-            } else if (item.action === 'update') {
-                // "Last write wins" enforced by updated_at payload mapping applied in apiService
-                const { error } = await (supabase as any).from(item.table).update(payload).eq('id', item.recordId);
-                if (error) throw error;
-            } else if (item.action === 'delete') {
-                const { error } = await (supabase as any).from(item.table).delete().eq('id', item.recordId);
-                if (error) throw error;
-            }
+        if (pendingItems.length === 0) return;
 
-            // Optimistic Commit
-            await db.syncQueue.update(item.id, { status: 'synced' });
+        for (const item of pendingItems) {
+            if (!navigator.onLine) break; // Halt progressively if connection drops mid-batch
 
-        } catch (err: any) {
-            console.error(`[Sync Engine] Interrupted on item ID ${item.id}`, err);
-            
-            // Progressive Failure Handling
-            const newRetryCount = item.retryCount + 1;
-            if (newRetryCount >= 5) {
-                // Exhausted retries: Mark as failed gracefully so we don't indefinitely block the queue
-                await db.syncQueue.update(item.id, { status: 'failed', retryCount: newRetryCount });
-            } else {
-                // Standard retry increment
-                await db.syncQueue.update(item.id, { retryCount: newRetryCount });
-                // We BREAK here to ensure strict ordering. 
-                // E.g., if "Update Expense" fails, we must not jump to "Delete Expense"
-                break;
+            try {
+                // Progressive Backoff implementation
+                if (item.retryCount > 0) {
+                    const backoffDelay = Math.pow(2, item.retryCount) * 1000;
+                    await new Promise(res => setTimeout(res, backoffDelay));
+                }
+                
+                const payload = decryptPayload(item.payload_encrypted, userId) || {};
+
+                // Supabase API Execution
+                if (item.action === 'insert') {
+                    // Use upsert to handle idempotency and avoid duplicate key issues on retries
+                    const { error } = await (supabase as any).from(item.table).upsert({ ...payload, id: item.recordId });
+                    if (error) throw error;
+                } else if (item.action === 'update') {
+                    // "Last write wins" enforced by updated_at payload mapping applied in apiService
+                    const { error } = await (supabase as any).from(item.table).update(payload).eq('id', item.recordId);
+                    if (error) throw error;
+                } else if (item.action === 'delete') {
+                    const { error } = await (supabase as any).from(item.table).delete().eq('id', item.recordId);
+                    if (error) throw error;
+                }
+
+                // Optimistic Commit
+                await db.syncQueue.update(item.id, { status: 'synced' });
+
+            } catch (err: any) {
+                console.error(`[Sync Engine] Interrupted on item ID ${item.id}`, err);
+                
+                // Identify non-transient database errors (RLS, schema errors, type constraints)
+                const isNonTransient = err && err.code && (
+                    err.code.startsWith('23') || // Integrity constraint violations
+                    err.code.startsWith('42') || // Syntax / Access rule / RLS violations
+                    err.code === 'P0001'         // Custom raised exceptions
+                );
+
+                const newRetryCount = item.retryCount + 1;
+                if (newRetryCount >= 5 || isNonTransient) {
+                    // Exhausted retries or non-transient: Mark as failed gracefully so we don't block the queue
+                    await db.syncQueue.update(item.id, { status: 'failed', retryCount: newRetryCount });
+                } else {
+                    // Standard retry increment
+                    await db.syncQueue.update(item.id, { retryCount: newRetryCount });
+                    // We BREAK here to ensure strict ordering. 
+                    // E.g., if "Update Expense" fails, we must not jump to "Delete Expense"
+                    break;
+                }
             }
         }
+    } finally {
+        isSyncingActive = false;
     }
 };
 

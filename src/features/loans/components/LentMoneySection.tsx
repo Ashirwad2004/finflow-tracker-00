@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -85,15 +86,17 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
     mutationFn: async (id: string) => {
       const loanToDelete = lentMoney.find((loan) => loan.id === id);
 
-      // @ts-ignore: types.ts might be incomplete
-      const { error } = await supabase
-        .from("lent_money")
-        .delete()
-        .eq("id", id);
+      if (!userId) return;
+      const { error } = await offlineMutate({
+        table: "lent_money",
+        action: "delete",
+        recordId: id,
+        userId
+      });
 
       if (error) throw error;
 
-      if (loanToDelete && userId) {
+      if (loanToDelete) {
         const recentlyDeletedKey = `recently_deleted_lent_money_${userId}`;
         const existingDeleted = JSON.parse(localStorage.getItem(recentlyDeletedKey) || '[]');
 
@@ -106,8 +109,35 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
         localStorage.setItem(recentlyDeletedKey, JSON.stringify(existingDeleted));
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+    onSuccess: (_data, id) => {
+      // Optimistic cache update
+      queryClient.setQueryData(["lent-money", userId], (old: any) => {
+        const updated = old ? old.filter((loan: any) => loan.id !== id) : [];
+
+        // Update lent-money-parties optimistically
+        const pendingLoans = updated.filter((record: any) => record.status === "pending");
+        const partyMap = new Map<string, any>();
+        pendingLoans.forEach((record: any) => {
+          const name = record.person_name.trim();
+          const current = partyMap.get(name) || {
+            personName: name,
+            totalPending: 0,
+            count: 0,
+            lastTransactionDate: record.created_at,
+          };
+          current.totalPending += Number(record.amount);
+          current.count += 1;
+          partyMap.set(name, current);
+        });
+        queryClient.setQueryData(["lent-money-parties", userId], Array.from(partyMap.values()));
+
+        return updated;
+      });
+
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+        queryClient.invalidateQueries({ queryKey: ["lent-money-parties"] });
+      }
       toast({
         title: "Record deleted",
         description: "Moved to History & Bin.",
@@ -125,16 +155,47 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
 
   const markAsRepaid = useMutation({
     mutationFn: async (id: string) => {
-      // @ts-ignore: types.ts might be incomplete
-      const { error } = await supabase
-        .from("lent_money")
-        .update({ status: "paid" })
-        .eq("id", id);
+      if (!userId) return;
+      const { error } = await offlineMutate({
+        table: "lent_money",
+        action: "update",
+        recordId: id,
+        payload: { status: "paid" },
+        userId
+      });
 
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+    onSuccess: (id) => {
+      // Optimistic cache update
+      queryClient.setQueryData(["lent-money", userId], (old: any) => {
+        const updated = old ? old.map((loan: any) => loan.id === id ? { ...loan, status: "paid" } : loan) : [];
+
+        // Update lent-money-parties optimistically
+        const pendingLoans = updated.filter((record: any) => record.status === "pending");
+        const partyMap = new Map<string, any>();
+        pendingLoans.forEach((record: any) => {
+          const name = record.person_name.trim();
+          const current = partyMap.get(name) || {
+            personName: name,
+            totalPending: 0,
+            count: 0,
+            lastTransactionDate: record.created_at,
+          };
+          current.totalPending += Number(record.amount);
+          current.count += 1;
+          partyMap.set(name, current);
+        });
+        queryClient.setQueryData(["lent-money-parties", userId], Array.from(partyMap.values()));
+
+        return updated;
+      });
+
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+        queryClient.invalidateQueries({ queryKey: ["lent-money-parties"] });
+      }
       toast({
         title: "Marked as repaid",
         description: "The loan has been marked as repaid.",

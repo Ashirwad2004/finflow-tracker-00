@@ -139,9 +139,34 @@ export const EditExpenseDialog = ({
             if (result.error) throw result.error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["expenses"] });
-            // Wait for any group-related expenses if necessary depending on the component using it
-            queryClient.invalidateQueries({ queryKey: ["group-expenses"] });
+            // Optimistically update React Query cache for offline view updates
+            if (user?.id) {
+                queryClient.setQueryData(["expenses", user.id], (old: any[] | undefined) => {
+                    if (!old) return [];
+                    return old.map((exp: any) => {
+                        if (exp.id === expense?.id) {
+                            return {
+                                ...exp,
+                                description,
+                                amount: parseFloat(amount),
+                                category_id: categoryId,
+                                date,
+                                tax_amount: taxAmount ? parseFloat(taxAmount) : null,
+                                invoice_number: invoiceNumber || null,
+                                vendor_name: vendorName || null,
+                                is_reimbursable: isReimbursable,
+                                categories: categories.find(c => c.id === categoryId) || exp.categories
+                            };
+                        }
+                        return exp;
+                    });
+                });
+            }
+
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["expenses"] });
+                queryClient.invalidateQueries({ queryKey: ["group-expenses"] });
+            }
 
             toast({ title: "Success", description: "Expense updated successfully." });
             onOpenChange(false);

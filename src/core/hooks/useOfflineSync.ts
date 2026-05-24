@@ -3,9 +3,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import db from '../offline/db';
 import { startSyncInterval, processSyncQueue } from '../offline/syncService';
 import { useAuth } from '@/core/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
 
 export const useOfflineSync = () => {
     const { user } = useAuth();
+    const queryClient = useQueryClient();
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -27,7 +29,10 @@ export const useOfflineSync = () => {
             setIsOnline(true);
             setIsSyncing(true);
             if (user) {
-                processSyncQueue(user.id).finally(() => setIsSyncing(false));
+                processSyncQueue(user.id).finally(() => {
+                    setIsSyncing(false);
+                    queryClient.invalidateQueries(); // Refresh all queries once sync completes
+                });
             }
         };
         

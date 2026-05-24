@@ -48,23 +48,9 @@ self.addEventListener("fetch", (event) => {
   const isNavigationRequest = event.request.mode === "navigate";
   if (isNavigationRequest) {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        console.log("[Service Worker] Serving index.html shell offline");
-        return caches.match("/index.html") || caches.match("/");
-      })
-    );
-    return;
-  }
-
-  const isSameOrigin = requestUrl.origin === self.location.origin;
-  const isGoogleFont = requestUrl.hostname.includes("fonts.gstatic.com") || requestUrl.hostname.includes("fonts.googleapis.com");
-
-  // Intercept Same Origin resources (like main.tsx, styles, and vite bundles) & Google Fonts
-  if (isSameOrigin || isGoogleFont) {
-    event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // If response is valid, clone and save it dynamically in cache
+          // If response is valid, clone and save the latest HTML shell
           if (response && response.status === 200) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -74,19 +60,42 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => {
-          // Serve from cache if offline
-          return caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // Fallback for missing offline files
-            return new Response("Resource unavailable offline", {
-              status: 503,
-              statusText: "Offline",
-              headers: new Headers({ "Content-Type": "text/plain" })
-            });
-          });
+          console.log("[Service Worker] Serving index.html shell offline");
+          return caches.match("/index.html") || caches.match("/");
         })
+    );
+    return;
+  }
+
+  const isSameOrigin = requestUrl.origin === self.location.origin;
+  const isGoogleFont = requestUrl.hostname.includes("fonts.gstatic.com") || requestUrl.hostname.includes("fonts.googleapis.com");
+
+  // Intercept Same Origin resources (like main.tsx, styles, and vite bundles) & Google Fonts
+  if (isSameOrigin || isGoogleFont) {
+    // Exclude development HMR hot-updates and hot-reload requests to prevent breaking local dev server
+    if (requestUrl.pathname.includes("hot-update.json") || requestUrl.pathname.includes("vite")) {
+      return;
+    }
+
+    event.respondWith(
+      caches.open(CACHE_NAME).then((cache) => {
+        return cache.match(event.request).then((cachedResponse) => {
+          // Fetch from network to revalidate in background
+          const fetchPromise = fetch(event.request)
+            .then((networkResponse) => {
+              if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 304)) {
+                cache.put(event.request, networkResponse.clone());
+              }
+              return networkResponse;
+            })
+            .catch((err) => {
+              console.warn("[Service Worker] Background fetch failed:", err);
+            });
+
+          // Return cached response immediately if exists, otherwise wait for network response
+          return cachedResponse || fetchPromise;
+        });
+      })
     );
   }
 });

@@ -133,9 +133,11 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId, defaultPersonName 
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ["lent-money"] });
-      queryClient.invalidateQueries({ queryKey: ["lent-money", userId] });
-      queryClient.invalidateQueries({ queryKey: ["lent-money-parties"] }); // Refresh parties view too
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["lent-money"] });
+        queryClient.invalidateQueries({ queryKey: ["lent-money", userId] });
+        queryClient.invalidateQueries({ queryKey: ["lent-money-parties"] }); // Refresh parties view too
+      }
       toast({
         title: "Success",
         description: `Recorded ₹${amount} lent to ${personName}.`,

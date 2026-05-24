@@ -132,9 +132,11 @@ export const BorrowedMoneyDialog = ({ open, onOpenChange, userId, defaultPersonN
               });
             }
       
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money", userId] });
-            queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
+            if (navigator.onLine) {
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money"] });
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money", userId] });
+                queryClient.invalidateQueries({ queryKey: ["borrowed-money-parties"] });
+            }
             toast({
                 title: "Success",
                 description: `Recorded ₹${amount} borrowed from ${personName}.`,
