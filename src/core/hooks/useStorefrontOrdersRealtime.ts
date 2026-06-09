@@ -49,7 +49,7 @@ export function useStorefrontOrdersRealtime(
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [orderIdsKey, queryClient]);
+    }, [orderIds, queryClient]);
 }
 
 export function loadCustomerOrderIds(): string[] {

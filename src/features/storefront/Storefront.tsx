@@ -462,7 +462,21 @@ export default function Storefront() {
 
     const filteredProducts = useMemo(() => {
         if (search.trim()) {
-            return aiSearchResult?.products?.length ? aiSearchResult.products : smartSearchResults.slice(0, 12);
+            // Try AI search first
+            if (aiSearchResult?.products?.length) {
+                return aiSearchResult.products;
+            }
+            // Fall back to database smart search
+            if (smartSearchResults.length) {
+                return smartSearchResults.slice(0, 12);
+            }
+            // Final fallback: client-side search for demo store or when all else fails
+            const query = search.trim().toLowerCase();
+            return products.filter(p => 
+                p.name.toLowerCase().includes(query) || 
+                (p.category && p.category.toLowerCase().includes(query)) ||
+                (p.online_description && p.online_description.toLowerCase().includes(query))
+            ).slice(0, 12);
         }
         return products;
     }, [search, aiSearchResult, smartSearchResults, products]);
