@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Filter, Trash2, Calendar, TrendingDown } from "lucide-react";
+import { Plus, Search, Filter, Trash2, Calendar, TrendingDown, Sparkles, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddExpenseDialog } from "@/features/expenses/components/AddExpenseDialog";
 import { MagicAddExpense } from "@/features/expenses/components/MagicAddExpense";
@@ -19,6 +19,7 @@ import { toast } from "@/core/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/core/lib/utils";
 import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
+import { generateFinanceInsight, FinanceInsight } from "@/core/integrations/ai/gemini";
 
 const AllExpenses = () => {
   const { user } = useAuth();
@@ -27,6 +28,9 @@ const AllExpenses = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+  const [aiReport, setAiReport] = useState<FinanceInsight | null>(null);
+  const [aiReportTitle, setAiReportTitle] = useState("");
+  const [activeAiAction, setActiveAiAction] = useState<string | null>(null);
 
   const { data: expenses = [], isLoading, refetch } = useExpensesQuery(user?.id);
 
@@ -113,6 +117,34 @@ const AllExpenses = () => {
 
   const totalFiltered = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
+  const runFinanceAi = async (
+    mode: "explain-expenses" | "losing-money" | "tax-summary" | "spending-prediction",
+    title: string,
+  ) => {
+    if (!expenses.length) {
+      toast({
+        title: "No expenses to analyze",
+        description: "Add a few expenses first, then Gemini can create a useful report.",
+      });
+      return;
+    }
+
+    setActiveAiAction(mode);
+    setAiReportTitle(title);
+    try {
+      const report = await generateFinanceInsight({ mode, expenses, categories });
+      setAiReport(report);
+    } catch (error: any) {
+      toast({
+        title: "Gemini analysis failed",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setActiveAiAction(null);
+    }
+  };
+
   return (
     <AppLayout>
       <PullToRefresh onRefresh={handleRefresh}>
@@ -130,6 +162,70 @@ const AllExpenses = () => {
           </div>
 
           <MagicAddExpense userId={user?.id || ""} categories={categories} />
+
+          <Card className="border-violet-200/70 bg-violet-50/40 dark:bg-violet-950/10">
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-violet-600 text-white">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-base">Gemini Finance Tracker AI</h2>
+                    <p className="text-sm text-muted-foreground">Analyze expenses, detect leaks, prepare summaries, and predict next month from your real transactions.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["explain-expenses", "Explain My Expenses"],
+                    ["losing-money", "Where Am I Losing Money?"],
+                    ["tax-summary", "Generate Tax Summary"],
+                    ["spending-prediction", "Predict Next Month Spending"],
+                  ].map(([mode, label]) => (
+                    <Button
+                      key={mode}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => runFinanceAi(mode as any, label)}
+                      disabled={!!activeAiAction}
+                      className="bg-background/80"
+                    >
+                      {activeAiAction === mode ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-2" />}
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {aiReport && (
+                <div className="rounded-xl border bg-background p-4 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">{aiReportTitle}</p>
+                    <h3 className="font-bold text-lg">{aiReport.headline}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{aiReport.summary}</p>
+                  </div>
+                  {aiReport.topCategories.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold mb-2">Top spending categories</p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {aiReport.topCategories.slice(0, 3).map((category) => (
+                          <div key={category.name} className="rounded-lg border p-3">
+                            <p className="font-semibold text-sm">{category.name}</p>
+                            <p className="text-sm">₹{category.amount.toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{category.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 p-3">
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Suggested Action</p>
+                    <p className="text-sm text-emerald-900 dark:text-emerald-100">{aiReport.suggestedAction}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Stats Card */}
           <Card className="bg-gradient-card shadow-card">

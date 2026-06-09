@@ -24,7 +24,7 @@ import {
     DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useForm, Controller } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
 import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
 import { ProductImageUpload } from "@/features/business/components/ProductImageUpload";
+import { generateProductContent } from "@/core/integrations/ai/gemini";
 
 interface Product {
     id: string;
@@ -85,8 +86,9 @@ export default function Inventory() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isGeneratingProductCopy, setIsGeneratingProductCopy] = useState(false);
 
-    const { register, handleSubmit, formState: { errors }, reset, watch, control } = useForm<ProductFormValues>({
+    const { register, handleSubmit, formState: { errors }, reset, watch, control, setValue, getValues } = useForm<ProductFormValues>({
         defaultValues: {
             name: "",
             price: 0,
@@ -307,6 +309,47 @@ export default function Inventory() {
             return;
         }
         updateProductMutation.mutate(data);
+    };
+
+    const handleGenerateProductCopy = async () => {
+        const values = getValues();
+        if (!values.name?.trim()) {
+            toast({
+                title: "Product name required",
+                description: "Enter a product name first so Gemini can generate relevant content.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setIsGeneratingProductCopy(true);
+        try {
+            const content = await generateProductContent({
+                name: values.name,
+                price: Number(values.price || 0),
+                costPrice: Number(values.cost_price || 0),
+                unit: values.unit,
+                stockQuantity: Number(values.stock_quantity || 0),
+            });
+            setValue("name", content.title, { shouldDirty: true, shouldValidate: true });
+            setValue(
+                "online_description",
+                `${content.description}\n\nHighlights:\n${content.highlights.map((item) => `- ${item}`).join("\n")}\n\n${content.marketingCopy}\n\nSEO Title: ${content.seoTitle}\nSEO Description: ${content.seoDescription}`,
+                { shouldDirty: true, shouldValidate: true }
+            );
+            toast({
+                title: "Gemini product copy generated",
+                description: "Review the title, description, SEO metadata, highlights, and marketing copy before saving."
+            });
+        } catch (error: any) {
+            toast({
+                title: "Gemini generation failed",
+                description: error.message || "Please try again later.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsGeneratingProductCopy(false);
+        }
     };
 
     const lowStockThreshold = settings.lowStockWarningThreshold;
@@ -714,12 +757,25 @@ export default function Inventory() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="add_online_description">Product Description</Label>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <Label htmlFor="add_online_description">Product Description</Label>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={handleGenerateProductCopy}
+                                                    disabled={isGeneratingProductCopy}
+                                                    className="h-8 gap-1.5"
+                                                >
+                                                    {isGeneratingProductCopy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                                    Generate
+                                                </Button>
+                                            </div>
                                             <Textarea
                                                 id="add_online_description"
                                                 {...register("online_description")}
                                                 placeholder="Describe the product for online customers..."
-                                                rows={3}
+                                                rows={5}
                                             />
                                         </div>
                                     </>
@@ -845,12 +901,25 @@ export default function Inventory() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="edit_online_description">Product Description</Label>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <Label htmlFor="edit_online_description">Product Description</Label>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={handleGenerateProductCopy}
+                                                    disabled={isGeneratingProductCopy}
+                                                    className="h-8 gap-1.5"
+                                                >
+                                                    {isGeneratingProductCopy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                                    Generate
+                                                </Button>
+                                            </div>
                                             <Textarea
                                                 id="edit_online_description"
                                                 {...register("online_description")}
                                                 placeholder="Describe the product for online customers..."
-                                                rows={3}
+                                                rows={5}
                                             />
                                         </div>
                                     </>
