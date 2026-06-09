@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { useTrendingProducts, useSmartSearch, usePersonalizedRecommendations } from "@/core/hooks/useRecommendations";
+import { useTrendingProducts, useSmartSearch, usePersonalizedRecommendations, useAiProductSearch } from "@/core/hooks/useRecommendations";
 import { useStorefrontInventoryRealtime } from "@/core/hooks/useStorefrontInventoryRealtime";
 import {
     useStorefrontOrdersRealtime,
@@ -456,15 +456,16 @@ export default function Storefront() {
     }, []);
 
     const { data: smartSearchResults = [] } = useSmartSearch(search, storeId);
+    const { data: aiSearchResult, isFetching: isAiSearching } = useAiProductSearch(search, storeId, products);
     const { data: trendingProducts = [], isLoading: isTrendingLoading } = useTrendingProducts(storeId);
     const { data: personalizedRecs = [] } = usePersonalizedRecommendations(savedPhone, storeId);
 
     const filteredProducts = useMemo(() => {
         if (search.trim()) {
-            return smartSearchResults.slice(0, 12);
+            return aiSearchResult?.products?.length ? aiSearchResult.products : smartSearchResults.slice(0, 12);
         }
         return products;
-    }, [search, smartSearchResults, products]);
+    }, [search, aiSearchResult, smartSearchResults, products]);
 
     // ── Loading ────────────────────────────────────────────────────────────
     if (isLoadingStore) {
@@ -730,7 +731,7 @@ export default function Storefront() {
                                 type="text"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                placeholder="Search products…"
+                                placeholder="Ask AI: phones under ₹20000"
                                 className="w-full h-9 pl-9 pr-3 rounded-lg text-xs text-white placeholder:text-white/35 focus:outline-none transition-all"
                                 style={{
                                     background: "rgba(255,255,255,0.1)",
@@ -767,6 +768,11 @@ export default function Storefront() {
                             {search ? `Results for "${search}"` : "All Products"}
                         </h2>
                         <p className="text-sm text-slate-400 mt-0.5">{filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}</p>
+                        {search && (
+                            <p className="text-xs text-violet-500 mt-1">
+                                {isAiSearching ? "Gemini is converting your request into product filters..." : aiSearchResult?.explanation}
+                            </p>
+                        )}
                     </div>
                     {cartCount > 0 && (
                         <button

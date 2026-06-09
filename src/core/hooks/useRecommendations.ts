@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { parseProductSearch } from "@/core/integrations/ai/gemini";
 
 interface TrendingProduct {
     product_id: string;
@@ -126,5 +127,40 @@ export function useSmartSearch(query: string, storeId: string | null) {
         },
         enabled: !!query.trim() && !!storeId,
         staleTime: 0, // Don't cache - always fresh search
+    });
+}
+
+export function useAiProductSearch(query: string, storeId: string | null, products: any[]) {
+    return useQuery({
+        queryKey: ["aiProductSearch", storeId, query, products.length],
+        queryFn: async () => {
+            if (!query.trim() || !storeId || products.length === 0) {
+                return { products: [], explanation: "" };
+            }
+
+            const plan = await parseProductSearch({ query: query.trim(), products });
+            const byId = new Map(products.map((product) => [product.id, product]));
+            const ranked = plan.rankedProductIds
+                .map((id) => byId.get(id))
+                .filter(Boolean);
+
+            const rankedIds = new Set(plan.rankedProductIds);
+            const fallbackMatches = products.filter((product) => {
+                if (rankedIds.has(product.id)) return false;
+                const price = Number(product.price || 0);
+                if (plan.maxPrice !== null && price > plan.maxPrice) return false;
+                if (plan.minPrice !== null && price < plan.minPrice) return false;
+                const searchable = `${product.name} ${product.category || ""} ${product.online_description || ""}`.toLowerCase();
+                return [...plan.keywords, ...plan.categories].some((term) => searchable.includes(term.toLowerCase()));
+            });
+
+            return {
+                products: [...ranked, ...fallbackMatches].slice(0, 12),
+                explanation: plan.explanation,
+            };
+        },
+        enabled: !!query.trim() && !!storeId && products.length > 0,
+        staleTime: 1000 * 60 * 5,
+        retry: 1,
     });
 }

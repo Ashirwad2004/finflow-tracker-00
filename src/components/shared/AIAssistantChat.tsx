@@ -11,8 +11,8 @@ export function AIAssistantChat() {
     const queryClient = useQueryClient();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<{ role: "system" | "user" | "assistant", content: string }[]>([
-        { role: "system", content: "You are FinFlow AI, a premium virtual accountant and financial advisor. The user is asking you questions about their money. Keep answers concise, highly analytical, and friendly. Do not use extremely long paragraphs." },
-        { role: "assistant", content: "Hi! I'm your FinFlow AI accountant. Ask me anything about your expenses, debts, or budget!" }
+        { role: "system", content: "You are FinFlow Gemini AI, a premium virtual accountant, business analyst, and ecommerce copilot. The user is asking about money, expenses, debts, inventory, store growth, or budget decisions. Keep answers concise, analytical, practical, and friendly. Do not use extremely long paragraphs." },
+        { role: "assistant", content: "Hi! I'm your Gemini-powered FinFlow AI accountant. Ask me about expenses, cash flow, store growth, debts, or budget decisions." }
     ]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
@@ -55,7 +55,7 @@ Borrowed Money: ${JSON.stringify(borrowed.slice(0, 50).map(b => ({ amount: b.amo
         setIsTyping(true);
 
         try {
-            const response = await callOpenAI(apiMessages, "gpt-4o-mini");
+            const response = await callOpenAI(apiMessages, "gemini-2.5-flash");
             setMessages(prev => [...prev, { role: "assistant", content: response }]);
         } catch (error: any) {
             setMessages(prev => [...prev, { role: "assistant", content: `❌ Sorry, I had trouble processing that: ${error.message}` }]);
@@ -87,8 +87,8 @@ Borrowed Money: ${JSON.stringify(borrowed.slice(0, 50).map(b => ({ amount: b.amo
                         <Bot className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-semibold leading-none">FinFlow AI</h3>
-                        <p className="text-xs text-white/80 mt-1">Financial Copilot</p>
+                        <h3 className="font-semibold leading-none">FinFlow Gemini AI</h3>
+                        <p className="text-xs text-white/80 mt-1">Finance & Store Copilot</p>
                     </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="text-white hover:bg-white/20 hover:text-white rounded-full">
