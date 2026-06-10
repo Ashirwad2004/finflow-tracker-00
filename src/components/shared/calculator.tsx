@@ -9,43 +9,57 @@ export const Calculator = () => {
   const [operation, setOperation] = useState<string | null>(null);
   const [waitingForOperand, setWaitingForOperand] = useState(false);
 
-  const inputNumber = (num: string) => {
-    if (waitingForOperand) {
-      setDisplay(num);
-      setWaitingForOperand(false);
-    } else {
-      setDisplay(display === "0" ? num : display + num);
-    }
-  };
+  const inputNumber = useCallback(
+    (num: string) => {
+      if (waitingForOperand) {
+        setDisplay(num);
+        setWaitingForOperand(false);
+      } else {
+        setDisplay(display === "0" ? num : display + num);
+      }
+    },
+    [waitingForOperand, display]
+  );
 
-  const inputOperation = (nextOperation: string) => {
-    const inputValue = parseFloat(display);
+  const calculate = useCallback(
+    (firstValue: number, secondValue: number, operation: string) => {
+      switch (operation) {
+        case "+":
+          return firstValue + secondValue;
+        case "-":
+          return firstValue - secondValue;
+        case "*":
+          return firstValue * secondValue;
+        case "/":
+          return firstValue / secondValue;
+        default:
+          return secondValue;
+      }
+    },
+    []
+  );
 
-    if (previousValue === null) {
-      setPreviousValue(inputValue);
-    } else if (operation) {
-      const currentValue = previousValue || 0;
-      const newValue = calculate(currentValue, inputValue, operation);
+  const inputOperation = useCallback(
+    (nextOperation: string) => {
+      const inputValue = parseFloat(display);
 
-      setDisplay(`${parseFloat(newValue.toFixed(7))}`);
-      setPreviousValue(newValue);
-    }
+      if (previousValue === null) {
+        setPreviousValue(inputValue);
+      } else if (operation) {
+        const currentValue = previousValue || 0;
+        const newValue = calculate(currentValue, inputValue, operation);
 
-    setWaitingForOperand(true);
-    setOperation(nextOperation);
-  };
+        setDisplay(`${parseFloat(newValue.toFixed(7))}`);
+        setPreviousValue(newValue);
+      }
 
-  const calculate = (firstValue: number, secondValue: number, operation: string) => {
-    switch (operation) {
-      case "+": return firstValue + secondValue;
-      case "-": return firstValue - secondValue;
-      case "*": return firstValue * secondValue;
-      case "/": return firstValue / secondValue;
-      default: return secondValue;
-    }
-  };
+      setWaitingForOperand(true);
+      setOperation(nextOperation);
+    },
+    [display, previousValue, operation, calculate]
+  );
 
-  const performCalculation = () => {
+  const performCalculation = useCallback(() => {
     const inputValue = parseFloat(display);
 
     if (previousValue !== null && operation) {
@@ -55,31 +69,31 @@ export const Calculator = () => {
       setOperation(null);
       setWaitingForOperand(true);
     }
-  };
+  }, [display, previousValue, operation, calculate]);
 
-  const clear = () => {
+  const clear = useCallback(() => {
     setDisplay("0");
     setPreviousValue(null);
     setOperation(null);
     setWaitingForOperand(false);
-  };
+  }, []);
 
-  const inputDecimal = () => {
+  const inputDecimal = useCallback(() => {
     if (waitingForOperand) {
       setDisplay("0.");
       setWaitingForOperand(false);
     } else if (display.indexOf(".") === -1) {
       setDisplay(display + ".");
     }
-  };
+  }, [waitingForOperand, display]);
 
-  const backspace = () => {
+  const backspace = useCallback(() => {
     if (display.length > 1) {
       setDisplay(display.slice(0, -1));
     } else {
       setDisplay("0");
     }
-  };
+  }, [display]);
 
   // Helper to visualize the correct icon
   const getOpIcon = (op: string) => {
@@ -128,7 +142,7 @@ export const Calculator = () => {
         clear();
       }
     },
-    [display, previousValue, operation, waitingForOperand]
+    [backspace, clear, inputDecimal, inputNumber, inputOperation, performCalculation]
   );
 
   useEffect(() => {

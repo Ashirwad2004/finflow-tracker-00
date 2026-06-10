@@ -111,6 +111,12 @@ export function useSmartSearch(query: string, storeId: string | null) {
         queryKey: ["smartSearch", query, storeId],
         queryFn: async () => {
             if (!query.trim() || !storeId) return [];
+            
+            // Demo store doesn't have database RPC, return empty to use AI search or no results
+            if (storeId === "demo-user-id") {
+                return [];
+            }
+            
             const { data, error } = await (supabase as any).rpc(
                 "smart_search_products",
                 {
@@ -138,26 +144,46 @@ export function useAiProductSearch(query: string, storeId: string | null, produc
                 return { products: [], explanation: "" };
             }
 
-            const plan = await parseProductSearch({ query: query.trim(), products });
-            const byId = new Map(products.map((product) => [product.id, product]));
-            const ranked = plan.rankedProductIds
-                .map((id) => byId.get(id))
-                .filter(Boolean);
+            // Demo store: use client-side search
+            if (storeId === "demo-user-id") {
+                const searchQuery = query.trim().toLowerCase();
+                const results = products.filter(p =>
+                    p.name?.toLowerCase().includes(searchQuery) ||
+                    p.category?.toLowerCase().includes(searchQuery) ||
+                    p.online_description?.toLowerCase().includes(searchQuery)
+                ).slice(0, 12);
+                return { 
+                    products: results, 
+                    explanation: `Found ${results.length} product${results.length !== 1 ? 's' : ''} matching "${query}"` 
+                };
+            }
 
-            const rankedIds = new Set(plan.rankedProductIds);
-            const fallbackMatches = products.filter((product) => {
-                if (rankedIds.has(product.id)) return false;
-                const price = Number(product.price || 0);
-                if (plan.maxPrice !== null && price > plan.maxPrice) return false;
-                if (plan.minPrice !== null && price < plan.minPrice) return false;
-                const searchable = `${product.name} ${product.category || ""} ${product.online_description || ""}`.toLowerCase();
-                return [...plan.keywords, ...plan.categories].some((term) => searchable.includes(term.toLowerCase()));
-            });
+            try {
+                const plan = await parseProductSearch({ query: query.trim(), products });
+                const byId = new Map(products.map((product) => [product.id, product]));
+                const ranked = plan.rankedProductIds
+                    .map((id) => byId.get(id))
+                    .filter(Boolean);
 
-            return {
-                products: [...ranked, ...fallbackMatches].slice(0, 12),
-                explanation: plan.explanation,
-            };
+                const rankedIds = new Set(plan.rankedProductIds);
+                const fallbackMatches = products.filter((product) => {
+                    if (rankedIds.has(product.id)) return false;
+                    const price = Number(product.price || 0);
+                    if (plan.maxPrice !== null && price > plan.maxPrice) return false;
+                    if (plan.minPrice !== null && price < plan.minPrice) return false;
+                    const searchable = `${product.name} ${product.category || ""} ${product.online_description || ""}`.toLowerCase();
+                    return [...plan.keywords, ...plan.categories].some((term) => searchable.includes(term.toLowerCase()));
+                });
+
+                return {
+                    products: [...ranked, ...fallbackMatches].slice(0, 12),
+                    explanation: plan.explanation,
+                };
+            } catch (error) {
+                console.error("AI search failed, falling back to basic search:", error);
+                // Fallback to empty if AI fails - client-side search in Storefront will handle it
+                return { products: [], explanation: "" };
+            }
         },
         enabled: !!query.trim() && !!storeId && products.length > 0,
         staleTime: 1000 * 60 * 5,
