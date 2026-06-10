@@ -57,6 +57,7 @@ interface Product {
     stock_quantity: number;
     unit: string;
     created_at: string;
+    updated_at?: string;
     is_listed_online?: boolean;
     online_description?: string;
     image_url?: string;
@@ -73,8 +74,15 @@ interface ProductFormValues {
     image_url?: string;
 }
 
+type SupabaseProductSelect = {
+    from: (table: string) => {
+        select: (columns: string) => Promise<{ data: Product[] | null; error: unknown }>;
+    };
+};
+
 export default function Inventory() {
     const { user } = useAuth();
+    const userId = user?.id || "";
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
@@ -105,16 +113,13 @@ export default function Inventory() {
 
     // Fetch products
     const { data: products = [], isLoading } = useQuery({
-        queryKey: ["products", user?.id],
+        queryKey: ["products", userId],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("products" as any)
-                .select("*")
-                .eq("user_id", user?.id)
-                .order("created_at", { ascending: false });
+            const response = await (supabase as unknown as SupabaseProductSelect).from("products").select("*");
+            const { data, error } = response;
 
             if (error) throw error;
-            return (data as unknown) as Product[];
+            return data ?? [];
         },
         enabled: !!user
     });
@@ -128,9 +133,9 @@ export default function Inventory() {
     const addProductMutation = useMutation({
         mutationFn: async (values: ProductFormValues) => {
             const recordId = uuidv4();
-            const recordPayload = {
+            const recordPayload: Product = {
                 id: recordId,
-                user_id: user?.id,
+                user_id: userId,
                 ...values,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
@@ -145,12 +150,12 @@ export default function Inventory() {
             if (result.error) throw result.error;
             return recordPayload;
         },
-        onSuccess: (newProduct: any) => {
+        onSuccess: (newProduct: Product) => {
             // Optimistically update React Query Cache
-            queryClient.setQueryData(["products", user?.id], (old: any[] | undefined) => {
+            queryClient.setQueryData<Product[]>(["products", user?.id || ""], (old) => {
                 return [newProduct, ...(old || [])];
             });
-            queryClient.invalidateQueries({ queryKey: ["products", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["products", user?.id || ""] });
             toast({
                 title: "Product Added",
                 description: "The product has been added to your inventory."
@@ -170,8 +175,8 @@ export default function Inventory() {
     // Update product mutation
     const updateProductMutation = useMutation({
         mutationFn: async (values: ProductFormValues) => {
-            if (!selectedProduct) return;
-            const recordPayload = {
+            if (!selectedProduct) throw new Error("No product selected.");
+            const recordPayload: Product = {
                 ...selectedProduct,
                 ...values,
                 updated_at: new Date().toISOString()
@@ -186,13 +191,13 @@ export default function Inventory() {
             if (result.error) throw result.error;
             return recordPayload;
         },
-        onSuccess: (updatedProduct: any) => {
+        onSuccess: (updatedProduct: Product) => {
             // Optimistically update React Query Cache
-            queryClient.setQueryData(["products", user?.id], (old: any[] | undefined) => {
+            queryClient.setQueryData<Product[]>(["products", user?.id || ""], (old) => {
                 if (!old) return [];
                 return old.map(p => p.id === updatedProduct.id ? updatedProduct : p);
             });
-            queryClient.invalidateQueries({ queryKey: ["products", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["products", user?.id || ""] });
             toast({
                 title: "Product Updated",
                 description: "The product has been updated successfully."
@@ -238,11 +243,11 @@ export default function Inventory() {
         },
         onSuccess: (deletedId: string) => {
             // Optimistically update React Query Cache
-            queryClient.setQueryData(["products", user?.id], (old: any[] | undefined) => {
+            queryClient.setQueryData<Product[]>(["products", user?.id || ""], (old) => {
                 if (!old) return [];
                 return old.filter(p => p.id !== deletedId);
             });
-            queryClient.invalidateQueries({ queryKey: ["products", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["products", user?.id || ""] });
             toast({
                 title: "Product Deleted",
                 description: "The product has been removed from your inventory."
@@ -341,10 +346,11 @@ export default function Inventory() {
                 title: "Gemini product copy generated",
                 description: "Review the title, description, SEO metadata, highlights, and marketing copy before saving."
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Please try again later.";
             toast({
                 title: "Gemini generation failed",
-                description: error.message || "Please try again later.",
+                description: message,
                 variant: "destructive"
             });
         } finally {
@@ -481,6 +487,8 @@ export default function Inventory() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => handleEdit(product)}
+                                                title={`Edit ${product.name}`}
+                                                aria-label={`Edit ${product.name}`}
                                             >
                                                 <Pencil className="w-4 h-4" />
                                             </Button>
@@ -489,6 +497,8 @@ export default function Inventory() {
                                                 size="icon"
                                                 onClick={() => handleDelete(product)}
                                                 className="text-destructive"
+                                                title={`Delete ${product.name}`}
+                                                aria-label={`Delete ${product.name}`}
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
@@ -522,7 +532,7 @@ export default function Inventory() {
                                 settings.stopSaleOnNegativeStock
                                     ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
                                     : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-                            }`}>
+                            }`}> 
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                         <p className="text-sm font-semibold text-slate-800 dark:text-white">Stop Sale on Negative Stock</p>
@@ -536,21 +546,11 @@ export default function Inventory() {
                                         Block invoice creation when an item's sold quantity exceeds current stock. Prevents selling items you don't have.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={settings.stopSaleOnNegativeStock}
-                                    onClick={() => updateSetting("stopSaleOnNegativeStock", !settings.stopSaleOnNegativeStock)}
-                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                                        settings.stopSaleOnNegativeStock
-                                            ? "border-red-500 bg-red-500"
-                                            : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
-                                    }`}
-                                >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                                        settings.stopSaleOnNegativeStock ? "translate-x-5" : "translate-x-0.5"
-                                    }`} />
-                                </button>
+                                <Switch
+                                    checked={settings.stopSaleOnNegativeStock}
+                                    onCheckedChange={(value) => updateSetting("stopSaleOnNegativeStock", value)}
+                                    aria-label="Toggle stop sale on negative stock"
+                                />
                             </div>
 
                             {/* Low Stock Threshold */}
@@ -561,14 +561,22 @@ export default function Inventory() {
                                         Show a low stock badge when quantity falls below this number. Set to 0 to disable.
                                     </p>
                                 </div>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={9999}
-                                    value={settings.lowStockWarningThreshold}
-                                    onChange={(e) => updateSetting("lowStockWarningThreshold", Math.max(0, Number(e.target.value)))}
-                                    className="w-20 h-9 text-right text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="low_stock_warning_threshold" className="sr-only">
+                                        Low stock warning threshold
+                                    </Label>
+                                    <input
+                                        id="low_stock_warning_threshold"
+                                        type="number"
+                                        min={0}
+                                        max={9999}
+                                        aria-label="Low stock warning threshold"
+                                        title="Low stock warning threshold"
+                                        value={settings.lowStockWarningThreshold}
+                                        onChange={(e) => updateSetting("lowStockWarningThreshold", Math.max(0, Number(e.target.value)))}
+                                        className="w-20 h-9 text-right text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
                             </div>
 
                             {/* Section: Invoice Behaviour */}
@@ -582,21 +590,11 @@ export default function Inventory() {
                                         When enabled, stock is only reduced when an invoice is marked as Paid — not for Pending or Draft invoices.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={settings.deductStockOnlyOnPaid}
-                                    onClick={() => updateSetting("deductStockOnlyOnPaid", !settings.deductStockOnlyOnPaid)}
-                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                                        settings.deductStockOnlyOnPaid
-                                            ? "border-primary bg-primary"
-                                            : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
-                                    }`}
-                                >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                                        settings.deductStockOnlyOnPaid ? "translate-x-5" : "translate-x-0.5"
-                                    }`} />
-                                </button>
+                                <Switch
+                                    checked={settings.deductStockOnlyOnPaid}
+                                    onCheckedChange={(value) => updateSetting("deductStockOnlyOnPaid", value)}
+                                    aria-label="Toggle deduct stock only on paid invoices"
+                                />
                             </div>
 
                             {/* Section: Display */}
@@ -610,21 +608,11 @@ export default function Inventory() {
                                         Display available stock count next to each item when adding lines to an invoice.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={settings.showStockInItemPicker}
-                                    onClick={() => updateSetting("showStockInItemPicker", !settings.showStockInItemPicker)}
-                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                                        settings.showStockInItemPicker
-                                            ? "border-primary bg-primary"
-                                            : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
-                                    }`}
-                                >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                                        settings.showStockInItemPicker ? "translate-x-5" : "translate-x-0.5"
-                                    }`} />
-                                </button>
+                                <Switch
+                                    checked={settings.showStockInItemPicker}
+                                    onCheckedChange={(value) => updateSetting("showStockInItemPicker", value)}
+                                    aria-label="Toggle show stock in item picker"
+                                />
                             </div>
 
                             {/* Info note */}
