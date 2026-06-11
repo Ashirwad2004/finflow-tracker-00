@@ -107,11 +107,30 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
         try {
             if (navigator.onLine) {
                 const categoriesList = categories.map(c => c.name);
-                const systemPrompt = `
-You are a financial AI data extractor. 
+                 const systemPrompt = `
+You are a financial AI data extractor for the FinFlow Tracker application. 
 Extract the amount (numbers only), a clean short description (without currency symbols or the amount itself), and the best matching category from the user's input.
-Available categories: ${JSON.stringify(categoriesList)}.
-If a category cannot be determined or matched, choose the most relevant one from the list or null.
+
+Available categories in this user's account: ${JSON.stringify(categoriesList)}.
+
+Few-Shot Training Examples:
+1. Input: "starbucks coffee 150"
+   Output: { "amount": "150", "description": "Starbucks Coffee", "categoryName": "Food" } (or closest matching category name)
+
+2. Input: "₹1200 for electricity bill"
+   Output: { "amount": "1200", "description": "Electricity Bill", "categoryName": "Bills" }
+
+3. Input: "spent 3400 rs on grocery shopping at d-mart"
+   Output: { "amount": "3400", "description": "Grocery shopping at D-Mart", "categoryName": "Shopping" }
+
+4. Input: "uber ride Rs 450"
+   Output: { "amount": "450", "description": "Uber ride", "categoryName": "Travel" }
+
+5. Input: "Bought new keyboard 1299"
+   Output: { "amount": "1299", "description": "New keyboard", "categoryName": "Shopping" }
+
+If a category cannot be determined or matched, choose the most relevant category from the available list, or default to null.
+Ensure the description is brief and capitalized nicely.
 `;
                 const jsonSchema = {
                     type: "json_schema",
