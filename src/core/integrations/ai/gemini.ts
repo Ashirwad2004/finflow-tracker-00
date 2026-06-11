@@ -167,8 +167,8 @@ export async function parseProductSearch(input: { query: string; products: any[]
             properties: {
                 intent: { type: "string" },
                 keywords: { type: "array", items: { type: "string" } },
-                maxPrice: { type: ["number", "null"] },
-                minPrice: { type: ["number", "null"] },
+                maxPrice: { type: "number", nullable: true },
+                minPrice: { type: "number", nullable: true },
                 categories: { type: "array", items: { type: "string" } },
                 rankedProductIds: { type: "array", items: { type: "string" } },
                 explanation: { type: "string" },

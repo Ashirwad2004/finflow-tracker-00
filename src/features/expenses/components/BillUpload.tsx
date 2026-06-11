@@ -83,14 +83,13 @@ export const BillUpload = ({
               schema: {
                   type: "object",
                   properties: {
-                      merchant_name: { type: ["string", "null"] },
-                      total_amount: { type: ["number", "null"] },
-                      bill_date: { type: ["string", "null"] },
-                      tax_amount: { type: ["number", "null"] },
-                      category_suggestion: { type: ["string", "null"] }
+                      merchant_name: { type: "string", nullable: true },
+                      total_amount: { type: "number", nullable: true },
+                      bill_date: { type: "string", nullable: true },
+                      tax_amount: { type: "number", nullable: true },
+                      category_suggestion: { type: "string", nullable: true }
                   },
-                  required: ["merchant_name", "total_amount", "bill_date", "tax_amount", "category_suggestion"],
-                  additionalProperties: false
+                  required: ["merchant_name", "total_amount", "bill_date", "tax_amount", "category_suggestion"]
               }
           }
       };

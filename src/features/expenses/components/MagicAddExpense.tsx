@@ -52,16 +52,14 @@ Your task is to extract each transaction and determine:
                                         amount: { type: "number" },
                                         description: { type: "string" },
                                         date: { type: "string" },
-                                        person_name: { type: ["string", "null"] },
-                                        category_term: { type: ["string", "null"] }
+                                        person_name: { type: "string", nullable: true },
+                                        category_term: { type: "string", nullable: true }
                                     },
-                                    required: ["table", "amount", "description", "date", "person_name", "category_term"],
-                                    additionalProperties: false
+                                    required: ["table", "amount", "description", "date", "person_name", "category_term"]
                                 }
                             }
                         },
-                        required: ["operations"],
-                        additionalProperties: false
+                        required: ["operations"]
                     }
                 }
             };

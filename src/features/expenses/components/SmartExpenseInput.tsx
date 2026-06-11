@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { callOpenAI } from "@/core/integrations/ai/openai";
 import {
     Tooltip,
     TooltipContent,
@@ -42,12 +43,7 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
     const [input, setInput] = useState("");
     const [isAnimating, setIsAnimating] = useState(false);
 
-    // Parse logic
-    const parseInput = () => {
-        if (!input.trim()) return;
-
-        setIsAnimating(true);
-
+    const runLocalFallback = () => {
         // 1. Extract Amount (numbers)
         const amountMatch = input.match(/(\d+(\.\d{1,2})?)/);
         const amount = amountMatch ? amountMatch[0] : "";
@@ -99,12 +95,62 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
             }
         }
 
-        // Simulate "thinking" delay for effect
-        setTimeout(() => {
-            onParse({ amount, description, categoryName });
+        onParse({ amount, description, categoryName });
+    };
+
+    // Parse logic
+    const parseInput = async () => {
+        if (!input.trim()) return;
+
+        setIsAnimating(true);
+
+        try {
+            if (navigator.onLine) {
+                const categoriesList = categories.map(c => c.name);
+                const systemPrompt = `
+You are a financial AI data extractor. 
+Extract the amount (numbers only), a clean short description (without currency symbols or the amount itself), and the best matching category from the user's input.
+Available categories: ${JSON.stringify(categoriesList)}.
+If a category cannot be determined or matched, choose the most relevant one from the list or null.
+`;
+                const jsonSchema = {
+                    type: "json_schema",
+                    json_schema: {
+                        name: "expense_parse",
+                        strict: true,
+                        schema: {
+                            type: "object",
+                            properties: {
+                                amount: { type: "string" },
+                                description: { type: "string" },
+                                categoryName: { type: "string", nullable: true }
+                            },
+                            required: ["amount", "description", "categoryName"]
+                        }
+                    }
+                };
+
+                const response = await callOpenAI([
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: input }
+                ], "gpt-4o-mini", jsonSchema);
+
+                const data = JSON.parse(response);
+                onParse({
+                    amount: data.amount || "",
+                    description: data.description || input,
+                    categoryName: data.categoryName || undefined
+                });
+            } else {
+                runLocalFallback();
+            }
+        } catch (error) {
+            console.warn("AI smart parse failed, falling back to local regex:", error);
+            runLocalFallback();
+        } finally {
             setIsAnimating(false);
             setInput("");
-        }, 600);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
