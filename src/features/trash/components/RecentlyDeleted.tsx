@@ -291,7 +291,7 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
           };
 
         const table = item.group_id ? "group_expenses" : "expenses";
-        const { error: err } = await supabase.from(table).insert(payload);
+        const { error: err } = await (supabase as any).from(table).insert(payload);
 
         // Handle Foreign Key Error (e.g., Group no longer exists)
         if (err?.code === "23503") {
@@ -305,7 +305,7 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
       }
 
       else if (item.type === "group") {
-        const { error: err } = await supabase.from("groups").insert({
+        const { error: err } = await (supabase as any).from("groups").insert({
           name: item.name,
           description: item.description,
           created_by: userId,
@@ -316,7 +316,7 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
       }
 
       else if (item.type === "lent_money") {
-        const { error: err } = await supabase.from("lent_money").insert({
+        const { error: err } = await (supabase as any).from("lent_money").insert({
           user_id: userId,
           amount: item.amount,
           person_name: item.person_name,
@@ -329,7 +329,7 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
       }
 
       else if (item.type === "borrowed_money") {
-        const { error: err } = await supabase.from("borrowed_money").insert({
+        const { error: err } = await (supabase as any).from("borrowed_money").insert({
           user_id: userId,
           amount: item.amount,
           person_name: item.person_name,

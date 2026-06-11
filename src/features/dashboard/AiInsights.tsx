@@ -1,4 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Lightbulb, TrendingUp, Target, Sparkles, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -12,11 +14,12 @@ interface AiInsightsProps {
 
 export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
     const { formatCurrency } = useCurrency();
+    const [isAiRequested, setIsAiRequested] = useState(false);
 
     const { data: geminiInsight, isFetching } = useQuery({
         queryKey: ["gemini-dashboard-insights", expenses.length, expenses[0]?.id, categories.length],
         queryFn: () => generateFinanceInsight({ mode: "dashboard", expenses, categories }),
-        enabled: expenses.length > 0,
+        enabled: expenses.length > 0 && isAiRequested,
         staleTime: 1000 * 60 * 20,
         retry: 1,
     });
@@ -43,7 +46,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
 
         if (!expenses.length) return [];
 
-        const insights = [];
+        const insights: any[] = [];
         const totalSpent = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
         const thisMonthExpenses = expenses.filter(e => {
             const d = new Date(e.date);
@@ -103,36 +106,66 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
 
     const insights = generateInsights();
 
-    if (insights.length === 0 && !isFetching) return null;
-
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+        <div className="space-y-4 w-full">
+            {/* AI Call-to-action Card: display when not loading and AI insight is not fetched yet */}
+            {!geminiInsight && !isFetching && expenses.length > 0 && (
+                <Card className="shadow-sm border-l-4 border-l-violet-500 bg-violet-50/50 dark:bg-violet-950/10 animate-fade-in">
+                    <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                        <div className="flex gap-3 items-start">
+                            <div className="p-2 rounded-full shrink-0 bg-violet-500/10">
+                                <Sparkles className="w-5 h-5 text-violet-500" />
+                            </div>
+                            <div>
+                                <h4 className="font-semibold text-sm mb-0.5 text-violet-600 dark:text-violet-400">Gemini AI Financial Insights</h4>
+                                <p className="text-xs text-muted-foreground">Get advanced predictions, category analytics, and recommendations from Gemini AI.</p>
+                            </div>
+                        </div>
+                        <Button 
+                            size="sm" 
+                            onClick={() => setIsAiRequested(true)} 
+                            className="bg-violet-600 hover:bg-violet-700 text-white gap-2 font-medium shrink-0"
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Generate AI Analysis
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* AI Processing / Loading state */}
             {isFetching && !geminiInsight && (
-                <Card className="shadow-sm border-l-4 border-l-violet-500">
+                <Card className="shadow-sm border-l-4 border-l-violet-500 animate-pulse">
                     <CardContent className="p-4 flex gap-4 items-start">
                         <div className="p-2 rounded-full shrink-0 bg-violet-500/10">
                             <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
                         </div>
                         <div>
-                            <h4 className="font-semibold text-sm mb-1 text-violet-500">Gemini is analyzing your dashboard</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed">Checking spending trends, top categories, predictions, and cost optimization ideas.</p>
+                            <h4 className="font-semibold text-sm mb-1 text-violet-500">Gemini is analyzing your transactions...</h4>
+                            <p className="text-xs text-muted-foreground leading-relaxed">Checking spending trends, top categories, and cost optimization ideas.</p>
                         </div>
                     </CardContent>
                 </Card>
             )}
-            {insights.map((insight, idx) => (
-                <Card key={idx} className="shadow-sm border-l-4" style={{ borderLeftColor: 'currentColor' }}>
-                    <CardContent className="p-4 flex gap-4 items-start">
-                        <div className={`p-2 rounded-full shrink-0 ${insight.bg}`}>
-                            <insight.icon className={`w-5 h-5 ${insight.color}`} />
-                        </div>
-                        <div>
-                            <h4 className={`font-semibold text-sm mb-1 ${insight.color}`}>{insight.title}</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed">{insight.desc}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
+
+            {/* Insight cards display */}
+            {insights.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+                    {insights.map((insight, idx) => (
+                        <Card key={idx} className="shadow-sm border-l-4" style={{ borderLeftColor: 'currentColor' }}>
+                            <CardContent className="p-4 flex gap-4 items-start">
+                                <div className={`p-2 rounded-full shrink-0 ${insight.bg}`}>
+                                    <insight.icon className={`w-5 h-5 ${insight.color}`} />
+                                </div>
+                                <div>
+                                    <h4 className={`font-semibold text-sm mb-1 ${insight.color}`}>{insight.title}</h4>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">{insight.desc}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

@@ -47,10 +47,10 @@ const PrintStudioPage = () => {
     const { data: recentSales = [], isLoading } = useQuery({
         queryKey: ["recent_sales_for_print", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("sales")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .order("created_at", { ascending: false })
                 .limit(10); // Last 10 sales
 
@@ -63,10 +63,10 @@ const PrintStudioPage = () => {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .single();
             if (error) throw error;
             return data;

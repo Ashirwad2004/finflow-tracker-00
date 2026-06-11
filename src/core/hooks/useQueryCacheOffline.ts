@@ -126,7 +126,7 @@ export const useQueryCacheOffline = () => {
           // A. Profile
           async () => {
             try {
-              const { data } = await supabase
+              const { data } = await (supabase as any)
                 .from("profiles")
                 .select("*")
                 .eq("user_id", userId)
@@ -143,7 +143,7 @@ export const useQueryCacheOffline = () => {
           // B. Expenses
           async () => {
             try {
-              const { data } = await supabase
+              const { data } = await (supabase as any)
                 .from("expenses")
                 .select("*")
                 .eq("user_id", userId)
@@ -160,8 +160,8 @@ export const useQueryCacheOffline = () => {
           // C. Sales (Invoices)
           async () => {
             try {
-              const { data } = await supabase
-                .from("sales" as any)
+              const { data } = await (supabase as any)
+                .from("sales")
                 .select("*")
                 .eq("user_id", userId)
                 .order("date", { ascending: false });
@@ -177,8 +177,8 @@ export const useQueryCacheOffline = () => {
           // D. Purchases
           async () => {
             try {
-              const { data } = await supabase
-                .from("purchases" as any)
+              const { data } = await (supabase as any)
+                .from("purchases")
                 .select("*")
                 .eq("user_id", userId)
                 .order("date", { ascending: false });
@@ -194,8 +194,8 @@ export const useQueryCacheOffline = () => {
           // E. Parties
           async () => {
             try {
-              const { data } = await supabase
-                .from("parties" as any)
+              const { data } = await (supabase as any)
+                .from("parties")
                 .select("*")
                 .eq("user_id", userId);
               if (data) {
@@ -210,8 +210,8 @@ export const useQueryCacheOffline = () => {
           // F. Products (Inventory)
           async () => {
             try {
-              const { data } = await supabase
-                .from("products" as any)
+              const { data } = await (supabase as any)
+                .from("products")
                 .select("*")
                 .eq("user_id", userId);
               if (data) {
@@ -226,7 +226,7 @@ export const useQueryCacheOffline = () => {
           // G. Categories (Expense selection helper)
           async () => {
             try {
-              const { data } = await supabase
+              const { data } = await (supabase as any)
                 .from("categories")
                 .select("*")
                 .order("name");
@@ -242,7 +242,7 @@ export const useQueryCacheOffline = () => {
           // H. Lent Money
           async () => {
             try {
-              const { data } = await supabase
+              const { data } = await (supabase as any)
                 .from("lent_money")
                 .select("*")
                 .eq("user_id", userId)
@@ -252,9 +252,9 @@ export const useQueryCacheOffline = () => {
                 console.log("[Offline Cache] Pre-fetched lent-money");
 
                 // Generate lent-money-parties
-                const pendingData = data.filter(record => record.status === "pending");
+                const pendingData = data.filter((record: any) => record.status === "pending");
                 const partyMap = new Map<string, any>();
-                pendingData.forEach((record) => {
+                pendingData.forEach((record: any) => {
                   const name = record.person_name.trim();
                   const current = partyMap.get(name) || {
                     personName: name,
@@ -277,7 +277,7 @@ export const useQueryCacheOffline = () => {
           // I. Borrowed Money
           async () => {
             try {
-              const { data } = await supabase
+              const { data } = await (supabase as any)
                 .from("borrowed_money")
                 .select("*")
                 .eq("user_id", userId)
@@ -287,9 +287,9 @@ export const useQueryCacheOffline = () => {
                 console.log("[Offline Cache] Pre-fetched borrowed-money");
 
                 // Generate borrowed-money-parties
-                const pendingData = data.filter(record => record.status === "pending");
+                const pendingData = data.filter((record: any) => record.status === "pending");
                 const partyMap = new Map<string, any>();
-                pendingData.forEach((record) => {
+                pendingData.forEach((record: any) => {
                   const name = record.person_name.trim();
                   const current = partyMap.get(name) || {
                     personName: name,
@@ -312,13 +312,13 @@ export const useQueryCacheOffline = () => {
           // J. Groups hierarchy
           async () => {
             try {
-              const { data: memberships } = await supabase
+              const { data: memberships } = await (supabase as any)
                 .from("group_members")
                 .select("group_id")
                 .eq("user_id", userId);
               if (memberships && memberships.length > 0) {
-                const groupIds = memberships.map((m) => m.group_id);
-                const { data: groupsData } = await supabase
+                const groupIds = memberships.map((m: any) => m.group_id);
+                const { data: groupsData } = await (supabase as any)
                   .from("groups")
                   .select("*")
                   .in("id", groupIds);
@@ -327,7 +327,7 @@ export const useQueryCacheOffline = () => {
                   console.log("[Offline Cache] Pre-fetched groups");
                   for (const group of groupsData) {
                     queryClient.setQueryData(["group", group.id], group);
-                    const { data: mems } = await supabase
+                    const { data: mems } = await (supabase as any)
                       .from("group_members")
                       .select("*")
                       .eq("group_id", group.id)
@@ -335,7 +335,7 @@ export const useQueryCacheOffline = () => {
                     if (mems) {
                       queryClient.setQueryData(["group-members", group.id], mems);
                     }
-                    const { data: exps } = await supabase
+                    const { data: exps } = await (supabase as any)
                       .from("group_expenses")
                       .select("*, categories(name, color, icon)")
                       .eq("group_id", group.id)
@@ -354,7 +354,7 @@ export const useQueryCacheOffline = () => {
           // K. All group members list
           async () => {
             try {
-              const { data } = await supabase
+              const { data } = await (supabase as any)
                 .from("group_members")
                 .select("group_id, user_id, username");
               if (data) {
@@ -369,7 +369,8 @@ export const useQueryCacheOffline = () => {
           // L. Online orders
           async () => {
             try {
-              const { data } = await (supabase.from as any)("online_orders")
+              const { data } = await (supabase as any)
+                .from("online_orders")
                 .select(`
                   *,
                   online_order_items (

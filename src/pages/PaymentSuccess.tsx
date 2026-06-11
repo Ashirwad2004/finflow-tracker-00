@@ -28,7 +28,7 @@ export default function PaymentSuccess() {
 
       try {
         // Fetch payment and associated online order details
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("payments")
           .select(`
             *,

@@ -230,7 +230,7 @@ export const GSTR1Report = () => {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase.from("profiles" as any).select("*").eq("user_id", user?.id).single();
+            const { data, error } = await (supabase as any).from("profiles").select("*").eq("user_id", user?.id || "").single();
             if (error) throw error;
             return data as any;
         },
@@ -241,10 +241,10 @@ export const GSTR1Report = () => {
     const { data: rawSales = [], isLoading } = useQuery({
         queryKey: ["gstr1-sales", user?.id, period.from.toISOString(), period.to.toISOString()],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("sales" as any)
+            const { data, error } = await (supabase as any)
+                .from("sales")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .gte("date", format(period.from, "yyyy-MM-dd"))
                 .lte("date", format(period.to, "yyyy-MM-dd"))
                 .order("date", { ascending: true });

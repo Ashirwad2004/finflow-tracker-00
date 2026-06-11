@@ -58,7 +58,7 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
         description = description.replace(/\s+/g, " ");
 
         // 3. Infer Category
-        let categoryName = undefined;
+        let categoryName: string | undefined = undefined;
         const lowerInput = input.toLowerCase();
 
         // Priority A: Direct Category Match (Input contains exact category name)
@@ -69,7 +69,7 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
 
         // Priority B: Concept / Keyword Matching
         if (!categoryName) {
-            let detectedConcept = null;
+            let detectedConcept: string | null = null;
 
             // Find the concept (e.g. "Lunch" -> "Food")
             for (const [concept, keywords] of Object.entries(CATEGORY_CONCEPTS)) {

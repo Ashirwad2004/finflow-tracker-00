@@ -253,7 +253,7 @@ export const AddExpenseDialog = ({
     mutationFn: async () => {
       await Promise.all(
         expenses.map(async (e) => {
-          let billUrl = null;
+          let billUrl: string | null = null;
           try {
               if (e.billFile && navigator.onLine) billUrl = await uploadBillToStorage(e.billFile);
           } catch(err) {

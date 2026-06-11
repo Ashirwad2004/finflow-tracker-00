@@ -31,10 +31,10 @@ export default function BusinessDashboard() {
     const { data: sales = [] } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("sales" as any)
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .order("date", { ascending: false });
             if (error) throw error;
             return data as any[];
@@ -46,10 +46,10 @@ export default function BusinessDashboard() {
     const { data: expenses = [] } = useQuery({
         queryKey: ["expenses", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("expenses")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .order("date", { ascending: false });
             if (error) throw error;
             return data as any[];

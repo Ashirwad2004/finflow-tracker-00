@@ -31,10 +31,10 @@ export default function PurchasesPage() {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .single();
             if (error) throw error;
             return data;
@@ -63,10 +63,10 @@ export default function PurchasesPage() {
     const { data: purchases = [], isLoading } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("purchases" as any)
+            const { data, error } = await (supabase as any)
+                .from("purchases")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .order("date", { ascending: false });
             if (error) throw error;
             return data as any as Purchase[];

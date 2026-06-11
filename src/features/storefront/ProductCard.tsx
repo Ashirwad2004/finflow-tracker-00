@@ -10,6 +10,7 @@ export interface StoreProduct {
     image_url: string | null;
     online_description: string | null;
     stock_quantity: number;
+    category?: string | null;
 }
 
 interface ProductCardProps {

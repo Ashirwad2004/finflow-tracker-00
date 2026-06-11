@@ -88,10 +88,10 @@ export const Dashboard = () => {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("profiles")
         .select("*")
-        .eq("user_id", user?.id)
+        .eq("user_id", user?.id || "")
         .single();
 
       if (error) throw error;

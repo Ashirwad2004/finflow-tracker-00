@@ -35,10 +35,10 @@ export default function SalesPage() {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .single();
             if (error) throw error;
             return data;
@@ -67,10 +67,10 @@ export default function SalesPage() {
     const { data: invoices = [], isLoading } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("sales" as any)
+            const { data, error } = await (supabase as any)
+                .from("sales")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .order("date", { ascending: false });
             if (error) throw error;
             return data as any as Sale[];

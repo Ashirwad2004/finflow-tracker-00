@@ -24,7 +24,7 @@ export const LentMoneyParties = ({ userId, onAddTransaction }: LentMoneyPartiesP
     const { data: parties = [], isLoading } = useQuery({
         queryKey: ["lent-money-parties", userId],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("lent_money")
                 .select("*")
                 .eq("user_id", userId)

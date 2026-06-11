@@ -41,7 +41,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
   const { data: budget, isLoading } = useQuery({
     queryKey: ["budget", userId, monthString],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("budgets")
         .select("*")
         .eq("user_id", userId)
@@ -57,13 +57,13 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
   const saveBudget = useMutation({
     mutationFn: async (amount: number) => {
       if (budget?.id) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("budgets")
           .update({ amount })
           .eq("id", budget.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("budgets")
           .insert({ user_id: userId, amount, month: monthString });
         if (error) throw error;

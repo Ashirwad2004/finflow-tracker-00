@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format, subDays } from "date-fns";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
@@ -41,7 +42,8 @@ import {
     FileMinus,
     Loader2,
     CreditCard,
-    Save
+    Save,
+    Download
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -56,6 +58,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateInvoicePDF } from "@/core/utils/invoiceGenerator";
 import axios from "axios";
+import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -404,10 +407,10 @@ export default function OnlineStore() {
     const { isLoading: isLoadingPaySettings } = useQuery({
         queryKey: ["paymentSettings", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("upi_id, payment_gateway, razorpay_key_id, stripe_publishable_key, online_payment_enabled")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .maybeSingle();
             if (error) throw error;
             if (data) {
@@ -433,7 +436,7 @@ export default function OnlineStore() {
                     stripe_publishable_key: payStripeKey || null,
                     online_payment_enabled: payOnlineEnabled,
                 })
-                .eq("user_id", user?.id);
+                .eq("user_id", user?.id || "");
             if (error) throw error;
         },
         onSuccess: () => {
@@ -444,6 +447,45 @@ export default function OnlineStore() {
             toast({ title: "Failed to save", description: err.message, variant: "destructive" });
         },
     });
+
+    // Fetch store profile for invoice branding name
+    const { data: storeProfile } = useQuery({
+        queryKey: ["storeProfile", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return null;
+            const { data, error } = await (supabase as any)
+                .from("profiles")
+                .select("*")
+                .eq("user_id", user?.id || "")
+                .single();
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!user?.id,
+    });
+
+    const chartData = useMemo(() => {
+        const payments = paymentsHistory?.payments || [];
+        const dailyMap = new Map<string, number>();
+        for (let i = 29; i >= 0; i--) {
+            const dateStr = format(subDays(new Date(), i), "MMM dd");
+            dailyMap.set(dateStr, 0);
+        }
+        
+        payments.forEach((p: any) => {
+            if (p.status === 'success') {
+                const dateStr = format(new Date(p.created_at), "MMM dd");
+                if (dailyMap.has(dateStr)) {
+                    dailyMap.set(dateStr, dailyMap.get(dateStr)! + Number(p.amount || 0));
+                }
+            }
+        });
+
+        return Array.from(dailyMap.entries()).map(([name, value]) => ({
+            name,
+            revenue: value
+        }));
+    }, [paymentsHistory?.payments]);
 
     // Fetch Orders — include nested order items + product name in a single query
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({

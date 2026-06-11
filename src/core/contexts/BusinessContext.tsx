@@ -54,9 +54,9 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
 
         setIsBusinessMode(value); // Optimistic update
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from('profiles')
-            .update({ is_business_mode: value } as any) // Cast for missing column
+            .update({ is_business_mode: value }) // Cast for missing column
             .eq('user_id', user.id);
 
         if (error) {

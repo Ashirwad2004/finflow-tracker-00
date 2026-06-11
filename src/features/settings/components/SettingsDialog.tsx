@@ -40,9 +40,9 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
         if (checked) {
             // Check if business details exist
             const { data, error } = await supabase
-                .from("profiles")
+                .from("profiles" as any)
                 .select("business_name")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .single();
 
             const hasDetails = (data as any)?.business_name;

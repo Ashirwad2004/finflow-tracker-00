@@ -716,7 +716,7 @@ export const InteractivePlayground = () => {
               <div className="flex-1 p-5 overflow-y-auto">
                 <AnimatePresence mode="wait">
                   
-                  {setActiveTab && activeTab === "live" ? (
+                  {activeTab === "live" ? (
                     // OPERATIONS TAB: LIVE ORDERS + LIVE STOCK LEVELS
                     <motion.div
                       key="live"

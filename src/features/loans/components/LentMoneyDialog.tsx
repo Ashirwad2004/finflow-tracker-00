@@ -77,7 +77,7 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId, defaultPersonName 
   const { data: existingParties = [] } = useQuery({
     queryKey: ["parties-list", userId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("lent_money")
         .select("person_name")
         .eq("user_id", userId);
@@ -279,7 +279,7 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId, defaultPersonName 
                         <CommandList>
                           <CommandEmpty className="py-2 text-sm text-center text-muted-foreground">No recent parties.</CommandEmpty>
                           <CommandGroup heading="Recent">
-                            {existingParties.map((party) => (
+                            {(existingParties as string[]).map((party) => (
                               <CommandItem
                                 key={party}
                                 value={party}

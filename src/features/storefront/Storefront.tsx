@@ -127,7 +127,7 @@ export default function Storefront() {
         if (retryOrderId && storeId) {
             const initRetry = async () => {
                 try {
-                    const { data: order, error } = await supabase
+                    const { data: order, error } = await (supabase as any)
                         .from("online_orders")
                         .select("*")
                         .eq("id", retryOrderId)
@@ -178,19 +178,23 @@ export default function Storefront() {
                 return [
                     {
                         id: "coffee-beans-id",
+                        user_id: "demo-user-id",
                         name: "Aroma Organic Coffee Beans (500g)",
                         price: 599,
-                        stock_quantity: 15,
+                        unit: "pack",
                         image_url: null,
-                        category: "Coffee"
+                        online_description: "Rich organic roasted coffee beans.",
+                        stock_quantity: 15,
                     },
                     {
                         id: "thermal-flask-id",
+                        user_id: "demo-user-id",
                         name: "Premium Thermal Flask (750ml)",
                         price: 1299,
-                        stock_quantity: 8,
+                        unit: "piece",
                         image_url: null,
-                        category: "Flasks"
+                        online_description: "Stainless steel thermal insulated flask.",
+                        stock_quantity: 8,
                     }
                 ];
             }

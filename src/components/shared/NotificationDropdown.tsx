@@ -87,7 +87,7 @@ export const NotificationDropdown = ({ userId }: NotificationDropdownProps) => {
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
       // @ts-ignore: types.ts not yet updated
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("notifications")
         .update({ is_read: true })
         .eq("id", id);
@@ -101,7 +101,7 @@ export const NotificationDropdown = ({ userId }: NotificationDropdownProps) => {
   const markAllAsRead = useMutation({
     mutationFn: async () => {
       // @ts-ignore: types.ts not yet updated
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("notifications")
         .update({ is_read: true })
         .eq("user_id", userId)

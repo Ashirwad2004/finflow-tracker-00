@@ -77,7 +77,7 @@ export const BorrowedMoneyDialog = ({ open, onOpenChange, userId, defaultPersonN
     const { data: existingParties = [] } = useQuery({
         queryKey: ["borrowed-parties-list", userId],
         queryFn: async () => {
-            const { data } = await supabase
+            const { data } = await (supabase as any)
                 .from("borrowed_money")
                 .select("person_name")
                 .eq("user_id", userId);
@@ -273,7 +273,7 @@ export const BorrowedMoneyDialog = ({ open, onOpenChange, userId, defaultPersonN
                                             <CommandList>
                                                 <CommandEmpty className="py-2 text-sm text-center text-muted-foreground">No recent parties.</CommandEmpty>
                                                 <CommandGroup heading="Recent">
-                                                    {existingParties.map((party) => (
+                                                    {(existingParties as string[]).map((party) => (
                                                         <CommandItem
                                                             key={party}
                                                             value={party}

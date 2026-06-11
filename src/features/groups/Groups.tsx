@@ -92,16 +92,16 @@ const Groups = () => {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const { data: memberships, error: memberErr } = await supabase
+      const { data: memberships, error: memberErr } = await (supabase as any)
         .from("group_members")
         .select("group_id")
         .eq("user_id", user.id);
 
       if (memberErr || !memberships?.length) return [];
 
-      const groupIds = memberships.map((m) => m.group_id);
+      const groupIds = memberships.map((m) => (m as any).group_id);
 
-      const { data: groups, error: groupErr } = await supabase
+      const { data: groups, error: groupErr } = await (supabase as any)
         .from("groups")
         .select("*")
         .in("id", groupIds);
@@ -116,7 +116,7 @@ const Groups = () => {
   const { data: allMembers = [] } = useQuery({
     queryKey: ["all-group-members"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("group_members")
         .select("group_id, user_id, username");
       return data || [];
@@ -178,7 +178,7 @@ const Groups = () => {
 
       if (groupErr) throw groupErr;
 
-      const { data: profile } = await supabase
+      const { data: profile } = await (supabase as any)
         .from("profiles")
         .select("display_name")
         .eq("user_id", user.id)

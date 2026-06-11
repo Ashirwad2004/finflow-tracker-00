@@ -104,10 +104,10 @@ const GroupDetail = () => {
     queryKey: ["group", groupId],
     enabled: !!groupId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("groups")
         .select("*")
-        .eq("id", groupId)
+        .eq("id", groupId || "")
         .single();
       if (error) throw error;
       return data;
@@ -119,10 +119,10 @@ const GroupDetail = () => {
     queryKey: ["group-members", groupId],
     enabled: !!groupId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("group_members")
         .select("*")
-        .eq("group_id", groupId)
+        .eq("group_id", groupId || "")
         .order("joined_at");
       return data as Member[] || [];
     },
@@ -133,10 +133,10 @@ const GroupDetail = () => {
     queryKey: ["group-expenses", groupId],
     enabled: !!groupId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("group_expenses")
         .select("*, categories(name, color, icon)")
-        .eq("group_id", groupId)
+        .eq("group_id", groupId || "")
         .order("date", { ascending: false });
 
       // Parse split_data if it's a string, though supabase client usually gives JSON
@@ -149,7 +149,7 @@ const GroupDetail = () => {
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data } = await supabase.from("categories").select("*");
+      const { data } = await (supabase as any).from("categories").select("*");
       return data || [];
     },
   });

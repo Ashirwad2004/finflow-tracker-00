@@ -126,7 +126,7 @@ export function PaymentPortal({
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, "");
     val = val.substring(0, 16);
-    const parts = [];
+    const parts: string[] = [];
     for (let i = 0; i < val.length; i += 4) {
       parts.push(val.substring(i, i + 4));
     }

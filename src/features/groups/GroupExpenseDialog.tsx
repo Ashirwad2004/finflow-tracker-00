@@ -105,7 +105,7 @@ export const GroupExpenseDialog = ({
 
     const addExpenseMutation = useMutation({
         mutationFn: async () => {
-            let splitData = null;
+            let splitData: string[] | null = null;
             if (selectedMembers.length !== members.length) {
                 splitData = selectedMembers;
             }

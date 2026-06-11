@@ -42,10 +42,10 @@ export const DetailedPartyReport = () => {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("*")
-                .eq("user_id", user?.id)
+                .eq("user_id", user?.id || "")
                 .single();
             if (error) throw error;
             return data;
@@ -57,10 +57,10 @@ export const DetailedPartyReport = () => {
     const { data: sales = [], isLoading: salesLoading } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("sales" as any)
+            const { data, error } = await (supabase as any)
+                .from("sales")
                 .select("id, customer_name, total_amount, date, invoice_number")
-                .eq("user_id", user?.id);
+                .eq("user_id", user?.id || "");
             if (error) throw error;
             return data as any[];
         },
@@ -71,10 +71,10 @@ export const DetailedPartyReport = () => {
     const { data: purchases = [], isLoading: purchasesLoading } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("purchases" as any)
+            const { data, error } = await (supabase as any)
+                .from("purchases")
                 .select("id, vendor_name, total_amount, date, bill_number")
-                .eq("user_id", user?.id);
+                .eq("user_id", user?.id || "");
             if (error) throw error;
             return data as any[];
         },
