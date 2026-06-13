@@ -19,5 +19,5 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "8080:80"
+      - "8081:3000"
     restart: always
