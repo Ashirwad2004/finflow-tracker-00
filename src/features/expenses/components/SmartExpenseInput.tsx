@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { callOpenAI } from "@/core/integrations/ai/openai";
+import { matchCategory } from "@/core/integrations/ai/categoryMatcher";
 import {
     Tooltip,
     TooltipContent,
@@ -15,29 +16,6 @@ interface SmartExpenseInputProps {
     disabled?: boolean;
     categories?: { name: string }[]; // Optional list of real categories
 }
-
-// Keywords to detect the "Concept" (e.g. "Lunch" -> Food concept)
-const CATEGORY_CONCEPTS: Record<string, string[]> = {
-    "Food": ["lunch", "dinner", "breakfast", "coffee", "tea", "snack", "restaurant", "swiggy", "zomato", "grocery", "vegetables", "milk", "burger", "pizza", "food", "eat", "drink"],
-    "Travel": ["uber", "ola", "taxi", "bus", "train", "flight", "petrol", "fuel", "gas", "metro", "auto", "cab", "ticket", "travel", "commute"],
-    "Shopping": ["amazon", "flipkart", "clothes", "shoes", "mall", "market", "shop", "buy", "jeans", "shirt", "dress", "store"],
-    "Bills": ["electricity", "water", "internet", "wifi", "phone", "recharge", "rent", "subscription", "netflix", "spotify", "bill", "invoice", "light bill", "broadband"],
-    "Health": ["medicine", "doctor", "hospital", "gym", "yoga", "fitness", "medical", "checkup", "pharmacy"],
-    "Entertainment": ["movie", "cinema", "game", "party", "concert", "ipl", "match", "fun", "outing"],
-    "Education": ["books", "course", "fees", "tuition", "school", "college", "udemy", "coursera", "learning"],
-};
-
-// Synonyms to map a Concept to actual User Categories
-// e.g. Concept "Food" matches categories containing "dining", "groceries", etc.
-const CONCEPT_SYNONYMS: Record<string, string[]> = {
-    "Food": ["food", "eat", "drink", "dining", "kitchen", "ration", "grocery", "snack"],
-    "Travel": ["travel", "transport", "fuel", "petrol", "commute", "vehicle", "taxi", "cab"],
-    "Shopping": ["shop", "purchase", "store", "buy", "cloth", "fashion"],
-    "Bills": ["bill", "utility", "rent", "recharge", "subscription", "fee", "payment"],
-    "Health": ["health", "medic", "fitness", "gym", "care"],
-    "Entertainment": ["entertain", "movie", "fun", "subscription", "game"],
-    "Education": ["education", "learn", "course", "school", "college", "book"],
-};
 
 export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartExpenseInputProps) => {
     const [input, setInput] = useState("");
@@ -53,45 +31,19 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
         description = description.replace(/[₹$€£]/g, "").trim();
         description = description.replace(/\s+/g, " ");
 
-        // 3. Infer Category
+        // 3. Infer Category using the fuzzy shared matcher
         let categoryName: string | undefined = undefined;
-        const lowerInput = input.toLowerCase();
-
-        // Priority A: Direct Category Match (Input contains exact category name)
-        const exactMatch = categories.find(c => lowerInput.includes(c.name.toLowerCase()));
-        if (exactMatch) {
-            categoryName = exactMatch.name;
-        }
-
-        // Priority B: Concept / Keyword Matching
-        if (!categoryName) {
-            let detectedConcept: string | null = null;
-
-            // Find the concept (e.g. "Lunch" -> "Food")
-            for (const [concept, keywords] of Object.entries(CATEGORY_CONCEPTS)) {
-                if (keywords.some(k => lowerInput.includes(k))) {
-                    detectedConcept = concept;
-                    break;
-                }
-            }
-
-            if (detectedConcept) {
-                // Try to find a matching category for this concept
-                // 1. Look for category exactly named like the concept (e.g. "Food")
-                const directConceptMatch = categories.find(c => c.name.toLowerCase() === detectedConcept!.toLowerCase());
-
-                if (directConceptMatch) {
-                    categoryName = directConceptMatch.name;
-                } else {
-                    // 2. Fuzzy match: Look for category containing synonyms (e.g. "Eating Out" contains "eat")
-                    const synonyms = CONCEPT_SYNONYMS[detectedConcept] || [];
-                    const fuzzyMatch = categories.find(c =>
-                        synonyms.some(syn => c.name.toLowerCase().includes(syn))
-                    );
-                    if (fuzzyMatch) {
-                        categoryName = fuzzyMatch.name;
-                    }
-                }
+        
+        const formattedCats = categories.map((c, idx) => ({
+            id: (c as any).id || c.name || idx.toString(),
+            name: c.name
+        }));
+        
+        const matchedId = matchCategory(description || input, formattedCats);
+        if (matchedId) {
+            const match = formattedCats.find(c => c.id === matchedId);
+            if (match) {
+                categoryName = match.name;
             }
         }
 
@@ -107,31 +59,13 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
         try {
             if (navigator.onLine) {
                 const categoriesList = categories.map(c => c.name);
-                 const systemPrompt = `
-You are a financial AI data extractor for the FinFlow Tracker application. 
-Extract the amount (numbers only), a clean short description (without currency symbols or the amount itself), and the best matching category from the user's input.
-
-Available categories in this user's account: ${JSON.stringify(categoriesList)}.
-
-Few-Shot Training Examples:
-1. Input: "starbucks coffee 150"
-   Output: { "amount": "150", "description": "Starbucks Coffee", "categoryName": "Food" } (or closest matching category name)
-
-2. Input: "₹1200 for electricity bill"
-   Output: { "amount": "1200", "description": "Electricity Bill", "categoryName": "Bills" }
-
-3. Input: "spent 3400 rs on grocery shopping at d-mart"
-   Output: { "amount": "3400", "description": "Grocery shopping at D-Mart", "categoryName": "Shopping" }
-
-4. Input: "uber ride Rs 450"
-   Output: { "amount": "450", "description": "Uber ride", "categoryName": "Travel" }
-
-5. Input: "Bought new keyboard 1299"
-   Output: { "amount": "1299", "description": "New keyboard", "categoryName": "Shopping" }
-
-If a category cannot be determined or matched, choose the most relevant category from the available list, or default to null.
-Ensure the description is brief and capitalized nicely.
-`;
+                 const systemPrompt = `Extract amount, description, and category.
+Categories: ${categoriesList.join(",")}.
+Examples:
+- "starbucks coffee 150" -> {"amount":"150","description":"Starbucks Coffee","categoryName":"Food"}
+- "₹1200 electricity bill" -> {"amount":"1200","description":"Electricity Bill","categoryName":"Bills"}
+- "grocery d-mart 3400" -> {"amount":"3400","description":"Grocery D-Mart","categoryName":"Shopping"}
+- "cab 450" -> {"amount":"450","description":"Cab","categoryName":"Travel"}`;
                 const jsonSchema = {
                     type: "json_schema",
                     json_schema: {

@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, User, Calendar, Receipt, DollarSign, Percent, FileText, PackageX, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Calendar, Receipt, DollarSign, Percent, FileText, PackageX, AlertTriangle, Wand2 } from "lucide-react";
+import { SmartSaleInput } from "./SmartSaleInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -111,6 +112,44 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             if (party.email && !watch("customer_email")) setValue("customer_email", party.email, { shouldValidate: true, shouldDirty: true });
             if (party.gstin && !watch("customer_gstin")) setValue("customer_gstin", party.gstin, { shouldValidate: true, shouldDirty: true });
         }
+    };
+
+    const handleSmartParse = (data: {
+        customerName?: string;
+        customerPhone?: string;
+        customerEmail?: string;
+        customerGstin?: string;
+        status?: "paid" | "pending";
+        items?: Array<{ description: string; quantity: number; price: number; discount?: number }>;
+        taxRate?: number;
+        overallDiscount?: number;
+    }) => {
+        if (data.customerName) {
+            setValue("customer_name", data.customerName, { shouldValidate: true, shouldDirty: true });
+            handleCustomerSelect(data.customerName);
+        }
+        if (data.customerPhone) setValue("customer_phone", data.customerPhone, { shouldValidate: true, shouldDirty: true });
+        if (data.customerEmail) setValue("customer_email", data.customerEmail, { shouldValidate: true, shouldDirty: true });
+        if (data.customerGstin) setValue("customer_gstin", data.customerGstin.toUpperCase(), { shouldValidate: true, shouldDirty: true });
+        if (data.status) setValue("status", data.status, { shouldValidate: true, shouldDirty: true });
+        if (data.taxRate !== undefined) setValue("tax_rate", data.taxRate, { shouldValidate: true, shouldDirty: true });
+        if (data.overallDiscount !== undefined) setValue("overall_discount", data.overallDiscount, { shouldValidate: true, shouldDirty: true });
+
+        if (data.items && data.items.length > 0) {
+            const mappedItems = data.items.map(item => ({
+                description: item.description,
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                discount: item.discount || 0,
+                total: (item.quantity || 1) * (item.price || 0) * (1 - (item.discount || 0) / 100)
+            }));
+            setValue("items", mappedItems, { shouldValidate: true, shouldDirty: true });
+        }
+
+        toast({
+            title: "AI Magic ✨",
+            description: "Invoice fields populated from your request.",
+        });
     };
 
     // Pre-fill form when editing
@@ -478,6 +517,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
                 <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto flex flex-col">
                     <div className="flex-1 px-8 py-6 space-y-10">
+                        {/* AI Smart Fill for Invoice */}
+                        {!invoiceToEdit && (
+                            <div className="bg-violet-500/5 dark:bg-violet-950/5 border border-violet-500/10 p-4 rounded-lg">
+                                <Label className="text-xs font-semibold text-violet-500 mb-1.5 flex items-center gap-1 uppercase tracking-wide">
+                                    <Wand2 className="w-3 h-3" /> AI Smart Fill Invoice
+                                </Label>
+                                <SmartSaleInput onParse={handleSmartParse} products={products} />
+                                <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
+                                    Try typing: "Sold 3 cups at 200 each to Rahul, unpaid" or "John Doe bought 2 monitors at 12000 each"
+                                </p>
+                            </div>
+                        )}
+
                         {/* Header Section: Customer & Meta */}
                         <div className="flex flex-col md:flex-row justify-between gap-8 md:gap-16">
                             {/* Bill To */}

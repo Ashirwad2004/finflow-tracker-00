@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2, Wand2 } from "lucide-react";
+import { SmartPurchaseInput } from "./SmartPurchaseInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
@@ -41,7 +42,7 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
     const { formatCurrency } = useCurrency();
     const { user } = useAuth();
 
-    const { register, control, handleSubmit, watch, reset, formState: { errors } } = useForm<PurchaseFormValues>({
+    const { register, control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<PurchaseFormValues>({
         defaultValues: {
             vendor_name: "",
             bill_number: "",
@@ -93,6 +94,32 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
     const vendorParties = parties.filter((party: any) => 
         party.type === "vendor" || party.type === "both"
     );
+
+    const handleSmartParse = (data: {
+        vendorName?: string;
+        billNumber?: string;
+        date?: string;
+        items?: Array<{ description: string; quantity: number; price: number }>;
+    }) => {
+        if (data.vendorName) setValue("vendor_name", data.vendorName, { shouldValidate: true, shouldDirty: true });
+        if (data.billNumber) setValue("bill_number", data.billNumber, { shouldValidate: true, shouldDirty: true });
+        if (data.date) setValue("date", data.date, { shouldValidate: true, shouldDirty: true });
+
+        if (data.items && data.items.length > 0) {
+            const mappedItems = data.items.map(item => ({
+                description: item.description,
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                total: (item.quantity || 1) * (item.price || 0)
+            }));
+            setValue("items", mappedItems, { shouldValidate: true, shouldDirty: true });
+        }
+
+        toast({
+            title: "AI Magic ✨",
+            description: "Bill fields populated from your request.",
+        });
+    };
 
 
     const createPurchaseMutation = useMutation({
@@ -274,6 +301,19 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
                 <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
                     <ScrollArea className="flex-1 pr-4 -mr-4">
                         <div className="space-y-6 py-4">
+                            {/* AI Smart Fill for Purchase */}
+                            {!purchaseToEdit && (
+                                <div className="bg-violet-500/5 dark:bg-violet-950/5 border border-violet-500/10 p-4 rounded-lg">
+                                    <Label className="text-xs font-semibold text-violet-500 mb-1.5 flex items-center gap-1 uppercase tracking-wide">
+                                        <Wand2 className="w-3 h-3" /> AI Smart Fill Bill
+                                    </Label>
+                                    <SmartPurchaseInput onParse={handleSmartParse} />
+                                    <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
+                                        Try typing: "Bought 10 cables for 50 each from Supplier Alpha" or "Dell Store: 2 laptops at 45000 each yesterday"
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Bill Details */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">

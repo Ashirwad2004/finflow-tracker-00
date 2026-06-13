@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lightbulb, TrendingUp, Target, Sparkles, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { generateFinanceInsight } from "@/core/integrations/ai/gemini";
@@ -15,10 +15,29 @@ interface AiInsightsProps {
 export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
     const { formatCurrency } = useCurrency();
     const [isAiRequested, setIsAiRequested] = useState(false);
+    const queryClient = useQueryClient();
 
     const { data: geminiInsight, isFetching } = useQuery({
         queryKey: ["gemini-dashboard-insights", expenses.length, expenses[0]?.id, categories.length],
-        queryFn: () => generateFinanceInsight({ mode: "dashboard", expenses, categories }),
+        queryFn: () => {
+            const userId = expenses[0]?.user_id;
+            const sales = queryClient.getQueryData<any[]>(["sales", userId]) || [];
+            const lent = queryClient.getQueryData<any[]>(["lent-money", userId]) || [];
+            const borrowed = queryClient.getQueryData<any[]>(["borrowed-money", userId]) || [];
+            const products = queryClient.getQueryData<any[]>(["products", userId]) || queryClient.getQueryData<any[]>(["products"]) || [];
+            
+            const lowStockCount = products.filter(p => Number(p.stock_quantity ?? p.stock ?? 0) <= 5).length;
+
+            return generateFinanceInsight({
+                mode: "dashboard",
+                expenses,
+                categories,
+                sales,
+                lent,
+                borrowed,
+                lowStockCount
+            });
+        },
         enabled: expenses.length > 0 && isAiRequested,
         staleTime: 1000 * 60 * 20,
         retry: 1,

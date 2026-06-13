@@ -4,7 +4,8 @@ import { PartyReport } from "@/features/business/components/PartyReport";
 import { DetailedPartyReport } from "@/features/business/components/DetailedPartyReport";
 import { GSTR1Report } from "@/features/business/components/GSTR1Report";
 import { OnlineStoreReport } from "@/features/business/components/OnlineStoreReport";
-import { FileBarChart, ShieldCheck, ShoppingBag } from "lucide-react";
+import { BusinessAiInsights } from "@/features/business/components/BusinessAiInsights";
+import { FileBarChart, ShieldCheck, ShoppingBag, Sparkles } from "lucide-react";
 
 const ReportsPage = () => {
     return (
@@ -22,7 +23,7 @@ const ReportsPage = () => {
 
                 <Tabs defaultValue="party-report" className="space-y-6">
                     <div className="bg-card w-full sm:w-auto inline-block p-1 rounded-lg border">
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-0 bg-transparent gap-1">
+                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto p-0 bg-transparent gap-1">
                             <TabsTrigger
                                 value="party-report"
                                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2.5 px-6 rounded-md shadow-sm transition-all"
@@ -49,6 +50,13 @@ const ReportsPage = () => {
                                 <ShoppingBag className="w-4 h-4" />
                                 Online Store
                             </TabsTrigger>
+                            <TabsTrigger
+                                value="ai-audit"
+                                className="data-[state=active]:bg-violet-600 data-[state=active]:text-white py-2.5 px-6 rounded-md shadow-sm transition-all flex items-center gap-2"
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                AI Audit
+                            </TabsTrigger>
                         </TabsList>
                     </div>
 
@@ -66,6 +74,10 @@ const ReportsPage = () => {
 
                     <TabsContent value="online-store" className="mt-0 outline-none">
                         <OnlineStoreReport />
+                    </TabsContent>
+
+                    <TabsContent value="ai-audit" className="mt-0 outline-none">
+                        <BusinessAiInsights />
                     </TabsContent>
                 </Tabs>
             </div>

@@ -105,28 +105,49 @@ export async function generateFinanceInsight(input: {
     expenses: any[];
     categories: any[];
     currency?: string;
+    sales?: any[];
+    lent?: any[];
+    borrowed?: any[];
+    lowStockCount?: number;
 }) {
-    const compactExpenses = input.expenses.slice(0, 120).map((expense) => ({
+    // Slice at 30 items instead of 120 to save context tokens significantly
+    const compactExpenses = input.expenses.slice(0, 30).map((expense) => ({
         amount: Number(expense.amount),
         description: expense.description,
         date: expense.date,
         category: expense.categories?.name || input.categories.find((cat) => cat.id === expense.category_id)?.name || "Uncategorized",
     }));
 
+    const totalExpenses = input.expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const totalSales = input.sales?.reduce((sum, s) => sum + Number(s.total_amount || 0), 0) || 0;
+    
+    const totalLent = input.lent?.filter(l => l.status !== "paid").reduce((sum, l) => sum + Number(l.amount || 0), 0) || 0;
+    const totalBorrowed = input.borrowed?.filter(b => b.status !== "paid").reduce((sum, b) => sum + Number(b.amount || 0), 0) || 0;
+
+    const summaryData = {
+        task: input.mode,
+        today: new Date().toISOString().slice(0, 10),
+        currency: input.currency || "INR",
+        financials: {
+            salesTotal: totalSales,
+            expensesTotal: totalExpenses,
+            netBalance: totalSales - totalExpenses,
+            debtsOwedToUser: totalLent,
+            debtsUserOwesOthers: totalBorrowed,
+            lowStockItemsCount: input.lowStockCount || 0
+        },
+        recentExpenses: compactExpenses
+    };
+
     return callGeminiJson<FinanceInsight>(
         [
             {
                 role: "system",
-                content: "You are FinFlow Gemini AI, an enterprise finance analyst for Indian small businesses and personal finance users. Be precise, practical, and concise. Never invent transactions. Use the supplied data only.",
+                content: "You are FinFlow Gemini AI, an enterprise finance analyst and store copilot for small businesses and personal users. Provide realistic, concise analysis. Budget suggestions should relate to inventory levels, collection of debts, or expense cutting.",
             },
             {
                 role: "user",
-                content: JSON.stringify({
-                    task: input.mode,
-                    today: new Date().toISOString().slice(0, 10),
-                    currency: input.currency || "INR",
-                    expenses: compactExpenses,
-                }),
+                content: JSON.stringify(summaryData),
             },
         ],
         expenseSummarySchema,
@@ -218,3 +239,79 @@ export async function generateProductContent(input: {
         { temperature: 0.45, maxOutputTokens: 1200 },
     );
 }
+
+export type BusinessInsight = {
+    headline: string;
+    summary: string;
+    taxAnalysis: string;
+    debtAnalysis: string;
+    suggestions: string[];
+};
+
+const businessInsightSchema = {
+    type: "object",
+    properties: {
+        headline: { type: "string" },
+        summary: { type: "string" },
+        taxAnalysis: { type: "string" },
+        debtAnalysis: { type: "string" },
+        suggestions: {
+            type: "array",
+            items: { type: "string" }
+        }
+    },
+    required: ["headline", "summary", "taxAnalysis", "debtAnalysis", "suggestions"]
+};
+
+export async function generateBusinessInsight(input: {
+    sales: any[];
+    purchases: any[];
+    expenses: any[];
+    lent: any[];
+    borrowed: any[];
+    products: any[];
+    currency?: string;
+}) {
+    const totalSales = input.sales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+    const totalPurchases = input.purchases.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const totalExpenses = input.expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const totalLent = input.lent.filter(l => l.status !== "paid").reduce((sum, l) => sum + Number(l.amount || 0), 0);
+    const totalBorrowed = input.borrowed.filter(b => b.status !== "paid").reduce((sum, b) => sum + Number(b.amount || 0), 0);
+    const lowStockCount = input.products.filter(p => Number(p.stock_quantity ?? p.stock ?? 0) <= 5).length;
+
+    const businessMetrics = {
+        salesCount: input.sales.length,
+        totalSales,
+        totalPurchases,
+        totalExpenses,
+        receivables: totalLent,
+        payables: totalBorrowed,
+        lowStockItems: lowStockCount,
+        productsCount: input.products.length,
+        currency: input.currency || "INR",
+        today: new Date().toISOString().split('T')[0]
+    };
+
+    return callGeminiJson<BusinessInsight>(
+        [
+            {
+                role: "system",
+                content: `You are FinFlow Gemini AI, an expert enterprise chartered accountant and business auditor.
+Analyze the business metrics (sales, purchases, expenses, inventory status, payables/receivables) and provide key insights:
+- Headline summarizing core status.
+- Summary of cash flow and profit margins.
+- Tax analysis (GST/GSTR-1 liability estimate, tax optimizations).
+- Debt analysis (Risk on receivables/loans, cash recovery tips).
+- Suggestions: 3-4 specific operational recommendations.
+Keep descriptions concise and highly professional.`,
+            },
+            {
+                role: "user",
+                content: JSON.stringify(businessMetrics),
+            },
+        ],
+        businessInsightSchema,
+        { temperature: 0.15, maxOutputTokens: 1600 }
+    );
+}
+

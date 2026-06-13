@@ -7,6 +7,7 @@ import { callOpenAI } from "@/core/integrations/ai/openai";
 import { offlineMutate } from "@/core/offline/apiService";
 import { useQueryClient } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
+import { matchCategory } from "@/core/integrations/ai/categoryMatcher";
 
 interface MagicAddProps {
     userId: string;
@@ -24,74 +25,12 @@ export function MagicAddExpense({ userId, categories }: MagicAddProps) {
 
         setIsProcessing(true);
         try {
-            const systemPrompt = `
-You are an intelligent financial data extraction AI for the FinFlow Tracker application.
-The user will describe one or multiple financial transactions (expenses, lending money, or borrowing money) in natural language.
-Extract each individual transaction as a separate operation in the "operations" array.
-
-Fields to extract for each operation:
-- table: Must be exactly one of "expenses", "lent_money", or "borrowed_money"
-- amount: The numeric amount of the transaction
-- description: A short, clean description of the transaction
-- date: Format must be YYYY-MM-DD strictly. Today is ${new Date().toISOString().split('T')[0]}. If they mention "yesterday", "2 days ago", etc., compute the correct date accordingly.
-- person_name: The name of the person involved (only if lent_money or borrowed_money, otherwise null)
-- category_term: A general category term (e.g. 'Food', 'Travel', 'Shopping', 'Bills', 'Health', 'Education') (only for expenses, otherwise null)
-
-Few-Shot Training Examples:
-
-Example 1:
-User query: "Spent 400 on cab yesterday and Rahul borrowed 500"
-Output: {
-  "operations": [
-    {
-      "table": "expenses",
-      "amount": 400,
-      "description": "Cab ride",
-      "date": "${(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })()}",
-      "person_name": null,
-      "category_term": "Travel"
-    },
-    {
-      "table": "lent_money",
-      "amount": 500,
-      "description": "Rahul borrowed money",
-      "date": "${new Date().toISOString().split('T')[0]}",
-      "person_name": "Rahul",
-      "category_term": null
-    }
-  ]
-}
-
-Example 2:
-User query: "Borrowed 10000 from Priya for school fees"
-Output: {
-  "operations": [
-    {
-      "table": "borrowed_money",
-      "amount": 10000,
-      "description": "School fees",
-      "date": "${new Date().toISOString().split('T')[0]}",
-      "person_name": "Priya",
-      "category_term": null
-    }
-  ]
-}
-
-Example 3:
-User query: "Paid electricity bill of 2400 on 2026-05-15"
-Output: {
-  "operations": [
-    {
-      "table": "expenses",
-      "amount": 2400,
-      "description": "Electricity bill",
-      "date": "2026-05-15",
-      "person_name": null,
-      "category_term": "Bills"
-    }
-  ]
-}
-`;
+            const systemPrompt = `Extract transactions into "operations" array.
+Fields: table ("expenses"|"lent_money"|"borrowed_money"), amount (number), description, date (YYYY-MM-DD. Today: ${new Date().toISOString().split('T')[0]}), person_name (null if not lending/borrowing), category_term (null if not expense).
+Examples:
+- "Spent 400 on cab yesterday and Rahul borrowed 500" -> {"operations":[{"table":"expenses","amount":400,"description":"Cab","date":"${(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })()}","person_name":null,"category_term":"Travel"},{"table":"lent_money","amount":500,"description":"Rahul borrowed","date":"${new Date().toISOString().split('T')[0]}","person_name":"Rahul","category_term":null}]}
+- "Borrowed 10k from Priya for school fees" -> {"operations":[{"table":"borrowed_money","amount":10000,"description":"School fees","date":"${new Date().toISOString().split('T')[0]}","person_name":"Priya","category_term":null}]}
+- "Paid light bill 2400" -> {"operations":[{"table":"expenses","amount":2400,"description":"Light bill","date":"${new Date().toISOString().split('T')[0]}","person_name":null,"category_term":"Bills"}]}`;
             const jsonSchema = {
                 type: "json_schema",
                 json_schema: {
@@ -145,11 +84,9 @@ Output: {
                 };
 
                 if (op.table === 'expenses') {
-                    // Try to auto-match category
-                    const matchedCat = categories.find(c =>
-                        c.name.toLowerCase().includes(op.category_term?.toLowerCase() || '')
-                    );
-                    payload.category_id = matchedCat?.id || categories[0]?.id; // Default to first if miss
+                    // Try to auto-match category using fuzzy synonym matcher
+                    const matchedCatId = matchCategory(op.category_term || op.description, categories);
+                    payload.category_id = matchedCatId || categories[0]?.id; // Default to first if miss
                 } else if (op.table === 'lent_money' || op.table === 'borrowed_money') {
                     payload.person_name = op.person_name || "Unknown";
                     payload.status = "pending";
