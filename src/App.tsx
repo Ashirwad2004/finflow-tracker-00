@@ -4,9 +4,12 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { CurrencyProvider } from "@/core/contexts/CurrencyContext";
 import { BusinessProvider } from "@/core/contexts/BusinessContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/core/lib/auth";
+import { supabase } from "@/core/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { ThemeInitializer } from "@/components/shared/ThemeToggle";
 import { AppAssistantGate } from "@/components/shared/AppAssistantGate";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -81,6 +84,85 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Admin route wrapper with database checks and whitelist backup
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Query is_admin from profiles
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["profile-is-admin", user?.id],
+    queryFn: async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from("profiles")
+          .select("is_admin")
+          .eq("user_id", user?.id || "")
+          .maybeSingle();
+        if (error) {
+          console.error("Supabase error fetching admin status:", error);
+          return { is_admin: false };
+        }
+        console.log("Fetched profile admin status:", data);
+        return data || { is_admin: false };
+      } catch (e) {
+        console.error("Exception fetching admin status:", e);
+        return { is_admin: false };
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 5, // Cache admin check for 5 mins
+  });
+
+  if (authLoading) {
+    return <PageLoader />;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // Determine admin status.
+  // Whitelist fallback: any email containing "admin@" or "ashirwad" is automatically allowed.
+  const isEmailAdmin = user.email?.toLowerCase().includes("admin@") || user.email?.toLowerCase().includes("ashirwad");
+  const isAdmin = profile?.is_admin === true || isEmailAdmin;
+
+  console.log("Admin check summary:", { 
+    userId: user.id, 
+    email: user.email, 
+    dbIsAdmin: profile?.is_admin, 
+    isEmailAdmin, 
+    isAdmin 
+  });
+
+  if (profileLoading && !isEmailAdmin) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6 bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-xl">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-white">Access Denied</h2>
+            <p className="text-slate-400 text-sm">
+              This area is restricted to system administrators. Your account ({user?.email}) does not have administrative privileges.
+            </p>
+          </div>
+          <Button onClick={() => navigate("/")} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+};
+
 import { useQueryCacheOffline } from "@/core/hooks/useQueryCacheOffline";
 
 const AppRoutes = () => {
@@ -111,7 +193,7 @@ const AppRoutes = () => {
         <Route path="/store/:storeSlug/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/store/:storeSlug/payment-failure" element={<PaymentFailurePage />} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><AdminDemoPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<AdminRoute><AdminDemoPage /></AdminRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

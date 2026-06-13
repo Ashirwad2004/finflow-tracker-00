@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Filter, PieChart, TrendingDown } from "lucide-react";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { CategoryIcon } from "@/components/shared/CategoryIcon";
 
 interface Category {
     id: string;
@@ -125,10 +126,14 @@ export const MonthlyExpenseReport = ({ expenses }: MonthlyExpenseReportProps) =>
                                             <div key={cat.detail.id} className="flex items-center justify-between text-sm">
                                                 <div className="flex items-center gap-2 truncate">
                                                     <div
-                                                        className="w-6 h-6 rounded flex items-center justify-center text-xs shadow-sm flex-shrink-0"
-                                                        style={{ backgroundColor: `${cat.detail.color}20`, color: cat.detail.color }}
+                                                        className="w-6 h-6 rounded flex items-center justify-center shadow-sm flex-shrink-0"
+                                                        style={{ backgroundColor: `${cat.detail.color}20` }}
                                                     >
-                                                        {cat.detail.icon}
+                                                        <CategoryIcon
+                                                            name={cat.detail.icon}
+                                                            className="w-3.5 h-3.5"
+                                                            color={cat.detail.color}
+                                                        />
                                                     </div>
                                                     <span className="truncate max-w-[120px]" title={cat.detail.name}>{cat.detail.name}</span>
                                                 </div>

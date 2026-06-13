@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { FileBarChart, HandCoins, Receipt, Users, TrendingUp, TrendingDown, RefreshCcw } from "lucide-react";
+import { CategoryIcon } from "@/components/shared/CategoryIcon";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { format } from "date-fns";
@@ -292,7 +293,16 @@ export default function PersonalReports() {
                                                 <td className="px-6 py-4 text-sm text-slate-500">{format(new Date(item.date), "MMM dd, yyyy")}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xl" style={{ color: item.categories?.color }}>{item.categories?.icon}</span>
+                                                        <div
+                                                            className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+                                                            style={{ backgroundColor: `${item.categories?.color}15` }}
+                                                        >
+                                                            <CategoryIcon
+                                                                name={item.categories?.icon}
+                                                                className="w-4 h-4"
+                                                                color={item.categories?.color}
+                                                            />
+                                                        </div>
                                                         <span className="font-semibold text-sm">{item.categories?.name}</span>
                                                     </div>
                                                 </td>

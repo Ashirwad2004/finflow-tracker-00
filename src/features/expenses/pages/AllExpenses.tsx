@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { cn } from "@/core/lib/utils";
 import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 import { generateFinanceInsight, FinanceInsight } from "@/core/integrations/ai/gemini";
+import { CategoryIcon } from "@/components/shared/CategoryIcon";
 
 const AllExpenses = () => {
   const { user } = useAuth();
@@ -339,10 +340,14 @@ const AllExpenses = () => {
                           className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
                         >
                           <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
+                            className="w-12 h-12 rounded-full flex items-center justify-center"
                             style={{ backgroundColor: `${expense.categories?.color}20` }}
                           >
-                            {expense.categories?.icon}
+                            <CategoryIcon
+                              name={expense.categories?.icon}
+                              className="w-5 h-5"
+                              color={expense.categories?.color}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{expense.description}</p>

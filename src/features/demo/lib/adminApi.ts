@@ -19,6 +19,7 @@ export interface AppUser {
   business_address?: string | null;
   business_logo?: string | null;
   signature_url?: string | null;
+  is_admin?: boolean;
   is_business_mode?: boolean;
 }
 
@@ -110,4 +111,22 @@ export async function getSystemHealth(): Promise<SystemHealth> {
       checkedAt: new Date().toISOString(),
     };
   }
+}
+
+// ---------- Role Management ----------
+
+/**
+ * Promotes or demotes an employee directly from the Admin UI using RPC.
+ */
+export async function toggleUserAdminStatus(targetUserId: string, makeAdmin: boolean): Promise<boolean> {
+  const { data, error } = await db.rpc("set_user_admin_status", {
+    target_user_id: targetUserId,
+    make_admin: makeAdmin,
+  });
+
+  if (error) {
+    console.error("[adminApi] toggleUserAdminStatus error:", error.message);
+    throw new Error(error.message);
+  }
+  return !!data;
 }

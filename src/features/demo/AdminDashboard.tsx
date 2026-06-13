@@ -74,6 +74,7 @@ import {
   getAppUsers,
   getTableCounts,
   getSystemHealth,
+  toggleUserAdminStatus,
   type AppUser,
   type SystemHealth,
   type SystemTableCount,
@@ -654,6 +655,22 @@ function UserDetailRow({ user, index }: { user: AppUser; index: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const initials = getInitials(user.full_name, user.email);
   const colorClass = AVATAR_COLORS[index % AVATAR_COLORS.length];
+  
+  const queryClient = useQueryClient();
+  const toggleAdminMutation = useMutation({
+    mutationFn: () => toggleUserAdminStatus(user.id, !user.is_admin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_users"] });
+      toast.success(
+        user.is_admin 
+          ? `Administrative privileges revoked for ${user.full_name || user.email}` 
+          : `Administrative privileges granted to ${user.full_name || user.email}`
+      );
+    },
+    onError: (err: any) => {
+      toast.error(`Role update failed: ${err.message}`);
+    }
+  });
 
   return (
     <motion.div
@@ -674,6 +691,11 @@ function UserDetailRow({ user, index }: { user: AppUser; index: number }) {
           <div>
             <div className="text-slate-100 text-sm font-semibold flex items-center gap-2">
               {user.full_name || <span className="italic text-slate-500 font-normal">Unnamed User</span>}
+              {user.is_admin && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="w-2.5 h-2.5" /> Admin
+                </span>
+              )}
               {user.is_business_mode && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-violet-500/20 text-violet-400 border border-violet-500/30">
                   <ShieldCheck className="w-2.5 h-2.5" /> Business
@@ -705,6 +727,19 @@ function UserDetailRow({ user, index }: { user: AppUser; index: number }) {
                 </DropdownMenuItem>
                 <DropdownMenuItem className="text-xs cursor-pointer focus:bg-slate-700" onClick={(e) => { e.stopPropagation(); toast.success("Email sent to " + user.email); }}>
                   <Mail className="w-3.5 h-3.5 mr-2 text-violet-400" /> Contact User
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="text-xs cursor-pointer focus:bg-slate-700" 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (window.confirm(user.is_admin ? `Are you sure you want to revoke admin access for ${user.full_name || user.email}?` : `Are you sure you want to make ${user.full_name || user.email} an admin?`)) {
+                      toggleAdminMutation.mutate(); 
+                    }
+                  }}
+                  disabled={toggleAdminMutation.isPending}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 mr-2 text-emerald-400" />
+                  {user.is_admin ? "Revoke Admin Access" : "Make Admin"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-slate-700" />
                 <DropdownMenuItem className="text-xs cursor-pointer focus:bg-red-500/20 text-red-400" onClick={(e) => { e.stopPropagation(); toast.success("Account suspended successfully."); }}>

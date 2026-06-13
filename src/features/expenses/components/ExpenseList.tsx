@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, FileText, Eye, FileDown, Building2, Pencil } from "lucide-react";
-import * as LucideIcons from "lucide-react";
+import { CategoryIcon } from "@/components/shared/CategoryIcon";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -217,14 +217,7 @@ export const ExpenseList = ({ expenses, isLoading, onEdit, onDelete, onDeleteAll
     );
   }
 
-  const getIcon = (iconName: string) => {
-    const iconKey = iconName.split('-').map((word: string) =>
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join('');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Icon = (LucideIcons as any)[iconKey];
-    return Icon || LucideIcons.Circle;
-  };
+
 
   return (
     <>
@@ -279,7 +272,6 @@ export const ExpenseList = ({ expenses, isLoading, onEdit, onDelete, onDeleteAll
               const categoryName = expense.categories?.name || 'Uncategorized';
               const categoryColor = expense.categories?.color || '#94a3b8'; // slate-400
               const iconName = expense.categories?.icon || 'circle';
-              const Icon = getIcon(iconName);
 
               return (
                 <motion.div
@@ -294,7 +286,7 @@ export const ExpenseList = ({ expenses, isLoading, onEdit, onDelete, onDeleteAll
                       className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm border border-black/5 dark:border-white/5"
                       style={{ backgroundColor: `${categoryColor}15` }}
                     >
-                      <Icon className="w-5 h-5" style={{ color: categoryColor }} />
+                      <CategoryIcon name={iconName} className="w-5 h-5" color={categoryColor} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

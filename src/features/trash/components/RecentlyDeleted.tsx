@@ -40,6 +40,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/core/lib/utils";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { CategoryIcon } from "@/components/shared/CategoryIcon";
 
 /* ---------------- TYPES ---------------- */
 
@@ -607,7 +608,11 @@ const DeletedItemRow = ({
 
       <div className={cn("w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-md", color)}>
         {item.type === "expense" && item.categories?.icon ? (
-          <span className="text-lg leading-none">{item.categories.icon}</span>
+          <CategoryIcon
+            name={item.categories.icon}
+            className="w-4 h-4"
+            color={item.categories.color}
+          />
         ) : (
           icon
         )}
