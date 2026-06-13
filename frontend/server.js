@@ -36,3 +36,5 @@ app.listen(PORT, () => {
     console.log(`Web App: http://localhost:${PORT}`);
     console.log(`Payments API: http://localhost:${PORT}/api/payments`);
 });
+
+export default app;
