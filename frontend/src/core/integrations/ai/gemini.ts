@@ -271,6 +271,7 @@ export async function generateBusinessInsight(input: {
     borrowed: any[];
     products: any[];
     currency?: string;
+    onlineStore?: any[];
 }) {
     const totalSales = input.sales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
     const totalPurchases = input.purchases.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);

@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { CurrencyProvider } from "@/core/contexts/CurrencyContext";
@@ -167,6 +167,30 @@ import { useQueryCacheOffline } from "@/core/hooks/useQueryCacheOffline";
 
 const AppRoutes = () => {
   useQueryCacheOffline();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // 1. Check if the URL hash contains recovery type on initial load or path change
+    const checkRecoveryHash = () => {
+      const hash = window.location.hash;
+      if (hash.includes("type=recovery")) {
+        navigate(`/auth?reset=true${hash}`, { replace: true });
+      }
+    };
+
+    checkRecoveryHash();
+
+    // 2. Listen to PASSWORD_RECOVERY auth event globally
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (event === "PASSWORD_RECOVERY") {
+          navigate("/auth?reset=true", { replace: true });
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   return (
     <Suspense fallback={<PageLoader />}>

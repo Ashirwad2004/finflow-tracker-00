@@ -10,6 +10,20 @@ import {
 
 export const paymentRouter = express.Router();
 
+// 0. Default Health/Status check for Payments API
+paymentRouter.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'FinFlow Payments API',
+    endpoints: {
+      createOrder: '/create-order',
+      verifyPayment: '/verify-payment',
+      webhook: '/webhook',
+      refund: '/refund'
+    }
+  });
+});
+
 // Helper to generate Invoice Number
 async function generateInvoiceNumber() {
   const year = new Date().getFullYear();

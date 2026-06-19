@@ -182,7 +182,7 @@ export default function Storefront() {
                         name: "Aroma Organic Coffee Beans (500g)",
                         price: 599,
                         unit: "pack",
-                        image_url: null,
+                        image_url: "/coffee-beans.png",
                         online_description: "Rich organic roasted coffee beans.",
                         stock_quantity: 15,
                     },
@@ -192,7 +192,7 @@ export default function Storefront() {
                         name: "Premium Thermal Flask (750ml)",
                         price: 1299,
                         unit: "piece",
-                        image_url: null,
+                        image_url: "/thermal-flask.png",
                         online_description: "Stainless steel thermal insulated flask.",
                         stock_quantity: 8,
                     }

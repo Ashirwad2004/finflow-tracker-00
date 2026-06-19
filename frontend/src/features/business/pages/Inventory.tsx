@@ -24,7 +24,7 @@ import {
     DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe, Sparkles, Loader2, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useForm, Controller } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
 import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
 import { ProductImageUpload } from "@/features/business/components/ProductImageUpload";
+import { ExcelImportDialog } from "@/features/business/components/ExcelImportDialog";
 import { generateProductContent } from "@/core/integrations/ai/gemini";
 
 interface Product {
@@ -93,6 +94,7 @@ export default function Inventory() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isGeneratingProductCopy, setIsGeneratingProductCopy] = useState(false);
 
@@ -380,6 +382,10 @@ export default function Inventory() {
                         <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="gap-2">
                             <Settings2 className="w-4 h-4" />
                             Item Settings
+                        </Button>
+                        <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2 border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/20 text-emerald-600 dark:text-emerald-400">
+                            <FileSpreadsheet className="w-4 h-4" />
+                            Import Excel
                         </Button>
                         <Button onClick={() => setIsAddDialogOpen(true)}>
                             <Plus className="w-4 h-4 mr-2" />
@@ -956,6 +962,14 @@ export default function Inventory() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+
+                {/* Excel Import Dialog */}
+                <ExcelImportDialog
+                    open={isImportDialogOpen}
+                    onClose={() => setIsImportDialogOpen(false)}
+                    userId={userId}
+                    existingProducts={products}
+                />
             </div>
         </AppLayout>
     );

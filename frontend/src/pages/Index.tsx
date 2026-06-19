@@ -113,7 +113,9 @@ const Index = () => {
     );
   }
 
-  if (user) {
+  const isRecovery = window.location.hash.includes("type=recovery");
+
+  if (user && !isRecovery) {
     return <Dashboard />;
   }
 
