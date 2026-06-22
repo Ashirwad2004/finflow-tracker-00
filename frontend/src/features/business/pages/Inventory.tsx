@@ -368,27 +368,27 @@ export default function Inventory() {
     return (
         <AppLayout>
             <div className="container mx-auto px-4 py-8">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
-                        <h1 className="text-3xl font-bold flex items-center gap-2">
-                            <Package className="w-8 h-8" />
+                        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+                            <Package className="w-8 h-8 shrink-0" />
                             Inventory Management
                         </h1>
-                        <p className="text-muted-foreground mt-1">
+                        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
                             Manage your products and stock levels
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="gap-2 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
                             <Settings2 className="w-4 h-4" />
                             Item Settings
                         </Button>
-                        <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2 border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/20 text-emerald-600 dark:text-emerald-400">
+                        <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2 border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/20 text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
                             <FileSpreadsheet className="w-4 h-4" />
-                            Import Excel
+                            Import / Export
                         </Button>
-                        <Button onClick={() => setIsAddDialogOpen(true)}>
-                            <Plus className="w-4 h-4 mr-2" />
+                        <Button onClick={() => setIsAddDialogOpen(true)} className="text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
+                            <Plus className="w-4 h-4 mr-1 sm:mr-2" />
                             Add Product
                         </Button>
                     </div>
@@ -421,7 +421,7 @@ export default function Inventory() {
                 </div>
 
                 {/* Products Table */}
-                <div className="border rounded-lg overflow-hidden bg-card">
+                <div className="border rounded-lg overflow-x-auto bg-card">
                     {isLoading ? (
                         <Table>
                             <TableHeader>
@@ -518,7 +518,7 @@ export default function Inventory() {
 
                 {/* Item Settings Dialog */}
                 <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                    <DialogContent className="sm:max-w-[520px]">
+                    <DialogContent className="max-w-[95vw] sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <Settings2 className="w-5 h-5 text-primary" />
@@ -643,7 +643,7 @@ export default function Inventory() {
 
                 {/* Add Product Dialog */}
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                    <DialogContent className="sm:max-w-[500px]">
+                    <DialogContent className="max-w-[95vw] sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Add New Product</DialogTitle>
                             <DialogDescription>
@@ -793,7 +793,7 @@ export default function Inventory() {
 
                 {/* Edit Product Dialog */}
                 <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                    <DialogContent className="sm:max-w-[500px]">
+                    <DialogContent className="max-w-[95vw] sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Edit Product</DialogTitle>
                             <DialogDescription>
