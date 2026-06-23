@@ -1,3 +1,5 @@
+import { Category, Expense, LocalExpenseClassifier } from "./localClassifier";
+
 // Financial Category Synonym Concepts for Advanced Matching
 export const CATEGORY_CONCEPTS: Record<string, string[]> = {
     "Food": ["lunch", "dinner", "breakfast", "coffee", "tea", "snack", "restaurant", "swiggy", "zomato", "grocery", "vegetables", "milk", "burger", "pizza", "food", "eat", "drink", "dining", "cafe", "starbucks"],
@@ -22,8 +24,23 @@ export const CONCEPT_SYNONYMS: Record<string, string[]> = {
 /**
  * Fuzzy matches a text term/concept to the closest available database category.
  */
-export function matchCategory(term: string | undefined | null, categories: { id: string; name: string }[]): string | undefined {
+export function matchCategory(
+  term: string | undefined | null,
+  categories: Category[],
+  expenses?: Expense[]
+): string | undefined {
     if (!term || !categories.length) return undefined;
+
+    // 1. Try local Naive Bayes AI classification if expenses history is available
+    if (expenses && expenses.length > 0) {
+        try {
+            const classifier = new LocalExpenseClassifier(expenses);
+            const predictedId = classifier.predictCategory(term, categories);
+            if (predictedId) return predictedId;
+        } catch (e) {
+            console.warn("Local Naive Bayes prediction failed:", e);
+        }
+    }
 
     const lowerTerm = term.toLowerCase().trim();
 

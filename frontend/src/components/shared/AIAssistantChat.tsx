@@ -167,7 +167,8 @@ Recent (Last 5) [Format: amount|desc|date|extra]:
             if (action.type === "add_expense") {
                 table = "expenses";
                 const cats = queryClient.getQueryData<any[]>(["categories"]) || [];
-                const matchedId = matchCategory(action.data.categoryName || action.data.description, cats);
+                const expenses = queryClient.getQueryData<any[]>(["expenses", user.id]) || [];
+                const matchedId = matchCategory(action.data.categoryName || action.data.description, cats, expenses);
                 payload = {
                     id: recordId,
                     user_id: user.id,

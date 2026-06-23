@@ -15,9 +15,10 @@ interface SmartExpenseInputProps {
     onParse: (data: { amount: string; description: string; categoryName?: string }) => void;
     disabled?: boolean;
     categories?: { name: string }[]; // Optional list of real categories
+    expenses?: any[];
 }
 
-export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartExpenseInputProps) => {
+export const SmartExpenseInput = ({ onParse, disabled, categories = [], expenses = [] }: SmartExpenseInputProps) => {
     const [input, setInput] = useState("");
     const [isAnimating, setIsAnimating] = useState(false);
 
@@ -39,7 +40,7 @@ export const SmartExpenseInput = ({ onParse, disabled, categories = [] }: SmartE
             name: c.name
         }));
         
-        const matchedId = matchCategory(description || input, formattedCats);
+        const matchedId = matchCategory(description || input, formattedCats, expenses);
         if (matchedId) {
             const match = formattedCats.find(c => c.id === matchedId);
             if (match) {

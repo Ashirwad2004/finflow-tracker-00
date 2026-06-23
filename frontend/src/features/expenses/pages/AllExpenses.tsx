@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddExpenseDialog } from "@/features/expenses/components/AddExpenseDialog";
 import { MagicAddExpense } from "@/features/expenses/components/MagicAddExpense";
 import { MonthlyExpenseReport } from "@/features/expenses/components/MonthlyExpenseReport";
+import { LocalAIPredictionsPanel } from "@/features/expenses/components/LocalAIPredictionsPanel";
 import { toast } from "@/core/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/core/lib/utils";
@@ -248,9 +249,10 @@ const AllExpenses = () => {
           {/* Tabs Container */}
           <Tabs defaultValue="transactions" className="space-y-6">
             <div className="flex items-center justify-between">
-              <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+              <TabsList className="grid w-full grid-cols-3 md:w-[500px]">
                 <TabsTrigger value="transactions">Transactions</TabsTrigger>
                 <TabsTrigger value="monthly-report">Monthly Report</TabsTrigger>
+                <TabsTrigger value="ai-predictions">AI Predictions</TabsTrigger>
               </TabsList>
             </div>
 
@@ -380,6 +382,10 @@ const AllExpenses = () => {
 
             <TabsContent value="monthly-report" className="mt-0">
               <MonthlyExpenseReport expenses={filteredExpenses} />
+            </TabsContent>
+
+            <TabsContent value="ai-predictions" className="mt-0">
+              <LocalAIPredictionsPanel expenses={expenses} categories={categories} />
             </TabsContent>
           </Tabs>
         </div>

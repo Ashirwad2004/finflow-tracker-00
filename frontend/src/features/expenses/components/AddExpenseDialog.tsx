@@ -46,6 +46,7 @@ import { cn } from "@/core/lib/utils";
 import { SmartExpenseInput } from "@/features/expenses/components/SmartExpenseInput";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useBusiness } from "@/core/contexts/BusinessContext";
+import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 /* ---------------- SCHEMAS & TYPES ---------------- */
 
@@ -101,6 +102,7 @@ export const AddExpenseDialog = ({
   const queryClient = useQueryClient();
   const { currency } = useCurrency();
   const { isBusinessMode } = useBusiness();
+  const { data: historicalExpenses = [] } = useExpensesQuery(userId);
 
   // State
   const [activeTab, setActiveTab] = useState(0);
@@ -455,7 +457,11 @@ export const AddExpenseDialog = ({
                 <Label className="text-xs font-semibold text-violet-500 mb-1.5 flex items-center gap-1 uppercase tracking-wide">
                   <Wand2 className="w-3 h-3" /> AI Smart Fill
                 </Label>
-                <SmartExpenseInput onParse={handleSmartParse} categories={categories} />
+                <SmartExpenseInput
+                  onParse={handleSmartParse}
+                  categories={categories}
+                  expenses={historicalExpenses}
+                />
                 <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
                   Try typing: "Lunch 250" or "Taxi 400"
                 </p>
