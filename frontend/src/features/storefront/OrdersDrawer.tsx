@@ -1,12 +1,19 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { supabase } from "@/core/integrations/supabase/client";
-import { PackageOpen, X, Loader2, AlertCircle } from "lucide-react";
+import { PackageOpen, X, Loader2, AlertCircle, CreditCard, Download, ArrowRightLeft, Camera, Upload, Image } from "lucide-react";
 import { isOrderDeclined } from "@/core/hooks/useStorefrontOrdersRealtime";
 
 import { generateInvoicePDF } from "@/core/utils/invoiceGenerator";
-import { CreditCard, Download } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
 
 interface OrdersDrawerProps {
     open: boolean;
@@ -25,7 +32,15 @@ export function OrdersDrawer({
     savedOrderIds,
     onPayOrder,
 }: OrdersDrawerProps) {
+    const queryClient = useQueryClient();
     const savedOrderIdsKey = savedOrderIds.join(",");
+
+    const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
+    const [returnOrder, setReturnOrder] = useState<any | null>(null);
+    const [returnReason, setReturnReason] = useState("");
+    const [returnFile, setReturnFile] = useState<File | null>(null);
+    const [returnPreview, setReturnPreview] = useState<string | null>(null);
+    const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
 
     // Re-read phone when drawer opens or when order list changes
     const savedPhone = useMemo(() => {
@@ -35,6 +50,18 @@ export function OrdersDrawer({
             return "";
         }
     }, [open, savedOrderIdsKey]);
+
+    const isWithin24Hours = (dateStr: string): boolean => {
+        if (!dateStr) return false;
+        try {
+            const orderTime = new Date(dateStr).getTime();
+            const nowTime = new Date().getTime();
+            const hoursDiff = (nowTime - orderTime) / (1000 * 60 * 60);
+            return hoursDiff <= 24;
+        } catch {
+            return false;
+        }
+    };
 
     // Primary: Fetch by phone (works across browsers/devices)
     // Fallback: Fetch by order IDs (legacy support)
@@ -83,9 +110,28 @@ export function OrdersDrawer({
                 });
             }
 
+            // Query return records for these orders
+            const returnsMap = new Map();
+            try {
+                const { data: returns, error: returnsError } = await supabase
+                    .from("order_returns")
+                    .select("*")
+                    .in("order_id", orderIds);
+                if (returnsError) {
+                    console.error("Error fetching returns for drawer:", returnsError);
+                } else if (returns) {
+                    returns.forEach((r: any) => {
+                        returnsMap.set(r.order_id, r);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to query order returns", err);
+            }
+
             return fetchedOrders.map((o: any) => ({
                 ...o,
-                payment: paymentsMap.get(o.id) || null
+                payment: paymentsMap.get(o.id) || null,
+                returnRequest: returnsMap.get(o.id) || null
             }));
         },
         enabled: !!(open && (savedPhone.trim() || savedOrderIds.length > 0)),
@@ -209,46 +255,99 @@ export function OrdersDrawer({
                                             </div>
                                         )}
 
-                                        {/* Action buttons (Download invoice / Pay Online) */}
-                                        <div className="flex gap-2 pt-2 border-t border-slate-100">
-                                            {order.payment?.status === 'success' ? (
-                                                <button
-                                                    onClick={() => {
-                                                        const invoiceNo = order.payment.invoices?.[0]?.invoice_number || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-                                                        generateInvoicePDF({
-                                                            invoiceNumber: invoiceNo,
-                                                            date: new Date(order.payment.created_at).toLocaleDateString(),
-                                                            storeName: "FinFlow Storefront",
-                                                            customerName: order.customer_name,
-                                                            customerPhone: order.customer_phone,
-                                                            customerAddress: order.customer_address,
-                                                            items: orderItems.map((it: any) => ({
-                                                                name: it.product_name || "Product Item",
-                                                                quantity: it.quantity || 1,
-                                                                price: Number(it.price_at_time || 0)
-                                                            })),
-                                                            subtotal: Number(order.total_amount) - Number(order.delivery_charge || 0),
-                                                            deliveryCharge: Number(order.delivery_charge || 0),
-                                                            totalAmount: Number(order.total_amount),
-                                                            paymentMethod: order.payment.payment_method || "online",
-                                                            status: order.payment.status
-                                                        });
-                                                    }}
-                                                    className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary/5 active:scale-[0.98] transition-all"
-                                                >
-                                                    <Download className="w-3.5 h-3.5" />
-                                                    Download Invoice
-                                                </button>
-                                            ) : order.payment?.status !== 'refunded' && onPayOrder ? (
-                                                <button
-                                                    onClick={() => onPayOrder(order)}
-                                                    className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl text-white text-xs font-black active:scale-[0.98] transition-all shadow-md"
-                                                    style={{ background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))" }}
-                                                >
-                                                    <CreditCard className="w-3.5 h-3.5" />
-                                                    Pay Online Now
-                                                </button>
-                                            ) : null}
+                                        {/* Action buttons (Download invoice / Pay Online / Return) */}
+                                        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                                            {order.returnRequest && (
+                                                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 text-xs space-y-1.5">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-bold text-slate-500">Return Status</span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                            order.returnRequest.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                            order.returnRequest.status === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                                            'bg-amber-100 text-amber-700 border border-amber-200'
+                                                        }`}>
+                                                            {order.returnRequest.status}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-slate-600 leading-normal">
+                                                        <span className="font-semibold text-slate-500">Reason:</span> {order.returnRequest.reason}
+                                                    </p>
+                                                    {order.returnRequest.image_url && (
+                                                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 mt-1 bg-white">
+                                                            <img 
+                                                                src={order.returnRequest.image_url} 
+                                                                alt="Returned product" 
+                                                                className="object-cover w-full h-full"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            <div className="flex gap-2">
+                                                {order.payment?.status === 'success' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const invoiceNo = order.payment.invoices?.[0]?.invoice_number || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                                                            generateInvoicePDF({
+                                                                invoiceNumber: invoiceNo,
+                                                                date: new Date(order.payment.created_at).toLocaleDateString(),
+                                                                storeName: "FinFlow Storefront",
+                                                                customerName: order.customer_name,
+                                                                customerPhone: order.customer_phone,
+                                                                customerAddress: order.customer_address,
+                                                                items: orderItems.map((it: any) => ({
+                                                                    name: it.product_name || "Product Item",
+                                                                    quantity: it.quantity || 1,
+                                                                    price: Number(it.price_at_time || 0)
+                                                                })),
+                                                                subtotal: Number(order.total_amount) - Number(order.delivery_charge || 0),
+                                                                deliveryCharge: Number(order.delivery_charge || 0),
+                                                                totalAmount: Number(order.total_amount),
+                                                                paymentMethod: order.payment.payment_method || "online",
+                                                                status: order.payment.status
+                                                            });
+                                                        }}
+                                                        className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary/5 active:scale-[0.98] transition-all"
+                                                    >
+                                                        <Download className="w-3.5 h-3.5" />
+                                                        Invoice
+                                                    </button>
+                                                )}
+
+                                                {order.status === 'completed' && !order.returnRequest && (
+                                                    isWithin24Hours(order.created_at) ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setReturnOrder(order);
+                                                                setReturnReason("");
+                                                                setReturnFile(null);
+                                                                setReturnPreview(null);
+                                                                setIsReturnDialogOpen(true);
+                                                            }}
+                                                            className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-xl border border-rose-250 text-rose-650 text-xs font-bold hover:bg-rose-50 active:scale-[0.98] transition-all"
+                                                        >
+                                                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                                                            Return Order
+                                                        </button>
+                                                    ) : (
+                                                        <span className="flex-1 text-center py-2 bg-slate-50 border border-slate-200/50 rounded-xl text-[10px] text-slate-400 font-bold tracking-tight">
+                                                            Return Window Expired (24h limit)
+                                                        </span>
+                                                    )
+                                                )}
+
+                                                {order.payment?.status !== 'success' && order.payment?.status !== 'refunded' && order.status !== 'completed' && onPayOrder && (
+                                                    <button
+                                                        onClick={() => onPayOrder(order)}
+                                                        className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl text-white text-xs font-black active:scale-[0.98] transition-all shadow-md"
+                                                        style={{ background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))" }}
+                                                    >
+                                                        <CreditCard className="w-3.5 h-3.5" />
+                                                        Pay Online
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -257,6 +356,145 @@ export function OrdersDrawer({
                     </div>
                 </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
+
+            {/* ── Return Request Dialog ── */}
+            <Dialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen}>
+                <DialogContent className="sm:max-w-md rounded-2xl bg-white border border-slate-100 shadow-2xl p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                            <ArrowRightLeft className="w-5 h-5 text-indigo-600" />
+                            Request Order Return
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-400">
+                            Please describe why you are returning this product and upload a photo of the product as proof.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form 
+                        onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!returnOrder || !returnReason.trim() || !returnFile) return;
+
+                            setIsSubmittingReturn(true);
+                            try {
+                                // 1. Upload to Supabase return-images bucket
+                                const fileExt = returnFile.name.split('.').pop();
+                                const fileName = `${returnOrder.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                                
+                                const { error: uploadError } = await supabase.storage
+                                    .from('return-images')
+                                    .upload(fileName, returnFile);
+                                    
+                                if (uploadError) throw uploadError;
+
+                                // 2. Get Public URL
+                                const { data: { publicUrl } } = supabase.storage
+                                    .from('return-images')
+                                    .getPublicUrl(fileName);
+
+                                // 3. Insert into order_returns
+                                const { error: insertError } = await supabase
+                                    .from('order_returns')
+                                    .insert({
+                                        order_id: returnOrder.id,
+                                        reason: returnReason.trim(),
+                                        image_url: publicUrl,
+                                        status: 'pending'
+                                    });
+
+                                if (insertError) throw insertError;
+
+                                // Success!
+                                setIsReturnDialogOpen(false);
+                                setReturnOrder(null);
+                                setReturnReason("");
+                                setReturnFile(null);
+                                setReturnPreview(null);
+                                
+                                // Refetch orders list to display return status
+                                queryClient.invalidateQueries({ queryKey: ["orderHistory"] });
+                            } catch (err) {
+                                console.error("Failed to submit return request:", err);
+                                alert("Error submitting return. Please try again.");
+                            } finally {
+                                setIsSubmittingReturn(false);
+                            }
+                        }} 
+                        className="space-y-4 pt-4"
+                    >
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-650 uppercase tracking-wider block">
+                                Reason for Return
+                            </label>
+                            <textarea
+                                placeholder="E.g., Product arrived damaged, wrong size, or parts missing."
+                                value={returnReason}
+                                onChange={(e) => setReturnReason(e.target.value)}
+                                className="w-full min-h-[80px] rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-650 uppercase tracking-wider block">
+                                Upload Product Image
+                            </label>
+                            <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-250 rounded-xl p-4 bg-slate-50 hover:bg-slate-100/50 transition-colors relative cursor-pointer group">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            setReturnFile(file);
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setReturnPreview(reader.result as string);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    required
+                                />
+                                {returnPreview ? (
+                                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200 bg-white">
+                                        <img src={returnPreview} alt="Preview" className="object-cover w-full h-full" />
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center gap-1.5 text-slate-400 group-hover:text-slate-500">
+                                        <Camera className="w-6 h-6 text-slate-450" />
+                                        <span className="text-xs font-bold">Choose a file or drop here</span>
+                                        <span className="text-[10px]">JPEG, PNG, WEBP (Max 5MB)</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <DialogFooter className="pt-4 border-t border-slate-100 flex gap-2 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setIsReturnDialogOpen(false)}
+                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 active:scale-[0.98] transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="h-10 px-4 rounded-xl text-white text-xs font-black active:scale-[0.98] transition-all shadow-md flex items-center justify-center gap-1.5"
+                                style={{ background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(290 80% 60%))" }}
+                                disabled={isSubmittingReturn}
+                            >
+                                {isSubmittingReturn ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    "Submit Return Request"
+                                )}
+                            </button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </DialogPrimitive.Root>
     );
 }

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +128,12 @@ export const LoginForm = ({ onToggleForgot }: { onToggleForgot: () => void }) =>
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Sign in
       </Button>
+
+      <div className="mt-4 text-center text-xs">
+        <Link to="/salesman-login" className="text-muted-foreground hover:text-primary font-semibold transition-colors">
+          Are you a salesman? Sign in here
+        </Link>
+      </div>
     </form>
   );
 };

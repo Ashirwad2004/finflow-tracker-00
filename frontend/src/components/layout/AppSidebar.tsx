@@ -166,12 +166,13 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
-  const { isBusinessMode, toggleBusinessMode } = useBusiness();
+  const { isBusinessMode, toggleBusinessMode, isSalesman, currentStoreId } = useBusiness();
   const [collapsed, setCollapsed] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleModeToggle = async (checked: boolean) => {
+    if (isSalesman) return;
     await toggleBusinessMode(checked);
     if (checked) {
       navigate('/business-dashboard');
@@ -181,37 +182,39 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   };
 
   const { data: pendingOrderCount = 0 } = useQuery({
-    queryKey: ["online_orders_pending_count", user?.id],
+    queryKey: ["online_orders_pending_count", currentStoreId],
     queryFn: async () => {
       const { count, error } = await (supabase as any)
         .from("online_orders")
         .select("id", { count: "exact", head: true })
-        .eq("store_id", user!.id)
+        .eq("store_id", currentStoreId)
         .eq("status", "pending");
       if (error) throw error;
       return count ?? 0;
     },
-    enabled: !!user && isBusinessMode,
+    enabled: !!currentStoreId && isBusinessMode,
     refetchInterval: 20_000,
   });
 
   const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
+    queryKey: ["profile", currentStoreId],
     queryFn: async () => {
       // @ts-ignore: types.ts might be incomplete
       const { data, error } = await (supabase as any)
         .from("profiles")
         .select("*")
-        .eq("user_id", user?.id || "")
+        .eq("user_id", currentStoreId || "")
         .single();
 
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!currentStoreId,
   });
 
-  const currentMenuItems = isBusinessMode ? businessMenuItems : personalMenuItems;
+  const currentMenuItems = isSalesman
+    ? businessMenuItems.filter(item => item.path === "/online-store" || item.path === "/settings")
+    : (isBusinessMode ? businessMenuItems : personalMenuItems);
 
   return (
     <aside
@@ -231,7 +234,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
               {isBusinessMode ? BRAND.businessLabel : BRAND.name}
             </h1>
             <p className="text-xs text-muted-foreground truncate">
-              {profile?.display_name ?? profile?.business_name ?? "Welcome"}
+              {isSalesman ? "Salesman Access" : (profile?.display_name ?? profile?.business_name ?? "Welcome")}
             </p>
           </div>
         )}
@@ -247,17 +250,30 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
       </Button>
 
-      {/* Mode Toggle */}
+      {/* Mode Toggle / Role Label */}
       <div className={cn(
         "px-4 py-3 border-b flex items-center transition-all duration-200",
         collapsed ? "justify-center" : "justify-between"
       )}>
-        {!collapsed && <span className="text-sm font-medium">Business Mode</span>}
-        <Switch
-          checked={isBusinessMode}
-          onCheckedChange={handleModeToggle}
-          title={isBusinessMode ? "Switch to Personal Mode" : "Switch to Business Mode"}
-        />
+        {isSalesman ? (
+          <>
+            {!collapsed && <span className="text-xs font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-wider">Salesman Session</span>}
+            <Switch
+              checked={true}
+              disabled={true}
+              title="Salesman forced Business Mode"
+            />
+          </>
+        ) : (
+          <>
+            {!collapsed && <span className="text-sm font-medium">Business Mode</span>}
+            <Switch
+              checked={isBusinessMode}
+              onCheckedChange={handleModeToggle}
+              title={isBusinessMode ? "Switch to Personal Mode" : "Switch to Business Mode"}
+            />
+          </>
+        )}
       </div>
 
       {/* Navigation */}

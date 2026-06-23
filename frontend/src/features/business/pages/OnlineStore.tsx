@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { useBusiness } from "@/core/contexts/BusinessContext";
 import { Badge } from "@/components/ui/badge";
 import {
     Select,
@@ -292,6 +293,7 @@ function OrderRow({
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function OnlineStore() {
     const { user } = useAuth();
+    const { currentStoreId, isSalesman } = useBusiness();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
@@ -315,6 +317,9 @@ export default function OnlineStore() {
     const [payStripeKey, setPayStripeKey] = useState("");
     const [payOnlineEnabled, setPayOnlineEnabled] = useState(false);
 
+    // Return image preview state
+    const [previewReturnImageUrl, setPreviewReturnImageUrl] = useState<string | null>(null);
+
     // Authorized request helper to include current Supabase JWT token
     const fetchWithAuth = async (url: string, options: any = {}) => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -331,32 +336,32 @@ export default function OnlineStore() {
 
     // React Query: Payments history list (with backend verification tracking)
     const { data: paymentsHistory = { payments: [], total: 0 }, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
-        queryKey: ["paymentsHistory", user?.id, searchQuery, statusFilter],
+        queryKey: ["paymentsHistory", currentStoreId, searchQuery, statusFilter],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/payments/admin/history?storeId=${user?.id}&search=${searchQuery}&status=${statusFilter}`);
+            const res = await fetchWithAuth(`/api/payments/admin/history?storeId=${currentStoreId}&search=${searchQuery}&status=${statusFilter}`);
             return res.data;
         },
-        enabled: !!user,
+        enabled: !!currentStoreId && !isSalesman,
     });
 
     // React Query: Gateway payment aggregated analytics
     const { data: analyticsData = { stats: null }, isLoading: isLoadingStats } = useQuery({
-        queryKey: ["paymentStats", user?.id],
+        queryKey: ["paymentStats", currentStoreId],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/payments/admin/stats?storeId=${user?.id}`);
+            const res = await fetchWithAuth(`/api/payments/admin/stats?storeId=${currentStoreId}`);
             return res.data;
         },
-        enabled: !!user,
+        enabled: !!currentStoreId && !isSalesman,
     });
 
     // React Query: Payment security Audit logs
     const { data: auditLogs = { logs: [] }, isLoading: isLoadingLogs } = useQuery({
-        queryKey: ["paymentLogs", user?.id],
+        queryKey: ["paymentLogs", currentStoreId],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/payments/admin/logs?storeId=${user?.id}`);
+            const res = await fetchWithAuth(`/api/payments/admin/logs?storeId=${currentStoreId}`);
             return res.data;
         },
-        enabled: !!user,
+        enabled: !!currentStoreId && !isSalesman,
     });
 
     // React Mutation: Initiate payment refund
@@ -374,8 +379,8 @@ export default function OnlineStore() {
                 description: "The payment has been refunded in full and updated.",
             });
             refetchHistory();
-            queryClient.invalidateQueries({ queryKey: ["paymentStats", user?.id] });
-            queryClient.invalidateQueries({ queryKey: ["paymentLogs", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["paymentStats", currentStoreId] });
+            queryClient.invalidateQueries({ queryKey: ["paymentLogs", currentStoreId] });
         },
         onError: (err: any) => {
             console.error("Refund processing error:", err);
@@ -405,12 +410,12 @@ export default function OnlineStore() {
 
     // Payment Settings Query & Mutation
     const { isLoading: isLoadingPaySettings } = useQuery({
-        queryKey: ["paymentSettings", user?.id],
+        queryKey: ["paymentSettings", currentStoreId],
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("upi_id, payment_gateway, razorpay_key_id, stripe_publishable_key, online_payment_enabled")
-                .eq("user_id", user?.id || "")
+                .eq("user_id", currentStoreId || "")
                 .maybeSingle();
             if (error) throw error;
             if (data) {
@@ -422,7 +427,7 @@ export default function OnlineStore() {
             }
             return data;
         },
-        enabled: !!user,
+        enabled: !!currentStoreId && !isSalesman,
     });
 
     const savePaymentSettings = useMutation({
@@ -436,12 +441,12 @@ export default function OnlineStore() {
                     stripe_publishable_key: payStripeKey || null,
                     online_payment_enabled: payOnlineEnabled,
                 })
-                .eq("user_id", user?.id || "");
+                .eq("user_id", currentStoreId || "");
             if (error) throw error;
         },
         onSuccess: () => {
             toast({ title: "Payment settings saved", description: "Your payment configuration has been updated." });
-            queryClient.invalidateQueries({ queryKey: ["paymentSettings", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["paymentSettings", currentStoreId] });
         },
         onError: (err: any) => {
             toast({ title: "Failed to save", description: err.message, variant: "destructive" });
@@ -450,18 +455,18 @@ export default function OnlineStore() {
 
     // Fetch store profile for invoice branding name
     const { data: storeProfile } = useQuery({
-        queryKey: ["storeProfile", user?.id],
+        queryKey: ["storeProfile", currentStoreId],
         queryFn: async () => {
-            if (!user?.id) return null;
+            if (!currentStoreId) return null;
             const { data, error } = await (supabase as any)
                 .from("profiles")
                 .select("*")
-                .eq("user_id", user?.id || "")
+                .eq("user_id", currentStoreId || "")
                 .single();
             if (error) throw error;
             return data;
         },
-        enabled: !!user?.id,
+        enabled: !!currentStoreId,
     });
 
     const chartData = useMemo(() => {
@@ -489,7 +494,7 @@ export default function OnlineStore() {
 
     // Fetch Orders — include nested order items + product name in a single query
     const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
-        queryKey: ["online_orders", user?.id],
+        queryKey: ["online_orders", currentStoreId],
         queryFn: async () => {
             const { data, error } = await (supabase.from as any)("online_orders")
                 .select(`
@@ -502,25 +507,25 @@ export default function OnlineStore() {
                         products ( name )
                     )
                 `)
-                .eq("store_id", user?.id)
+                .eq("store_id", currentStoreId)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
             return (data as unknown) as OnlineOrder[];
         },
-        enabled: !!user,
+        enabled: !!currentStoreId,
     });
 
 
     const updateOrderStatus = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-            if (!user?.id) throw new Error("User not authenticated");
+            if (!currentStoreId) throw new Error("Store not identified");
             const { error } = await offlineMutate({
                 table: "online_orders",
                 action: "update",
                 recordId: orderId,
                 payload: { status },
-                userId: user.id
+                userId: currentStoreId
             });
             if (error) throw error;
             return { orderId, status };
@@ -529,19 +534,19 @@ export default function OnlineStore() {
             const { orderId, status } = data;
 
             // Optimistic update for online_orders
-            queryClient.setQueryData(["online_orders", user?.id], (old: any) => {
+            queryClient.setQueryData(["online_orders", currentStoreId], (old: any) => {
                 return old ? old.map((o: any) => o.id === orderId ? { ...o, status } : o) : [];
             });
 
             // Optimistic update for pending count
-            queryClient.setQueryData(["online_orders_pending_count", user?.id], (old: any) => {
-                const orders: any[] = queryClient.getQueryData(["online_orders", user?.id]) || [];
+            queryClient.setQueryData(["online_orders_pending_count", currentStoreId], (old: any) => {
+                const orders: any[] = queryClient.getQueryData(["online_orders", currentStoreId]) || [];
                 return orders.filter((o: any) => o.status === "pending").length;
             });
 
             if (navigator.onLine) {
-                queryClient.invalidateQueries({ queryKey: ["online_orders"] });
-                queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
+                queryClient.invalidateQueries({ queryKey: ["online_orders", currentStoreId] });
+                queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count", currentStoreId] });
                 if (status === "rejected") {
                     queryClient.invalidateQueries({ queryKey: ["products"] });
                 }
@@ -550,9 +555,117 @@ export default function OnlineStore() {
         },
     });
 
-    // ── Real-time Order Subscription ──────────────────────────────────────────
+    // React Query: Returns list states
+    const [returnsRefreshInterval, setReturnsRefreshInterval] = useState<number | false>(10000);
+    const [lastUpdatedReturns, setLastUpdatedReturns] = useState<Date>(new Date());
+
+    const { data: orderReturns = [], isLoading: isLoadingReturns, isFetching: isFetchingReturns, refetch: refetchReturns } = useQuery({
+        queryKey: ["orderReturns", currentStoreId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("order_returns")
+                .select(`
+                    *,
+                    online_orders (
+                        id,
+                        customer_name,
+                        customer_phone,
+                        customer_address,
+                        total_amount,
+                        created_at
+                    )
+                `)
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                console.error("Error fetching returns:", error);
+                throw error;
+            }
+            setLastUpdatedReturns(new Date());
+            return data || [];
+        },
+        enabled: !!currentStoreId,
+        refetchInterval: returnsRefreshInterval,
+    });
+
+    const updateReturnStatus = useMutation({
+        mutationFn: async ({ returnId, status }: { returnId: string; status: string }) => {
+            const { error } = await supabase
+                .from("order_returns")
+                .update({ status })
+                .eq("id", returnId);
+            if (error) throw error;
+            return { returnId, status };
+        },
+        onSuccess: (data) => {
+            toast({ title: "Return Updated", description: `Return status has been set to ${data.status}.` });
+            refetchReturns();
+            queryClient.invalidateQueries({ queryKey: ["online_orders", currentStoreId] });
+        },
+        onError: (err: any) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+    });
+
+    // React Query: Salesmen list
+    const { data: salesmen = [], isLoading: isLoadingSalesmen, refetch: refetchSalesmen } = useQuery({
+        queryKey: ["storeSalesmen", currentStoreId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("store_salesmen")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                console.error("Error fetching salesmen:", error);
+                throw error;
+            }
+            return data || [];
+        },
+        enabled: !!currentStoreId && !isSalesman,
+    });
+
+    const addSalesman = useMutation({
+        mutationFn: async (newSalesman: { name: string; email: string; phone?: string; password?: string }) => {
+            const { error } = await supabase
+                .from("store_salesmen")
+                .insert({
+                    store_id: currentStoreId,
+                    salesman_email: newSalesman.email.trim().toLowerCase(),
+                    salesman_name: newSalesman.name.trim(),
+                    salesman_phone: newSalesman.phone?.trim() || null,
+                    salesman_password: newSalesman.password?.trim()
+                });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast({ title: "Salesman Added", description: "Salesman has been granted access to order fulfillment." });
+            refetchSalesmen();
+        },
+        onError: (err: any) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+    });
+
+    const removeSalesman = useMutation({
+        mutationFn: async (salesmanId: string) => {
+            const { error } = await supabase
+                .from("store_salesmen")
+                .delete()
+                .eq("id", salesmanId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast({ title: "Salesman Removed", description: "The salesman has been removed." });
+            refetchSalesmen();
+        },
+        onError: (err: any) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+    });
+
     useEffect(() => {
-        if (!user?.id) return;
+        if (!currentStoreId) return;
 
         // Play a subtle notification sound (optional, browsers may block if no interaction)
         const playNotificationSound = () => {
@@ -571,7 +684,7 @@ export default function OnlineStore() {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'online_orders',
-                    filter: `store_id=eq.${user.id}`,
+                    filter: `store_id=eq.${currentStoreId}`,
                 },
                 (payload) => {
                     playNotificationSound();
@@ -582,8 +695,8 @@ export default function OnlineStore() {
                     });
                     
                     // Invalidate to fetch fresh data including nested items
-                    queryClient.invalidateQueries({ queryKey: ["online_orders"] });
-                    queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
+                    queryClient.invalidateQueries({ queryKey: ["online_orders", currentStoreId] });
+                    queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count", currentStoreId] });
                 }
             )
             .on(
@@ -592,11 +705,29 @@ export default function OnlineStore() {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'online_orders',
-                    filter: `store_id=eq.${user.id}`,
+                    filter: `store_id=eq.${currentStoreId}`,
                 },
                 () => {
-                    queryClient.invalidateQueries({ queryKey: ["online_orders"] });
-                    queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count"] });
+                    queryClient.invalidateQueries({ queryKey: ["online_orders", currentStoreId] });
+                    queryClient.invalidateQueries({ queryKey: ["online_orders_pending_count", currentStoreId] });
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'order_returns',
+                },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        playNotificationSound();
+                        toast({
+                            title: "🔄 New Return Request!",
+                            description: "A customer has submitted a new return request."
+                        });
+                    }
+                    queryClient.invalidateQueries({ queryKey: ["orderReturns", currentStoreId] });
                 }
             )
             .subscribe();
@@ -604,7 +735,7 @@ export default function OnlineStore() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, queryClient, toast]);
+    }, [currentStoreId, queryClient, toast]);
 
 
     // Count by status for summary badges
@@ -656,84 +787,104 @@ export default function OnlineStore() {
                             Manage your public storefront and incoming online orders
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-muted-foreground">Showing:</span>
-                        <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-                            <SelectTrigger className="w-[160px] bg-background">
-                                <SelectValue placeholder="Select Period" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="today">Today</SelectItem>
-                                <SelectItem value="week">This Week</SelectItem>
-                                <SelectItem value="month">This Month</SelectItem>
-                                <SelectItem value="year">This Year</SelectItem>
-                                <SelectItem value="all">All Time</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {!isSalesman && (
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-muted-foreground">Showing:</span>
+                            <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+                                <SelectTrigger className="w-[160px] bg-background">
+                                    <SelectValue placeholder="Select Period" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="today">Today</SelectItem>
+                                    <SelectItem value="week">This Week</SelectItem>
+                                    <SelectItem value="month">This Month</SelectItem>
+                                    <SelectItem value="year">This Year</SelectItem>
+                                    <SelectItem value="all">All Time</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                 </div>
 
                 {/* SaaS Metrics Dashboard */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Revenue</span>
-                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                                <Activity className="w-4 h-4 text-emerald-600" />
+                {!isSalesman && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Revenue</span>
+                                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                    <Activity className="w-4 h-4 text-emerald-600" />
+                                </div>
                             </div>
+                            <span className="text-2xl font-black text-foreground">{formatCurrency(filteredSales)}</span>
                         </div>
-                        <span className="text-2xl font-black text-foreground">{formatCurrency(filteredSales)}</span>
-                    </div>
-                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Orders</span>
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                <ShoppingBag className="w-4 h-4 text-blue-600" />
+                        <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Orders</span>
+                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <ShoppingBag className="w-4 h-4 text-blue-600" />
+                                </div>
                             </div>
+                            <span className="text-2xl font-black text-foreground">{filteredOrdersCount}</span>
                         </div>
-                        <span className="text-2xl font-black text-foreground">{filteredOrdersCount}</span>
-                    </div>
-                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg. Order Value</span>
-                            <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-                                <BarChart3 className="w-4 h-4 text-violet-600" />
+                        <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg. Order Value</span>
+                                <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                                    <BarChart3 className="w-4 h-4 text-violet-600" />
+                                </div>
                             </div>
+                            <span className="text-2xl font-black text-foreground">{formatCurrency(avgOrderValue)}</span>
                         </div>
-                        <span className="text-2xl font-black text-foreground">{formatCurrency(avgOrderValue)}</span>
-                    </div>
-                    <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Delivery Fees</span>
-                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
-                                <MapPin className="w-4 h-4 text-amber-600" />
+                        <div className="bg-card rounded-xl border shadow-sm p-5 flex flex-col justify-between transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Delivery Fees</span>
+                                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                                    <MapPin className="w-4 h-4 text-amber-600" />
+                                </div>
                             </div>
+                            <span className="text-2xl font-black text-foreground">{formatCurrency(filteredDeliveryFee)}</span>
                         </div>
-                        <span className="text-2xl font-black text-foreground">{formatCurrency(filteredDeliveryFee)}</span>
                     </div>
-                </div>
+                )}
 
                 <div className="flex-1">
                     <Tabs defaultValue="orders" className="w-full space-y-6">
-                        <TabsList className="grid grid-cols-6 h-12 w-full max-w-5xl bg-muted/65 p-1 rounded-xl border">
+                        <TabsList className={`grid h-12 w-full bg-muted/65 p-1 rounded-xl border ${
+                            isSalesman ? "grid-cols-2 max-w-xs" : "grid-cols-8 max-w-6xl"
+                        }`}>
                             <TabsTrigger value="orders" className="rounded-lg text-xs font-semibold">
                                 Orders
                             </TabsTrigger>
-                            <TabsTrigger value="payments" className="rounded-lg text-xs font-semibold">
-                                Payments
+                            {!isSalesman && (
+                                <>
+                                    <TabsTrigger value="payments" className="rounded-lg text-xs font-semibold">
+                                        Payments
+                                    </TabsTrigger>
+                                    <TabsTrigger value="refunds" className="rounded-lg text-xs font-semibold font-semibold">
+                                        Refunds
+                                    </TabsTrigger>
+                                </>
+                            )}
+                            <TabsTrigger value="returns" className="rounded-lg text-xs font-semibold">
+                                Returns
                             </TabsTrigger>
-                            <TabsTrigger value="refunds" className="rounded-lg text-xs font-semibold">
-                                Refunds
-                            </TabsTrigger>
-                            <TabsTrigger value="analytics" className="rounded-lg text-xs font-semibold">
-                                Analytics
-                            </TabsTrigger>
-                            <TabsTrigger value="audit" className="rounded-lg text-xs font-semibold">
-                                Audit
-                            </TabsTrigger>
-                            <TabsTrigger value="pay-settings" className="rounded-lg text-xs font-semibold">
-                                <CreditCard className="w-3 h-3 mr-1" /> Pay Setup
-                            </TabsTrigger>
+                            {!isSalesman && (
+                                <>
+                                    <TabsTrigger value="salesmen" className="rounded-lg text-xs font-semibold">
+                                        Salesmen
+                                    </TabsTrigger>
+                                    <TabsTrigger value="analytics" className="rounded-lg text-xs font-semibold">
+                                        Analytics
+                                    </TabsTrigger>
+                                    <TabsTrigger value="audit" className="rounded-lg text-xs font-semibold">
+                                        Audit
+                                    </TabsTrigger>
+                                    <TabsTrigger value="pay-settings" className="rounded-lg text-xs font-semibold">
+                                        <CreditCard className="w-3 h-3 mr-1" /> Pay Setup
+                                    </TabsTrigger>
+                                </>
+                            )}
                         </TabsList>
 
                         {/* ── 1. INCOMING ORDERS TAB ── */}
@@ -1020,8 +1171,294 @@ export default function OnlineStore() {
                                         </Table>
                                     )}
                                 </div>
+                             </div>
+                        </TabsContent>
+
+                        {/* ── RETURNS MANAGEMENT TAB ── */}
+                        <TabsContent value="returns" className="space-y-4">
+                            <div className="bg-card border rounded-xl shadow-sm">
+                                <div className="p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-xl font-semibold">Order Return Requests</h2>
+                                        <Badge variant="secondary">{orderReturns.length} total</Badge>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        {/* Status Indicator */}
+                                        {returnsRefreshInterval ? (
+                                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-450 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/30">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                </span>
+                                                <span className="font-semibold">Live Monitoring ({returnsRefreshInterval / 1000}s)</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-full border">
+                                                <span className="h-2 w-2 rounded-full bg-slate-400"></span>
+                                                <span className="font-semibold">Monitoring Paused</span>
+                                            </div>
+                                        )}
+
+                                        {/* Last Updated Timestamp */}
+                                        <span className="text-xs text-muted-foreground hidden md:inline">
+                                            Last updated: {lastUpdatedReturns.toLocaleTimeString()}
+                                        </span>
+
+                                        {/* Interval Selector */}
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-xs text-muted-foreground whitespace-nowrap">Interval:</span>
+                                            <Select
+                                                value={returnsRefreshInterval === false ? "off" : returnsRefreshInterval.toString()}
+                                                onValueChange={(val) => {
+                                                    if (val === "off") {
+                                                        setReturnsRefreshInterval(false);
+                                                    } else {
+                                                        setReturnsRefreshInterval(Number(val));
+                                                    }
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-8 w-[80px] text-xs">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="off">Off</SelectItem>
+                                                    <SelectItem value="5000">5s</SelectItem>
+                                                    <SelectItem value="10000">10s</SelectItem>
+                                                    <SelectItem value="30000">30s</SelectItem>
+                                                    <SelectItem value="60000">1m</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Manual Refresh Button */}
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 px-2.5 gap-1.5 text-xs"
+                                            onClick={() => refetchReturns()}
+                                            disabled={isFetchingReturns}
+                                        >
+                                            <RefreshCw className={`w-3.5 h-3.5 ${isFetchingReturns ? 'animate-spin' : ''}`} />
+                                            <span className="hidden sm:inline">Refresh</span>
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="p-0">
+                                    {isLoadingReturns ? (
+                                        <div className="flex items-center justify-center py-20">
+                                            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                        </div>
+                                    ) : !orderReturns || orderReturns.length === 0 ? (
+                                        <div className="text-center py-20 px-4">
+                                            <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                                                <ArrowRightLeft className="w-6 h-6 text-muted-foreground" />
+                                            </div>
+                                            <h3 className="text-base font-semibold mb-1">No return requests</h3>
+                                            <p className="text-xs text-muted-foreground">Return requests submitted by storefront customers will appear here.</p>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Customer</TableHead>
+                                                    <TableHead>Order Info</TableHead>
+                                                    <TableHead>Return Date</TableHead>
+                                                    <TableHead>Reason</TableHead>
+                                                    <TableHead>Product Photo</TableHead>
+                                                    <TableHead>Status</TableHead>
+                                                    <TableHead className="text-right">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {orderReturns.map((ret: any) => {
+                                                    const ord = ret.online_orders || {};
+                                                    const formattedRetDate = new Date(ret.created_at).toLocaleDateString("en-IN", {
+                                                        day: "numeric",
+                                                        month: "short",
+                                                        year: "numeric"
+                                                    });
+                                                    return (
+                                                        <TableRow key={ret.id}>
+                                                            <TableCell>
+                                                                <div className="font-semibold text-sm">{ord.customer_name || "N/A"}</div>
+                                                                <div className="text-xs text-muted-foreground mt-0.5">{ord.customer_phone || "N/A"}</div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <div className="text-xs font-semibold">Order ID: {ret.order_id.slice(0, 8)}…</div>
+                                                                <div className="text-xs text-muted-foreground mt-0.5">Amount: {formatCurrency(ord.total_amount || 0)}</div>
+                                                            </TableCell>
+                                                            <TableCell className="text-xs">
+                                                                {formattedRetDate}
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-slate-700 max-w-[200px] truncate" title={ret.reason}>
+                                                                {ret.reason}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {ret.image_url ? (
+                                                                    <div 
+                                                                        className="relative w-10 h-10 rounded-lg overflow-hidden border border-border bg-muted cursor-pointer hover:opacity-85 transition-opacity"
+                                                                        onClick={() => setPreviewReturnImageUrl(ret.image_url)}
+                                                                    >
+                                                                        <img src={ret.image_url} alt="Return product proof" className="object-cover w-full h-full" />
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-xs text-muted-foreground italic">No image</span>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge className={
+                                                                    ret.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-100 text-[10px]' :
+                                                                    ret.status === 'rejected' ? 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-100 text-[10px]' :
+                                                                    'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100 text-[10px]'
+                                                                }>
+                                                                    {ret.status.toUpperCase()}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-right space-x-2">
+                                                                {ret.status === 'pending' ? (
+                                                                    <>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="h-8 rounded-lg text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
+                                                                            disabled={updateReturnStatus.isPending}
+                                                                            onClick={() => updateReturnStatus.mutate({ returnId: ret.id, status: 'approved' })}
+                                                                        >
+                                                                            Approve
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="h-8 rounded-lg text-xs bg-rose-50 text-rose-750 hover:bg-rose-100 border-rose-200"
+                                                                            disabled={updateReturnStatus.isPending}
+                                                                            onClick={() => updateReturnStatus.mutate({ returnId: ret.id, status: 'rejected' })}
+                                                                        >
+                                                                            Reject
+                                                                        </Button>
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="text-xs text-muted-foreground italic">Processed</span>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
                             </div>
                         </TabsContent>
+
+                        {/* ── SALESMEN MANAGEMENT TAB ── */}
+                        {!isSalesman && (
+                            <TabsContent value="salesmen" className="space-y-6 animate-fade-in">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Left: Add Salesman Form */}
+                                    <div className="bg-card border rounded-xl shadow-sm p-6 h-fit space-y-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold">Add New Salesman</h3>
+                                            <p className="text-xs text-muted-foreground">Assign a salesman by their email to grant order completion access</p>
+                                        </div>
+                                        <form onSubmit={(e) => {
+                                             e.preventDefault();
+                                             const formData = new FormData(e.target as HTMLFormElement);
+                                             const name = formData.get("name") as string;
+                                             const email = formData.get("email") as string;
+                                             const phone = formData.get("phone") as string;
+                                             const password = formData.get("password") as string;
+                                             addSalesman.mutate({ name, email, phone, password }, {
+                                                 onSuccess: () => {
+                                                     (e.target as HTMLFormElement).reset();
+                                                 }
+                                             });
+                                         }} className="space-y-3.5">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="salesman-name">Full Name <span className="text-red-400">*</span></Label>
+                                                <Input id="salesman-name" name="name" placeholder="John Doe" required className="h-10 rounded-xl" />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="salesman-email">Email Address <span className="text-red-400">*</span></Label>
+                                                <Input id="salesman-email" name="email" type="email" placeholder="john@example.com" required className="h-10 rounded-xl" />
+                                                <p className="text-[10px] text-muted-foreground">The salesman will use this email address to log in.</p>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="salesman-password">Password <span className="text-red-400">*</span></Label>
+                                                <Input id="salesman-password" name="password" type="text" placeholder="Create a password" required className="h-10 rounded-xl" />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="salesman-phone">Phone Number</Label>
+                                                <Input id="salesman-phone" name="phone" placeholder="+91 98765 43210" className="h-10 rounded-xl" />
+                                            </div>
+                                            <Button type="submit" className="w-full h-10 rounded-xl font-semibold mt-2" disabled={addSalesman.isPending}>
+                                                {addSalesman.isPending ? (
+                                                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</>
+                                                ) : (
+                                                    "Grant Access"
+                                                )}
+                                            </Button>
+                                        </form>
+                                    </div>
+
+                                    {/* Right: Active Salesmen List */}
+                                    <div className="lg:col-span-2 bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
+                                        <div className="p-6 border-b flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold">Active Salesmen</h3>
+                                                <p className="text-xs text-muted-foreground">List of authorized salesmen who can process and complete delivery orders</p>
+                                            </div>
+                                            <Badge variant="secondary" className="px-2.5 py-0.5 rounded-full">{salesmen.length} active</Badge>
+                                        </div>
+
+                                        {isLoadingSalesmen ? (
+                                            <div className="flex items-center justify-center py-20 flex-1">
+                                                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                            </div>
+                                        ) : salesmen.length === 0 ? (
+                                            <div className="text-center py-24 px-4 flex-1">
+                                                <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <User className="w-6 h-6 text-muted-foreground" />
+                                                </div>
+                                                <h4 className="text-sm font-bold mb-1">No salesmen assigned yet</h4>
+                                                <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                                                    Use the form on the left to add a salesman and give them access to order fulfillment.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="divide-y divide-border flex-1">
+                                                {salesmen.map((slm: any) => (
+                                                    <div key={slm.id} className="flex items-center justify-between p-5 hover:bg-muted/10 transition-colors">
+                                                        <div className="space-y-1">
+                                                            <div className="font-bold text-sm text-foreground">{slm.salesman_name}</div>
+                                                            <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                                                <span className="font-mono">{slm.salesman_email}</span>
+                                                                {slm.salesman_phone && (
+                                                                    <>
+                                                                        <span className="text-border">·</span>
+                                                                        <span>{slm.salesman_phone}</span>
+                                                                    </>
+                                                                )}
+                                                                <span className="text-border">·</span>
+                                                                <span className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-slate-700 dark:text-slate-300">Pwd: {slm.salesman_password}</span>
+                                                            </div>
+                                                        </div>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-8 border-rose-200 text-rose-650 hover:bg-rose-55 hover:text-rose-700 bg-rose-50/10 rounded-lg text-xs"
+                                                            onClick={() => removeSalesman.mutate(slm.id)}
+                                                            disabled={removeSalesman.isPending}
+                                                        >
+                                                            Revoke Access
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </TabsContent>
+                        )}
 
                         {/* ── 4. REVENUE ANALYTICS TAB ── */}
                         <TabsContent value="analytics" className="space-y-6">
@@ -1356,6 +1793,29 @@ export default function OnlineStore() {
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Return Photo Fullscreen Dialog ── */}
+            <Dialog open={!!previewReturnImageUrl} onOpenChange={() => setPreviewReturnImageUrl(null)}>
+                <DialogContent className="max-w-2xl bg-card border border-border shadow-2xl p-6 rounded-2xl flex flex-col items-center">
+                    <DialogHeader className="w-full pb-3 border-b">
+                        <DialogTitle className="text-base font-bold">Return Product Verification Photo</DialogTitle>
+                    </DialogHeader>
+                    {previewReturnImageUrl && (
+                        <div className="relative max-h-[70vh] w-full overflow-hidden rounded-xl border border-border bg-muted mt-4">
+                            <img 
+                                src={previewReturnImageUrl} 
+                                alt="Return product proof fullscreen" 
+                                className="object-contain w-full h-auto max-h-[60vh] mx-auto" 
+                            />
+                        </div>
+                    )}
+                    <DialogFooter className="w-full pt-4 border-t mt-4 flex justify-end">
+                        <Button onClick={() => setPreviewReturnImageUrl(null)} className="rounded-xl h-10 px-6 font-bold">
+                            Close Preview
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </AppLayout>

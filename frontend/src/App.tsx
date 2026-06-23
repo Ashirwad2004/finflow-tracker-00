@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { CurrencyProvider } from "@/core/contexts/CurrencyContext";
-import { BusinessProvider } from "@/core/contexts/BusinessContext";
+import { BusinessProvider, useBusiness } from "@/core/contexts/BusinessContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
@@ -17,6 +17,8 @@ import Index from "@/pages/Index";
 
 // Lazy-loaded pages
 const Auth = lazy(() => import("@/features/auth/Auth"));
+const SalesmanLogin = lazy(() => import("@/features/auth/SalesmanLogin"));
+const SalesmanDashboard = lazy(() => import("@/features/salesman/pages/SalesmanDashboard"));
 const Groups = lazy(() => import("@/features/groups/Groups"));
 const GroupDetail = lazy(() => import("@/features/groups/GroupDetail"));
 const JoinGroup = lazy(() => import("@/features/groups/JoinGroup"));
@@ -79,6 +81,49 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Salesman route wrapper
+const SalesmanRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  const { isSalesman, isLoading: businessLoading } = useBusiness();
+
+  if (loading || businessLoading) {
+    return <PageLoader />;
+  }
+
+  // If identified as a salesman (e.g. via local session), allow access directly
+  if (isSalesman) {
+    return <>{children}</>;
+  }
+
+  // Otherwise, check if user is logged in
+  if (!user) {
+    return <Navigate to="/salesman-login" replace />;
+  }
+
+  // If logged in as standard merchant, redirect to business dashboard
+  return <Navigate to="/business-dashboard" replace />;
+};
+
+// Merchant route wrapper (excludes salesmen)
+const MerchantRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  const { isSalesman, isLoading: businessLoading } = useBusiness();
+
+  if (loading || businessLoading) {
+    return <PageLoader />;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (isSalesman) {
+    return <Navigate to="/salesman-dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -197,26 +242,28 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/auth" element={<Auth />} />
-        <Route path="/expenses" element={<ProtectedRoute><AllExpenses /></ProtectedRoute>} />
-        <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-        <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
+        <Route path="/salesman-login" element={<SalesmanLogin />} />
+        <Route path="/expenses" element={<MerchantRoute><AllExpenses /></MerchantRoute>} />
+        <Route path="/groups" element={<MerchantRoute><Groups /></MerchantRoute>} />
+        <Route path="/groups/:groupId" element={<MerchantRoute><GroupDetail /></MerchantRoute>} />
         <Route path="/join/:inviteCode" element={<JoinGroup />} />
-        <Route path="/lent-money" element={<ProtectedRoute><LentMoney /></ProtectedRoute>} />
-        <Route path="/borrowed-money" element={<ProtectedRoute><BorrowedMoney /></ProtectedRoute>} />
-        <Route path="/personal-reports" element={<ProtectedRoute><PersonalReportsPage /></ProtectedRoute>} />
-        <Route path="/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
-        <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
-        <Route path="/business-dashboard" element={<ProtectedRoute><AppLayout><BusinessDashboardPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/print-studio" element={<ProtectedRoute><PrintStudioPage /></ProtectedRoute>} />
-        <Route path="/parties" element={<ProtectedRoute><PartiesPage /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
-        <Route path="/online-store" element={<ProtectedRoute><OnlineStorePage /></ProtectedRoute>} />
+        <Route path="/lent-money" element={<MerchantRoute><LentMoney /></MerchantRoute>} />
+        <Route path="/borrowed-money" element={<MerchantRoute><BorrowedMoney /></MerchantRoute>} />
+        <Route path="/personal-reports" element={<MerchantRoute><PersonalReportsPage /></MerchantRoute>} />
+        <Route path="/recently-deleted" element={<MerchantRoute><RecentlyDeletedPage /></MerchantRoute>} />
+        <Route path="/settings" element={<MerchantRoute><SettingsPage /></MerchantRoute>} />
+        <Route path="/sales" element={<MerchantRoute><SalesPage /></MerchantRoute>} />
+        <Route path="/purchases" element={<MerchantRoute><PurchasesPage /></MerchantRoute>} />
+        <Route path="/business-dashboard" element={<MerchantRoute><AppLayout><BusinessDashboardPage /></AppLayout></MerchantRoute>} />
+        <Route path="/print-studio" element={<MerchantRoute><PrintStudioPage /></MerchantRoute>} />
+        <Route path="/parties" element={<MerchantRoute><PartiesPage /></MerchantRoute>} />
+        <Route path="/inventory" element={<MerchantRoute><InventoryPage /></MerchantRoute>} />
+        <Route path="/online-store" element={<MerchantRoute><OnlineStorePage /></MerchantRoute>} />
+        <Route path="/salesman-dashboard" element={<SalesmanRoute><SalesmanDashboard /></SalesmanRoute>} />
         <Route path="/store/:storeSlug" element={<StorefrontPage />} />
         <Route path="/store/:storeSlug/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/store/:storeSlug/payment-failure" element={<PaymentFailurePage />} />
-        <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+        <Route path="/reports" element={<MerchantRoute><ReportsPage /></MerchantRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminDemoPage /></AdminRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

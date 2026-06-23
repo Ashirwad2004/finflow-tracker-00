@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { BookDemoModal } from "@/features/demo/BookDemoModal";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
+import { useBusiness } from "@/core/contexts/BusinessContext";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,7 @@ import { InteractivePlayground } from "@/features/landing/components/Interactive
 
 const Index = () => {
   const { user, loading } = useAuth();
+  const { isSalesman } = useBusiness();
   const navigate = useNavigate();
   const targetRef = useRef<HTMLDivElement>(null);
   const [demoOpen, setDemoOpen] = useState(false);
@@ -116,6 +118,9 @@ const Index = () => {
   const isRecovery = window.location.hash.includes("type=recovery");
 
   if (user && !isRecovery) {
+    if (isSalesman) {
+      return <Navigate to="/salesman-dashboard" replace />;
+    }
     return <Dashboard />;
   }
 

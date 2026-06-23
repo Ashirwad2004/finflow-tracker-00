@@ -6,6 +6,10 @@ type BusinessContextType = {
     isBusinessMode: boolean;
     toggleBusinessMode: (value: boolean) => Promise<void>;
     isLoading: boolean;
+    isSalesman: boolean;
+    salesmanStoreId: string | null;
+    currentStoreId: string | null;
+    setSalesmanSession: (session: { store_id: string; email: string; name: string } | null) => void;
 };
 
 const BusinessContext = createContext<BusinessContextType | undefined>(undefined);
@@ -14,16 +18,69 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
     const { user } = useAuth();
     const [isBusinessMode, setIsBusinessMode] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSalesman, setIsSalesman] = useState(false);
+    const [salesmanStoreId, setSalesmanStoreId] = useState<string | null>(null);
+
+    const setSalesmanSession = (session: { store_id: string; email: string; name: string } | null) => {
+        if (session) {
+            localStorage.setItem("salesman_session", JSON.stringify(session));
+            setIsSalesman(true);
+            setSalesmanStoreId(session.store_id);
+            setIsBusinessMode(true);
+        } else {
+            localStorage.removeItem("salesman_session");
+            setIsSalesman(false);
+            setSalesmanStoreId(null);
+        }
+    };
 
     // Fetch initial state
     useEffect(() => {
         const fetchSettings = async () => {
+            // First check if there is a local salesman session in localStorage
+            try {
+                const storedSession = localStorage.getItem("salesman_session");
+                if (storedSession) {
+                    const session = JSON.parse(storedSession);
+                    if (session && session.store_id) {
+                        setIsSalesman(true);
+                        setSalesmanStoreId(session.store_id);
+                        setIsBusinessMode(true);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error("Error reading salesman session from localStorage:", e);
+            }
+
             if (!user) {
+                setIsSalesman(false);
+                setSalesmanStoreId(null);
                 setIsLoading(false);
                 return;
             }
 
             try {
+                // Check if user is a salesman
+                const { data: salesmanData } = await supabase
+                    .from('store_salesmen')
+                    .select('store_id')
+                    .eq('salesman_email', user.email || '')
+                    .maybeSingle();
+
+                if (salesmanData) {
+                    setIsSalesman(true);
+                    setSalesmanStoreId((salesmanData as any).store_id);
+                    setIsBusinessMode(true); // Force business mode for salesmen
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Reset salesman flags if not assigned
+                setIsSalesman(false);
+                setSalesmanStoreId(null);
+
                 // Use any cast to avoid TS errors if column is missing from generated types
                 const { data, error } = await supabase
                     .from('profiles')
@@ -50,7 +107,7 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
     }, [user]);
 
     const toggleBusinessMode = async (value: boolean) => {
-        if (!user) return;
+        if (!user || isSalesman) return;
 
         setIsBusinessMode(value); // Optimistic update
 
@@ -66,8 +123,18 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
         }
     };
 
+    const currentStoreId = isSalesman ? salesmanStoreId : (user?.id || null);
+
     return (
-        <BusinessContext.Provider value={{ isBusinessMode, toggleBusinessMode, isLoading }}>
+        <BusinessContext.Provider value={{ 
+            isBusinessMode, 
+            toggleBusinessMode, 
+            isLoading, 
+            isSalesman, 
+            salesmanStoreId, 
+            currentStoreId,
+            setSalesmanSession
+        }}>
             {children}
         </BusinessContext.Provider>
     );
