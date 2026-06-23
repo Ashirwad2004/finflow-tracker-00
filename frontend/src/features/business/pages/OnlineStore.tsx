@@ -320,6 +320,10 @@ export default function OnlineStore() {
     // Return image preview state
     const [previewReturnImageUrl, setPreviewReturnImageUrl] = useState<string | null>(null);
 
+    // Salesman creation default permissions
+    const [newSalesmanOrders, setNewSalesmanOrders] = useState(true);
+    const [newSalesmanReturns, setNewSalesmanReturns] = useState(true);
+
     // Authorized request helper to include current Supabase JWT token
     const fetchWithAuth = async (url: string, options: any = {}) => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -626,15 +630,25 @@ export default function OnlineStore() {
     });
 
     const addSalesman = useMutation({
-        mutationFn: async (newSalesman: { name: string; email: string; phone?: string; password?: string }) => {
-            const { error } = await supabase
+        mutationFn: async (newSalesman: { 
+            name: string; 
+            email: string; 
+            phone?: string; 
+            password?: string;
+            can_manage_orders?: boolean;
+            can_manage_returns?: boolean;
+        }) => {
+            const { error } = await (supabase as any)
                 .from("store_salesmen")
                 .insert({
                     store_id: currentStoreId,
                     salesman_email: newSalesman.email.trim().toLowerCase(),
                     salesman_name: newSalesman.name.trim(),
                     salesman_phone: newSalesman.phone?.trim() || null,
-                    salesman_password: newSalesman.password?.trim()
+                    salesman_password: newSalesman.password?.trim(),
+                    can_manage_orders: newSalesman.can_manage_orders ?? true,
+                    can_manage_returns: newSalesman.can_manage_returns ?? true,
+                    is_active: true
                 });
             if (error) throw error;
         },
@@ -644,6 +658,38 @@ export default function OnlineStore() {
         },
         onError: (err: any) => {
             toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+    });
+
+    const updateSalesmanSettings = useMutation({
+        mutationFn: async ({ 
+            id, 
+            is_active, 
+            can_manage_orders, 
+            can_manage_returns 
+        }: { 
+            id: string; 
+            is_active?: boolean; 
+            can_manage_orders?: boolean; 
+            can_manage_returns?: boolean; 
+        }) => {
+            const updatePayload: any = {};
+            if (is_active !== undefined) updatePayload.is_active = is_active;
+            if (can_manage_orders !== undefined) updatePayload.can_manage_orders = can_manage_orders;
+            if (can_manage_returns !== undefined) updatePayload.can_manage_returns = can_manage_returns;
+
+            const { error } = await (supabase as any)
+                .from("store_salesmen")
+                .update(updatePayload)
+                .eq("id", id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast({ title: "Permissions Updated", description: "Salesman access permissions updated successfully." });
+            refetchSalesmen();
+        },
+        onError: (err: any) => {
+            toast({ title: "Error Updating Permissions", description: err.message, variant: "destructive" });
         }
     });
 
@@ -1348,7 +1394,7 @@ export default function OnlineStore() {
                                     )}
                                 </div>
                             </div>
-                        </TabsContent>
+                         </TabsContent>
 
                         {/* ── SALESMEN MANAGEMENT TAB ── */}
                         {!isSalesman && (
@@ -1367,9 +1413,18 @@ export default function OnlineStore() {
                                              const email = formData.get("email") as string;
                                              const phone = formData.get("phone") as string;
                                              const password = formData.get("password") as string;
-                                             addSalesman.mutate({ name, email, phone, password }, {
+                                             addSalesman.mutate({ 
+                                                 name, 
+                                                 email, 
+                                                 phone, 
+                                                 password,
+                                                 can_manage_orders: newSalesmanOrders,
+                                                 can_manage_returns: newSalesmanReturns
+                                             }, {
                                                  onSuccess: () => {
                                                      (e.target as HTMLFormElement).reset();
+                                                     setNewSalesmanOrders(true);
+                                                     setNewSalesmanReturns(true);
                                                  }
                                              });
                                          }} className="space-y-3.5">
@@ -1389,6 +1444,31 @@ export default function OnlineStore() {
                                             <div className="space-y-1.5">
                                                 <Label htmlFor="salesman-phone">Phone Number</Label>
                                                 <Input id="salesman-phone" name="phone" placeholder="+91 98765 43210" className="h-10 rounded-xl" />
+                                            </div>
+                                            <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                                                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Default Permissions</Label>
+                                                <div className="flex items-center justify-between p-2.5 rounded-xl border bg-slate-50/50 dark:bg-slate-900/40">
+                                                    <div className="space-y-0.5">
+                                                        <Label htmlFor="new-can-orders" className="text-xs font-bold cursor-pointer">Manage Orders</Label>
+                                                        <p className="text-[10px] text-muted-foreground">Allow processing delivery orders</p>
+                                                    </div>
+                                                    <Switch 
+                                                        id="new-can-orders"
+                                                        checked={newSalesmanOrders}
+                                                        onCheckedChange={setNewSalesmanOrders}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between p-2.5 rounded-xl border bg-slate-50/50 dark:bg-slate-900/40">
+                                                    <div className="space-y-0.5">
+                                                        <Label htmlFor="new-can-returns" className="text-xs font-bold cursor-pointer">Manage Returns</Label>
+                                                        <p className="text-[10px] text-muted-foreground">Allow processing return requests</p>
+                                                    </div>
+                                                    <Switch 
+                                                        id="new-can-returns"
+                                                        checked={newSalesmanReturns}
+                                                        onCheckedChange={setNewSalesmanReturns}
+                                                    />
+                                                </div>
                                             </div>
                                             <Button type="submit" className="w-full h-10 rounded-xl font-semibold mt-2" disabled={addSalesman.isPending}>
                                                 {addSalesman.isPending ? (
@@ -1427,9 +1507,16 @@ export default function OnlineStore() {
                                         ) : (
                                             <div className="divide-y divide-border flex-1">
                                                 {salesmen.map((slm: any) => (
-                                                    <div key={slm.id} className="flex items-center justify-between p-5 hover:bg-muted/10 transition-colors">
+                                                    <div key={slm.id} className="flex flex-col md:flex-row md:items-center justify-between p-5 hover:bg-muted/10 gap-4 transition-colors">
                                                         <div className="space-y-1">
-                                                            <div className="font-bold text-sm text-foreground">{slm.salesman_name}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-sm text-foreground">{slm.salesman_name}</span>
+                                                                {slm.is_active === false ? (
+                                                                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Suspended</Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/5">Active</Badge>
+                                                                )}
+                                                            </div>
                                                             <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
                                                                 <span className="font-mono">{slm.salesman_email}</span>
                                                                 {slm.salesman_phone && (
@@ -1442,15 +1529,61 @@ export default function OnlineStore() {
                                                                 <span className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-slate-700 dark:text-slate-300">Pwd: {slm.salesman_password}</span>
                                                             </div>
                                                         </div>
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            className="h-8 border-rose-200 text-rose-650 hover:bg-rose-55 hover:text-rose-700 bg-rose-50/10 rounded-lg text-xs"
-                                                            onClick={() => removeSalesman.mutate(slm.id)}
-                                                            disabled={removeSalesman.isPending}
-                                                        >
-                                                            Revoke Access
-                                                        </Button>
+                                                        <div className="flex flex-wrap items-center gap-4 md:gap-6 bg-slate-50/50 dark:bg-slate-900/30 p-2 px-3 rounded-xl border border-slate-100 dark:border-slate-800/80">
+                                                            <div className="flex items-center gap-2">
+                                                                <Switch 
+                                                                    id={`active-toggle-${slm.id}`}
+                                                                    checked={slm.is_active !== false}
+                                                                    disabled={updateSalesmanSettings.isPending}
+                                                                    onCheckedChange={(checked) => {
+                                                                        updateSalesmanSettings.mutate({ id: slm.id, is_active: checked });
+                                                                    }}
+                                                                />
+                                                                <Label htmlFor={`active-toggle-${slm.id}`} className="text-xs font-semibold cursor-pointer">
+                                                                    Status
+                                                                </Label>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <Switch 
+                                                                    id={`orders-toggle-${slm.id}`}
+                                                                    checked={slm.can_manage_orders !== false}
+                                                                    disabled={updateSalesmanSettings.isPending || slm.is_active === false}
+                                                                    onCheckedChange={(checked) => {
+                                                                        updateSalesmanSettings.mutate({ id: slm.id, can_manage_orders: checked });
+                                                                    }}
+                                                                />
+                                                                <Label htmlFor={`orders-toggle-${slm.id}`} className="text-xs font-semibold cursor-pointer">
+                                                                    Orders
+                                                                </Label>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <Switch 
+                                                                    id={`returns-toggle-${slm.id}`}
+                                                                    checked={slm.can_manage_returns !== false}
+                                                                    disabled={updateSalesmanSettings.isPending || slm.is_active === false}
+                                                                    onCheckedChange={(checked) => {
+                                                                        updateSalesmanSettings.mutate({ id: slm.id, can_manage_returns: checked });
+                                                                    }}
+                                                                />
+                                                                <Label htmlFor={`returns-toggle-${slm.id}`} className="text-xs font-semibold cursor-pointer">
+                                                                    Returns
+                                                                </Label>
+                                                            </div>
+
+                                                            <div className="h-4 w-px bg-slate-200 dark:bg-slate-850 hidden sm:block" />
+
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                className="h-8 border-rose-200 text-rose-650 hover:bg-rose-55 hover:text-rose-700 bg-rose-50/10 rounded-lg text-xs"
+                                                                onClick={() => removeSalesman.mutate(slm.id)}
+                                                                disabled={removeSalesman.isPending}
+                                                            >
+                                                                Revoke Access
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

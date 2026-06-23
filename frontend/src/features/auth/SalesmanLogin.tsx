@@ -51,7 +51,7 @@ export default function SalesmanLogin() {
             // 2. Fetch Salesman details to ensure they are actually registered as a salesman
             const { data: salesmanData, error: salesmanError } = await (supabase as any)
                 .from("store_salesmen")
-                .select("store_id, salesman_name, salesman_email")
+                .select("store_id, salesman_name, salesman_email, is_active")
                 .eq("salesman_email", email.trim().toLowerCase())
                 .maybeSingle();
 
@@ -61,6 +61,18 @@ export default function SalesmanLogin() {
                 toast({
                     title: "Access Denied 🔒",
                     description: "You do not have active salesman privileges. Please contact your store owner.",
+                    variant: "destructive"
+                });
+                setIsLoading(false);
+                return;
+            }
+
+            if (salesmanData.is_active === false) {
+                // Deactivated salesman
+                await supabase.auth.signOut();
+                toast({
+                    title: "Access Suspended 🔒",
+                    description: "Your salesman access has been suspended by the store owner.",
                     variant: "destructive"
                 });
                 setIsLoading(false);

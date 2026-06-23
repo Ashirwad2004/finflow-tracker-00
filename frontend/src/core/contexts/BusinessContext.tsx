@@ -38,23 +38,17 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
     useEffect(() => {
         const fetchSettings = async () => {
             // First check if there is a local salesman session in localStorage
+            let localSession: any = null;
             try {
                 const storedSession = localStorage.getItem("salesman_session");
                 if (storedSession) {
-                    const session = JSON.parse(storedSession);
-                    if (session && session.store_id) {
-                        setIsSalesman(true);
-                        setSalesmanStoreId(session.store_id);
-                        setIsBusinessMode(true);
-                        setIsLoading(false);
-                        return;
-                    }
+                    localSession = JSON.parse(storedSession);
                 }
             } catch (e) {
                 console.error("Error reading salesman session from localStorage:", e);
             }
 
-            if (!user) {
+            if (!user && !localSession) {
                 setIsSalesman(false);
                 setSalesmanStoreId(null);
                 setIsLoading(false);
@@ -62,17 +56,43 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
             }
 
             try {
-                // Check if user is a salesman
-                const { data: salesmanData } = await supabase
-                    .from('store_salesmen')
-                    .select('store_id')
-                    .eq('salesman_email', user.email || '')
-                    .maybeSingle();
+                // Check if user is a salesman (via logged in email or local session email)
+                const lookupEmail = user?.email || localSession?.email;
+                if (lookupEmail) {
+                    const { data: salesmanData, error: fetchErr } = await (supabase as any)
+                        .from('store_salesmen')
+                        .select('store_id, is_active')
+                        .eq('salesman_email', lookupEmail.toLowerCase())
+                        .maybeSingle();
 
-                if (salesmanData) {
-                    setIsSalesman(true);
-                    setSalesmanStoreId((salesmanData as any).store_id);
-                    setIsBusinessMode(true); // Force business mode for salesmen
+                    if (fetchErr) throw fetchErr;
+
+                    if (salesmanData) {
+                        if ((salesmanData as any).is_active === false) {
+                            // Deactivated salesman! Clear session
+                            setSalesmanSession(null);
+                            await supabase.auth.signOut();
+                            setIsSalesman(false);
+                            setSalesmanStoreId(null);
+                            setIsLoading(false);
+                            return;
+                        }
+                        setIsSalesman(true);
+                        setSalesmanStoreId((salesmanData as any).store_id);
+                        setIsBusinessMode(true); // Force business mode for salesmen
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // If they had a local session but they are no longer in the DB, clear it
+                if (localSession) {
+                    setSalesmanSession(null);
+                    setIsSalesman(false);
+                    setSalesmanStoreId(null);
+                }
+
+                if (!user) {
                     setIsLoading(false);
                     return;
                 }
@@ -82,7 +102,7 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
                 setSalesmanStoreId(null);
 
                 // Use any cast to avoid TS errors if column is missing from generated types
-                const { data, error } = await supabase
+                const { data, error } = await (supabase as any)
                     .from('profiles')
                     .select('is_business_mode')
                     .eq('user_id', user.id)
@@ -98,6 +118,12 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
                 }
             } catch (error) {
                 console.error('Error fetching business settings:', error);
+                // Offline fallback
+                if (localSession) {
+                    setIsSalesman(true);
+                    setSalesmanStoreId(localSession.store_id);
+                    setIsBusinessMode(true);
+                }
             } finally {
                 setIsLoading(false);
             }

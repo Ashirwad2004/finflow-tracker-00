@@ -358,6 +358,70 @@ export default function SalesmanDashboard() {
         );
     }
 
+    const isSalesmanActive = salesmanInfo?.is_active !== false;
+    const canManageOrders = salesmanInfo?.can_manage_orders !== false;
+    const canManageReturns = salesmanInfo?.can_manage_returns !== false;
+
+    // Account Suspended Screen
+    if (!isSalesmanActive) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans">
+                <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+                    <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-md">
+                                <Truck className="w-5 h-5 text-white" />
+                            </div>
+                            <h1 className="font-black text-base tracking-tight text-slate-900 dark:text-white">FinFlow Delivery</h1>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={handleLogout}>
+                            <LogOut className="w-5 h-5" />
+                        </Button>
+                    </div>
+                </header>
+                <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                    <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mb-4">
+                        <Shield className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Access Suspended</h2>
+                    <p className="text-sm text-muted-foreground max-w-sm">
+                        Your salesman account access has been suspended by the store owner. Please contact them to restore access.
+                    </p>
+                </main>
+            </div>
+        );
+    }
+
+    // All Permissions Revoked Screen
+    if (!canManageOrders && !canManageReturns) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans">
+                <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+                    <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-md">
+                                <Truck className="w-5 h-5 text-white" />
+                            </div>
+                            <h1 className="font-black text-base tracking-tight text-slate-900 dark:text-white">FinFlow Delivery</h1>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={handleLogout}>
+                            <LogOut className="w-5 h-5" />
+                        </Button>
+                    </div>
+                </header>
+                <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                    <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mb-4">
+                        <Shield className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Permissions Revoked</h2>
+                    <p className="text-sm text-muted-foreground max-w-sm">
+                        The store owner has disabled all feature access permissions for your account. Please contact them to restore access.
+                    </p>
+                </main>
+            </div>
+        );
+    }
+
     const businessName = salesmanInfo?.profiles?.business_name || "Assigned Store";
 
     return (
@@ -511,18 +575,21 @@ export default function SalesmanDashboard() {
                 </div>
 
                 {/* ── TABS FOR ORDERS AND RETURNS ── */}
-                <Tabs defaultValue="orders" className="w-full">
-                    <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full max-w-[400px] border border-slate-200/20 grid grid-cols-2 mb-4">
-                        <TabsTrigger value="orders" className="rounded-lg py-2 font-bold text-xs transition-all">
-                            Orders ({filteredOrders.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="returns" className="rounded-lg py-2 font-bold text-xs transition-all">
-                            Returns ({filteredReturns.length})
-                        </TabsTrigger>
-                    </TabsList>
+                <Tabs defaultValue={canManageOrders ? "orders" : "returns"} className="w-full">
+                    {canManageOrders && canManageReturns && (
+                        <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full max-w-[400px] border border-slate-200/20 grid grid-cols-2 mb-4">
+                            <TabsTrigger value="orders" className="rounded-lg py-2 font-bold text-xs transition-all">
+                                Orders ({filteredOrders.length})
+                            </TabsTrigger>
+                            <TabsTrigger value="returns" className="rounded-lg py-2 font-bold text-xs transition-all">
+                                Returns ({filteredReturns.length})
+                            </TabsTrigger>
+                        </TabsList>
+                    )}
 
                     {/* ── ORDERS CONTENT ── */}
-                    <TabsContent value="orders" className="outline-none space-y-4">
+                    {canManageOrders && (
+                        <TabsContent value="orders" className="outline-none space-y-4">
                         {/* Status Category Filter Buttons */}
                         <div className="flex flex-wrap items-center gap-1.5 pb-2">
                             {[
@@ -733,9 +800,11 @@ export default function SalesmanDashboard() {
                             </div>
                         )}
                     </TabsContent>
+                    )}
 
                     {/* ── RETURNS CONTENT ── */}
-                    <TabsContent value="returns" className="outline-none space-y-4">
+                    {canManageReturns && (
+                        <TabsContent value="returns" className="outline-none space-y-4">
                         {isLoadingReturns ? (
                             <div className="py-20 text-center text-muted-foreground animate-pulse flex flex-col items-center justify-center gap-3">
                                 <Loader2 className="w-8 h-8 animate-spin text-rose-600" />
@@ -841,6 +910,7 @@ export default function SalesmanDashboard() {
                             </div>
                         )}
                     </TabsContent>
+                    )}
                 </Tabs>
             </main>
 
