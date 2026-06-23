@@ -52,6 +52,7 @@ interface Product {
     is_listed_online?: boolean;
     online_description?: string;
     image_url?: string;
+    rack_location?: string;
 }
 
 interface ParsedProduct {
@@ -62,6 +63,7 @@ interface ParsedProduct {
     unit: string;
     is_listed_online: boolean;
     online_description: string;
+    rack_location: string;
     status: "ready" | "duplicate" | "error";
     errorDetails?: string;
 }
@@ -119,6 +121,7 @@ export function ExcelImportDialog({
                     "Unit",
                     "List Online (yes/no)",
                     "Online Description",
+                    "Rack Location",
                 ],
             ];
             const samples = [
@@ -130,6 +133,7 @@ export function ExcelImportDialog({
                     "pack",
                     "yes",
                     "Rich organic roasted coffee beans.",
+                    "Shelf A-3",
                 ],
                 [
                     "Premium Thermal Flask (750ml)",
@@ -139,6 +143,7 @@ export function ExcelImportDialog({
                     "piece",
                     "yes",
                     "Stainless steel thermal insulated flask.",
+                    "Rack B",
                 ],
                 [
                     "Wireless Optical Mouse",
@@ -148,6 +153,7 @@ export function ExcelImportDialog({
                     "piece",
                     "no",
                     "Comfortable 2.4GHz wireless mouse.",
+                    "Drawer 1",
                 ],
             ];
             const wsData = [...headers, ...samples];
@@ -163,6 +169,7 @@ export function ExcelImportDialog({
                 { wch: 10 }, // Unit
                 { wch: 22 }, // List Online
                 { wch: 40 }, // Online Description
+                { wch: 18 }, // Rack Location
             ];
             ws["!cols"] = wscols;
 
@@ -202,6 +209,7 @@ export function ExcelImportDialog({
                 "Unit",
                 "List Online (yes/no)",
                 "Online Description",
+                "Rack Location",
             ];
             
             const rows = existingProducts.map((p) => [
@@ -212,6 +220,7 @@ export function ExcelImportDialog({
                 p.unit || "pc",
                 p.is_listed_online ? "yes" : "no",
                 p.online_description || "",
+                p.rack_location || "",
             ]);
 
             const wsData = [headers, ...rows];
@@ -226,6 +235,7 @@ export function ExcelImportDialog({
                 { wch: 10 }, // Unit
                 { wch: 22 }, // List Online
                 { wch: 40 }, // Online Description
+                { wch: 18 }, // Rack Location
             ];
             ws["!cols"] = wscols;
 
@@ -323,6 +333,7 @@ export function ExcelImportDialog({
                 const unitIdx = findColIdx(["unit", "uom"]);
                 const onlineIdx = findColIdx(["list online", "listed online", "is listed online", "online"]);
                 const descIdx = findColIdx(["online description", "description", "online_description", "details"]);
+                const rackIdx = findColIdx(["rack location", "rack", "shelf", "location"]);
 
                 if (nameIdx === -1 || priceIdx === -1) {
                     toast({
@@ -351,6 +362,7 @@ export function ExcelImportDialog({
                     const rawUnit = unitIdx !== -1 ? String(row[unitIdx] || "").trim() : "pc";
                     const rawOnline = onlineIdx !== -1 ? String(row[onlineIdx] || "").trim().toLowerCase() : "no";
                     const rawDesc = descIdx !== -1 ? String(row[descIdx] || "").trim() : "";
+                    const rawRack = rackIdx !== -1 ? String(row[rackIdx] || "").trim() : "";
 
                     let status: "ready" | "duplicate" | "error" = "ready";
                     let errorDetails = "";
@@ -426,6 +438,7 @@ export function ExcelImportDialog({
                         unit: rawUnit || "pc",
                         is_listed_online,
                         online_description: rawDesc,
+                        rack_location: rawRack,
                         status,
                         errorDetails,
                     });
@@ -502,6 +515,7 @@ export function ExcelImportDialog({
                             unit: item.unit,
                             is_listed_online: item.is_listed_online,
                             online_description: item.online_description,
+                            rack_location: item.rack_location || "",
                             updated_at: new Date().toISOString(),
                         };
 
@@ -529,6 +543,7 @@ export function ExcelImportDialog({
                     unit: item.unit,
                     is_listed_online: item.is_listed_online,
                     online_description: item.online_description,
+                    rack_location: item.rack_location || "",
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 };

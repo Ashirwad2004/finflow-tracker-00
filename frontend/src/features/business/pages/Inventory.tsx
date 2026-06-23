@@ -62,6 +62,7 @@ interface Product {
     is_listed_online?: boolean;
     online_description?: string;
     image_url?: string;
+    rack_location?: string;
 }
 
 interface ProductFormValues {
@@ -73,6 +74,7 @@ interface ProductFormValues {
     is_listed_online?: boolean;
     online_description?: string;
     image_url?: string;
+    rack_location?: string;
 }
 
 type SupabaseProductSelect = {
@@ -107,7 +109,8 @@ export default function Inventory() {
             unit: "pc",
             is_listed_online: false,
             online_description: "",
-            image_url: ""
+            image_url: "",
+            rack_location: ""
         }
     });
 
@@ -276,7 +279,8 @@ export default function Inventory() {
             unit: product.unit,
             is_listed_online: product.is_listed_online || false,
             online_description: product.online_description || "",
-            image_url: product.image_url || ""
+            image_url: product.image_url || "",
+            rack_location: product.rack_location || ""
         });
         setIsEditDialogOpen(true);
     };
@@ -427,6 +431,7 @@ export default function Inventory() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Product Name</TableHead>
+                                    {settings.showRackLocations && <TableHead>Rack Location</TableHead>}
                                     <TableHead>Price</TableHead>
                                     <TableHead>Cost Price</TableHead>
                                     <TableHead>Stock</TableHead>
@@ -435,7 +440,7 @@ export default function Inventory() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableLoadingRows cols={6} rows={5} />
+                                <TableLoadingRows cols={settings.showRackLocations ? 7 : 6} rows={5} />
                             </TableBody>
                         </Table>
                     ) : filteredProducts.length === 0 ? (
@@ -457,6 +462,7 @@ export default function Inventory() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Product Name</TableHead>
+                                    {settings.showRackLocations && <TableHead>Rack Location</TableHead>}
                                     <TableHead>Price</TableHead>
                                     <TableHead>Cost Price</TableHead>
                                     <TableHead>Stock</TableHead>
@@ -475,6 +481,13 @@ export default function Inventory() {
                                                 )}
                                             </div>
                                         </TableCell>
+                                        {settings.showRackLocations && (
+                                            <TableCell>
+                                                <Badge variant="outline" className="font-mono text-[11px] max-w-[120px] truncate bg-slate-50 dark:bg-slate-900 border-slate-200">
+                                                    {product.rack_location || "—"}
+                                                </Badge>
+                                            </TableCell>
+                                        )}
                                         <TableCell>{formatCurrency(product.price)}</TableCell>
                                         <TableCell>{formatCurrency(product.cost_price)}</TableCell>
                                         <TableCell>
@@ -621,6 +634,21 @@ export default function Inventory() {
                                 />
                             </div>
 
+                            {/* Enable Rack Locations */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-3">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Enable Rack Locations</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Enable tracking and displaying physical rack or shelf locations for each product in your inventory (ideal for pharmacies).
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={settings.showRackLocations}
+                                    onCheckedChange={(value) => updateSetting("showRackLocations", value)}
+                                    aria-label="Toggle enable rack locations"
+                                />
+                            </div>
+
                             {/* Info note */}
                             <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
                                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -713,6 +741,17 @@ export default function Inventory() {
                                     />
                                 </div>
                             </div>
+
+                            {settings.showRackLocations && (
+                                <div className="space-y-2 animate-fade-in">
+                                    <Label htmlFor="rack_location">Rack Location</Label>
+                                    <Input
+                                        id="rack_location"
+                                        {...register("rack_location")}
+                                        placeholder="e.g. Shelf A-3, Rack 2"
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-4 pt-4 border-t mt-4">
                                 <div className="flex items-center justify-between">
@@ -857,6 +896,17 @@ export default function Inventory() {
                                     />
                                 </div>
                             </div>
+
+                            {settings.showRackLocations && (
+                                <div className="space-y-2 animate-fade-in">
+                                    <Label htmlFor="edit_rack_location">Rack Location</Label>
+                                    <Input
+                                        id="edit_rack_location"
+                                        {...register("rack_location")}
+                                        placeholder="e.g. Shelf A-3, Rack 2"
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-4 pt-4 border-t mt-4">
                                 <div className="flex items-center justify-between">

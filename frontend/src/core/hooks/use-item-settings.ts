@@ -20,6 +20,8 @@ export interface ItemSettings {
   deductStockOnlyOnPaid: boolean;
   /** Show stock quantity in the invoice item picker dropdown. */
   showStockInItemPicker: boolean;
+  /** Enable displaying and managing rack/shelf locations for products in inventory. */
+  showRackLocations: boolean;
 }
 
 const DEFAULTS: ItemSettings = {
@@ -27,6 +29,7 @@ const DEFAULTS: ItemSettings = {
   lowStockWarningThreshold: 10,
   deductStockOnlyOnPaid: false,
   showStockInItemPicker: true,
+  showRackLocations: false,
 };
 
 function getStorageKey(userId: string | undefined) {

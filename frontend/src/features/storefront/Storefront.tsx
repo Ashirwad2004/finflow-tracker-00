@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import axios from "axios";
 import {
     ShoppingBag,
     PackageOpen,
@@ -926,14 +927,24 @@ export default function Storefront() {
             {selectedOrderForPayment && (
                 <PaymentPortal
                     isOpen={isPaymentPortalOpen}
-                    onClose={() => {
+                    onClose={async () => {
                         setIsPaymentPortalOpen(false);
+                        const orderId = selectedOrderForPayment.id;
                         setSelectedOrderForPayment(null);
-                        setCart({});
-                        setSubmittedName(selectedOrderForPayment.customer_name);
-                        setTrackedOrderId(selectedOrderForPayment.id);
-                        setOrderStatus("pending");
-                        setOrderComplete(true);
+                        
+                        try {
+                            await axios.post("/api/payments/cancel-order", { orderId });
+                            toast({
+                                title: "Payment Cancelled / Aborted",
+                                description: "Your online payment was cancelled. Your items are still in your cart.",
+                                variant: "destructive"
+                            });
+                        } catch (err) {
+                            console.error("Failed to cancel order on payment close:", err);
+                        }
+                        
+                        // Re-open cart drawer to allow retry or selection of COD
+                        setIsCartOpen(true);
                     }}
                     orderId={selectedOrderForPayment.id}
                     amount={selectedOrderForPayment.total_amount}

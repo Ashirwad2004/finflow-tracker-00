@@ -231,9 +231,9 @@ const Index = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 relative z-20">
-              <Button onClick={() => setDemoOpen(true)} size="lg" className="h-14 px-8 text-lg rounded-full bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-slate-300 text-white dark:text-slate-900 border-0 shadow-lg transition-all hover:scale-105">
-                <Star className="mr-2 w-5 h-5" /> Book a Demo
-              </Button>
+             <Button onClick={() => setDemoOpen(true)} size="lg" className="h-14 px-8 text-lg rounded-full bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white border-0 shadow-lg transition-all hover:scale-105">
+  <Star className="mr-2 w-5 h-5" /> Book a Demo
+</Button>
               <Button onClick={() => navigate("/auth")} size="lg" className="h-14 px-8 text-lg rounded-full shadow-2xl shadow-primary/40 hover:shadow-primary/50 transition-all hover:scale-105 bg-gradient-to-r from-primary to-violet-600 border-0">
                 Start Free <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
@@ -362,7 +362,6 @@ const Index = () => {
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="rounded-full">Learn more <MoveRight className="ml-2 w-4 h-4" /></Button>
             </div>
           </div>
 
@@ -545,7 +544,7 @@ const Index = () => {
                   </li>
                 ))}
               </ul>
-              <Button onClick={() => navigate("/store/aroma-coffee")} variant="outline" className="rounded-full">Explore Storefront <MoveRight className="ml-2 w-4 h-4" /></Button>
+              <Button onClick={() => navigate("/store/aroma-coffee")} variant="default" className="rounded-full">Explore Storefront <MoveRight className="ml-2 w-4 h-4" /></Button>
             </div>
           </div>
 
@@ -725,7 +724,11 @@ const Index = () => {
               <Button size="lg" onClick={() => navigate("/auth")} className="h-16 px-10 text-xl rounded-full shadow-xl bg-primary hover:bg-primary/90">
                 Get Started Now
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setDemoOpen(true)} className="h-16 px-10 text-xl rounded-full hover:scale-105 transition-all bg-background/50 backdrop-blur-sm border-border/80">
+              <Button
+                size="lg"
+                onClick={() => setDemoOpen(true)}
+                className="h-16 px-10 text-xl rounded-full hover:scale-105 transition-all bg-red-500 hover:bg-red-600 text-white"
+              >
                 Book a Demo
               </Button>
             </div>

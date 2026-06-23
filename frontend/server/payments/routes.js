@@ -141,6 +141,61 @@ paymentRouter.post(
   }
 );
 
+// 1.5 Cancel Payment Order (restores stock)
+paymentRouter.post(
+  '/cancel-order',
+  rateLimiter(10, 60000), // Max 10 requests per minute per IP
+  validateRequest({ orderId: 'string' }),
+  async (req, res) => {
+    try {
+      const { orderId } = req.body;
+
+      // Fetch the order
+      const { data: order, error: orderError } = await supabaseAdmin
+        .from('online_orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !order) {
+        return res.status(404).json({ error: 'Order not found.' });
+      }
+
+      // Check if there is already a successful payment for this order
+      const { data: successfulPayment } = await supabaseAdmin
+        .from('payments')
+        .select('*')
+        .eq('order_id', orderId)
+        .eq('status', 'success')
+        .maybeSingle();
+
+      if (successfulPayment) {
+        return res.status(400).json({ error: 'Cannot cancel a paid order.' });
+      }
+
+      // Update the order status to 'rejected' to automatically restore stock via database trigger
+      const { error: updateError } = await supabaseAdmin
+        .from('online_orders')
+        .update({ status: 'rejected' })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      // Update payment status to failed if a pending payment record exists
+      await supabaseAdmin
+        .from('payments')
+        .update({ status: 'failed', updated_at: new Date().toISOString() })
+        .eq('order_id', orderId)
+        .eq('status', 'pending');
+
+      return res.json({ success: true, message: 'Order payment cancelled. Stock restored.' });
+    } catch (err) {
+      console.error('Cancel Payment Order Error:', err);
+      return res.status(500).json({ error: err.message || 'Failed to cancel order.' });
+    }
+  }
+);
+
 // 2. Verify Payment Integrity
 paymentRouter.post(
   '/verify-payment',
