@@ -32,29 +32,35 @@ export default function SalesmanLogin() {
         setIsLoading(true);
 
         try {
-            // Query store_salesmen table directly by email and password
-            const { data: salesmanData, error: salesmanError } = await supabase
-                .from("store_salesmen")
-                .select("store_id, salesman_name, salesman_email")
-                .eq("salesman_email", email.trim().toLowerCase())
-                .eq("salesman_password", password.trim())
-                .maybeSingle();
+            // 1. Authenticate with Supabase Auth using email and password
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: email.trim().toLowerCase(),
+                password: password.trim()
+            });
 
-            if (salesmanError) {
-                console.error("Salesman verification check failed:", salesmanError);
+            if (authError) {
                 toast({
-                    title: "Authentication Failed",
-                    description: "An error occurred while contacting the database.",
+                    title: "Access Denied 🔒",
+                    description: "Invalid salesman email address or password. Please verify details or contact your store owner.",
                     variant: "destructive"
                 });
                 setIsLoading(false);
                 return;
             }
 
-            if (!salesmanData) {
+            // 2. Fetch Salesman details to ensure they are actually registered as a salesman
+            const { data: salesmanData, error: salesmanError } = await (supabase as any)
+                .from("store_salesmen")
+                .select("store_id, salesman_name, salesman_email")
+                .eq("salesman_email", email.trim().toLowerCase())
+                .maybeSingle();
+
+            if (salesmanError || !salesmanData) {
+                // If they are not in the store_salesmen table, sign them out of Auth
+                await supabase.auth.signOut();
                 toast({
                     title: "Access Denied 🔒",
-                    description: "Invalid salesman email address or password. Please verify details or contact your store owner.",
+                    description: "You do not have active salesman privileges. Please contact your store owner.",
                     variant: "destructive"
                 });
                 setIsLoading(false);

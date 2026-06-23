@@ -555,8 +555,8 @@ export default function OnlineStore() {
         },
     });
 
-    // React Query: Returns list states
-    const [returnsRefreshInterval, setReturnsRefreshInterval] = useState<number | false>(10000);
+    // React Query: Returns list states (using 30s as a slow fallback since we have real-time postgres changes subscription)
+    const [returnsRefreshInterval, setReturnsRefreshInterval] = useState<number | false>(30000);
     const [lastUpdatedReturns, setLastUpdatedReturns] = useState<Date>(new Date());
 
     const { data: orderReturns = [], isLoading: isLoadingReturns, isFetching: isFetchingReturns, refetch: refetchReturns } = useQuery({

@@ -392,7 +392,7 @@ export function OrdersDrawer({
                                     .getPublicUrl(fileName);
 
                                 // 3. Insert into order_returns
-                                const { error: insertError } = await supabase
+                                const { error: insertError } = await (supabase as any)
                                     .from('order_returns')
                                     .insert({
                                         order_id: returnOrder.id,

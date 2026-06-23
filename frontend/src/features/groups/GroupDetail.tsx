@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -112,7 +112,7 @@ const GroupDetail = () => {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 1000,
+    refetchInterval: 30000,
   });
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -126,7 +126,7 @@ const GroupDetail = () => {
         .order("joined_at");
       return data as Member[] || [];
     },
-    refetchInterval: 1000,
+    refetchInterval: 30000,
   });
 
   const { data: expenses = [], isLoading: expensesLoading } = useQuery({
@@ -143,8 +143,58 @@ const GroupDetail = () => {
       // Safety check if we need manual parsing, but Supabase JS client handles JSON types automatically
       return data as Expense[] || [];
     },
-    refetchInterval: 1000,
+    refetchInterval: 30000,
   });
+
+  // Real-time Postgres Changes subscription for specific group updates
+  useEffect(() => {
+    if (!groupId) return;
+
+    const channelName = `realtime:group-detail:${groupId}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "groups",
+          filter: `id=eq.${groupId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["group", groupId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_members",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["group-members", groupId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_expenses",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [groupId, queryClient]);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],

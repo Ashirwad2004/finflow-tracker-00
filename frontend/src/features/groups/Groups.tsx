@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -110,7 +110,7 @@ const Groups = () => {
       return groups || [];
     },
     enabled: !!user?.id,
-    refetchInterval: 1000,
+    refetchInterval: 30000,
   });
 
   const { data: allMembers = [] } = useQuery({
@@ -121,8 +121,35 @@ const Groups = () => {
         .select("group_id, user_id, username");
       return data || [];
     },
-    refetchInterval: 1000,
+    refetchInterval: 30000,
   });
+
+  // Real-time Postgres Changes subscription for user's group membership updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channelName = `realtime:groups-list:${user.id}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_members",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["groups", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["all-group-members"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   const getGroupMembers = (groupId: string) =>
     allMembers.filter((m) => m.group_id === groupId);
