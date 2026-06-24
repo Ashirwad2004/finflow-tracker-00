@@ -8,3 +8,6 @@ pyjwt
 passlib[bcrypt]
 psycopg2-binary
 slowapi
+google-genai
+tenacity
+python-multipart

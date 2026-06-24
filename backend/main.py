@@ -1,16 +1,15 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from src.core.config import settings
-from src.api.v1.router import api_router
 
-limiter = Limiter(key_func=get_remote_address)
+from src.api.v1.router import api_router
+from src.core.config import settings
+from src.core.limiter import limiter
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
 app.state.limiter = limiter
@@ -24,6 +23,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response: Response = await call_next(request)
@@ -33,7 +33,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
 
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
 
 @app.get("/health")
 @limiter.limit("5/minute")
