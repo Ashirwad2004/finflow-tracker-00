@@ -14,14 +14,16 @@ export type InvoiceTheme = InvoicePdfTheme | 'thermal';
 
 const invoiceThemes: InvoiceTheme[] = [
     "corporate",
-    "minimalist",
+    "modern-dark",
+    "minimal-white",
+    "professional-green",
+    "premium-gold",
+    "creative-purple",
+    "startup-gradient",
+    "elegant-mono",
     "retail",
-    "tally",
-    "thermal",
-    "gst1",
-    "service",
-    "manufacturing",
-    "wholesale"
+    "construction",
+    "thermal"
 ];
 
 const PrintStudioPage = () => {
@@ -130,7 +132,7 @@ const PrintStudioPage = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
 
-                                {/* Corporate Theme */}
+                                {/* Corporate Blue Theme */}
                                 <div
                                     onClick={() => handleThemeSelect("corporate")}
                                     className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'corporate' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
@@ -140,7 +142,6 @@ const PrintStudioPage = () => {
                                             <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                     )}
-                                    {/* Mockup SVG */}
                                     <div className="aspect-[1/1.4] bg-slate-50 relative p-4 pointer-events-none">
                                         <div className="w-full h-8 bg-blue-600 rounded-sm mb-4"></div>
                                         <div className="flex justify-between mb-4">
@@ -159,42 +160,221 @@ const PrintStudioPage = () => {
                                             <div className="w-24 h-12 bg-slate-100 border border-slate-200 rounded-sm"></div>
                                         </div>
                                     </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium">Corporate (Default)</div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Corporate Blue</div>
                                 </div>
 
-                                {/* Minimalist Theme */}
+                                {/* Modern Dark Theme */}
                                 <div
-                                    onClick={() => handleThemeSelect("minimalist")}
-                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'minimalist' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                    onClick={() => handleThemeSelect("modern-dark")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'modern-dark' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
                                 >
-                                    {selectedTheme === 'minimalist' && (
+                                    {selectedTheme === 'modern-dark' && (
                                         <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
                                             <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                     )}
-                                    {/* Mockup SVG */}
-                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none border-x border-slate-100">
-                                        <div className="flex justify-between items-end mb-6">
-                                            <div className="w-20 h-6 bg-slate-900 rounded-sm"></div>
-                                            <div className="w-16 h-3 bg-slate-400 rounded-sm"></div>
+                                    <div className="aspect-[1/1.4] bg-slate-950 relative p-4 pointer-events-none border border-slate-800">
+                                        <div className="w-full h-8 bg-slate-900 rounded-sm mb-4 border-b border-cyan-500/30"></div>
+                                        <div className="flex justify-between mb-4">
+                                            <div className="w-1/2 space-y-1">
+                                                <div className="w-16 h-2 bg-slate-700 rounded"></div>
+                                                <div className="w-24 h-2 bg-slate-800 rounded"></div>
+                                            </div>
+                                            <div className="w-16 h-4 bg-cyan-500/20 border border-cyan-500/40 rounded text-cyan-400"></div>
                                         </div>
-                                        <div className="w-full h-px bg-slate-900 mb-4"></div>
-                                        <div className="w-24 h-2 bg-slate-800 rounded mb-1"></div>
-                                        <div className="w-32 h-2 bg-slate-400 rounded mb-6"></div>
-                                        <div className="w-full space-y-2 mb-6">
-                                            <div className="w-full h-3 border-b-2 border-slate-900"></div>
-                                            <div className="w-full h-3 border-b border-slate-200"></div>
-                                            <div className="w-full h-3 border-b border-slate-200"></div>
+                                        <div className="w-full h-24 border border-slate-800 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-cyan-950/20 border-b border-slate-800"></div>
+                                            <div className="w-full h-4 border-b border-slate-900 mt-2"></div>
+                                            <div className="w-full h-4 border-b border-slate-900 mt-2"></div>
                                         </div>
-                                        <div className="flex justify-between items-center border-t-2 border-slate-900 pt-2">
-                                            <div className="w-16 h-2 bg-slate-400 rounded"></div>
-                                            <div className="w-20 h-4 bg-slate-900 rounded"></div>
+                                        <div className="flex justify-end">
+                                            <div className="w-24 h-12 bg-slate-900 border border-slate-800 rounded-sm"></div>
                                         </div>
                                     </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium">Minimalist</div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Modern Dark</div>
                                 </div>
 
-                                {/* Retail Theme */}
+                                {/* Minimal White Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("minimal-white")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'minimal-white' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'minimal-white' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none border border-slate-200">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div className="w-16 h-4 bg-slate-900 rounded-sm"></div>
+                                            <div className="w-12 h-2 bg-slate-400 rounded-sm"></div>
+                                        </div>
+                                        <div className="w-full h-[1px] bg-slate-900 mb-4"></div>
+                                        <div className="w-24 h-2 bg-slate-850 rounded mb-1"></div>
+                                        <div className="w-32 h-1.5 bg-slate-400 rounded mb-6"></div>
+                                        <div className="w-full space-y-2 mb-6">
+                                            <div className="w-full h-3 border-b border-slate-900"></div>
+                                            <div className="w-full h-3 border-b border-slate-200"></div>
+                                        </div>
+                                        <div className="flex justify-between items-center border-t border-slate-900 pt-2">
+                                            <div className="w-16 h-2 bg-slate-400 rounded"></div>
+                                            <div className="w-20 h-4 bg-slate-900 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Minimal White</div>
+                                </div>
+
+                                {/* Professional Green Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("professional-green")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'professional-green' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'professional-green' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-slate-50 relative p-4 pointer-events-none">
+                                        <div className="w-full h-8 bg-emerald-750 bg-emerald-700 rounded-sm mb-4"></div>
+                                        <div className="flex justify-between mb-4">
+                                            <div className="w-1/2 space-y-1">
+                                                <div className="w-16 h-2 bg-slate-300 rounded"></div>
+                                                <div className="w-24 h-2 bg-slate-200 rounded"></div>
+                                            </div>
+                                            <div className="w-16 h-4 bg-emerald-800/10 rounded"></div>
+                                        </div>
+                                        <div className="w-full h-24 border border-slate-200 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-emerald-700/10 border-b border-slate-200"></div>
+                                            <div className="w-full h-4 border-b border-slate-100 mt-2"></div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div className="w-24 h-12 bg-slate-100 border border-slate-200 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Professional Green</div>
+                                </div>
+
+                                {/* Premium Gold Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("premium-gold")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'premium-gold' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'premium-gold' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-stone-50 relative p-4 pointer-events-none border border-amber-100">
+                                        <div className="w-full h-1 bg-amber-600 mb-4"></div>
+                                        <div className="flex justify-between mb-4">
+                                            <div className="w-1/2 space-y-1">
+                                                <div className="w-16 h-2 bg-amber-900/40 rounded"></div>
+                                                <div className="w-24 h-1.5 bg-slate-300 rounded"></div>
+                                            </div>
+                                            <div className="w-16 h-5 bg-amber-900/10 rounded border border-amber-600/30"></div>
+                                        </div>
+                                        <div className="w-full h-24 border border-amber-100 bg-amber-50/10 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-amber-600/10 border-b border-amber-200"></div>
+                                            <div className="w-full h-4 border-b border-amber-100/50 mt-2"></div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div className="w-24 h-12 bg-amber-50/30 border border-amber-200/50 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Premium Gold</div>
+                                </div>
+
+                                {/* Creative Purple Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("creative-purple")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'creative-purple' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'creative-purple' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-slate-50 relative p-4 pointer-events-none">
+                                        <div className="w-full h-8 bg-violet-600 rounded-sm mb-4"></div>
+                                        <div className="flex justify-between mb-4">
+                                            <div className="w-1/2 space-y-1">
+                                                <div className="w-16 h-2 bg-slate-300 rounded"></div>
+                                                <div className="w-24 h-2 bg-slate-200 rounded"></div>
+                                            </div>
+                                            <div className="w-16 h-4 bg-violet-600/10 rounded"></div>
+                                        </div>
+                                        <div className="w-full h-24 border border-violet-100 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-violet-600/10 border-b border-violet-200"></div>
+                                            <div className="w-full h-4 border-b border-slate-100 mt-2"></div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div className="w-24 h-12 bg-violet-50/50 border border-violet-200 rounded-md"></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Creative Purple</div>
+                                </div>
+
+                                {/* Startup Gradient Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("startup-gradient")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'startup-gradient' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'startup-gradient' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-slate-50 relative p-4 pointer-events-none">
+                                        <div className="w-full h-8 bg-gradient-to-r from-indigo-500 to-pink-500 rounded-sm mb-4"></div>
+                                        <div className="flex justify-between mb-4">
+                                            <div className="w-1/2 space-y-1">
+                                                <div className="w-16 h-2 bg-slate-300 rounded"></div>
+                                                <div className="w-24 h-2 bg-slate-200 rounded"></div>
+                                            </div>
+                                            <div className="w-16 h-4 bg-indigo-500/10 rounded"></div>
+                                        </div>
+                                        <div className="w-full h-24 border border-slate-200 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-gradient-to-r from-indigo-500/10 to-pink-500/10 border-b border-slate-200"></div>
+                                            <div className="w-full h-4 border-b border-slate-100 mt-2"></div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div className="w-24 h-12 bg-slate-100 border border-slate-200 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Startup Gradient</div>
+                                </div>
+
+                                {/* Elegant Black & White Theme */}
+                                <div
+                                    onClick={() => handleThemeSelect("elegant-mono")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'elegant-mono' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                >
+                                    {selectedTheme === 'elegant-mono' && (
+                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    )}
+                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none border border-slate-200">
+                                        <div className="text-center font-serif text-[10px] tracking-widest border-b-2 border-double border-slate-900 pb-2 mb-4 font-bold">INVOICE</div>
+                                        <div className="flex justify-between mb-4">
+                                            <div className="w-1/2 space-y-1">
+                                                <div className="w-16 h-2 bg-slate-800 rounded-sm"></div>
+                                                <div className="w-24 h-1.5 bg-slate-500 rounded-sm"></div>
+                                            </div>
+                                            <div className="w-14 h-4 bg-slate-900 rounded-sm"></div>
+                                        </div>
+                                        <div className="w-full h-24 border border-slate-300 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-slate-100 border-b-2 border-double border-slate-900"></div>
+                                            <div className="w-full h-4 border-b border-slate-200 mt-2"></div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div className="w-24 h-10 border-t border-b-2 border-slate-950 pt-1"></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Elegant B&W</div>
+                                </div>
+
+                                {/* Retail Store Theme */}
                                 <div
                                     onClick={() => handleThemeSelect("retail")}
                                     className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'retail' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
@@ -204,68 +384,59 @@ const PrintStudioPage = () => {
                                             <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                     )}
-                                    {/* Mockup SVG */}
                                     <div className="aspect-[1/1.4] bg-[#fdfdfd] relative pointer-events-none">
                                         <div className="absolute right-0 top-0 bottom-0 w-1/4 bg-blue-50/50 border-l border-blue-100/30"></div>
                                         <div className="p-4 relative z-10">
-                                            <div className="w-24 h-5 bg-blue-900 rounded-sm mb-6"></div>
+                                            <div className="w-20 h-4 bg-sky-500 rounded-sm mb-6"></div>
                                             <div className="flex justify-between mb-6">
                                                 <div className="w-1/2 space-y-1">
                                                     <div className="w-12 h-2 bg-slate-400 rounded"></div>
                                                     <div className="w-20 h-2 bg-slate-800 rounded"></div>
                                                 </div>
                                             </div>
-                                            <div className="w-full space-y-2 mb-6">
+                                            <div className="w-1/2 space-y-2 mb-6">
                                                 <div className="flex justify-between border-b border-slate-200 pb-1">
                                                     <div className="w-16 h-2 bg-slate-400 rounded"></div>
-                                                    <div className="w-10 h-2 bg-slate-400 rounded"></div>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <div className="w-24 h-2 bg-slate-800 rounded"></div>
-                                                    <div className="w-12 h-2 bg-slate-800 rounded"></div>
                                                 </div>
                                             </div>
                                             <div className="w-full items-end flex flex-col pt-4">
-                                                <div className="w-24 h-6 border-b-2 border-blue-600 rounded-sm bg-blue-50"></div>
+                                                <div className="w-24 h-6 border-b-2 border-sky-600 rounded-sm bg-sky-50"></div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium">Retail Accent</div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Retail Store</div>
                                 </div>
 
-                                {/* Tally Classic Theme */}
+                                {/* Construction & Engineering Theme */}
                                 <div
-                                    onClick={() => handleThemeSelect("tally")}
-                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'tally' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+                                    onClick={() => handleThemeSelect("construction")}
+                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'construction' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
                                 >
-                                    {selectedTheme === 'tally' && (
+                                    {selectedTheme === 'construction' && (
                                         <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
                                             <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                     )}
-                                    {/* Mockup SVG */}
-                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none">
-                                        <div className="w-full h-full border-2 border-slate-900 flex flex-col p-1">
-                                            <div className="border-b-2 border-slate-900 text-center text-[8px] font-bold pb-1 bg-slate-100">TAX INVOICE</div>
-                                            <div className="flex border-b-2 border-slate-900">
-                                                <div className="w-1/2 border-r-2 border-slate-900 p-1">
-                                                    <div className="w-14 h-2 bg-slate-800 mb-1"></div>
-                                                    <div className="w-16 h-1 bg-slate-300"></div>
-                                                </div>
-                                                <div className="w-1/2 p-1 space-y-1">
-                                                    <div className="flex justify-between border-b border-slate-300 pb-1">
-                                                        <div className="w-6 h-1 bg-slate-400"></div>
-                                                        <div className="w-10 h-1 bg-slate-400"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 border-b-2 border-slate-900 flex">
-                                                <div className="w-1/2 border-r-2 border-slate-900"></div>
-                                                <div className="w-1/2"></div>
-                                            </div>
+                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none border border-slate-400">
+                                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-orange-600"></div>
+                                        <div className="flex justify-between items-center mb-4 mt-2">
+                                            <div className="w-16 h-4 bg-slate-900 rounded-sm"></div>
+                                            <div className="w-24 h-3 bg-orange-600/10 text-orange-600 border border-orange-600/30 rounded-sm"></div>
+                                        </div>
+                                        <div className="w-full h-px bg-slate-400 mb-4"></div>
+                                        <div className="w-full h-24 border border-slate-400 rounded-sm mb-4">
+                                            <div className="w-full h-4 bg-orange-600/10 border-b border-slate-400"></div>
+                                            <div className="w-full h-4 border-b border-slate-100 mt-2"></div>
+                                        </div>
+                                        <div className="flex justify-between items-center mt-6">
+                                            <div className="w-16 h-3 bg-slate-200"></div>
+                                            <div className="w-20 h-5 border-t border-slate-900"></div>
                                         </div>
                                     </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Tally <span className="text-[10px] bg-slate-100 border px-1.5 py-0.5 rounded text-slate-600">Classic</span></div>
+                                    <div className="p-3 bg-card border-t text-center font-medium">Construction</div>
                                 </div>
 
                                 {/* Thermal POS Theme */}
@@ -278,9 +449,8 @@ const PrintStudioPage = () => {
                                             <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                     )}
-                                    {/* Mockup SVG mimicking thermal receipt */}
-                                    <div className="aspect-[1/1.4] bg-[#f8f8f8] relative p-6 pointer-events-none flex justify-center shadow-inner">
-                                        <div className="w-3/4 h-full bg-white shadow-sm border border-slate-200 flex flex-col items-center p-2 font-mono" style={{ filter: 'grayscale(100%)' }}>
+                                    <div className="aspect-[1/1.4] bg-[#f8f8f8] relative p-4 pointer-events-none flex justify-center shadow-inner">
+                                        <div className="w-5/6 h-full bg-white shadow-sm border border-slate-200 flex flex-col items-center p-2 font-mono" style={{ filter: 'grayscale(100%)' }}>
                                             <div className="w-12 h-2 bg-slate-800 rounded-sm mb-1"></div>
                                             <div className="w-16 h-1 bg-slate-400 rounded-sm mb-2"></div>
                                             <div className="w-full border-b border-dashed border-slate-400 mb-2"></div>
@@ -301,160 +471,13 @@ const PrintStudioPage = () => {
                                             </div>
                                             <div className="w-full border-b border-dashed border-slate-400 mb-4"></div>
                                             <div className="flex gap-1 mb-2">
-                                                <div className="w-1 h-4 bg-slate-800"></div>
-                                                <div className="w-2 h-4 bg-slate-800"></div>
-                                                <div className="w-1 h-4 bg-slate-800"></div>
-                                                <div className="w-0.5 h-4 bg-slate-800"></div>
-                                                <div className="w-3 h-4 bg-slate-800"></div>
-                                                <div className="w-1 h-4 bg-slate-800"></div>
+                                                <div className="w-1 h-3 bg-slate-800"></div>
+                                                <div className="w-2 h-3 bg-slate-800"></div>
+                                                <div className="w-1 h-3 bg-slate-800"></div>
                                             </div>
-                                            <div className="w-10 h-1 bg-slate-400"></div>
                                         </div>
                                     </div>
                                     <div className="p-3 bg-card border-t text-center font-medium">Thermal POS</div>
-                                </div>
-
-                                {/* GST Theme 1 */}
-                                <div
-                                    onClick={() => handleThemeSelect("gst1")}
-                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'gst1' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
-                                >
-                                    {selectedTheme === 'gst1' && (
-                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                        </div>
-                                    )}
-                                    {/* Mockup SVG */}
-                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none">
-                                        <div className="w-full h-full border border-slate-900 flex flex-col p-1">
-                                            <div className="text-center text-[8px] font-bold pb-1 bg-slate-50 border-b border-slate-900">TAX INVOICE</div>
-                                            <div className="flex border-b border-slate-900 h-10">
-                                                <div className="w-1/2 border-r border-slate-900 p-1 flex flex-col justify-center">
-                                                    <div className="w-10 h-1.5 bg-slate-800 mb-1"></div>
-                                                    <div className="w-14 h-1 bg-slate-400"></div>
-                                                </div>
-                                                <div className="w-1/2 p-1 flex flex-col justify-center gap-1">
-                                                    <div className="w-12 h-1 bg-slate-500"></div>
-                                                    <div className="w-10 h-1 bg-slate-400"></div>
-                                                </div>
-                                            </div>
-                                            <div className="border-b border-slate-900 p-1 h-8">
-                                                <div className="w-12 h-1 bg-slate-500 mb-1"></div>
-                                                <div className="w-14 h-1 bg-slate-400"></div>
-                                            </div>
-                                            <div className="flex-1 border-b border-slate-900 flex bg-slate-50/50">
-                                                {/* Simulated table columns for GST */}
-                                                <div className="w-1/6 border-r border-slate-300"></div>
-                                                <div className="w-2/6 border-r border-slate-300"></div>
-                                                <div className="w-1/6 border-r border-slate-300"></div>
-                                                <div className="w-1/6 border-r border-slate-300"></div>
-                                                <div className="w-1/6"></div>
-                                            </div>
-                                            <div className="h-6 flex border-b border-slate-900">
-                                                <div className="w-3/4 border-r border-slate-900 p-1 flex items-end justify-end">
-                                                    <div className="w-10 h-1 bg-slate-600"></div>
-                                                </div>
-                                                <div className="w-1/4 p-1 flex items-end justify-end">
-                                                    <div className="w-6 h-1 bg-slate-800"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">GST Theme 1</div>
-                                </div>
-
-                                {/* Service Pro Theme */}
-                                <div
-                                    onClick={() => handleThemeSelect("service")}
-                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'service' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
-                                >
-                                    {selectedTheme === 'service' && (
-                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                        </div>
-                                    )}
-                                    <div className="aspect-[1/1.4] bg-teal-50 relative p-4 pointer-events-none">
-                                        <div className="absolute inset-y-0 left-0 w-2 bg-teal-500"></div>
-                                        <div className="flex justify-between mb-5 pl-2">
-                                            <div className="space-y-1">
-                                                <div className="w-24 h-3 bg-slate-900 rounded"></div>
-                                                <div className="w-20 h-2 bg-teal-400 rounded"></div>
-                                            </div>
-                                            <div className="w-14 h-5 bg-teal-500 rounded"></div>
-                                        </div>
-                                        <div className="ml-2 h-9 bg-white border border-teal-100 rounded-md mb-5"></div>
-                                        <div className="ml-2 space-y-2">
-                                            <div className="h-4 bg-teal-500 rounded"></div>
-                                            <div className="h-3 bg-white border border-teal-100 rounded"></div>
-                                            <div className="h-3 bg-white border border-teal-100 rounded"></div>
-                                        </div>
-                                        <div className="absolute bottom-5 right-4 w-24 h-11 bg-white border border-teal-100 rounded-md"></div>
-                                    </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Service Pro <span className="text-[10px] bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded text-teal-700">New</span></div>
-                                </div>
-
-                                {/* Manufacturing Theme */}
-                                <div
-                                    onClick={() => handleThemeSelect("manufacturing")}
-                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'manufacturing' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
-                                >
-                                    {selectedTheme === 'manufacturing' && (
-                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                        </div>
-                                    )}
-                                    <div className="aspect-[1/1.4] bg-white relative p-4 pointer-events-none">
-                                        <div className="w-full h-full border-2 border-slate-800">
-                                            <div className="h-7 bg-orange-50 border-b-2 border-orange-300 flex items-center justify-center">
-                                                <div className="w-20 h-2 bg-orange-600 rounded"></div>
-                                            </div>
-                                            <div className="grid grid-cols-2 border-b border-slate-800 h-12">
-                                                <div className="border-r border-slate-800 p-2 space-y-1">
-                                                    <div className="w-16 h-2 bg-slate-800 rounded"></div>
-                                                    <div className="w-20 h-1.5 bg-slate-300 rounded"></div>
-                                                </div>
-                                                <div className="p-2 space-y-1">
-                                                    <div className="w-14 h-1.5 bg-slate-500 rounded"></div>
-                                                    <div className="w-20 h-1.5 bg-slate-300 rounded"></div>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-[1fr_4fr_1fr_1fr] h-24 border-b border-slate-800 bg-slate-50">
-                                                <div className="border-r border-slate-300"></div>
-                                                <div className="border-r border-slate-300"></div>
-                                                <div className="border-r border-slate-300"></div>
-                                                <div></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Manufacturing <span className="text-[10px] bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded text-orange-700">New</span></div>
-                                </div>
-
-                                {/* Wholesale Ledger Theme */}
-                                <div
-                                    onClick={() => handleThemeSelect("wholesale")}
-                                    className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 hover:shadow-md ${selectedTheme === 'wholesale' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
-                                >
-                                    {selectedTheme === 'wholesale' && (
-                                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 z-10 shadow-sm">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                        </div>
-                                    )}
-                                    <div className="aspect-[1/1.4] bg-blue-50 relative p-4 pointer-events-none">
-                                        <div className="absolute top-0 left-0 right-0 h-3 bg-blue-700"></div>
-                                        <div className="pt-4 flex justify-between mb-4">
-                                            <div className="w-24 h-3 bg-slate-900 rounded"></div>
-                                            <div className="w-16 h-3 bg-blue-700 rounded"></div>
-                                        </div>
-                                        <div className="bg-white border border-blue-100 rounded h-9 mb-4"></div>
-                                        <div className="space-y-1.5">
-                                            <div className="h-4 bg-blue-700 rounded"></div>
-                                            <div className="h-3 bg-white rounded border border-blue-100"></div>
-                                            <div className="h-3 bg-slate-50 rounded border border-blue-100"></div>
-                                            <div className="h-3 bg-white rounded border border-blue-100"></div>
-                                        </div>
-                                        <div className="absolute bottom-5 right-4 w-24 h-10 bg-white border border-blue-100 rounded"></div>
-                                    </div>
-                                    <div className="p-3 bg-card border-t text-center font-medium flex items-center justify-center gap-2">Wholesale <span className="text-[10px] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded text-blue-700">New</span></div>
                                 </div>
 
                             </div>

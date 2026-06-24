@@ -15,7 +15,8 @@ import {
   Package,
   FileBarChart,
   Printer,
-  Globe
+  Globe,
+  Sparkles
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/core/lib/utils";

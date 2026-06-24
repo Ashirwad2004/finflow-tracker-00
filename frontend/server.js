@@ -22,6 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 // Register Payments API Router
 app.use('/api/payments', paymentRouter);
 
+
 // Serve static files from the React app build directory
 app.use(express.static(path.join(__dirname, 'dist')));
 

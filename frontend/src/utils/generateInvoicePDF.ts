@@ -33,7 +33,13 @@ export interface InvoiceDetails {
     };
 }
 
-export type InvoicePdfTheme = 'corporate' | 'minimalist' | 'retail' | 'tally' | 'gst1' | 'service' | 'manufacturing' | 'wholesale';
+export type InvoicePdfTheme = 'corporate' | 'modern-dark' | 'minimal-white' | 'professional-green' | 'premium-gold' | 'creative-purple' | 'startup-gradient' | 'elegant-mono' | 'retail' | 'construction';
+
+export interface TotalRow {
+    label: string;
+    value: number;
+    bold?: boolean;
+}
 
 const sanitizeText = (text: string) => {
     return text.replace(/[^\x00-\x7F]/g, "");
@@ -131,8 +137,8 @@ export const generateInvoicePDF = async (
             }
         }
 
-        const getTaxRows = (style: "paren" | "at" = "paren") => {
-            const rows: { label: string; value: number }[] = [];
+        const getTaxRows = (style: "paren" | "at" = "paren"): TotalRow[] => {
+            const rows: TotalRow[] = [];
             const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
             const cgstLabel = splitRate ? (style === "at" ? `CGST @ ${splitRate}%` : `CGST (${splitRate}%)`) : "CGST";
             const sgstLabel = splitRate ? (style === "at" ? `SGST @ ${splitRate}%` : `SGST (${splitRate}%)`) : "SGST";
@@ -150,7 +156,7 @@ export const generateInvoicePDF = async (
             return rows;
         };
 
-        const totalRows = [
+        const totalRows: TotalRow[] = [
             { label: "Subtotal", value: data.subtotal },
             ...(data.discount_amount && data.discount_amount > 0 ? [{ label: "Discount", value: -data.discount_amount }] : []),
             ...getTaxRows("at"),
@@ -173,7 +179,6 @@ export const generateInvoicePDF = async (
             let currentHeaderY = 26;
 
             if (logoBase64) {
-                // Calculate dimensions to fit inside 30x30 bounding box
                 const maxDim = 28;
                 let renderW = logoBase64.width;
                 let renderH = logoBase64.height;
@@ -259,12 +264,6 @@ export const generateInvoicePDF = async (
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
                 margin: { left: 14, right: 14 },
-                didParseCell: (hookData) => {
-                    if (hookData.section === 'head') {
-                        if (hookData.column.index === 1) hookData.cell.styles.halign = 'center';
-                        if (hookData.column.index === 2 || hookData.column.index === 3) hookData.cell.styles.halign = 'right';
-                    }
-                }
             });
 
             const finalY = (doc as any).lastAutoTable.finalY + 10;
@@ -279,58 +278,24 @@ export const generateInvoicePDF = async (
             doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
 
             let currentTotalY = finalY;
-            if (data.discount_amount && data.discount_amount > 0) {
+            totalRows.slice(1).forEach(row => {
                 currentTotalY += 7;
-                doc.setTextColor(...textLight);
-                doc.text("Discount:", totalBlockX, currentTotalY);
-                doc.setTextColor(...textDark);
-                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, vAlignX, currentTotalY, { align: "right" });
-            }
-
-            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
-            const cgstLabel = splitRate ? `CGST (${splitRate}%):` : "CGST:";
-            const sgstLabel = splitRate ? `SGST (${splitRate}%):` : "SGST:";
-            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%):` : "IGST:";
-
-            if (isInterState && igstVal > 0) {
-                currentTotalY += 7;
-                doc.setTextColor(...textLight);
-                doc.text(igstLabel, totalBlockX, currentTotalY);
-                doc.setTextColor(...textDark);
-                doc.text(formatCurrencySafe(igstVal), vAlignX, currentTotalY, { align: "right" });
-            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
-                if (cgstVal > 0) {
+                doc.setTextColor(...(row.bold ? brandColor : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(241, 245, 249);
+                    doc.setDrawColor(...lineLight);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
                     currentTotalY += 7;
-                    doc.setTextColor(...textLight);
-                    doc.text(cgstLabel, totalBlockX, currentTotalY);
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
                     doc.setTextColor(...textDark);
-                    doc.text(formatCurrencySafe(cgstVal), vAlignX, currentTotalY, { align: "right" });
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
                 }
-                if (sgstVal > 0) {
-                    currentTotalY += 7;
-                    doc.setTextColor(...textLight);
-                    doc.text(sgstLabel, totalBlockX, currentTotalY);
-                    doc.setTextColor(...textDark);
-                    doc.text(formatCurrencySafe(sgstVal), vAlignX, currentTotalY, { align: "right" });
-                }
-            } else if (data.tax_amount && data.tax_amount > 0) {
-                currentTotalY += 7;
-                doc.setTextColor(...textLight);
-                doc.text(`Tax (${data.tax_rate || ''}%):`, totalBlockX, currentTotalY);
-                doc.setTextColor(...textDark);
-                doc.text(formatCurrencySafe(data.tax_amount), vAlignX, currentTotalY, { align: "right" });
-            }
-
-            const totalBoxY = currentTotalY + 5;
-            doc.setFillColor(241, 245, 249);
-            doc.setDrawColor(...lineLight);
-            doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
-
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(...brandColor);
-            doc.text("Total Due:", totalBlockX, totalBoxY + 9);
-            doc.text(formatCurrencySafe(data.total_amount), vAlignX, totalBoxY + 9, { align: "right" });
+            });
 
             if (signatureBase64) {
                 const maxDim = 35;
@@ -342,12 +307,11 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW; // Align right based on page width (210) margin (14)
+                const sigX = 196 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                // Text is also right-aligned relative to the end margin
                 doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
             }
 
@@ -358,12 +322,178 @@ export const generateInvoicePDF = async (
             doc.setFont("helvetica", "italic");
             doc.text("Thank you for your business. For any inquiries, please contact us.", 105, pageHeight - 12, { align: "center" });
 
-        } else if (theme === 'minimalist') {
-            // --- MINIMALIST THEME (Black & White structural) ---
-            const textDark: [number, number, number] = [15, 23, 42];
-            const textMid: [number, number, number] = [71, 85, 105];
+        } else if (theme === 'modern-dark') {
+            const darkBg: [number, number, number] = [15, 23, 42]; // slate-900
+            const darkPanel: [number, number, number] = [30, 41, 59]; // slate-800
+            const accentCyan: [number, number, number] = [6, 182, 212]; // cyan-500
+            const textGray: [number, number, number] = [148, 163, 184]; // slate-400
+            const lineDark: [number, number, number] = [51, 65, 85]; // slate-700
 
-            let myY = 52;
+            doc.setFillColor(...darkBg);
+            doc.rect(0, 0, 210, 60, "F");
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 24;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 8 + (28 - renderH) / 2;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 22);
+
+                currentHeaderY = 28;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                doc.setTextColor(...textGray);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 4.5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 22);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                doc.setTextColor(...textGray);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY + 4);
+                    currentHeaderY += 8.5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY + 4);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(26);
+            doc.setTextColor(...accentCyan);
+            doc.text("INVOICE", 196, 22, { align: "right" });
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(255, 255, 255);
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 29, { align: "right" });
+            doc.setTextColor(...textGray);
+            doc.text(`Date: ${dateFormatted}`, 196, 34, { align: "right" });
+
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(226, 232, 240);
+            doc.roundedRect(14, 70, 182, 32, 3, 3, "FD");
+
+            doc.setTextColor(...darkBg);
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 20, 78);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 20, 84);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...darkPanel);
+            doc.setFontSize(9.5);
+            const clientDetails = [
+                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
+                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
+                custGSTIN ? `GSTIN: ${custGSTIN}` : ""
+            ].filter(Boolean).join("  |  ");
+            doc.text(clientDetails || "-", 20, 92, { maxWidth: 170 });
+
+            autoTable(doc, {
+                startY: 112,
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'striped',
+                headStyles: { fillColor: darkBg, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5, cellPadding: 4 },
+                bodyStyles: { textColor: darkBg, fontSize: 9, cellPadding: 4, lineColor: [241, 245, 249] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10);
+            doc.setTextColor(...textGray);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...darkBg);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? accentCyan : textGray));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(...darkBg);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "F");
+                    doc.setTextColor(...accentCyan);
+                    doc.setFontSize(11);
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.setTextColor(...darkBg);
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...darkBg);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...darkBg);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setDrawColor(226, 232, 240);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(8.5);
+            doc.setTextColor(...textGray);
+            doc.setFont("helvetica", "italic");
+            doc.text("Digital Invoice. Generated via FinFlow ledger.", 105, pageHeight - 12, { align: "center" });
+
+        } else if (theme === 'minimal-white') {
+            const inkDark: [number, number, number] = [15, 23, 42]; // slate-900
+            const inkMuted: [number, number, number] = [100, 116, 139]; // slate-500
+            const borderInk: [number, number, number] = [0, 0, 0];
+
             let headerBaseY = 24;
 
             if (logoBase64) {
@@ -378,13 +508,13 @@ export const generateInvoicePDF = async (
                 const startY = 14;
                 doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
 
-                doc.setTextColor(...textDark);
+                doc.setTextColor(...inkDark);
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(16);
                 doc.text(bizName, 18 + renderW, 23);
                 headerBaseY = Math.max(28, startY + renderH + 5);
             } else {
-                doc.setTextColor(...textDark);
+                doc.setTextColor(...inkDark);
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(26);
                 doc.text(bizName, 14, 24);
@@ -393,119 +523,86 @@ export const generateInvoicePDF = async (
 
             doc.setFontSize(28);
             doc.setFont("helvetica", "bold");
-            doc.text((documentTitle || "INVOICE").toUpperCase(), 196, 20, { align: "right" });
+            doc.text("INVOICE", 196, 20, { align: "right" });
             doc.setFont("helvetica", "normal");
-            doc.setTextColor(...textMid);
+            doc.setTextColor(...inkMuted);
+            doc.setFontSize(10);
             doc.text(`No. ${safeText(data.invoice_number)}`, 196, 26, { align: "right" });
             doc.text(`Date: ${dateFormatted}`, 196, 31, { align: "right" });
 
-            doc.setDrawColor(15, 23, 42); // Black solid divide
+            doc.setDrawColor(...borderInk);
             doc.setLineWidth(0.8);
             doc.line(14, headerBaseY + 8, 196, headerBaseY + 8);
 
+            let myY = headerBaseY + 18;
             doc.setFont("helvetica", "bold");
-            doc.setTextColor(...textDark);
+            doc.setTextColor(...inkDark);
             doc.setFontSize(10);
-            doc.text("YOUR DETAILS", 14, headerBaseY + 16);
-            doc.text("CLIENT DETAILS", 120, headerBaseY + 16);
+            doc.text("SENDER", 14, myY);
+            doc.text("BILL TO", 120, myY);
 
             doc.setFont("helvetica", "normal");
-            doc.setTextColor(...textMid);
+            doc.setTextColor(...inkMuted);
 
-            myY = headerBaseY + 22;
-            if (data.business_details?.address) { doc.text(safeText(data.business_details.address), 14, myY); myY += 5; }
-            if (data.business_details?.phone) { doc.text(`P: ${safeText(data.business_details.phone)}`, 14, myY); myY += 5; }
-            if (data.business_details?.gst) { doc.text(`GST: ${safeText(data.business_details.gst)}`, 14, myY); }
+            myY += 6;
+            let senderY = myY;
+            if (data.business_details?.address) { doc.text(safeText(data.business_details.address), 14, senderY); senderY += 5; }
+            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 14, senderY); senderY += 5; }
+            if (data.business_details?.gst) { doc.text(`GSTIN: ${safeText(data.business_details.gst)}`, 14, senderY); }
 
-            let clientY = headerBaseY + 22;
-            doc.setTextColor(...textDark);
-            doc.text(safeText(data.customer_name), 120, clientY); clientY += 5;
-            doc.setTextColor(...textMid);
-            if (data.customer_phone) { doc.text(`P: ${safeText(data.customer_phone)}`, 120, clientY); clientY += 5; }
-            if (data.customer_email) { doc.text(`E: ${safeText(data.customer_email)}`, 120, clientY); clientY += 5; }
-            if (custGSTIN) { doc.text(`GST: ${custGSTIN}`, 120, clientY); }
+            let buyerY = myY;
+            doc.setTextColor(...inkDark);
+            doc.text(safeText(data.customer_name), 120, buyerY); buyerY += 5.5;
+            doc.setTextColor(...inkMuted);
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 120, buyerY); buyerY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 120, buyerY); buyerY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN: ${custGSTIN}`, 120, buyerY); }
+
+            const startTableY = Math.max(76, Math.max(senderY, buyerY) + 8);
 
             autoTable(doc, {
-                startY: Math.max(75, Math.max(myY, clientY) + 10),
+                startY: startTableY,
                 head: [["DESCRIPTION", "QTY", "PRICE", "TOTAL"]],
                 body: tableRows,
                 theme: 'plain',
-                headStyles: { textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 0, right: 0 }, lineWidth: { bottom: 1, top: 0, left: 0, right: 0 }, lineColor: textDark },
-                bodyStyles: { textColor: textMid, fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 0, right: 0 }, lineWidth: { bottom: 0.1, top: 0, left: 0, right: 0 }, lineColor: [203, 213, 225] },
+                headStyles: { textColor: inkDark, fontStyle: 'bold', fontSize: 9.5, cellPadding: { top: 4, bottom: 4, left: 0, right: 0 }, lineWidth: { bottom: 1, top: 0, left: 0, right: 0 }, lineColor: borderInk },
+                bodyStyles: { textColor: inkDark, fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 0, right: 0 }, lineWidth: { bottom: 0.2 }, lineColor: [226, 232, 240] },
                 columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 31, halign: 'right' }, 3: { cellWidth: 31, halign: 'right' } },
                 margin: { left: 14, right: 14 },
-                didParseCell: (hookData) => {
-                    if (hookData.section === 'head') {
-                        if (hookData.column.index === 1) hookData.cell.styles.halign = 'center';
-                        if (hookData.column.index === 2 || hookData.column.index === 3) hookData.cell.styles.halign = 'right';
-                    }
-                }
             });
 
             const finalY = (doc as any).lastAutoTable.finalY + 10;
             const totalBlockX = 140;
             const vAlignX = 196;
 
-            doc.setFontSize(9);
-            doc.setTextColor(...textMid);
+            doc.setFontSize(9.5);
+            doc.setTextColor(...inkMuted);
+            doc.setFont("helvetica", "normal");
             doc.text("Subtotal", totalBlockX, finalY);
-            doc.setTextColor(...textDark);
+            doc.setTextColor(...inkDark);
             doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
 
             let currentTotalY = finalY;
-            if (data.discount_amount && data.discount_amount > 0) {
-                currentTotalY += 6;
-                doc.setTextColor(...textMid);
-                doc.text("Discount", totalBlockX, currentTotalY);
-                doc.setTextColor(...textDark);
-                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, vAlignX, currentTotalY, { align: "right" });
-            }
-
-            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
-            const cgstLabel = splitRate ? `CGST (${splitRate}%)` : "CGST";
-            const sgstLabel = splitRate ? `SGST (${splitRate}%)` : "SGST";
-            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%)` : "IGST";
-
-            if (isInterState && igstVal > 0) {
-                currentTotalY += 6;
-                doc.setTextColor(...textMid);
-                doc.text(igstLabel, totalBlockX, currentTotalY);
-                doc.setTextColor(...textDark);
-                doc.text(formatCurrencySafe(igstVal), vAlignX, currentTotalY, { align: "right" });
-            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
-                if (cgstVal > 0) {
-                    currentTotalY += 6;
-                    doc.setTextColor(...textMid);
-                    doc.text(cgstLabel, totalBlockX, currentTotalY);
-                    doc.setTextColor(...textDark);
-                    doc.text(formatCurrencySafe(cgstVal), vAlignX, currentTotalY, { align: "right" });
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 6.5;
+                if (row.bold) {
+                    currentTotalY += 2;
+                    doc.setDrawColor(...borderInk);
+                    doc.setLineWidth(0.5);
+                    doc.line(totalBlockX, currentTotalY - 4, vAlignX, currentTotalY - 4);
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(...inkDark);
+                    doc.setFontSize(11);
+                    doc.text(row.label.toUpperCase(), totalBlockX, currentTotalY);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, currentTotalY, { align: "right" });
+                } else {
+                    doc.setTextColor(...inkMuted);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(row.label, totalBlockX, currentTotalY);
+                    doc.setTextColor(...inkDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
                 }
-                if (sgstVal > 0) {
-                    currentTotalY += 6;
-                    doc.setTextColor(...textMid);
-                    doc.text(sgstLabel, totalBlockX, currentTotalY);
-                    doc.setTextColor(...textDark);
-                    doc.text(formatCurrencySafe(sgstVal), vAlignX, currentTotalY, { align: "right" });
-                }
-            } else if (data.tax_amount && data.tax_amount > 0) {
-                currentTotalY += 6;
-                doc.setTextColor(...textMid);
-                doc.text(`Tax (${data.tax_rate || ''}%)`, totalBlockX, currentTotalY);
-                doc.setTextColor(...textDark);
-                doc.text(formatCurrencySafe(data.tax_amount), vAlignX, currentTotalY, { align: "right" });
-            }
-
-            currentTotalY += 6;
-            doc.setDrawColor(...textDark);
-            doc.setLineWidth(0.5);
-            doc.line(totalBlockX, currentTotalY, vAlignX, currentTotalY);
-
-            currentTotalY += 8;
-            doc.setFontSize(11);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(...textDark);
-            doc.text("TOTAL DUE", totalBlockX, currentTotalY);
-            doc.text(formatCurrencySafe(data.total_amount), vAlignX, currentTotalY, { align: "right" });
+            });
 
             if (signatureBase64) {
                 const maxDim = 35;
@@ -517,7 +614,164 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW; // Align right
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...inkDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...inkMuted);
+            doc.text("Thank you for your business.", 14, pageHeight - 12);
+
+        } else if (theme === 'professional-green') {
+            const greenPrimary: [number, number, number] = [6, 95, 70]; // emerald-800
+            const greenAccent: [number, number, number] = [16, 185, 129]; // emerald-500
+            const textDark: [number, number, number] = [30, 41, 59];
+            const textLight: [number, number, number] = [100, 116, 139];
+            const lineGreen: [number, number, number] = [209, 250, 229]; // emerald-100
+
+            doc.setFillColor(...greenPrimary);
+            doc.rect(0, 0, 210, 40, "F");
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 26;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 6 + (28 - renderH) / 2;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 20);
+
+                currentHeaderY = 26;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 20);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(28);
+            doc.text("INVOICE", 196, 20, { align: "right" });
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 32, { align: "right" });
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 14, 55);
+
+            doc.setDrawColor(...greenAccent);
+            doc.setLineWidth(0.5);
+            doc.line(14, 57, 80, 57);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 14, 63);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(10);
+            let billY = 68;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(85, billY + 10),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: greenPrimary, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
+                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [237, 247, 242] },
+                alternateRowStyles: { fillColor: [244, 252, 248] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? greenPrimary : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(236, 253, 245); // emerald-50
+                    doc.setDrawColor(...greenAccent);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
@@ -525,13 +779,650 @@ export const generateInvoicePDF = async (
                 doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
             }
 
-            doc.setFontSize(8);
+            doc.setDrawColor(...lineGreen);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "italic");
+            doc.text("Thank you for your green business support. Contact us for questions.", 105, pageHeight - 12, { align: "center" });
+
+        } else if (theme === 'premium-gold') {
+            const goldPrimary: [number, number, number] = [153, 115, 30]; // dark gold
+            const goldAccent: [number, number, number] = [180, 142, 60]; // medium gold
+            const textDark: [number, number, number] = [31, 41, 55]; // charcoal
+            const textLight: [number, number, number] = [156, 163, 175]; // light gray
+            const lineGold: [number, number, number] = [254, 243, 199]; // amber-100
+
+            doc.setFillColor(...goldAccent);
+            doc.rect(0, 0, 210, 8, "F");
+
+            doc.setTextColor(...textDark);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 32;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 14;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 25);
+
+                currentHeaderY = 31;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 25);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(28);
+            doc.setTextColor(...goldPrimary);
+            doc.text("INVOICE", 196, 25, { align: "right" });
+            doc.setFontSize(11);
             doc.setFont("helvetica", "normal");
-            doc.setTextColor(...textMid);
-            doc.text(safeText(data.business_details?.name || "Thank you for your business."), 14, pageHeight - 12);
+            doc.setTextColor(...textDark);
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 32, { align: "right" });
+            doc.setTextColor(...textLight);
+            doc.text(`Date: ${dateFormatted}`, 196, 37, { align: "right" });
+
+            doc.setDrawColor(...goldAccent);
+            doc.setLineWidth(0.8);
+            doc.line(14, 52, 196, 52);
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 14, 63);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 14, 70);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(10);
+            let billY = 75;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(92, billY + 8),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: goldPrimary, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
+                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [253, 251, 244] },
+                alternateRowStyles: { fillColor: [255, 254, 250] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? goldPrimary : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(255, 251, 235); // amber-50
+                    doc.setDrawColor(...goldAccent);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...textDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setDrawColor(...lineGold);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "italic");
+            doc.text("Your business is highly valued. Premium Quality Guaranteed.", 105, pageHeight - 12, { align: "center" });
+
+        } else if (theme === 'creative-purple') {
+            const purplePrimary: [number, number, number] = [109, 40, 217]; // violet-700
+            const purpleAccent: [number, number, number] = [139, 92, 246]; // violet-500
+            const textDark: [number, number, number] = [30, 41, 59];
+            const textLight: [number, number, number] = [100, 116, 139];
+            const linePurple: [number, number, number] = [245, 243, 255]; // violet-50
+
+            doc.setFillColor(...purplePrimary);
+            doc.rect(0, 0, 210, 40, "F");
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 26;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 6 + (28 - renderH) / 2;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 20);
+
+                currentHeaderY = 26;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 20);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(28);
+            doc.text("INVOICE", 196, 20, { align: "right" });
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 32, { align: "right" });
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 14, 55);
+
+            doc.setDrawColor(...purpleAccent);
+            doc.setLineWidth(0.5);
+            doc.line(14, 57, 80, 57);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 14, 63);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(10);
+            let billY = 68;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(85, billY + 10),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: purplePrimary, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
+                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 232, 255] },
+                alternateRowStyles: { fillColor: [250, 245, 255] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? purplePrimary : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(250, 245, 255); // violet-50
+                    doc.setDrawColor(...purpleAccent);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...textDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setDrawColor(...linePurple);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "italic");
+            doc.text("Thank you for your creative collaboration. Best wishes!", 105, pageHeight - 12, { align: "center" });
+
+        } else if (theme === 'startup-gradient') {
+            const indigoColor: [number, number, number] = [79, 70, 229]; // Indigo
+            const pinkColor: [number, number, number] = [236, 72, 153]; // Pink
+            const textDark: [number, number, number] = [30, 41, 59];
+            const textLight: [number, number, number] = [100, 116, 139];
+
+            for (let i = 0; i < 40; i++) {
+                const ratio = i / 40;
+                const r = Math.round(indigoColor[0] + ratio * (pinkColor[0] - indigoColor[0]));
+                const g = Math.round(indigoColor[1] + ratio * (pinkColor[1] - indigoColor[1]));
+                const b = Math.round(indigoColor[2] + ratio * (pinkColor[2] - indigoColor[2]));
+                doc.setFillColor(r, g, b);
+                doc.rect(0, i, 210, 1, "F");
+            }
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 26;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 6 + (28 - renderH) / 2;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 20);
+
+                currentHeaderY = 26;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 20);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(28);
+            doc.text("INVOICE", 196, 20, { align: "right" });
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 32, { align: "right" });
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 14, 55);
+
+            doc.setDrawColor(...indigoColor);
+            doc.setLineWidth(0.5);
+            doc.line(14, 57, 80, 57);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 14, 63);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(10);
+            let billY = 68;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(85, billY + 10),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: indigoColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
+                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 244, 246] },
+                alternateRowStyles: { fillColor: [249, 250, 251] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? pinkColor : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(253, 244, 245); // pink-50
+                    doc.setDrawColor(...pinkColor);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...textDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setDrawColor(243, 244, 246);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "italic");
+            doc.text("Generated with love via FinFlow Ledger. Growth is a habit.", 105, pageHeight - 12, { align: "center" });
+
+        } else if (theme === 'elegant-mono') {
+            const textDark: [number, number, number] = [0, 0, 0];
+            const textLight: [number, number, number] = [75, 85, 99];
+
+            doc.setFont("times", "normal");
+
+            let currentHeaderY = 24;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 14;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setTextColor(...textDark);
+                doc.setFont("times", "bold");
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 25);
+
+                currentHeaderY = 32;
+                doc.setFont("times", "normal");
+                doc.setFontSize(9.5);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GST: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setTextColor(...textDark);
+                doc.setFont("times", "bold");
+                doc.setFontSize(26);
+                doc.text(bizName, 14, 25);
+
+                doc.setFont("times", "normal");
+                doc.setFontSize(10);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY + 8);
+                    currentHeaderY += 13;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GST: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY + 8);
+                }
+            }
+
+            doc.setFont("times", "bold");
+            doc.setFontSize(30);
+            doc.text("INVOICE", 196, 25, { align: "right" });
+            doc.setFontSize(11);
+            doc.setFont("times", "normal");
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 32, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 37, { align: "right" });
+
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(1.2);
+            doc.line(14, 52, 196, 52);
+            doc.setLineWidth(0.4);
+            doc.line(14, 54, 196, 54);
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(11);
+            doc.setFont("times", "bold");
+            doc.text("CLIENT / BUYER", 14, 63);
+
+            doc.setFontSize(12);
+            doc.text(safeText(data.customer_name), 14, 70);
+
+            doc.setFont("times", "normal");
+            doc.setFontSize(10.5);
+            let billY = 75;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(90, billY + 8),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'plain',
+                headStyles: { font: 'times', fontStyle: 'bold', textColor: [0, 0, 0], fontSize: 10, cellPadding: 3, lineWidth: { bottom: 1 }, lineColor: [0, 0, 0] },
+                bodyStyles: { font: 'times', textColor: [0, 0, 0], fontSize: 9.5, cellPadding: 3, lineWidth: { bottom: 0.5 }, lineColor: [220, 220, 220] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            doc.setFont("times", "normal");
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10.5);
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setFont("times", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    doc.setDrawColor(0, 0, 0);
+                    doc.setLineWidth(0.6);
+                    doc.line(totalBlockX, currentTotalY - 4, vAlignX, currentTotalY - 4);
+                    doc.text(row.label + ":", totalBlockX, currentTotalY + 1);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, currentTotalY + 1, { align: "right" });
+                    doc.line(totalBlockX, currentTotalY + 3, vAlignX, currentTotalY + 3);
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9.5);
+                doc.setTextColor(...textDark);
+                doc.setFont("times", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setFontSize(9);
+            doc.setFont("times", "italic");
+            doc.text("This document constitutes an official record. Thank you for your custom.", 105, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'retail') {
-            // --- RETAIL THEME (Modern Edge Banner) ---
             const accentColor: [number, number, number] = [14, 165, 233]; // sky-500
             const textDark: [number, number, number] = [15, 23, 42];
             const lineLight: [number, number, number] = [226, 232, 240];
@@ -603,69 +1494,30 @@ export const generateInvoicePDF = async (
                 bodyStyles: { textColor: textDark, fontSize: 8, cellPadding: 3 },
                 alternateRowStyles: { fillColor: [255, 255, 255] },
                 columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 15, halign: 'center' }, 2: { cellWidth: 20, halign: 'right' }, 3: { cellWidth: 25, halign: 'right' } },
-                margin: { left: 14, right: 86 }, // Constrain totally entirely to the left white block (210 - 80 tray = 130 max right)
-                didParseCell: (hookData) => {
-                    if (hookData.section === 'head') {
-                        if (hookData.column.index === 1) hookData.cell.styles.halign = 'center';
-                        if (hookData.column.index === 2 || hookData.column.index === 3) hookData.cell.styles.halign = 'right';
-                    }
-                }
+                margin: { left: 14, right: 86 }, 
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-            // Render totals in the right sky blue tray panel
             let trayY = Math.max(85, cliY + 15);
 
             doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.setTextColor(...textDark);
-            doc.text("Subtotal", 140, trayY);
-            doc.text(formatCurrencySafe(data.subtotal), 196, trayY, { align: "right" });
-
-            if (data.discount_amount && data.discount_amount > 0) {
-                trayY += 7;
-                doc.text("Discount", 140, trayY);
-                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 196, trayY, { align: "right" });
-            }
-
-            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
-            const cgstLabel = splitRate ? `CGST (${splitRate}%)` : "CGST";
-            const sgstLabel = splitRate ? `SGST (${splitRate}%)` : "SGST";
-            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%)` : "IGST";
-
-            if (isInterState && igstVal > 0) {
-                trayY += 7;
-                doc.text(igstLabel, 140, trayY);
-                doc.text(formatCurrencySafe(igstVal), 196, trayY, { align: "right" });
-            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
-                if (cgstVal > 0) {
-                    trayY += 7;
-                    doc.text(cgstLabel, 140, trayY);
-                    doc.text(formatCurrencySafe(cgstVal), 196, trayY, { align: "right" });
+            totalRows.forEach(row => {
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    trayY += 4;
+                    doc.setDrawColor(...accentColor);
+                    doc.setLineWidth(1);
+                    doc.line(140, trayY - 2, 196, trayY - 2);
+                    doc.setTextColor(...accentColor);
+                    doc.text(row.label, 140, trayY + 4);
+                    doc.text(formatCurrencySafe(row.value), 196, trayY + 4, { align: "right" });
+                    trayY += 8;
+                } else {
+                    doc.setTextColor(...textDark);
+                    doc.text(row.label, 140, trayY);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), 196, trayY, { align: "right" });
+                    trayY += 6;
                 }
-                if (sgstVal > 0) {
-                    trayY += 7;
-                    doc.text(sgstLabel, 140, trayY);
-                    doc.text(formatCurrencySafe(sgstVal), 196, trayY, { align: "right" });
-                }
-            } else if (data.tax_amount && data.tax_amount > 0) {
-                trayY += 7;
-                doc.text(`Tax (${data.tax_rate || ''}%)`, 140, trayY);
-                doc.text(formatCurrencySafe(data.tax_amount), 196, trayY, { align: "right" });
-            }
-
-            trayY += 8;
-            doc.setDrawColor(...accentColor);
-            doc.setLineWidth(1);
-            doc.line(140, trayY, 196, trayY);
-
-            trayY += 8;
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(...accentColor);
-            doc.text("TOTAL", 140, trayY);
-            doc.text(formatCurrencySafe(data.total_amount), 196, trayY, { align: "right" });
+            });
 
             if (signatureBase64) {
                 const maxDim = 30;
@@ -677,7 +1529,6 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 40;
-                // Retail theme has the right side tray, so position it aligned to the right edge of the tray
                 const sigX = 196 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
@@ -693,28 +1544,25 @@ export const generateInvoicePDF = async (
             doc.setTextColor(148, 163, 184); // slate-400
             doc.setFont("helvetica", "italic");
             doc.text("Thank you.", 14, pageHeight - 12);
-        } else if (theme === 'tally') {
-            // --- TALLY CLASSIC THEME (Boxy, borders, formal) ---
-            const textDark: [number, number, number] = [0, 0, 0];
-            doc.setTextColor(...textDark);
-            doc.setDrawColor(0, 0, 0); // Pure black lines
-            doc.setLineWidth(0.3);
 
-            // Outer Border
-            doc.rect(10, 10, 190, pageHeight - 20);
+        } else if (theme === 'construction') {
+            const orangeAccent: [number, number, number] = [234, 88, 12]; // safety orange
+            const charcoalDark: [number, number, number] = [31, 41, 55]; // charcoal slate-800
+            const textLight: [number, number, number] = [107, 114, 128]; // gray-500
+            const lineBorder: [number, number, number] = [75, 85, 99]; // gray-600
 
-            // Title
-            doc.setFontSize(22);
+            doc.setFillColor(...orangeAccent);
+            doc.rect(0, 0, 210, 8, "F");
+
+            doc.setDrawColor(...lineBorder);
+            doc.setLineWidth(0.4);
+            doc.rect(10, 14, 190, pageHeight - 24);
+
+            doc.setTextColor(...charcoalDark);
             doc.setFont("helvetica", "bold");
-            doc.text((documentTitle || "TAX INVOICE").toUpperCase(), 105, 16, { align: "center" });
 
-            // Title bottom line
-            doc.line(10, 20, 200, 20);
+            let currentHeaderY = 32;
 
-            let myY = 25;
-            let myMaxY = 40;
-
-            // Company Name & Address (Left block)
             if (logoBase64) {
                 const maxDim = 20;
                 let renderW = logoBase64.width;
@@ -724,771 +1572,143 @@ export const generateInvoicePDF = async (
                     renderW *= ratio;
                     renderH *= ratio;
                 }
-                doc.addImage(logoBase64.dataUrl, "PNG", 12, myY, renderW, renderH);
-                doc.setFontSize(14);
-                doc.setFont("helvetica", "bold");
-                doc.text(bizName, 14 + renderW, myY + 6);
-                myY = Math.max(myY + 12, myY + renderH + 5);
-            } else {
-                doc.setFontSize(14);
-                doc.setFont("helvetica", "bold");
-                doc.text(bizName, 12, myY + 4);
-                myY += 10;
-            }
+                const startY = 18;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
 
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "normal");
-            if (data.business_details?.address) {
-                const addrLines = doc.splitTextToSize(safeText(data.business_details.address), 90);
-                doc.text(addrLines, 12, myY);
-                myY += addrLines.length * 4;
-            }
-            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 12, myY + 2); myY += 6; }
-            if (data.business_details?.gst) { doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 12, myY + 2); myY += 6; }
-            myMaxY = Math.max(myMaxY, myY + 2);
+                doc.setFontSize(16);
+                doc.text(bizName, 18 + renderW, 26);
 
-            // Middle horizontal line separating company details and Buyer
-            doc.line(10, myMaxY, 200, myMaxY);
-
-            // Vertical line dividing Company Details / Invoice Details
-            doc.line(105, 20, 105, myMaxY);
-
-            // Invoice details (Right block top)
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "bold");
-            doc.text("Invoice No.", 107, 25);
-            doc.setFont("helvetica", "normal");
-            doc.text(safeText(data.invoice_number), 107, 29);
-
-            doc.line(105, 31, 200, 31);
-
-            doc.setFont("helvetica", "bold");
-            doc.text("Dated", 107, 35);
-            doc.setFont("helvetica", "normal");
-            doc.text(dateFormatted, 107, 39);
-
-            // Buyer / Client details
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "italic");
-            doc.text("Buyer (Bill to)", 12, myMaxY + 5);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(11);
-            doc.text(safeText(data.customer_name), 12, myMaxY + 11);
-
-            let cliY = myMaxY + 16;
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "normal");
-            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 12, cliY); cliY += 4; }
-            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 12, cliY); cliY += 4; }
-
-            const afterBuyerY = Math.max(myMaxY + 25, cliY + 2);
-
-            // Table setup
-            autoTable(doc, {
-                startY: afterBuyerY,
-                head: [["Sl No.", "Description of Goods", "Quantity", "Rate", "Amount"]],
-                body: data.items.map((item, index) => [
-                    (index + 1).toString(),
-                    safeText(item.description),
-                    item.quantity.toString(),
-                    formatCurrencySafe(item.price),
-                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
-                ]),
-                theme: 'grid',
-                headStyles: { fillColor: [255, 255, 255], textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: 0.3, halign: 'center' },
-                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: { left: 0.3, right: 0.3 } },
-                columnStyles: {
-                    0: { cellWidth: 15, halign: 'center' },
-                    1: { cellWidth: 90 },
-                    2: { cellWidth: 20, halign: 'center' },
-                    3: { cellWidth: 30, halign: 'right' },
-                    4: { cellWidth: 35, halign: 'right' }
-                },
-                margin: { left: 10, right: 10 },
-                tableLineColor: 0,
-                tableLineWidth: 0.3,
-                didDrawPage: (hookData) => {
-                    // Draw outer border if table goes to new page
-                    doc.setDrawColor(0, 0, 0);
-                    doc.setLineWidth(0.3);
-                    doc.rect(10, 10, 190, pageHeight - 20);
-                }
-            });
-
-            let finalY = (doc as any).lastAutoTable.finalY;
-
-            // Totals block
-            doc.setDrawColor(0, 0, 0);
-            doc.setLineWidth(0.3);
-            doc.line(10, finalY, 200, finalY);
-
-            let tallyTotalY = finalY;
-
-            if (data.discount_amount && data.discount_amount > 0) {
-                tallyTotalY += 6;
-                doc.setFont("helvetica", "italic");
-                doc.text("Discount", 125, tallyTotalY);
-                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 198, tallyTotalY, { align: "right" });
-            }
-
-            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
-            const cgstLabel = splitRate ? `CGST (${splitRate}%)` : "CGST";
-            const sgstLabel = splitRate ? `SGST (${splitRate}%)` : "SGST";
-            const igstLabel = data.tax_rate ? `IGST (${data.tax_rate}%)` : "IGST";
-
-            doc.setFont("helvetica", "normal");
-            if (isInterState && igstVal > 0) {
-                tallyTotalY += 6;
-                doc.text(igstLabel, 125, tallyTotalY);
-                doc.text(formatCurrencySafe(igstVal), 198, tallyTotalY, { align: "right" });
-            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
-                if (cgstVal > 0) {
-                    tallyTotalY += 6;
-                    doc.text(cgstLabel, 125, tallyTotalY);
-                    doc.text(formatCurrencySafe(cgstVal), 198, tallyTotalY, { align: "right" });
-                }
-                if (sgstVal > 0) {
-                    tallyTotalY += 6;
-                    doc.text(sgstLabel, 125, tallyTotalY);
-                    doc.text(formatCurrencySafe(sgstVal), 198, tallyTotalY, { align: "right" });
-                }
-            } else if (data.tax_amount && data.tax_amount > 0) {
-                tallyTotalY += 6;
-                doc.text(`Tax (${data.tax_rate || ''}%)`, 125, tallyTotalY);
-                doc.text(formatCurrencySafe(data.tax_amount), 198, tallyTotalY, { align: "right" });
-            }
-
-            tallyTotalY += 6;
-            doc.line(10, tallyTotalY, 200, tallyTotalY);
-
-            doc.setFont("helvetica", "bold");
-            tallyTotalY += 6;
-            doc.text("Total", 125, tallyTotalY);
-            doc.text(formatCurrencySafe(data.total_amount), 198, tallyTotalY, { align: "right" });
-
-            tallyTotalY += 3;
-            doc.line(10, tallyTotalY, 200, tallyTotalY);
-
-            // Amount in words (mocked standard footer text)
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "italic");
-            doc.text("Declaration", 12, tallyTotalY + 6);
-            doc.setFont("helvetica", "normal");
-            doc.text("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 12, tallyTotalY + 11, { maxWidth: 100 });
-
-            // Signature block vertical line right
-            doc.line(125, finalY, 125, pageHeight - 10);
-
-            // Signature block bottom right
-            doc.line(125, finalY + 9, 125, pageHeight - 10);
-
-            doc.setFont("helvetica", "bold");
-            doc.text(`for ${bizName}`, 198, finalY + 14, { align: "right" });
-
-            if (signatureBase64) {
-                const maxDim = 25;
-                let renderW = signatureBase64.width;
-                let renderH = signatureBase64.height;
-                if (renderW > maxDim || renderH > maxDim) {
-                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
-                    renderW *= ratio;
-                    renderH *= ratio;
-                }
-                const sigY = pageHeight - 35;
-                const sigX = 198 - renderW;
-                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
-            }
-
-            doc.setFont("helvetica", "normal");
-            doc.text("Authorised Signatory", 198, pageHeight - 15, { align: "right" });
-
-        } else if (theme === 'gst1') {
-            // --- STANDARD GST THEME 1 ---
-            const textDark: [number, number, number] = [0, 0, 0];
-            doc.setTextColor(...textDark);
-            doc.setDrawColor(0, 0, 0);
-            doc.setLineWidth(0.3);
-
-            // Outer Border
-            doc.rect(10, 10, 190, pageHeight - 20);
-
-            // Header Top Bar
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text((documentTitle || "TAX INVOICE").toUpperCase(), 105, 18, { align: "center" });
-
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "italic");
-            doc.text("Original for Recipient", 195, 14, { align: "right" });
-
-            doc.line(10, 22, 200, 22);
-
-            let myY = 28;
-            let myMaxY = 45;
-
-            // Left Block (Business Details)
-            if (logoBase64) {
-                const maxDim = 20;
-                let renderW = logoBase64.width;
-                let renderH = logoBase64.height;
-                if (renderW > maxDim || renderH > maxDim) {
-                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
-                    renderW *= ratio;
-                    renderH *= ratio;
-                }
-                doc.addImage(logoBase64.dataUrl, "PNG", 12, myY, renderW, renderH);
-                doc.setFontSize(12);
-                doc.setFont("helvetica", "bold");
-                doc.text(bizName, 14 + renderW, myY + 6);
-                myY = Math.max(myY + 12, myY + renderH + 5);
-            } else {
-                doc.setFontSize(12);
-                doc.setFont("helvetica", "bold");
-                doc.text(bizName, 12, myY + 4);
-                myY += 10;
-            }
-
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "normal");
-            if (data.business_details?.address) {
-                const addrLines = doc.splitTextToSize(safeText(data.business_details.address), 90);
-                doc.text(addrLines, 12, myY);
-                myY += addrLines.length * 4;
-            }
-            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 12, myY + 2); myY += 6; }
-            if (data.business_details?.gst) {
-                doc.setFont("helvetica", "bold");
-                doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 12, myY + 2);
+                currentHeaderY = 31;
                 doc.setFont("helvetica", "normal");
-                myY += 6;
-            }
-
-            myMaxY = Math.max(myMaxY, myY + 2);
-
-            // Vertical line divider
-            doc.line(105, 22, 105, myMaxY);
-
-            // Right Block (Invoice Details)
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "bold");
-            doc.text("Invoice No.", 107, 28);
-            doc.setFont("helvetica", "normal");
-            doc.text(safeText(data.invoice_number), 107, 32);
-
-            doc.line(105, 34, 200, 34);
-
-            doc.setFont("helvetica", "bold");
-            doc.text("Dated", 107, 38);
-            doc.setFont("helvetica", "normal");
-            doc.text(dateFormatted, 107, 42);
-
-            // Middle horizontal line 
-            doc.line(10, myMaxY, 200, myMaxY);
-
-            // Billed to
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "bold");
-            doc.text("Billed to:", 12, myMaxY + 5);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(11);
-            doc.text(safeText(data.customer_name), 12, myMaxY + 11);
-
-            let cliY = myMaxY + 16;
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "normal");
-            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 12, cliY); cliY += 4; }
-            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 12, cliY); cliY += 4; }
-            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 12, cliY); cliY += 4; }
-
-            const afterBuyerY = Math.max(myMaxY + 25, cliY + 2);
-
-            // GST specific columns
-            autoTable(doc, {
-                startY: afterBuyerY,
-                head: [["S No.", "Description of Goods", "HSN/SAC", "Qty", "Rate", "Amount"]],
-                body: data.items.map((item, index) => [
-                    (index + 1).toString(),
-                    safeText(item.description),
-                    "-", // HSN placeholder
-                    item.quantity.toString(),
-                    formatCurrencySafe(item.price),
-                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
-                ]),
-                theme: 'grid',
-                headStyles: { fillColor: [240, 240, 240], textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: 0.3, halign: 'center' },
-                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 2, lineColor: 0, lineWidth: { left: 0.3, right: 0.3 } },
-                columnStyles: {
-                    0: { cellWidth: 10, halign: 'center' },
-                    1: { cellWidth: 70 },
-                    2: { cellWidth: 20, halign: 'center' },
-                    3: { cellWidth: 15, halign: 'center' },
-                    4: { cellWidth: 25, halign: 'right' },
-                    5: { cellWidth: 40, halign: 'right' }
-                },
-                margin: { left: 10, right: 10 },
-                tableLineColor: 0,
-                tableLineWidth: 0.3,
-            });
-
-            let finalY = (doc as any).lastAutoTable.finalY + 2;
-
-            doc.setDrawColor(0, 0, 0);
-            doc.setLineWidth(0.3);
-            doc.line(10, (doc as any).lastAutoTable.finalY, 200, (doc as any).lastAutoTable.finalY);
-
-            // Subtotal
-            doc.setFont("helvetica", "normal");
-            doc.text("Taxable Value", 140, finalY + 6);
-            doc.text(formatCurrencySafe(data.subtotal), 198, finalY + 6, { align: "right" });
-
-            let currentTotalY = finalY + 12;
-
-            if (data.discount_amount && data.discount_amount > 0) {
-                doc.text("Discount", 140, currentTotalY);
-                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 198, currentTotalY, { align: "right" });
-                currentTotalY += 6;
-            }
-
-            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
-            const cgstLabel = splitRate ? `CGST @ ${splitRate}%` : "CGST";
-            const sgstLabel = splitRate ? `SGST @ ${splitRate}%` : "SGST";
-            const igstLabel = data.tax_rate ? `IGST @ ${data.tax_rate}%` : "IGST";
-
-            if (isInterState && igstVal > 0) {
-                doc.text(igstLabel, 140, currentTotalY);
-                doc.text(formatCurrencySafe(igstVal), 198, currentTotalY, { align: "right" });
-                currentTotalY += 6;
-            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
-                if (cgstVal > 0) {
-                    doc.text(cgstLabel, 140, currentTotalY);
-                    doc.text(formatCurrencySafe(cgstVal), 198, currentTotalY, { align: "right" });
-                    currentTotalY += 6;
+                doc.setFontSize(9);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5.5;
                 }
-                if (sgstVal > 0) {
-                    doc.text(sgstLabel, 140, currentTotalY);
-                    doc.text(formatCurrencySafe(sgstVal), 198, currentTotalY, { align: "right" });
-                    currentTotalY += 6;
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
                 }
-            } else if (data.tax_amount && data.tax_amount > 0) {
-                // Split tax for local GST appearance (CGST/SGST 50% each if total tax rate)
-                
-                const splitAmount = (data.tax_amount || 0) / 2;
-
-                doc.text(cgstLabel, 140, currentTotalY);
-                doc.text(formatCurrencySafe(splitAmount), 198, currentTotalY, { align: "right" });
-                currentTotalY += 6;
-
-                doc.text(sgstLabel, 140, currentTotalY);
-                doc.text(formatCurrencySafe(splitAmount), 198, currentTotalY, { align: "right" });
-                currentTotalY += 6;
-            }
-
-            doc.line(10, currentTotalY, 200, currentTotalY);
-
-            doc.setFont("helvetica", "bold");
-            doc.text("Total", 140, currentTotalY + 6);
-            doc.text(formatCurrencySafe(data.total_amount), 198, currentTotalY + 6, { align: "right" });
-
-            doc.line(10, currentTotalY + 9, 200, currentTotalY + 9);
-
-            // Footer / Sign
-            doc.line(125, currentTotalY + 9, 125, pageHeight - 10);
-
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "italic");
-            doc.text("Declaration", 12, currentTotalY + 15);
-            doc.setFont("helvetica", "normal");
-            doc.text("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 12, currentTotalY + 20, { maxWidth: 100 });
-
-            doc.setFont("helvetica", "bold");
-            doc.text(`for ${bizName}`, 198, currentTotalY + 14, { align: "right" });
-
-            if (signatureBase64) {
-                const maxDim = 25;
-                let renderW = signatureBase64.width;
-                let renderH = signatureBase64.height;
-                if (renderW > maxDim || renderH > maxDim) {
-                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
-                    renderW *= ratio;
-                    renderH *= ratio;
-                }
-                const sigY = pageHeight - 35;
-                const sigX = 198 - renderW;
-                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
-            }
-
-            doc.setFont("helvetica", "normal");
-            doc.text("Authorised Signatory", 198, pageHeight - 15, { align: "right" });
-
-        } else if (theme === 'service') {
-            // --- SERVICE PRO THEME (consulting/agencies/professional services) ---
-            const brand: [number, number, number] = [20, 184, 166];
-            const ink: [number, number, number] = [15, 23, 42];
-            const muted: [number, number, number] = [100, 116, 139];
-            const soft: [number, number, number] = [240, 253, 250];
-
-            doc.setFillColor(...soft);
-            doc.rect(0, 0, pageWidth, 52, "F");
-            doc.setFillColor(...brand);
-            doc.rect(0, 0, 6, pageHeight, "F");
-
-            if (logoBase64) {
-                const maxDim = 22;
-                let renderW = logoBase64.width;
-                let renderH = logoBase64.height;
-                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
-                renderW *= ratio;
-                renderH *= ratio;
-                doc.addImage(logoBase64.dataUrl, "PNG", 14, 15, renderW, renderH);
-                doc.setFontSize(18);
-                doc.setFont("helvetica", "bold");
-                doc.setTextColor(...ink);
-                doc.text(bizName, 18 + renderW, 24);
             } else {
-                doc.setFontSize(22);
-                doc.setFont("helvetica", "bold");
-                doc.setTextColor(...ink);
-                doc.text(bizName, 14, 24);
+                doc.setFontSize(20);
+                doc.text(bizName, 14, 26);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9.5);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5.5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
             }
 
+            doc.line(110, 14, 110, 52);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(14);
+            doc.setTextColor(...orangeAccent);
+            doc.text("ENGINEERING INVOICE", 114, 23);
+            doc.setFontSize(9.5);
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(9);
-            doc.setTextColor(...muted);
-            let bizY = 31;
-            if (data.business_details?.address) {
-                const lines = doc.splitTextToSize(safeText(data.business_details.address), 92);
-                doc.text(lines, 14, bizY);
-                bizY += lines.length * 4;
-            }
-            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 14, bizY); bizY += 4; }
-            if (data.business_details?.gst) { doc.text(`GSTIN: ${safeText(data.business_details.gst)}`, 14, bizY); }
+            doc.setTextColor(...charcoalDark);
+            doc.text(`Invoice No: ${safeText(data.invoice_number)}`, 114, 30);
+            doc.text(`Date: ${dateFormatted}`, 114, 35);
+            doc.text(`Project Code: ${safeText(data.invoice_number.slice(-4))}`, 114, 40);
 
-            doc.setTextColor(...brand);
+            doc.line(10, 52, 200, 52);
+
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(24);
-            doc.text((documentTitle || "SERVICE INVOICE").toUpperCase(), 196, 22, { align: "right" });
-            doc.setFontSize(10);
-            doc.setTextColor(...ink);
-            doc.text(`# ${safeText(data.invoice_number)}`, 196, 31, { align: "right" });
-            doc.text(dateFormatted, 196, 37, { align: "right" });
+            doc.text("CLIENT / CONTRACTOR", 14, 59);
 
-            doc.setFillColor(255, 255, 255);
-            doc.roundedRect(14, 64, 182, 29, 3, 3, "F");
-            doc.setDrawColor(204, 251, 241);
-            doc.roundedRect(14, 64, 182, 29, 3, 3, "S");
-
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(...brand);
-            doc.text("CLIENT", 20, 73);
-            doc.setTextColor(...ink);
             doc.setFontSize(11);
-            doc.text(safeText(data.customer_name), 20, 80);
+            doc.text(safeText(data.customer_name), 14, 65);
+
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(9);
-            doc.setTextColor(...muted);
-            const clientLines = [
-                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
-                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
-                custGSTIN ? `GSTIN: ${custGSTIN}` : ""
-            ].filter(Boolean);
-            doc.text(clientLines.join("  |  "), 20, 87, { maxWidth: 160 });
+            doc.setTextColor(...textLight);
+            doc.setFontSize(9.5);
+            let billY = 70;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
 
             autoTable(doc, {
-                startY: 104,
-                head: [["Service / Description", "Qty", "Rate", "Amount"]],
+                startY: Math.max(88, billY + 8),
+                head: [["Item Description / Task Code", "Qty", "Price", "Amount"]],
                 body: tableRows,
-                theme: "plain",
-                headStyles: { fillColor: brand, textColor: 255, fontStyle: "bold", fontSize: 9, cellPadding: 4 },
-                bodyStyles: { textColor: ink, fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, lineColor: [204, 251, 241], lineWidth: { bottom: 0.2 } },
-                columnStyles: { 0: { cellWidth: 92 }, 1: { cellWidth: 20, halign: "center" }, 2: { cellWidth: 32, halign: "right" }, 3: { cellWidth: 38, halign: "right" } },
+                theme: 'grid',
+                headStyles: { fillColor: charcoalDark, textColor: 255, fontStyle: 'bold', fontSize: 9.5, cellPadding: 3 },
+                bodyStyles: { textColor: charcoalDark, fontSize: 9, cellPadding: 3, lineColor: [156, 163, 175] },
+                alternateRowStyles: { fillColor: [243, 244, 246] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
                 margin: { left: 14, right: 14 },
-                didParseCell: (hookData) => {
-                    if (hookData.section === "head") {
-                        if (hookData.column.index === 1) hookData.cell.styles.halign = "center";
-                        if (hookData.column.index === 2 || hookData.column.index === 3) hookData.cell.styles.halign = "right";
-                    }
-                }
             });
 
-            let totalY = (doc as any).lastAutoTable.finalY + 10;
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
             doc.setFontSize(10);
-            totalRows.forEach((row) => {
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...charcoalDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? orangeAccent : textLight));
                 doc.setFont("helvetica", row.bold ? "bold" : "normal");
-                doc.setTextColor(row.bold ? brand[0] : muted[0], row.bold ? brand[1] : muted[1], row.bold ? brand[2] : muted[2]);
                 if (row.bold) {
-                    doc.setFillColor(240, 253, 250);
-                    doc.roundedRect(118, totalY - 5, 78, 10, 2, 2, "F");
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(255, 247, 237); // orange-50
+                    doc.setDrawColor(...orangeAccent);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 1, 1, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...charcoalDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
                 }
-                doc.text(row.label, 124, totalY);
-                doc.setTextColor(...ink);
-                doc.text(formatCurrencySafe(row.value), 190, totalY, { align: "right" });
-                totalY += row.bold ? 9 : 6;
             });
 
-            doc.setTextColor(...muted);
-            doc.setFont("helvetica", "italic");
             doc.setFontSize(8);
-            doc.text("Thank you for choosing our services.", 14, pageHeight - 14);
+            doc.setFont("helvetica", "italic");
+            doc.setTextColor(...textLight);
+            doc.text("Declaration / Verification:", 14, pageHeight - 38);
+            doc.setFont("helvetica", "normal");
+            doc.text("All materials and works certified to be completed and billed according to standard terms.", 14, pageHeight - 33, { maxWidth: 100 });
 
             if (signatureBase64) {
                 const maxDim = 28;
                 let renderW = signatureBase64.width;
                 let renderH = signatureBase64.height;
-                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
-                renderW *= ratio;
-                renderH *= ratio;
-                doc.addImage(signatureBase64.dataUrl, "PNG", 162, pageHeight - 42, renderW, renderH);
-            }
-            doc.setTextColor(...ink);
-            doc.setFont("helvetica", "normal");
-            doc.text("Authorized Signature", 196, pageHeight - 14, { align: "right" });
-
-        } else if (theme === 'manufacturing') {
-            // --- MANUFACTURING THEME (parts, job work, stock movement) ---
-            const ink: [number, number, number] = [17, 24, 39];
-            const steel: [number, number, number] = [71, 85, 105];
-            const accent: [number, number, number] = [234, 88, 12];
-
-            doc.setDrawColor(15, 23, 42);
-            doc.setLineWidth(0.4);
-            doc.rect(10, 10, 190, pageHeight - 20);
-            doc.setFillColor(255, 247, 237);
-            doc.rect(10, 10, 190, 18, "F");
-            doc.setDrawColor(251, 146, 60);
-            doc.line(10, 28, 200, 28);
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(17);
-            doc.setTextColor(...accent);
-            doc.text((documentTitle || "TAX INVOICE").toUpperCase(), 105, 21, { align: "center" });
-
-            let leftY = 38;
-            if (logoBase64) {
-                const maxDim = 20;
-                let renderW = logoBase64.width;
-                let renderH = logoBase64.height;
-                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
-                renderW *= ratio;
-                renderH *= ratio;
-                doc.addImage(logoBase64.dataUrl, "PNG", 14, 34, renderW, renderH);
-                doc.setTextColor(...ink);
-                doc.setFontSize(13);
-                doc.text(bizName, 17 + renderW, 40);
-                leftY = Math.max(48, 34 + renderH + 5);
-            } else {
-                doc.setTextColor(...ink);
-                doc.setFontSize(14);
-                doc.text(bizName, 14, 39);
-                leftY = 46;
-            }
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(...steel);
-            if (data.business_details?.address) {
-                const lines = doc.splitTextToSize(safeText(data.business_details.address), 86);
-                doc.text(lines, 14, leftY);
-                leftY += lines.length * 4;
-            }
-            if (data.business_details?.phone) { doc.text(`Phone: ${safeText(data.business_details.phone)}`, 14, leftY); leftY += 4; }
-            if (data.business_details?.gst) { doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 14, leftY); leftY += 4; }
-
-            doc.setDrawColor(203, 213, 225);
-            doc.line(105, 28, 105, 70);
-            doc.setTextColor(...ink);
-            doc.setFont("helvetica", "bold");
-            doc.text("Invoice No.", 110, 38);
-            doc.text("Invoice Date", 155, 38);
-            doc.setFont("helvetica", "normal");
-            doc.text(safeText(data.invoice_number), 110, 44);
-            doc.text(dateFormatted, 155, 44);
-            doc.setFont("helvetica", "bold");
-            doc.text("Buyer / Consignee", 110, 56);
-            doc.setFont("helvetica", "normal");
-            doc.text(doc.splitTextToSize(safeText(data.customer_name), 82), 110, 62);
-
-            const buyerY = Math.max(76, leftY + 4);
-            doc.setDrawColor(15, 23, 42);
-            doc.line(10, buyerY - 5, 200, buyerY - 5);
-            doc.setFont("helvetica", "bold");
-            doc.text("Bill To", 14, buyerY);
-            doc.setFont("helvetica", "normal");
-            doc.setTextColor(...steel);
-            const buyerDetails = [
-                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
-                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
-                custGSTIN ? `GSTIN/UIN: ${custGSTIN}` : ""
-            ].filter(Boolean);
-            doc.text(buyerDetails.join("  |  ") || "-", 14, buyerY + 6, { maxWidth: 180 });
-
-            autoTable(doc, {
-                startY: buyerY + 15,
-                head: [["No.", "Item / Part Description", "Qty", "Unit Rate", "Line Total"]],
-                body: data.items.map((item, index) => [
-                    (index + 1).toString(),
-                    safeText(item.description),
-                    item.quantity.toString(),
-                    formatCurrencySafe(item.price),
-                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
-                ]),
-                theme: "grid",
-                headStyles: { fillColor: [31, 41, 55], textColor: 255, fontStyle: "bold", fontSize: 8.5, cellPadding: 3, halign: "center" },
-                bodyStyles: { textColor: ink, fontSize: 8.5, cellPadding: 3, lineColor: [203, 213, 225], lineWidth: 0.2 },
-                alternateRowStyles: { fillColor: [249, 250, 251] },
-                columnStyles: {
-                    0: { cellWidth: 12, halign: "center" },
-                    1: { cellWidth: 82 },
-                    2: { cellWidth: 20, halign: "center" },
-                    3: { cellWidth: 32, halign: "right" },
-                    4: { cellWidth: 34, halign: "right" }
-                },
-                margin: { left: 14, right: 14 }
-            });
-
-            let totalY = (doc as any).lastAutoTable.finalY + 8;
-            doc.setFontSize(9);
-            totalRows.forEach((row) => {
-                doc.setFont("helvetica", row.bold ? "bold" : "normal");
-                doc.setTextColor(row.bold ? accent[0] : steel[0], row.bold ? accent[1] : steel[1], row.bold ? accent[2] : steel[2]);
-                doc.text(row.label, 132, totalY);
-                doc.setTextColor(...ink);
-                doc.text(formatCurrencySafe(row.value), 196, totalY, { align: "right" });
-                totalY += row.bold ? 8 : 5.5;
-            });
-
-            doc.setDrawColor(15, 23, 42);
-            doc.line(10, pageHeight - 44, 200, pageHeight - 44);
-            doc.line(126, pageHeight - 44, 126, pageHeight - 10);
-            doc.setFontSize(8);
-            doc.setTextColor(...steel);
-            doc.text("Declaration", 14, pageHeight - 36);
-            doc.text("Goods and values shown above are correct as per our records.", 14, pageHeight - 30, { maxWidth: 100 });
-            doc.setTextColor(...ink);
-            doc.setFont("helvetica", "bold");
-            doc.text(`for ${bizName}`, 196, pageHeight - 36, { align: "right" });
-            if (signatureBase64) {
-                const maxDim = 25;
-                let renderW = signatureBase64.width;
-                let renderH = signatureBase64.height;
-                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
-                renderW *= ratio;
-                renderH *= ratio;
-                doc.addImage(signatureBase64.dataUrl, "PNG", 198 - renderW, pageHeight - 32, renderW, renderH);
-            }
-            doc.setFont("helvetica", "normal");
-            doc.text("Authorized Signature", 196, pageHeight - 15, { align: "right" });
-
-        } else if (theme === 'wholesale') {
-            // --- WHOLESALE LEDGER THEME (compact, high-volume billing) ---
-            const navy: [number, number, number] = [30, 64, 175];
-            const ink: [number, number, number] = [15, 23, 42];
-            const muted: [number, number, number] = [71, 85, 105];
-
-            doc.setFillColor(239, 246, 255);
-            doc.rect(0, 0, pageWidth, 36, "F");
-            doc.setFillColor(...navy);
-            doc.rect(0, 0, pageWidth, 7, "F");
-
-            doc.setTextColor(...ink);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(18);
-            doc.text(bizName, 14, 21);
-            doc.setFontSize(20);
-            doc.setTextColor(...navy);
-            doc.text((documentTitle || "WHOLESALE INVOICE").toUpperCase(), 196, 21, { align: "right" });
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8.5);
-            doc.setTextColor(...muted);
-            let headerY = 27;
-            const headerDetails = [
-                data.business_details?.address ? safeText(data.business_details.address) : "",
-                data.business_details?.phone ? `Phone: ${safeText(data.business_details.phone)}` : "",
-                data.business_details?.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ""
-            ].filter(Boolean).join(" | ");
-            doc.text(doc.splitTextToSize(headerDetails, 118), 14, headerY);
-            doc.text(`No: ${safeText(data.invoice_number)}`, 196, 28, { align: "right" });
-            doc.text(`Date: ${dateFormatted}`, 196, 33, { align: "right" });
-
-            doc.setDrawColor(191, 219, 254);
-            doc.roundedRect(14, 45, 182, 25, 2, 2, "S");
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(...navy);
-            doc.text("Customer", 20, 53);
-            doc.setTextColor(...ink);
-            doc.setFontSize(10);
-            doc.text(safeText(data.customer_name), 20, 60);
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8.5);
-            doc.setTextColor(...muted);
-            const customerDetails = [
-                data.customer_phone ? `Phone: ${safeText(data.customer_phone)}` : "",
-                data.customer_email ? `Email: ${safeText(data.customer_email)}` : "",
-                custGSTIN ? `GSTIN/UIN: ${custGSTIN}` : ""
-            ].filter(Boolean).join(" | ");
-            doc.text(customerDetails || "-", 20, 66, { maxWidth: 164 });
-
-            autoTable(doc, {
-                startY: 80,
-                head: [["#", "Product / Item", "Qty", "Rate", "Amount"]],
-                body: data.items.map((item, index) => [
-                    (index + 1).toString(),
-                    safeText(item.description),
-                    item.quantity.toString(),
-                    formatCurrencySafe(item.price),
-                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
-                ]),
-                theme: "striped",
-                headStyles: { fillColor: navy, textColor: 255, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
-                bodyStyles: { textColor: ink, fontSize: 8.2, cellPadding: 2.8, lineColor: [226, 232, 240], lineWidth: { bottom: 0.1 } },
-                alternateRowStyles: { fillColor: [248, 250, 252] },
-                columnStyles: {
-                    0: { cellWidth: 10, halign: "center" },
-                    1: { cellWidth: 90 },
-                    2: { cellWidth: 18, halign: "center" },
-                    3: { cellWidth: 30, halign: "right" },
-                    4: { cellWidth: 34, halign: "right" }
-                },
-                margin: { left: 14, right: 14 },
-                didParseCell: (hookData) => {
-                    if (hookData.section === "head") {
-                        if (hookData.column.index === 2) hookData.cell.styles.halign = "center";
-                        if (hookData.column.index === 3 || hookData.column.index === 4) hookData.cell.styles.halign = "right";
-                    }
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
                 }
-            });
-
-            let totalY = (doc as any).lastAutoTable.finalY + 7;
-            doc.setFillColor(248, 250, 252);
-            doc.roundedRect(118, totalY - 5, 78, totalRows.length * 5.8 + 6, 2, 2, "F");
-            doc.setFontSize(8.8);
-            totalRows.forEach((row) => {
-                doc.setFont("helvetica", row.bold ? "bold" : "normal");
-                doc.setTextColor(row.bold ? navy[0] : muted[0], row.bold ? navy[1] : muted[1], row.bold ? navy[2] : muted[2]);
-                doc.text(row.label, 124, totalY);
-                doc.setTextColor(...ink);
-                doc.text(formatCurrencySafe(row.value), 190, totalY, { align: "right" });
-                totalY += row.bold ? 7 : 5.5;
-            });
-
-            doc.setDrawColor(191, 219, 254);
-            doc.line(14, pageHeight - 22, 196, pageHeight - 22);
-            doc.setFontSize(8);
-            doc.setTextColor(...muted);
-            doc.text("Bulk invoice generated by FinFlow. Please verify item quantities at delivery.", 14, pageHeight - 14);
-            if (signatureBase64) {
-                const maxDim = 24;
-                let renderW = signatureBase64.width;
-                let renderH = signatureBase64.height;
-                const ratio = Math.min(maxDim / renderW, maxDim / renderH, 1);
-                renderW *= ratio;
-                renderH *= ratio;
-                doc.addImage(signatureBase64.dataUrl, "PNG", 198 - renderW, pageHeight - 46, renderW, renderH);
+                const sigY = pageHeight - 42;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...charcoalDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Representative", 196, sigY + renderH + 5, { align: "right" });
             }
-            doc.setTextColor(...ink);
-            doc.text("Authorized Signature", 196, pageHeight - 14, { align: "right" });
-
         }
 
         if (action === 'download') {
