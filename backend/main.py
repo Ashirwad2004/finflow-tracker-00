@@ -1,3 +1,9 @@
+import sys
+import asyncio
+if sys.platform.startswith('win'):
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -6,10 +12,21 @@ from slowapi.errors import RateLimitExceeded
 from src.api.v1.router import api_router
 from src.core.config import settings
 from src.core.limiter import limiter
+from src.whatsapp.client import WhatsAppPlaywrightClient
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Eagerly start Playwright browser context in the background
+    client = WhatsAppPlaywrightClient.get_instance()
+    asyncio.create_task(client.start())
+    yield
+    # Clean up on shutdown
+    await client.stop()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter

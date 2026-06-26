@@ -45,4 +45,6 @@ env/
 frontend/node_modules/
 frontend/dist/
 backend/__pycache__/
+backend/.whatsapp_session/
+backend/src/whatsapp/session_data/
 

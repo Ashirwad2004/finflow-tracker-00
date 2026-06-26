@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare } from "lucide-react";
+import { toast } from "sonner";
 import { CreateInvoiceDialog } from "@/features/business/components/CreateInvoiceDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -182,6 +183,57 @@ export default function SalesPage() {
         } catch (error) {
             console.error("Error sharing invoice:", error);
             alert("Failed to share invoice.");
+        }
+    };
+
+    const handleSendWhatsApp = async (invoice: Sale) => {
+        if (!invoice.customer_phone) {
+            toast.error("Customer does not have a phone number configured.");
+            return;
+        }
+
+        const toastId = toast.loading(`Sending invoice ${invoice.invoice_number} to ${invoice.customer_name} via WhatsApp...`);
+
+        try {
+            // Build the billing event payload
+            const eventPayload = {
+                event_type: invoice.status === 'paid' ? "payment_received" : "invoice_created",
+                customer_id: user?.id || "unknown",
+                customer_name: invoice.customer_name,
+                customer_phone: invoice.customer_phone,
+                customer_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
+                invoice_number: invoice.invoice_number,
+                amount: invoice.total_amount,
+                due_date: invoice.date,
+                payment_link: `${window.location.origin}/store`, // customer storefront checkout link fallback
+                transaction_id: invoice.id
+            };
+
+            const res = await fetch("/api/v1/whatsapp/webhook/billing-event", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(eventPayload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.result?.status === "sent") {
+                    toast.success(`Invoice sent successfully to ${invoice.customer_name}!`, { id: toastId });
+                } else if (data.result?.skipped) {
+                    toast.error(`Message skipped: ${data.result.reason || "Rule check failed. Please check your Notification Settings."}`, { id: toastId });
+                } else {
+                    const errMsg = data.result?.error || "WhatsApp is not authenticated. Please scan the QR code in Settings first.";
+                    toast.error(errMsg, { id: toastId });
+                }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                toast.error(errData.detail || "Failed to send WhatsApp message.", { id: toastId });
+            }
+        } catch (error) {
+            console.error("Error sending WhatsApp:", error);
+            toast.error("Connection error. Ensure your backend server is running.", { id: toastId });
         }
     };
 
@@ -444,6 +496,10 @@ export default function SalesPage() {
                                                             <DropdownMenuItem onClick={() => handleShare(invoice)}>
                                                                 <Share2 className="w-4 h-4 mr-2" />
                                                                 Share Invoice
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleSendWhatsApp(invoice)}>
+                                                                <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
+                                                                Send via WhatsApp
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handleEdit(invoice)}>
                                                                 <Pencil className="w-4 h-4 mr-2" />

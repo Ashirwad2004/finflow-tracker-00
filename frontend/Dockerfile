@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci --silent
+RUN npm ci
 
 # Copy frontend source files and payments router
 COPY . .

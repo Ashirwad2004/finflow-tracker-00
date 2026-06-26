@@ -11,3 +11,10 @@ slowapi
 google-genai
 tenacity
 python-multipart
+httpx
+supabase
+python-dotenv
+pytz
+playwright
+
+
