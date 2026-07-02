@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
+// https://vitejs.dev/config/ - Force dev server reload & CSS cache invalidate: 2
 export default defineConfig(({ mode }) => ({
   server: {
     host: true,
@@ -25,7 +25,30 @@ export default defineConfig(({ mode }) => ({
       usePolling: false, // Prevents high CPU usage from aggressive file watching
     }
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(), 
+    mode === "development" && componentTagger(),
+    {
+      name: 'utf8-charset-middleware',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const originalSetHeader = res.setHeader;
+          res.setHeader = function (name: string, value: any) {
+            if (name.toLowerCase() === 'content-type' && typeof value === 'string') {
+              if (
+                (value.startsWith('text/') || value.startsWith('application/javascript') || value.startsWith('application/json')) &&
+                !value.toLowerCase().includes('charset')
+              ) {
+                value = `${value}; charset=utf-8`;
+              }
+            }
+            return originalSetHeader.call(this, name, value);
+          };
+          next();
+        });
+      }
+    }
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

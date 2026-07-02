@@ -192,6 +192,7 @@ export interface Database {
           image_url: string | null;
           online_description: string | null;
           stock_quantity: number;
+          hsn_code: string | null;
           created_at: string;
           updated_at: string;
         };

@@ -90,11 +90,14 @@
   }
 
   /* Improved Typography Rendering */
-  html {
+  html,
+  :host {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -130,6 +133,24 @@
 }
 
 @layer utilities {
+
+  /* Safari support for user-select utilities */
+  .select-none {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .select-text {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .select-all {
+    -webkit-user-select: all;
+    user-select: all;
+  }
+  .select-auto {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
 
   /* Modern Background Glow 
     Use this class on a div behind your content or on the body 
@@ -325,4 +346,9 @@
 
 .animation-delay-6000 {
   animation-delay: 6s;
+}
+
+/* Safari support override for sonner toast user-select */
+[data-sonner-toast][data-swiped="true"] {
+  -webkit-user-select: none;
 }

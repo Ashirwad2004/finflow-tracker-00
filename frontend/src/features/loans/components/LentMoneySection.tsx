@@ -32,10 +32,12 @@ import {
   Pencil,
   Trash2,
   FileDown,
-  Loader2
+  Loader2,
+  MessageSquare
 } from "lucide-react";
 import { format } from "date-fns";
 import { EditLentMoneyDialog } from "@/features/loans/components/EditLentMoneyDialog";
+import { SendWhatsAppDialog } from "@/components/SendWhatsAppDialog";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -65,6 +67,13 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
   const [selectedLoan, setSelectedLoan] = useState<LentMoneyRecord | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isWhatsappOpen, setIsWhatsappOpen] = useState(false);
+  const [selectedLoanForWhatsapp, setSelectedLoanForWhatsapp] = useState<LentMoneyRecord | null>(null);
+
+  const handleWhatsappReminder = (loan: LentMoneyRecord) => {
+    setSelectedLoanForWhatsapp(loan);
+    setIsWhatsappOpen(true);
+  };
 
   const { data: lentMoney = [], isLoading } = useQuery({
     queryKey: ["lent-money", userId],
@@ -342,7 +351,7 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
               <p className="text-sm">No pending loans</p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            <div className="space-y-3 max-h-[300px] overflow-y-auto overscroll-contain">
               {pendingLoans.map((loan) => (
                 <div
                   key={loan.id}
@@ -394,6 +403,10 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleWhatsappReminder(loan)}>
+                          <MessageSquare className="w-4 h-4 mr-2 text-green-500" />
+                          WhatsApp Reminder
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEdit(loan)}>
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
@@ -488,6 +501,17 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
         onOpenChange={setEditDialogOpen}
         lentMoney={selectedLoan}
       />
+
+      {selectedLoanForWhatsapp && (
+        <SendWhatsAppDialog
+          open={isWhatsappOpen}
+          onOpenChange={setIsWhatsappOpen}
+          recipientName={selectedLoanForWhatsapp.person_name}
+          amount={selectedLoanForWhatsapp.amount}
+          dueDate={selectedLoanForWhatsapp.due_date}
+          mode="lent"
+        />
+      )}
     </>
   );
 };

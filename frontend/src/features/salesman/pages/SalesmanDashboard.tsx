@@ -110,7 +110,7 @@ export default function SalesmanDashboard() {
         queryKey: ["salesman_info", salesmanEmail],
         queryFn: async () => {
             if (!salesmanEmail) return null;
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("store_salesmen")
                 .select("*, profiles (business_name)")
                 .eq("salesman_email", salesmanEmail.toLowerCase())
@@ -164,7 +164,7 @@ export default function SalesmanDashboard() {
         queryKey: ["salesman_order_returns", currentStoreId],
         queryFn: async () => {
             if (!currentStoreId) return [];
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("order_returns")
                 .select(`
                     *,
@@ -189,7 +189,7 @@ export default function SalesmanDashboard() {
     // 4. Update Order Status Mutation
     const updateOrderStatus = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from("online_orders")
                 .update({ status })
                 .eq("id", orderId);
@@ -211,7 +211,7 @@ export default function SalesmanDashboard() {
     // 5. Update Return Status Mutation
     const updateReturnStatus = useMutation({
         mutationFn: async ({ returnId, status }: { returnId: string; status: string }) => {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from("order_returns")
                 .update({ status })
                 .eq("id", returnId);

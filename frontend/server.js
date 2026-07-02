@@ -12,6 +12,30 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Set Security and Content-Security-Policy headers
+app.use((req, res, next) => {
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Content-Security-Policy", "default-src 'self' * 'unsafe-inline' 'unsafe-eval' data: blob:;");
+  
+  // Intercept res.setHeader to ensure charset=utf-8 is appended for text, JS, and JSON
+  const originalSetHeader = res.setHeader;
+  res.setHeader = function (name, value) {
+    if (name.toLowerCase() === 'content-type' && typeof value === 'string') {
+      if (
+        (value.startsWith('text/') || value.startsWith('application/javascript') || value.startsWith('application/json')) &&
+        !value.toLowerCase().includes('charset')
+      ) {
+        value = `${value}; charset=utf-8`;
+      }
+    }
+    return originalSetHeader.call(this, name, value);
+  };
+  
+  next();
+});
+
 // Proxy /api/v1 requests to the FastAPI backend (http://backend:8000 or http://localhost:8000 depending on environment)
 app.use('/api/v1', (req, res) => {
   const isDocker = fs.existsSync('/.dockerenv');

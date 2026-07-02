@@ -32,9 +32,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calculator as CalculatorComponent } from "@/components/shared/calculator";
 import { Settings } from "lucide-react";
 import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
-import { useBusiness } from "@/core/contexts/BusinessContext";
 import { BRAND } from "@/core/constants/brand";
 import { Badge } from "@/components/ui/badge";
+import { RequestFeatureDialog } from "@/components/shared/RequestFeatureDialog";
+import { useBusiness } from "@/core/contexts/BusinessContext";
 
 const personalMenuItems = [
   {
@@ -247,6 +248,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         size="icon"
         onClick={() => setCollapsed(!collapsed)}
         className="absolute -right-3 top-6 z-50 h-6 w-6 rounded-full border bg-background shadow-md"
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
       </Button>
@@ -327,6 +330,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       </nav>
 
       <div className="p-3 border-t space-y-2">
+        <RequestFeatureDialog collapsed={collapsed} />
+
         <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
           <DialogTrigger asChild>
             <Button
@@ -335,6 +340,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
                 "w-full justify-start gap-3",
                 collapsed && "justify-center px-0"
               )}
+              title="Calculator"
+              aria-label="Calculator"
             >
               <Calculator className="w-5 h-5" />
               {!collapsed && <span>Calculator</span>}
@@ -361,6 +368,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             size="icon"
             onClick={signOut}
             className="text-muted-foreground hover:text-destructive"
+            title="Sign Out"
+            aria-label="Sign Out"
           >
             <LogOut className="w-5 h-5" />
           </Button>

@@ -16,7 +16,7 @@ const BusinessContext = createContext<BusinessContextType | undefined>(undefined
 
 export const BusinessProvider = ({ children }: { children: React.ReactNode }) => {
     const { user } = useAuth();
-    const [isBusinessMode, setIsBusinessMode] = useState(false);
+    const [isBusinessMode, setIsBusinessMode] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [isSalesman, setIsSalesman] = useState(false);
     const [salesmanStoreId, setSalesmanStoreId] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
 
                 if (data) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    setIsBusinessMode((data as any).is_business_mode || false);
+                    setIsBusinessMode((data as any).is_business_mode !== false);
                 }
             } catch (error) {
                 console.error('Error fetching business settings:', error);

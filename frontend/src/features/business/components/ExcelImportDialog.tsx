@@ -47,6 +47,7 @@ interface Product {
     cost_price: number;
     stock_quantity: number;
     unit: string;
+    hsn_code?: string;
     created_at: string;
     updated_at?: string;
     is_listed_online?: boolean;
@@ -61,6 +62,7 @@ interface ParsedProduct {
     cost_price: number;
     stock_quantity: number;
     unit: string;
+    hsn_code: string;
     is_listed_online: boolean;
     online_description: string;
     rack_location: string;
@@ -122,6 +124,7 @@ export function ExcelImportDialog({
                     "List Online (yes/no)",
                     "Online Description",
                     "Rack Location",
+                    "HSN Code",
                 ],
             ];
             const samples = [
@@ -134,6 +137,7 @@ export function ExcelImportDialog({
                     "yes",
                     "Rich organic roasted coffee beans.",
                     "Shelf A-3",
+                    "0901",
                 ],
                 [
                     "Premium Thermal Flask (750ml)",
@@ -144,6 +148,7 @@ export function ExcelImportDialog({
                     "yes",
                     "Stainless steel thermal insulated flask.",
                     "Rack B",
+                    "9617",
                 ],
                 [
                     "Wireless Optical Mouse",
@@ -154,6 +159,7 @@ export function ExcelImportDialog({
                     "no",
                     "Comfortable 2.4GHz wireless mouse.",
                     "Drawer 1",
+                    "8471",
                 ],
             ];
             const wsData = [...headers, ...samples];
@@ -170,6 +176,7 @@ export function ExcelImportDialog({
                 { wch: 22 }, // List Online
                 { wch: 40 }, // Online Description
                 { wch: 18 }, // Rack Location
+                { wch: 15 }, // HSN Code
             ];
             ws["!cols"] = wscols;
 
@@ -210,6 +217,7 @@ export function ExcelImportDialog({
                 "List Online (yes/no)",
                 "Online Description",
                 "Rack Location",
+                "HSN Code",
             ];
             
             const rows = existingProducts.map((p) => [
@@ -221,6 +229,7 @@ export function ExcelImportDialog({
                 p.is_listed_online ? "yes" : "no",
                 p.online_description || "",
                 p.rack_location || "",
+                p.hsn_code || "",
             ]);
 
             const wsData = [headers, ...rows];
@@ -236,6 +245,7 @@ export function ExcelImportDialog({
                 { wch: 22 }, // List Online
                 { wch: 40 }, // Online Description
                 { wch: 18 }, // Rack Location
+                { wch: 15 }, // HSN Code
             ];
             ws["!cols"] = wscols;
 
@@ -334,6 +344,7 @@ export function ExcelImportDialog({
                 const onlineIdx = findColIdx(["list online", "listed online", "is listed online", "online"]);
                 const descIdx = findColIdx(["online description", "description", "online_description", "details"]);
                 const rackIdx = findColIdx(["rack location", "rack", "shelf", "location"]);
+                const hsnIdx = findColIdx(["hsn code", "hsn_code", "hsn"]);
 
                 if (nameIdx === -1 || priceIdx === -1) {
                     toast({
@@ -363,6 +374,7 @@ export function ExcelImportDialog({
                     const rawOnline = onlineIdx !== -1 ? String(row[onlineIdx] || "").trim().toLowerCase() : "no";
                     const rawDesc = descIdx !== -1 ? String(row[descIdx] || "").trim() : "";
                     const rawRack = rackIdx !== -1 ? String(row[rackIdx] || "").trim() : "";
+                    const rawHsn = hsnIdx !== -1 ? String(row[hsnIdx] || "").trim() : "";
 
                     let status: "ready" | "duplicate" | "error" = "ready";
                     let errorDetails = "";
@@ -436,6 +448,7 @@ export function ExcelImportDialog({
                         cost_price,
                         stock_quantity,
                         unit: rawUnit || "pc",
+                        hsn_code: rawHsn,
                         is_listed_online,
                         online_description: rawDesc,
                         rack_location: rawRack,
@@ -513,6 +526,7 @@ export function ExcelImportDialog({
                             cost_price: item.cost_price,
                             stock_quantity: item.stock_quantity,
                             unit: item.unit,
+                            hsn_code: item.hsn_code || existing.hsn_code || "",
                             is_listed_online: item.is_listed_online,
                             online_description: item.online_description,
                             rack_location: item.rack_location || "",
@@ -541,6 +555,7 @@ export function ExcelImportDialog({
                     cost_price: item.cost_price,
                     stock_quantity: item.stock_quantity,
                     unit: item.unit,
+                    hsn_code: item.hsn_code || "",
                     is_listed_online: item.is_listed_online,
                     online_description: item.online_description,
                     rack_location: item.rack_location || "",

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/core/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
 // --- ANIMATED COUNTER ---
 // Animates a number from 0 to 'value' over 'duration' seconds.
@@ -62,14 +63,18 @@ interface DashboardCardProps {
     className?: string;
     delay?: number; // animation delay index
     trend?: { value: number; isPositive: boolean; isExpense?: boolean }; // optional trend pill
+    sparklineData?: { amount: number }[]; // optional sparkline data for trends
 }
 
-export const DashboardCard = ({ title, icon: Icon, children, className, delay = 0, trend }: DashboardCardProps) => {
+export const DashboardCard = ({ title, icon: Icon, children, className, delay = 0, trend, sparklineData }: DashboardCardProps) => {
+    const sparkColor = trend ? (trend.isPositive ? "#ef4444" : "#10b981") : "#6366f1";
+    const gradId = `sparkline-grad-${title.replace(/\s+/g, '-').toLowerCase()}`;
+
     return (
         <div
             style={{ animationDelay: `${delay * 100}ms`, animationFillMode: 'both' }}
             className={cn(
-                "relative overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm",
+                "relative overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm h-full flex flex-col",
                 "animate-in fade-in slide-in-from-bottom-4 duration-500",
                 "hover:-translate-y-1 hover:shadow-lg transition-all duration-300",
                 className
@@ -85,29 +90,54 @@ export const DashboardCard = ({ title, icon: Icon, children, className, delay = 
                 {Icon && <Icon className="h-4 w-4 text-muted-foreground/70" />}
             </CardHeader>
 
-            <CardContent>
-                <div className="flex items-end justify-between">
-                    <div className="text-2xl font-bold text-foreground">
-                        {children}
+            <CardContent className="flex-1 flex flex-col justify-center">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1 min-w-0">
+                        <div className="text-2xl font-bold text-foreground truncate">
+                            {children}
+                        </div>
+
+                        {trend && (() => {
+                            const isIncrease = trend.isPositive;
+                            const isFavorable = trend.isExpense ? !isIncrease : isIncrease;
+                            const ArrowIcon = isIncrease ? TrendingUp : TrendingDown;
+
+                            return (
+                                <div className={cn(
+                                    "flex items-center text-[10px] font-semibold leading-none",
+                                    isFavorable
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : "text-rose-600 dark:text-rose-400"
+                                )}>
+                                    <ArrowIcon className="w-3 h-3 mr-0.5" />
+                                    {Math.abs(trend.value).toFixed(0)}%
+                                </div>
+                            );
+                        })()}
                     </div>
 
-                    {trend && (() => {
-                        const isIncrease = trend.isPositive;
-                        const isFavorable = trend.isExpense ? !isIncrease : isIncrease;
-                        const ArrowIcon = isIncrease ? TrendingUp : TrendingDown;
-
-                        return (
-                            <div className={cn(
-                                "flex items-center text-xs font-medium px-2 py-1 rounded-full",
-                                isFavorable
-                                    ? "text-emerald-600 bg-emerald-100/50 dark:bg-emerald-900/20 dark:text-emerald-400"
-                                    : "text-rose-600 bg-rose-100/50 dark:bg-rose-900/20 dark:text-rose-400"
-                            )}>
-                                <ArrowIcon className="w-3 h-3 mr-1" />
-                                {Math.abs(trend.value).toFixed(0)}%
-                            </div>
-                        );
-                    })()}
+                    {sparklineData && sparklineData.length > 0 && (
+                        <div className="w-20 h-8 shrink-0 opacity-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={sparklineData} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                                    <defs>
+                                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor={sparkColor} stopOpacity={0.25} />
+                                            <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <Area
+                                        type="monotone"
+                                        dataKey="amount"
+                                        stroke={sparkColor}
+                                        strokeWidth={1.5}
+                                        fillOpacity={1}
+                                        fill={`url(#${gradId})`}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
                 </div>
             </CardContent>
         </div>

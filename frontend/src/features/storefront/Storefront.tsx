@@ -41,9 +41,8 @@ interface StoreProfile {
     free_delivery_min_amount: number;
 }
 
-
-
 // ─── Main Storefront ───────────────────────────────────────────────────────────
+
 export default function Storefront() {
     const { storeSlug } = useParams<{ storeSlug: string }>();
     const { toast } = useToast();
@@ -964,4 +963,3 @@ export default function Storefront() {
         </div>
     );
 }
-

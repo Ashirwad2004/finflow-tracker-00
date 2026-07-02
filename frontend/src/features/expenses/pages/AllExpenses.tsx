@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Filter, Trash2, Calendar, TrendingDown, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Search, Filter, Trash2, Calendar, TrendingDown, Sparkles, Loader2, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddExpenseDialog } from "@/features/expenses/components/AddExpenseDialog";
 import { MagicAddExpense } from "@/features/expenses/components/MagicAddExpense";
@@ -126,7 +126,7 @@ const AllExpenses = () => {
     if (!expenses.length) {
       toast({
         title: "No expenses to analyze",
-        description: "Add a few expenses first, then Gemini can create a useful report.",
+        description: "Add a few expenses first, then  can create a useful report.",
       });
       return;
     }
@@ -220,6 +220,32 @@ const AllExpenses = () => {
                       </div>
                     </div>
                   )}
+                  {aiReport.predictions && aiReport.predictions.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-violet-700 dark:text-violet-400">
+                        <Sparkles className="w-3.5 h-3.5" /> AI Spending Predictions
+                      </p>
+                      <ul className="space-y-1.5 pl-5 list-disc text-sm text-muted-foreground">
+                        {aiReport.predictions.map((pred, idx) => (
+                          <li key={idx}>{pred}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {aiReport.risks && aiReport.risks.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-amber-700 dark:text-amber-500">
+                        <AlertTriangle className="w-3.5 h-3.5" /> Budget Risks & Warnings
+                      </p>
+                      <ul className="space-y-1.5 pl-5 list-disc text-sm text-muted-foreground">
+                        {aiReport.risks.map((risk, idx) => (
+                          <li key={idx} className="text-amber-800 dark:text-amber-400/90">{risk}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 p-3">
                     <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Suggested Action</p>
                     <p className="text-sm text-emerald-900 dark:text-emerald-100">{aiReport.suggestedAction}</p>

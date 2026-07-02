@@ -32,6 +32,7 @@ interface InvoiceItem {
     price: number;
     discount: number;
     total: number;
+    hsn_code?: string;
 }
 
 interface InvoiceFormValues {
@@ -66,7 +67,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             customer_gstin: "",
             invoice_number: "",
             date: new Date().toISOString().split("T")[0],
-            items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
+            items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
             tax_rate: 0,
             overall_discount: 0,
             status: "paid"
@@ -141,7 +142,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 quantity: item.quantity || 1,
                 price: item.price || 0,
                 discount: item.discount || 0,
-                total: (item.quantity || 1) * (item.price || 0) * (1 - (item.discount || 0) / 100)
+                total: (item.quantity || 1) * (item.price || 0) * (1 - (item.discount || 0) / 100),
+                hsn_code: ""
             }));
             setValue("items", mappedItems, { shouldValidate: true, shouldDirty: true });
         }
@@ -176,7 +178,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 customer_gstin: "",
                 invoice_number: "",
                 date: new Date().toISOString().split("T")[0],
-                items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0 }],
+                items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
                 tax_rate: salesSettings?.defaultTaxRate ?? 0,
                 overall_discount: 0,
                 status: salesSettings?.defaultStatus ?? "paid",
@@ -248,7 +250,12 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
     const handleProductSelect = (index: number, productName: string) => {
         const product = (products as any[]).find((p: any) => p.name === productName);
-        if (product) setValue(`items.${index}.price`, product.price);
+        if (product) {
+            setValue(`items.${index}.price`, product.price);
+            if (product.hsn_code) {
+                setValue(`items.${index}.hsn_code`, product.hsn_code);
+            }
+        }
     };
 
     // Outstanding balance check helper
@@ -641,8 +648,9 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
                             <div className="border border-slate-200 rounded-sm bg-white overflow-hidden">
                                 {/* Table Header */}
-                                <div className="hidden sm:grid grid-cols-[1fr_100px_120px_100px_120px_40px] gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                <div className={`hidden sm:grid ${salesSettings?.enableHsnCode ? "grid-cols-[1fr_100px_100px_100px_100px_120px_40px]" : "grid-cols-[1fr_100px_120px_100px_120px_40px]"} gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider`}>
                                     <div className="py-2.5 px-3">Item Description</div>
+                                    {salesSettings?.enableHsnCode && <div className="py-2.5 px-3 border-l border-slate-200 text-left">HSN</div>}
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Qty</div>
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Rate</div>
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Disc %</div>
@@ -657,9 +665,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                         const price = watch(`items.${index}.price`) || 0;
                                         const disc = watch(`items.${index}.discount`) || 0;
                                         const lineTotal = (qty * price) * (1 - disc / 100);
+                                        const hsnEnabled = !!salesSettings?.enableHsnCode;
 
                                         return (
-                                            <div key={field.id} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_120px_100px_120px_40px] gap-1 sm:gap-0 p-3 sm:p-0 items-start sm:items-stretch bg-white">
+                                            <div key={field.id} className={`grid grid-cols-1 ${hsnEnabled ? "sm:grid-cols-[1fr_100px_100px_100px_100px_120px_40px]" : "sm:grid-cols-[1fr_100px_120px_100px_120px_40px]"} gap-1 sm:gap-0 p-3 sm:p-0 items-start sm:items-stretch bg-white`}>
 
                                                 {/* Mobile Labels */}
                                                 <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">Item Description</div>
@@ -684,6 +693,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                                         ))}
                                                     </datalist>
                                                 </div>
+
+                                                {hsnEnabled && (
+                                                    <>
+                                                        <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">HSN</div>
+                                                        <div className="sm:p-0">
+                                                            <Input
+                                                                className="h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 bg-transparent focus-visible:ring-1 focus-visible:ring-inset"
+                                                                {...register(`items.${index}.hsn_code` as const)}
+                                                                placeholder="HSN"
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
 
                                                 <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">Quantity</div>
                                                 <div className="sm:p-0">

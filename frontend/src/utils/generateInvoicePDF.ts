@@ -13,6 +13,7 @@ export interface InvoiceDetails {
         quantity: number | string;
         price: number | string;
         total: number | string;
+        hsn_code?: string;
     }[];
     subtotal: number;
     discount_amount?: number;
@@ -78,11 +79,70 @@ const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width
     }
 };
 
+const runAutoTable = (pdfDoc: jsPDF, opts: any) => {
+    const userWillDrawCell = opts.willDrawCell;
+    const userDidDrawCell = opts.didDrawCell;
+    const cellDataMap = new Map<string, { name: string, hsn: string }>();
+
+    opts.willDrawCell = (hookData: any) => {
+        if (userWillDrawCell) userWillDrawCell(hookData);
+        
+        if (hookData.section === 'body' && hookData.column.index === 0) {
+            const text = hookData.cell.raw || "";
+            if (typeof text === 'string' && text.includes("\nHSN: ")) {
+                const parts = text.split("\nHSN: ");
+                cellDataMap.set(`${hookData.row.index}-${hookData.column.index}`, {
+                    name: parts[0],
+                    hsn: parts[1]
+                });
+                // Clear text to prevent default drawing
+                hookData.cell.text = [];
+            }
+        }
+    };
+
+    opts.didDrawCell = (hookData: any) => {
+        if (userDidDrawCell) userDidDrawCell(hookData);
+
+        if (hookData.section === 'body' && hookData.column.index === 0) {
+            const key = `${hookData.row.index}-${hookData.column.index}`;
+            const info = cellDataMap.get(key);
+            if (info) {
+                const cell = hookData.cell;
+                const paddingLeft = cell.styles.cellPadding?.left ?? 4;
+                const paddingTop = cell.styles.cellPadding?.top ?? 4;
+                const paddingBottom = cell.styles.cellPadding?.bottom ?? 4;
+                
+                pdfDoc.saveGraphicsState();
+                
+                // Draw Product Name (normal size, e.g. 9.5, dark color)
+                pdfDoc.setFontSize(9.5);
+                pdfDoc.setFont("helvetica", "normal");
+                pdfDoc.setTextColor(30, 41, 59); // slate-800
+                pdfDoc.text(info.name, cell.x + paddingLeft, cell.y + paddingTop + 3.5, {
+                    maxWidth: cell.width - paddingLeft - (cell.styles.cellPadding?.right ?? 4)
+                });
+
+                // Draw HSN Code (smaller size, e.g. 7.5, gray color)
+                pdfDoc.setFontSize(7.5);
+                pdfDoc.setFont("helvetica", "normal");
+                pdfDoc.setTextColor(148, 163, 184); // slate-400
+                pdfDoc.text(`HSN: ${info.hsn}`, cell.x + paddingLeft, cell.y + cell.height - paddingBottom);
+                
+                pdfDoc.restoreGraphicsState();
+            }
+        }
+    };
+
+    autoTable(pdfDoc, opts);
+};
+
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
     options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string }
 ) => {
     try {
+        const autoTable = runAutoTable;
         const doc = new jsPDF();
         const action = options?.action || 'download';
         const savedTheme = options?.theme || localStorage.getItem("finflow_invoice_theme") || 'corporate';
@@ -96,7 +156,7 @@ export const generateInvoicePDF = async (
         const pageWidth = doc.internal.pageSize.getWidth();
 
         const tableRows = data.items.map(item => [
-            safeText(item.description),
+            safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
             item.quantity.toString(),
             formatCurrencySafe(item.price),
             formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))

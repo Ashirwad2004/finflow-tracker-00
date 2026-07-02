@@ -55,6 +55,16 @@ export function NotificationSettings({ customerId }: { customerId: string }) {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState("");
   const [qrTimestamp, setQrTimestamp] = useState(0);
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
+
+  // Clean up Object URL when component unmounts or qrCodeUrl changes
+  useEffect(() => {
+    return () => {
+      if (qrCodeUrl && qrCodeUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(qrCodeUrl);
+      }
+    };
+  }, [qrCodeUrl]);
 
   const checkStatus = async () => {
     try {
@@ -94,6 +104,11 @@ export function NotificationSettings({ customerId }: { customerId: string }) {
             setShowQr(false);
             toast.success("WhatsApp is already connected!");
           }
+        } else {
+          // Response is PNG bytes, convert to blob URL
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          setQrCodeUrl(url);
         }
       } else {
         const data = await res.json().catch(() => ({}));
@@ -224,7 +239,7 @@ export function NotificationSettings({ customerId }: { customerId: string }) {
                       </div>
                     ) : (
                       <img 
-                        src={`/api/v1/whatsapp/qr?t=${qrTimestamp}`} 
+                        src={qrCodeUrl} 
                         alt="WhatsApp QR Code" 
                         className="w-48 h-48 object-contain"
                       />

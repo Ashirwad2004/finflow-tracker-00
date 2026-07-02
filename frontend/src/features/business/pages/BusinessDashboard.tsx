@@ -49,7 +49,15 @@ export default function BusinessDashboard() {
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("expenses")
-                .select("*")
+                .select(`
+                    *,
+                    categories (
+                        id,
+                        name,
+                        color,
+                        icon
+                    )
+                `)
                 .eq("user_id", user?.id || "")
                 .order("date", { ascending: false });
             if (error) throw error;
@@ -337,7 +345,7 @@ export default function BusinessDashboard() {
                         <h4 className="text-lg font-bold text-slate-900 dark:text-white">Recent Transactions</h4>
                         <MoreVertical className="w-5 h-5 cursor-pointer text-slate-400" />
                     </div>
-                    <div className="flex-1 overflow-y-auto max-h-[400px]">
+                    <div className="flex-1 overflow-y-auto max-h-[400px] overscroll-contain">
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {combinedHistory.length === 0 && (
                                 <div className="p-8 text-center text-slate-500">No transactions recorded yet.</div>

@@ -20,13 +20,18 @@ import {
   UserPlus,
   Menu,
   Settings,
-  X
+  X,
+  ArrowRight,
+  Zap,
+  BarChart3
 } from "lucide-react";
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { ExpenseList } from "@/features/expenses/components/ExpenseList";
 import { ExpenseChart } from "@/features/expenses/components/ExpenseChart";
 import { AddExpenseDialog } from "@/features/expenses/components/AddExpenseDialog";
 import { EditExpenseDialog } from "@/features/expenses/components/EditExpenseDialog";
 import { LentMoneyDialog } from "@/features/loans/components/LentMoneyDialog";
+import { BorrowedMoneyDialog } from "@/features/loans/components/BorrowedMoneyDialog";
 import { BudgetSection } from "@/features/settings/components/BudgetSection";
 import { RecentlyDeleted } from "@/features/trash/components/RecentlyDeleted";
 import { LentMoneySection } from "@/features/loans/components/LentMoneySection";
@@ -54,6 +59,7 @@ export const Dashboard = () => {
   const { formatCurrency } = useCurrency();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLentMoneyDialogOpen, setIsLentMoneyDialogOpen] = useState(false);
+  const [isBorrowedMoneyDialogOpen, setIsBorrowedMoneyDialogOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<any>(null);
   const [showRecentlyDeleted, setShowRecentlyDeleted] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -158,10 +164,124 @@ export const Dashboard = () => {
     },
   });
 
+  // Query Lent Money
+  const { data: lentMoney = [] } = useQuery({
+    queryKey: ["lent-money", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lent_money")
+        .select("*")
+        .eq("user_id", user?.id || "");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Query Borrowed Money
+  const { data: borrowedMoney = [] } = useQuery({
+    queryKey: ["borrowed-money", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("borrowed_money")
+        .select("*")
+        .eq("user_id", user?.id || "");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const pendingLentTotal = useMemo(() => {
+    return lentMoney
+      .filter((l: any) => l.status === "pending")
+      .reduce((sum: number, l: any) => sum + parseFloat(l.amount.toString()), 0);
+  }, [lentMoney]);
+
+  const pendingBorrowedTotal = useMemo(() => {
+    return borrowedMoney
+      .filter((b: any) => b.status === "pending")
+      .reduce((sum: number, b: any) => sum + parseFloat(b.amount.toString()), 0);
+  }, [borrowedMoney]);
+
+  const netOutstanding = pendingLentTotal - pendingBorrowedTotal;
+
+  // Sparkline data for the last 7 days
+  const last7DaysSparkline = useMemo(() => {
+    const data: { amount: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = d.toDateString();
+      const dailyExpenses = expenses.filter(exp => {
+        const expDate = new Date(exp.date);
+        return expDate.toDateString() === dateStr;
+      });
+      const amount = dailyExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
+      data.push({ amount });
+    }
+    return data;
+  }, [expenses]);
+
+  // Sparkline data for monthly comparison
+  const monthlySparkline = useMemo(() => {
+    const data: { amount: number }[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const m = d.getMonth();
+      const y = d.getFullYear();
+      const monthlyExp = expenses.filter(exp => {
+        const expDate = new Date(exp.date);
+        return expDate.getMonth() === m && expDate.getFullYear() === y;
+      });
+      const amount = monthlyExp.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
+      data.push({ amount });
+    }
+    return data;
+  }, [expenses]);
+
+  // Sparkline data for Transactions Count
+  const transactionsSparkline = useMemo(() => {
+    const data: { amount: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = d.toDateString();
+      const dailyCount = expenses.filter(exp => {
+        const expDate = new Date(exp.date);
+        return expDate.toDateString() === dateStr;
+      }).length;
+      data.push({ amount: dailyCount });
+    }
+    return data;
+  }, [expenses]);
+
+  // Weekly spending bar chart data (last 7 days)
+  const weeklyBarData = useMemo(() => {
+    const data: { name: string; amount: number }[] = [];
+    const now = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = d.toDateString();
+      const dailyExpenses = expenses.filter(exp => {
+        const expDate = new Date(exp.date);
+        return expDate.toDateString() === dateStr;
+      });
+      const amount = dailyExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
+      data.push({
+        name: days[d.getDay()],
+        amount
+      });
+    }
+    return data;
+  }, [expenses]);
+
   // Pre-calculate memoized components to avoid conditional hook calls in JSX
   const memoizedExpenseList = useMemo(() => (
     <ExpenseList
-      expenses={expenses}
+      expenses={expenses.slice(0, 5)}
       isLoading={isLoading}
       onEdit={(expense) => setExpenseToEdit(expense)}
       onDelete={(id) => deleteExpense.mutate(id)}
@@ -297,12 +417,88 @@ export const Dashboard = () => {
             <AiInsights expenses={expenses} categories={categories} />
           </div>
 
+          {/* Summary Banner & Quick Actions */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* Cashflow Summary Card */}
+            <div className="lg:col-span-2 p-6 bg-white border dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-indigo-500" /> Outstanding Balances
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4 font-medium">Summary of your active loans and payables</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total Lent</span>
+                    <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      {formatCurrency(pendingLentTotal)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total Borrowed</span>
+                    <p className="text-lg sm:text-xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+                      {formatCurrency(pendingBorrowedTotal)}
+                    </p>
+                  </div>
+                  <div className="space-y-1 border-l pl-4 border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Net Status</span>
+                    <p className={cn("text-lg sm:text-xl font-bold tabular-nums", netOutstanding >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                      {netOutstanding >= 0 ? "+" : ""}{formatCurrency(netOutstanding)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions Panel */}
+            <div className="p-6 bg-white border dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-violet-500 animate-pulse" /> Quick Actions
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4 font-medium">Frequently used commands</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => setIsAddDialogOpen(true)}
+                    variant="outline"
+                    className="flex items-center justify-start gap-2 h-10 px-3 hover:bg-violet-500/10 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-500/30 text-xs font-semibold"
+                  >
+                    <Plus className="w-4 h-4 text-violet-500" /> Add Expense
+                  </Button>
+                  <Button
+                    onClick={() => setIsLentMoneyDialogOpen(true)}
+                    variant="outline"
+                    className="flex items-center justify-start gap-2 h-10 px-3 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/30 text-xs font-semibold"
+                  >
+                    <Plus className="w-4 h-4 text-emerald-500" /> Lend Money
+                  </Button>
+                  <Button
+                    onClick={() => setIsBorrowedMoneyDialogOpen(true)}
+                    variant="outline"
+                    className="flex items-center justify-start gap-2 h-10 px-3 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-500/30 text-xs font-semibold"
+                  >
+                    <Plus className="w-4 h-4 text-rose-500" /> Record Debt
+                  </Button>
+                  <Button
+                    onClick={() => navigate("/groups")}
+                    variant="outline"
+                    className="flex items-center justify-start gap-2 h-10 px-3 hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-500/30 text-xs font-semibold"
+                  >
+                    <Users className="w-4 h-4 text-blue-500" /> Share Bill
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* MAIN DASHBOARD GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <DashboardCard
               title="Total Expenses"
               icon={TrendingDown}
               delay={0}
+              sparklineData={monthlySparkline}
             >
               <AnimatedCounter value={totalExpenses} prefix={user?.user_metadata?.currency ? "" : "₹"} />
             </DashboardCard>
@@ -312,6 +508,7 @@ export const Dashboard = () => {
               icon={TrendingUp}
               delay={1}
               trend={{ value: expenseTrendValue, isPositive: isExpenseTrendPositive, isExpense: true }}
+              sparklineData={last7DaysSparkline}
             >
               <AnimatedCounter value={thisMonthExpenses} prefix={user?.user_metadata?.currency ? "" : "₹"} />
             </DashboardCard>
@@ -320,17 +517,18 @@ export const Dashboard = () => {
               title="Transactions"
               icon={Wallet}
               delay={2}
+              sparklineData={transactionsSparkline}
             >
               {expenses.length}
             </DashboardCard>
 
-            <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
+            <div className="animate-slide-up h-full" style={{ animationDelay: '0.3s' }}>
               <BudgetSection userId={user?.id || ""} thisMonthExpenses={thisMonthExpenses} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* LEFT COLUMN: EXPENSE LIST (Occupies 2cols on LG) */}
+            {/* LEFT COLUMN: EXPENSE LIST & WEEKLY TREND (Occupies 2cols on LG) */}
             <div className="lg:col-span-2 space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-500">
                 <div>
@@ -354,9 +552,14 @@ export const Dashboard = () => {
                   </Button>
 
                   {!showRecentlyDeleted && (
-                    <Button onClick={() => setIsAddDialogOpen(true)} size="sm" className="shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Expense
+                    <Button
+                      onClick={() => navigate("/expenses")}
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground"
+                    >
+                      <ArrowRight className="w-4 h-4 mr-2" />
+                      View All
                     </Button>
                   )}
                 </div>
@@ -366,7 +569,7 @@ export const Dashboard = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-card rounded-2xl border shadow-sm overflow-hidden min-h-[400px]"
+                className="bg-card rounded-2xl border shadow-sm overflow-hidden"
               >
                 {showRecentlyDeleted ? (
                   <RecentlyDeleted userId={user?.id || ""} />
@@ -374,9 +577,45 @@ export const Dashboard = () => {
                   memoizedExpenseList
                 )}
               </motion.div>
+
+              {/* Weekly Spending Trend Chart */}
+              {!showRecentlyDeleted && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="bg-card rounded-2xl border shadow-sm p-6"
+                >
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-indigo-500" />
+                    Weekly Spending Trend
+                  </h3>
+                  <div className="h-[220px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={weeklyBarData}>
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                        <Tooltip
+                          cursor={{ fill: "rgba(99, 102, 241, 0.05)" }}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-popover border p-2 rounded-lg shadow-md text-xs font-bold">
+                                  {formatCurrency(Number(payload[0].value))}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
-            {/* RIGHT COLUMN: CHARTS & INSIGHTS */}
+            {/* RIGHT COLUMN: CHARTS & LENT MONEY (Occupies 1col on LG) */}
             <div className="space-y-6">
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
@@ -416,6 +655,12 @@ export const Dashboard = () => {
         <LentMoneyDialog
           open={isLentMoneyDialogOpen}
           onOpenChange={setIsLentMoneyDialogOpen}
+          userId={user?.id || ""}
+        />
+
+        <BorrowedMoneyDialog
+          open={isBorrowedMoneyDialogOpen}
+          onOpenChange={setIsBorrowedMoneyDialogOpen}
           userId={user?.id || ""}
         />
 

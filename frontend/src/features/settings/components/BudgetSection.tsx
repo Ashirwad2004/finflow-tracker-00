@@ -106,7 +106,16 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
   const budgetLimit = budget?.amount ?? 0;
   const percentage = budgetLimit > 0 ? (thisMonthExpenses / budgetLimit) * 100 : 0;
   const isOverBudget = thisMonthExpenses > budgetLimit && budgetLimit > 0;
-  //   const remaining = Math.max(0, budgetLimit - thisMonthExpenses); // Unused
+  
+  const pacingData = useMemo(() => {
+    if (budgetLimit <= 0) return null;
+    const now = new Date();
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const timeProgress = (currentDay / daysInMonth) * 100;
+    const isOverPace = percentage > timeProgress + 10;
+    return { currentDay, daysInMonth, timeProgress, isOverPace };
+  }, [budgetLimit, percentage]);
 
   // Determine UI State based on percentage
   const statusColor = useMemo(() => {
@@ -127,7 +136,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
   }
 
   return (
-    <Card className="shadow-sm border-muted-foreground/10 overflow-hidden relative">
+    <Card className="shadow-sm border-muted-foreground/10 overflow-hidden relative h-full flex flex-col">
       {/* Background decoration */}
       <div className={cn("absolute top-0 left-0 w-1 h-full", progressColor.replace("bg-", "bg-opacity-50 bg-"))} />
 
@@ -149,7 +158,7 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
         )}
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="flex-grow flex flex-col justify-center">
         {isEditing ? (
           <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="relative">
@@ -174,68 +183,46 @@ export const BudgetSection = ({ userId, thisMonthExpenses }: BudgetSectionProps)
             </div>
           </div>
         ) : budgetLimit > 0 ? (
-          <div className="space-y-5">
+          <div className="space-y-3">
             {/* Stats Row */}
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Spent</p>
-                <div className="flex items-baseline gap-1">
-                  <span className={cn("text-2xl font-bold tabular-nums", statusColor)}>
-                    {formatCurrency(thisMonthExpenses)}
-                  </span>
-                  <span className="text-sm text-muted-foreground font-medium">
-                    / {formatCurrency(budgetLimit)}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">
-                  {isOverBudget ? "Exceeded" : "Remaining"}
-                </p>
-                <p className={cn("text-lg font-semibold tabular-nums", isOverBudget ? "text-destructive" : "text-foreground")}>
-                  {isOverBudget ? "+" : ""}{formatCurrency(Math.abs(budgetLimit - thisMonthExpenses))}
-                </p>
-              </div>
+            <div className="flex items-baseline justify-between">
+              <span className={cn("text-2xl font-bold tabular-nums", statusColor)}>
+                {formatCurrency(thisMonthExpenses)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                of {formatCurrency(budgetLimit)}
+              </span>
             </div>
 
             {/* Progress Bar */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Progress
                 value={Math.min(percentage, 100)}
-                className="h-2.5 bg-secondary"
-                // We override the internal indicator color via CSS class injection or inline style if needed, 
-                // but shadcn's progress usually takes 'bg-primary'. 
-                // To force color: create a wrapper or use utility classes on the indicator if exposed.
-                // Assuming standard Shadcn Progress structure:
+                className="h-1.5 bg-secondary"
                 indicatorClassName={progressColor}
               />
-              <div className="flex justify-between items-center text-xs">
-                <span className={cn("font-medium", statusColor)}>
-                  {percentage.toFixed(0)}% used
-                </span>
-                {isOverBudget && (
-                  <span className="flex items-center gap-1 text-destructive font-semibold animate-pulse">
-                    <ShieldAlert className="w-3 h-3" /> Budget Exceeded
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                <span>{percentage.toFixed(0)}% used</span>
+                {isOverBudget ? (
+                  <span className="text-destructive font-semibold animate-pulse">
+                    Exceeded
                   </span>
-                )}
+                ) : pacingData?.isOverPace ? (
+                  <span className="text-orange-500 font-semibold animate-pulse" title={`Day ${pacingData.currentDay} of ${pacingData.daysInMonth}, but spent ${percentage.toFixed(0)}%`}>
+                    Pacing Alert
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
         ) : (
           /* Empty State */
-          <div className="flex flex-col items-center justify-center py-4 gap-3 text-center">
-            <div className="bg-muted p-3 rounded-full">
-              <Wallet className="w-6 h-6 text-muted-foreground" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">No budget set</p>
-              <p className="text-xs text-muted-foreground max-w-[200px] mx-auto">
-                Set a monthly limit to track your savings goals effectively.
-              </p>
-            </div>
-            <Button size="sm" variant="outline" onClick={startEditing} className="mt-2">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Set Monthly Goal
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-bold text-muted-foreground">
+              Not Set
+            </span>
+            <Button size="sm" variant="outline" onClick={startEditing} className="h-8 px-3 text-xs">
+              Set Limit
             </Button>
           </div>
         )}

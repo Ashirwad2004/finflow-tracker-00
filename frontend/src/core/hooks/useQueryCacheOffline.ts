@@ -145,7 +145,15 @@ export const useQueryCacheOffline = () => {
             try {
               const { data } = await (supabase as any)
                 .from("expenses")
-                .select("*")
+                .select(`
+                  *,
+                  categories (
+                    id,
+                    name,
+                    color,
+                    icon
+                  )
+                `)
                 .eq("user_id", userId)
                 .order("date", { ascending: false });
               if (data) {

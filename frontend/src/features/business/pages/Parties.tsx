@@ -329,6 +329,8 @@ const PartiesPage = () => {
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value as any)}
                             className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-semibold px-4 h-11 focus:ring-1 focus:ring-primary/50 text-slate-700 dark:text-slate-300"
+                            title="Filter by party type"
+                            aria-label="Filter by party type"
                         >
                             <option>All Types</option>
                             <option>Customer</option>
@@ -401,13 +403,18 @@ const PartiesPage = () => {
                                                         onClick={(e) => { e.stopPropagation(); handleEditClick(party); }}
                                                         className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded"
                                                         title="Edit"
+                                                        aria-label="Edit"
                                                     >
                                                         <Edit className="w-4 h-4" />
                                                     </button>
 
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                            <button className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded">
+                                                            <button 
+                                                                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded"
+                                                                title="More options"
+                                                                aria-label="More options"
+                                                            >
                                                                 <MoreVertical className="w-4 h-4" />
                                                             </button>
                                                         </DropdownMenuTrigger>

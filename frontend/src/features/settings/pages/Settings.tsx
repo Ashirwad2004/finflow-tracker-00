@@ -197,6 +197,8 @@ const SettingsPage = () => {
                                         checked={isBusinessMode}
                                         onCheckedChange={handleBusinessToggle}
                                         className="transition-all duration-300 scale-90"
+                                        title="Toggle Business Mode"
+                                        aria-label="Toggle Business Mode"
                                     />
                                 </div>
                             </CardContent>

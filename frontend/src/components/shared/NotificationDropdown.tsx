@@ -119,7 +119,13 @@ export const NotificationDropdown = ({ userId }: NotificationDropdownProps) => {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative text-muted-foreground hover:text-foreground"
+          title="Notifications"
+          aria-label="Notifications"
+        >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
             <Badge 

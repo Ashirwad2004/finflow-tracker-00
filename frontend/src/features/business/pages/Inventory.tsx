@@ -44,6 +44,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
+import { useSalesSettings } from "@/core/hooks/use-sales-settings";
 import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
 import { ProductImageUpload } from "@/features/business/components/ProductImageUpload";
 import { ExcelImportDialog } from "@/features/business/components/ExcelImportDialog";
@@ -57,6 +58,7 @@ interface Product {
     cost_price: number;
     stock_quantity: number;
     unit: string;
+    hsn_code?: string;
     created_at: string;
     updated_at?: string;
     is_listed_online?: boolean;
@@ -71,6 +73,7 @@ interface ProductFormValues {
     cost_price: number;
     stock_quantity: number;
     unit: string;
+    hsn_code?: string;
     is_listed_online?: boolean;
     online_description?: string;
     image_url?: string;
@@ -90,6 +93,7 @@ export default function Inventory() {
     const queryClient = useQueryClient();
     const { formatCurrency } = useCurrency();
     const { settings, updateSetting, resetSettings } = useItemSettings(user?.id);
+    const { settings: salesSettings } = useSalesSettings(user?.id);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -107,6 +111,7 @@ export default function Inventory() {
             cost_price: 0,
             stock_quantity: 0,
             unit: "pc",
+            hsn_code: "",
             is_listed_online: false,
             online_description: "",
             image_url: "",
@@ -277,6 +282,7 @@ export default function Inventory() {
             cost_price: product.cost_price,
             stock_quantity: product.stock_quantity,
             unit: product.unit,
+            hsn_code: product.hsn_code || "",
             is_listed_online: product.is_listed_online || false,
             online_description: product.online_description || "",
             image_url: product.image_url || "",
@@ -463,6 +469,7 @@ export default function Inventory() {
                                 <TableRow>
                                     <TableHead>Product Name</TableHead>
                                     {settings.showRackLocations && <TableHead>Rack Location</TableHead>}
+                                    {salesSettings?.enableHsnCode && <TableHead>HSN Code</TableHead>}
                                     <TableHead>Price</TableHead>
                                     <TableHead>Cost Price</TableHead>
                                     <TableHead>Stock</TableHead>
@@ -486,6 +493,11 @@ export default function Inventory() {
                                                 <Badge variant="outline" className="font-mono text-[11px] max-w-[120px] truncate bg-slate-50 dark:bg-slate-900 border-slate-200">
                                                     {product.rack_location || "—"}
                                                 </Badge>
+                                            </TableCell>
+                                        )}
+                                        {salesSettings?.enableHsnCode && (
+                                            <TableCell className="font-mono text-xs text-muted-foreground">
+                                                {product.hsn_code || "—"}
                                             </TableCell>
                                         )}
                                         <TableCell>{formatCurrency(product.price)}</TableCell>
@@ -753,6 +765,17 @@ export default function Inventory() {
                                 </div>
                             )}
 
+                            {salesSettings?.enableHsnCode && (
+                                <div className="space-y-2 animate-fade-in">
+                                    <Label htmlFor="hsn_code">HSN Code</Label>
+                                    <Input
+                                        id="hsn_code"
+                                        {...register("hsn_code")}
+                                        placeholder="e.g. 8517, 4901"
+                                    />
+                                </div>
+                            )}
+
                             <div className="space-y-4 pt-4 border-t mt-4">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
@@ -904,6 +927,17 @@ export default function Inventory() {
                                         id="edit_rack_location"
                                         {...register("rack_location")}
                                         placeholder="e.g. Shelf A-3, Rack 2"
+                                    />
+                                </div>
+                            )}
+
+                            {salesSettings?.enableHsnCode && (
+                                <div className="space-y-2 animate-fade-in">
+                                    <Label htmlFor="edit_hsn_code">HSN Code</Label>
+                                    <Input
+                                        id="edit_hsn_code"
+                                        {...register("hsn_code")}
+                                        placeholder="e.g. 8517, 4901"
                                     />
                                 </div>
                             )}

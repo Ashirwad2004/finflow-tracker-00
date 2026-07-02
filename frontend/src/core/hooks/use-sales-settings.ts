@@ -51,6 +51,8 @@ export interface SalesSettings {
   warnOnOutstandingBalance: boolean;
   /** Show a confirmation dialog before deleting an invoice. */
   confirmBeforeDelete: boolean;
+  /** Enable HSN code entry on products and invoices. */
+  enableHsnCode: boolean;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -64,6 +66,7 @@ const DEFAULTS: SalesSettings = {
   gstMode: "none",
   warnOnOutstandingBalance: false,
   confirmBeforeDelete: true,
+  enableHsnCode: false,
 };
 
 function getStorageKey(userId: string | undefined) {

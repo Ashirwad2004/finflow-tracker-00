@@ -566,7 +566,7 @@ export default function OnlineStore() {
     const { data: orderReturns = [], isLoading: isLoadingReturns, isFetching: isFetchingReturns, refetch: refetchReturns } = useQuery({
         queryKey: ["orderReturns", currentStoreId],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("order_returns")
                 .select(`
                     *,
@@ -594,7 +594,7 @@ export default function OnlineStore() {
 
     const updateReturnStatus = useMutation({
         mutationFn: async ({ returnId, status }: { returnId: string; status: string }) => {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from("order_returns")
                 .update({ status })
                 .eq("id", returnId);

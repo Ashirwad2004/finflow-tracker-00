@@ -747,6 +747,23 @@ export default function SalesPage() {
                                 </button>
                             </div>
 
+                            {/* Enable Product HSN Codes */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Enable HSN Codes</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Display and manage HSN codes for products and items on invoices.</p>
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.enableHsnCode}
+                                    onClick={() => updateSetting("enableHsnCode", !settings.enableHsnCode)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.enableHsnCode ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.enableHsnCode ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
+                            </div>
+
                             {/* Info note */}
                             <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
                                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
