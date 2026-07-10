@@ -25,6 +25,8 @@ def main():
     print(f"[Backend Runner] Starting FastAPI backend using: {uvicorn_path}")
     
     cmd = [uvicorn_path, 'main:app', '--reload', '--port', '8000']
+    if is_win:
+        cmd.extend(['--loop', 'main:win_proactor_loop'])
     
     # Run uvicorn
     try:

@@ -346,7 +346,11 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        <Suspense fallback={<div className="p-8 text-center text-muted-foreground animate-pulse">Loading Business Dashboard...</div>}>
+        <Suspense fallback={
+          <div className="flex items-center justify-center p-20" aria-busy="true" aria-live="polite">
+            <div className="w-10 h-10 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
           <BusinessDashboard />
         </Suspense>
       </AppLayout>

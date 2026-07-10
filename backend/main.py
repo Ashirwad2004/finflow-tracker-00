@@ -1,5 +1,9 @@
 import sys
 import asyncio
+
+def win_proactor_loop():
+    return getattr(asyncio, "ProactorEventLoop")()
+
 if sys.platform.startswith('win'):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
