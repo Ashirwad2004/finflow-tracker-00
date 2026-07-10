@@ -7,13 +7,13 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npx kill-port 3000 && node frontend/server.js\"",
-    "clean-dev": "concurrently \"npm run clean-dev --workspace=frontend\" \"npx kill-port 3000 && node frontend/server.js\"",
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npx kill-port 3000 && node frontend/server.js\" \"npm run backend:dev\"",
+    "clean-dev": "concurrently \"npm run clean-dev --workspace=frontend\" \"npx kill-port 3000 && node frontend/server.js\" \"npm run backend:dev\"",
     "build": "npm run build --workspace=frontend",
     "lint": "npm run lint --workspace=frontend",
     "preview": "npm run preview --workspace=frontend",
-    "backend:dev": "cd backend && uvicorn main:app --reload --port 8000",
-    "ai:dev": "cd backend && uvicorn main:app --reload --port 8000",
+    "backend:dev": "python run-backend.py",
+    "ai:dev": "python run-backend.py",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
