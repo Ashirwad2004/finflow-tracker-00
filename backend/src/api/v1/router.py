@@ -1,5 +1,5 @@
 from fastapi import APIRouter
+from src.api.v1 import feature_requests
 
 api_router = APIRouter()
-# api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
-# api_router.include_router(expenses.router, prefix="/expenses", tags=["Expenses"])
+api_router.include_router(feature_requests.router)

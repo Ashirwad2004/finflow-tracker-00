@@ -10,6 +10,11 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     strictPort: true,
     proxy: {
+      '/api/v1': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,

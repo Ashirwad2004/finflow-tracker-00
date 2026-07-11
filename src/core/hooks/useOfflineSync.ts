@@ -4,6 +4,7 @@ import db from '../offline/db';
 import { startSyncInterval, processSyncQueue } from '../offline/syncService';
 import { useAuth } from '@/core/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
+import { decryptPayload } from '../offline/crypto';
 
 export const useOfflineSync = () => {
     const { user } = useAuth();
@@ -23,6 +24,62 @@ export const useOfflineSync = () => {
         [user?.id],
         0
     );
+
+    const failedItemsRaw = useLiveQuery(
+        () => user ? db.syncQueue.where('userId').equals(user.id).filter(item => item.status === 'failed').toArray() : [],
+        [user?.id],
+        []
+    );
+
+    // Decrypt payloads for display
+    const failedItems = failedItemsRaw.map(item => {
+        let payload = null;
+        if (user) {
+            try {
+                payload = decryptPayload(item.payload_encrypted, user.id);
+            } catch (e) {
+                console.error("Failed to decrypt payload for banner", e);
+            }
+        }
+        return {
+            ...item,
+            payload
+        };
+    });
+
+    const retryItem = async (id: string) => {
+        await db.syncQueue.update(id, { status: 'pending', retryCount: 0, error: undefined });
+        if (user) {
+            processSyncQueue(user.id).finally(() => {
+                queryClient.invalidateQueries();
+            });
+        }
+    };
+
+    const discardItem = async (id: string) => {
+        await db.syncQueue.delete(id);
+        queryClient.invalidateQueries();
+    };
+
+    const retryAllFailed = async () => {
+        if (!user) return;
+        const items = await db.syncQueue.where('userId').equals(user.id).filter(item => item.status === 'failed').toArray();
+        for (const item of items) {
+            await db.syncQueue.update(item.id, { status: 'pending', retryCount: 0, error: undefined });
+        }
+        processSyncQueue(user.id).finally(() => {
+            queryClient.invalidateQueries();
+        });
+    };
+
+    const discardAllFailed = async () => {
+        if (!user) return;
+        const items = await db.syncQueue.where('userId').equals(user.id).filter(item => item.status === 'failed').toArray();
+        for (const item of items) {
+            await db.syncQueue.delete(item.id);
+        }
+        queryClient.invalidateQueries();
+    };
 
     useEffect(() => {
         const handleOnline = () => {
@@ -57,6 +114,11 @@ export const useOfflineSync = () => {
         isOnline,
         isSyncing,
         pendingItemsCount,
-        failedItemsCount
+        failedItemsCount,
+        failedItems,
+        retryItem,
+        discardItem,
+        retryAllFailed,
+        discardAllFailed
     };
 };

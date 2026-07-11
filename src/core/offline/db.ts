@@ -10,6 +10,7 @@ export interface SyncRecord {
     status: 'pending' | 'synced' | 'failed';
     createdAt: number;   // Unix timestamp for queue sorting ASC
     retryCount: number;  // Max 5 attempts
+    error?: string;      // Server or database validation error message
 }
 
 export interface CacheRecord {

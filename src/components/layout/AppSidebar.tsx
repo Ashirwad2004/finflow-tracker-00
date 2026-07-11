@@ -34,6 +34,7 @@ import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { BRAND } from "@/core/constants/brand";
 import { Badge } from "@/components/ui/badge";
+import { RequestFeatureDialog } from "@/components/shared/RequestFeatureDialog";
 
 const personalMenuItems = [
   {
@@ -330,6 +331,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             <CalculatorComponent />
           </DialogContent>
         </Dialog>
+
+        <RequestFeatureDialog collapsed={collapsed} />
 
         <div className={cn(
           "flex items-center gap-1",

@@ -72,12 +72,21 @@ export const processSyncQueue = async (userId: string) => {
                 );
 
                 const newRetryCount = item.retryCount + 1;
+                const errorMessage = err?.message || err?.details || String(err);
+                
                 if (newRetryCount >= 5 || isNonTransient) {
                     // Exhausted retries or non-transient: Mark as failed gracefully so we don't block the queue
-                    await db.syncQueue.update(item.id, { status: 'failed', retryCount: newRetryCount });
+                    await db.syncQueue.update(item.id, { 
+                        status: 'failed', 
+                        retryCount: newRetryCount,
+                        error: errorMessage
+                    });
                 } else {
                     // Standard retry increment
-                    await db.syncQueue.update(item.id, { retryCount: newRetryCount });
+                    await db.syncQueue.update(item.id, { 
+                        retryCount: newRetryCount,
+                        error: errorMessage
+                    });
                     // We BREAK here to ensure strict ordering. 
                     // E.g., if "Update Expense" fails, we must not jump to "Delete Expense"
                     break;

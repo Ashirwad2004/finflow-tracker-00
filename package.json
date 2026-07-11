@@ -10,7 +10,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "backend": "cd backend && .\\venv\\Scripts\\python -m uvicorn main:app --reload --port 8000"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
