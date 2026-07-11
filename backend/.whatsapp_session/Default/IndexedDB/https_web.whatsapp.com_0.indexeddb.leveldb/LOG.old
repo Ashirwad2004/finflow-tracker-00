@@ -1,0 +1,70 @@
+2026/07/10-19:13:02.455 28a0 Recovering log #400
+2026/07/10-19:13:02.462 28a0 Reusing old log C:\Users\ashir\Downloads\finflow-tracker-00-1\backend\.whatsapp_session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000400.log 
+2026/07/10-19:13:02.468 28a0 Delete type=2 #390
+2026/07/10-19:13:02.468 28a0 Delete type=2 #391
+2026/07/10-19:13:02.468 28a0 Delete type=3 #305
+2026/07/10-19:13:07.095 71c8 Level-0 table #406: started
+2026/07/10-19:13:07.100 71c8 Level-0 table #406: 129551 bytes OK
+2026/07/10-19:13:07.102 71c8 Delete type=0 #400
+2026/07/10-19:13:07.103 71c8 Manual compaction at level-0 from '\x00c\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00d\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/07/10-19:13:07.105 82d4 Level-0 table #408: started
+2026/07/10-19:13:07.107 82d4 Level-0 table #408: 1788 bytes OK
+2026/07/10-19:13:07.108 82d4 Delete type=0 #405
+2026/07/10-19:13:07.110 82d4 Manual compaction at level-0 from '\x00d\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00e\x00\x00\x00' @ 0 : 0; will stop at '\x00d\x07\x02\x03\x00\x00\x00\x00\x00\x00\xf0?' @ 1034444 : 0
+2026/07/10-19:13:07.110 82d4 Compacting 1@0 + 1@1 files
+2026/07/10-19:13:07.115 82d4 Generated table #409@0: 3092 keys, 52259 bytes
+2026/07/10-19:13:07.115 82d4 Compacted 1@0 + 1@1 files => 52259 bytes
+2026/07/10-19:13:07.116 82d4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-19:13:07.116 82d4 Delete type=2 #408
+2026/07/10-19:13:07.117 82d4 Manual compaction at level-0 from '\x00d\x07\x02\x03\x00\x00\x00\x00\x00\x00\xf0?' @ 1034444 : 0 .. '\x00e\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/07/10-19:13:07.117 82d4 Level-0 table #411: started
+2026/07/10-19:13:07.119 82d4 Level-0 table #411: 407 bytes OK
+2026/07/10-19:13:07.121 82d4 Delete type=2 #406
+2026/07/10-19:13:07.121 82d4 Delete type=0 #407
+2026/07/10-19:13:07.121 82d4 Manual compaction at level-0 from '\x00e\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00f\x00\x00\x00' @ 0 : 0; will stop at '\x00e\x00\x00\xc8\x06\x00s\x00t\x00a\x00t\x00u\x00s' @ 1034464 : 0
+2026/07/10-19:13:07.121 82d4 Compacting 1@0 + 1@1 files
+2026/07/10-19:13:07.126 82d4 Generated table #412@0: 3076 keys, 51879 bytes
+2026/07/10-19:13:07.126 82d4 Compacted 1@0 + 1@1 files => 51879 bytes
+2026/07/10-19:13:07.127 82d4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-19:13:07.127 82d4 Delete type=2 #411
+2026/07/10-19:13:07.128 82d4 Manual compaction at level-0 from '\x00e\x00\x00\xc8\x06\x00s\x00t\x00a\x00t\x00u\x00s' @ 1034464 : 0 .. '\x00f\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/07/10-19:13:07.129 82d4 Level-0 table #414: started
+2026/07/10-19:13:07.130 82d4 Level-0 table #414: 507 bytes OK
+2026/07/10-19:13:07.132 82d4 Delete type=2 #409
+2026/07/10-19:13:07.132 82d4 Delete type=0 #410
+2026/07/10-19:13:07.133 82d4 Manual compaction at level-0 from '\x00f\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00g\x00\x00\x00' @ 0 : 0; will stop at '\x00f\x02\x02\x03\x00\x00\x00\x00\x00\x00\xf0?' @ 1034493 : 0
+2026/07/10-19:13:07.133 82d4 Compacting 1@0 + 1@1 files
+2026/07/10-19:13:07.136 82d4 Generated table #415@0: 3051 keys, 51252 bytes
+2026/07/10-19:13:07.137 82d4 Compacted 1@0 + 1@1 files => 51252 bytes
+2026/07/10-19:13:07.137 82d4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-19:13:07.138 82d4 Delete type=2 #414
+2026/07/10-19:13:07.138 82d4 Manual compaction at level-0 from '\x00f\x02\x02\x03\x00\x00\x00\x00\x00\x00\xf0?' @ 1034493 : 0 .. '\x00g\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/07/10-19:13:07.139 82d4 Level-0 table #417: started
+2026/07/10-19:13:07.141 82d4 Level-0 table #417: 500 bytes OK
+2026/07/10-19:13:07.142 82d4 Delete type=2 #412
+2026/07/10-19:13:07.142 82d4 Delete type=0 #413
+2026/07/10-19:13:07.143 82d4 Manual compaction at level-0 from '\x00g\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00h\x00\x00\x00' @ 0 : 0; will stop at '\x00g\x00\x00\xc8\x0d\x00l\x00o\x00c\x00a\x00l\x00_\x00s\x00t\x00o\x00r\x00a\x00g\x00e' @ 1034518 : 0
+2026/07/10-19:13:07.143 82d4 Compacting 1@0 + 1@1 files
+2026/07/10-19:13:07.147 82d4 Generated table #418@0: 3030 keys, 50887 bytes
+2026/07/10-19:13:07.147 82d4 Compacted 1@0 + 1@1 files => 50887 bytes
+2026/07/10-19:13:07.147 82d4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-19:13:07.148 82d4 Delete type=2 #417
+2026/07/10-19:13:07.148 82d4 Manual compaction at level-0 from '\x00g\x00\x00\xc8\x0d\x00l\x00o\x00c\x00a\x00l\x00_\x00s\x00t\x00o\x00r\x00a\x00g\x00e' @ 1034518 : 0 .. '\x00h\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/07/10-19:13:07.150 82d4 Level-0 table #420: started
+2026/07/10-19:13:07.152 82d4 Level-0 table #420: 12898 bytes OK
+2026/07/10-19:13:07.152 82d4 Delete type=2 #415
+2026/07/10-19:13:07.153 82d4 Delete type=0 #416
+2026/07/10-19:13:07.153 82d4 Manual compaction at level-0 from '\x00b\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00c\x00\x00\x00' @ 0 : 0; will stop at '\x00b\x0a\x02\x03\x00\x00\x00\x00\x00\x00\x00@' @ 1035108 : 0
+2026/07/10-19:13:07.153 82d4 Compacting 1@0 + 1@1 files
+2026/07/10-19:13:07.156 82d4 Generated table #421@0: 3034 keys, 26503 bytes
+2026/07/10-19:13:07.156 82d4 Compacted 1@0 + 1@1 files => 26503 bytes
+2026/07/10-19:13:07.157 82d4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-19:13:07.157 82d4 Delete type=2 #420
+2026/07/10-19:13:07.158 82d4 Manual compaction at level-0 from '\x00b\x0a\x02\x03\x00\x00\x00\x00\x00\x00\x00@' @ 1035108 : 0 .. '\x00c\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/07/10-19:13:07.158 82d4 Manual compaction at level-1 from '\x00b\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00c\x00\x00\x00' @ 0 : 0; will stop at '\x00b\x01 \x03\x00\x00\x00\x00\x00\x00\x14@\x00\x03\x00\x00\x00\x00\x00\x00\x14@' @ 1034954 : 0
+2026/07/10-19:13:07.158 82d4 Compacting 1@1 + 1@2 files
+2026/07/10-19:13:07.160 82d4 Generated table #422@1: 40 keys, 935 bytes
+2026/07/10-19:13:07.160 82d4 Compacted 1@1 + 1@2 files => 935 bytes
+2026/07/10-19:13:07.161 82d4 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/07/10-19:13:07.161 82d4 Delete type=2 #421
+2026/07/10-19:13:07.162 82d4 Manual compaction at level-1 from '\x00b\x01 \x03\x00\x00\x00\x00\x00\x00\x14@\x00\x03\x00\x00\x00\x00\x00\x00\x14@' @ 1034954 : 0 .. '\x00c\x00\x00\x00' @ 0 : 0; will stop at (end)
