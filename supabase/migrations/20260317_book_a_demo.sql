@@ -1,8 +1,3 @@
--- ============================================================
--- FinFlow: Book a Demo — Supabase SQL Migration
--- Run this in your Supabase SQL Editor:
--- https://supabase.com/dashboard/project/mimremmiwehqzrxthdgn/sql
--- ============================================================
 
 -- 1. Demo Requests table
 CREATE TABLE IF NOT EXISTS public.demo_requests (

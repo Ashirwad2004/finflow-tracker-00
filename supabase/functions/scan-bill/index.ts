@@ -20,25 +20,21 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    // Try to get GEMINI_API_KEY first, fallback to LOVABLE_API_KEY
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error('Neither GEMINI_API_KEY nor LOVABLE_API_KEY is configured in the Edge Function environment');
     }
 
     console.log('Processing bill image for OCR...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an OCR assistant that extracts data from bill/receipt images. 
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `You are an OCR assistant that extracts data from bill/receipt images. 
 Extract the following fields if available and return them as JSON:
 - merchant_name: The name of the store/shop/merchant
 - total_amount: The total amount (number only, no currency symbols)
@@ -48,55 +44,48 @@ Extract the following fields if available and return them as JSON:
 
 IMPORTANT: Return ONLY valid JSON with these exact keys. If a field cannot be determined, use null.
 Example: {"merchant_name": "Cafe Coffee Day", "total_amount": 250, "bill_date": "2024-01-15", "tax_amount": 12.50, "category_suggestion": "Food"}`
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract the bill information from this image and return as JSON.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`
-                }
+            },
+            {
+              inlineData: {
+                mimeType: mimeType || 'image/jpeg',
+                data: imageBase64
               }
-            ]
-          }
-        ],
-      }),
-    });
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json"
+      }
+    };
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add more credits.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error('Failed to process image');
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error('Failed to communicate with Gemini API');
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
     console.log('AI response:', content);
 
     // Parse the JSON response from the AI
     let extractedData;
     try {
-      // Remove markdown code blocks if present
-      const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      extractedData = JSON.parse(cleanedContent);
+      extractedData = JSON.parse(content.trim());
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       return new Response(
