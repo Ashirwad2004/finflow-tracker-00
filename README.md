@@ -47,4 +47,4 @@ npm install
 npm run dev
 ```
 
-The app will start at `http://localhost:5173`. Make sure to configure your `.env` file with Supabase credentials as described in the **[Developer Setup](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**.
+The app will start at `http://localhost:8080`. Make sure to configure your `.env` file with Supabase credentials as described in the **[Developer Setup](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**.
