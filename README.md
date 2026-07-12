@@ -82,10 +82,6 @@ npm install
 
 # Start Vite React server (Hot reload)
 npm run dev
-
-# Run TypeScript compilation checks
-npx tsc --noEmit -p tsconfig.app.json
-
-# Compile production package bundle
-npm run build
 ```
+
+The app will start at `http://localhost:5173`. Make sure to configure your `.env` file with Supabase credentials as described in the **[Developer Setup](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**.
