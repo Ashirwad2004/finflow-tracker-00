@@ -299,6 +299,7 @@ export default function OnlineStore() {
     const { formatCurrency } = useCurrency();
     const navigate = useNavigate();
     const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "year" | "all">("month");
+    const [autoRefresh, setAutoRefresh] = useState(true);
 
     // Payment search and filter states
     const [searchQuery, setSearchQuery] = useState("");
@@ -518,6 +519,7 @@ export default function OnlineStore() {
             return (data as unknown) as OnlineOrder[];
         },
         enabled: !!currentStoreId,
+        refetchInterval: autoRefresh ? 8000 : false,
     });
 
 
@@ -723,7 +725,7 @@ export default function OnlineStore() {
         };
 
         const channel = supabase
-            .channel('realtime-online-orders')
+            .channel(`realtime-online-orders:${currentStoreId}`)
             .on(
                 'postgres_changes',
                 {
@@ -936,7 +938,7 @@ export default function OnlineStore() {
                         {/* ── 1. INCOMING ORDERS TAB ── */}
                         <TabsContent value="orders">
                             <div className="bg-card border rounded-xl shadow-sm h-full flex flex-col">
-                                <div className="p-6 border-b flex items-center justify-between">
+                                <div className="p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-xl font-semibold">Incoming Orders</h2>
                                         {pendingCount > 0 && (
@@ -945,7 +947,33 @@ export default function OnlineStore() {
                                             </Badge>
                                         )}
                                     </div>
-                                    <Badge variant="secondary">{orders.length} total</Badge>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            <Switch 
+                                                id="auto-refresh" 
+                                                checked={autoRefresh} 
+                                                onCheckedChange={setAutoRefresh} 
+                                            />
+                                            <Label htmlFor="auto-refresh" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5 select-none font-medium">
+                                                {autoRefresh && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />}
+                                                Auto-refresh (8s)
+                                            </Label>
+                                        </div>
+                                        <div className="h-4 w-px bg-border" />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                queryClient.invalidateQueries({ queryKey: ["online_orders", currentStoreId] });
+                                                toast({ title: "Refreshing", description: "Fetching latest order logs..." });
+                                            }}
+                                            className="h-8 text-xs flex items-center gap-1.5 font-semibold"
+                                        >
+                                            <RefreshCw className="w-3.5 h-3.5" />
+                                            Refresh
+                                        </Button>
+                                        <Badge variant="secondary">{orders.length} total</Badge>
+                                    </div>
                                 </div>
 
                                 {orders.length > 0 && (
