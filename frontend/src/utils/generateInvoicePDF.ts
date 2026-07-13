@@ -34,7 +34,7 @@ export interface InvoiceDetails {
     };
 }
 
-export type InvoicePdfTheme = 'corporate' | 'modern-dark' | 'minimal-white' | 'professional-green' | 'premium-gold' | 'creative-purple' | 'startup-gradient' | 'elegant-mono' | 'retail' | 'construction';
+export type InvoicePdfTheme = 'corporate' | 'modern-dark' | 'minimal-white' | 'professional-green' | 'premium-gold' | 'creative-purple' | 'startup-gradient' | 'elegant-mono' | 'retail' | 'construction' | 'bold-crimson' | 'navy-compact' | 'retro-amber' | 'tally-accounting';
 
 export interface TotalRow {
     label: string;
@@ -1769,6 +1769,705 @@ export const generateInvoicePDF = async (
                 doc.setFont("helvetica", "normal");
                 doc.text("Authorized Representative", 196, sigY + renderH + 5, { align: "right" });
             }
+        } else if (theme === 'bold-crimson') {
+            const brandColor: [number, number, number] = [190, 18, 60]; // rose-700
+            const textDark: [number, number, number] = [30, 41, 59];
+            const textLight: [number, number, number] = [100, 116, 139];
+            const lineLight: [number, number, number] = [244, 244, 245];
+
+            doc.setFillColor(...brandColor);
+            doc.rect(0, 0, 210, 40, "F");
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 26;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 6 + (28 - renderH) / 2;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 20);
+
+                currentHeaderY = 26;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 20);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(28);
+            doc.text("INVOICE", 196, 20, { align: "right" });
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 32, { align: "right" });
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 14, 55);
+
+            doc.setDrawColor(244, 63, 94); // rose-500
+            doc.setLineWidth(0.5);
+            doc.line(14, 57, 80, 57);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 14, 63);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(10);
+            let billY = 68;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(85, billY + 10),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
+                bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [254, 242, 242] },
+                alternateRowStyles: { fillColor: [255, 244, 244] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? brandColor : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(254, 242, 242); // rose-50
+                    doc.setDrawColor(...brandColor);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9);
+                doc.setTextColor(...textDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setDrawColor(...lineLight);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "italic");
+            doc.text("Thank you for your business. For any inquiries, please contact us.", 105, pageHeight - 12, { align: "center" });
+
+        } else if (theme === 'navy-compact') {
+            const brandColor: [number, number, number] = [15, 23, 42]; // slate-900 / navy
+            const textDark: [number, number, number] = [30, 41, 59];
+            const textLight: [number, number, number] = [100, 116, 139];
+            const lineLight: [number, number, number] = [226, 232, 240];
+
+            doc.setFillColor(...brandColor);
+            doc.rect(0, 0, 210, 5, "F");
+
+            doc.setTextColor(...brandColor);
+            doc.setFont("helvetica", "bold");
+
+            let currentHeaderY = 24;
+
+            if (logoBase64) {
+                const maxDim = 20;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 12;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(16);
+                doc.text(bizName, 18 + renderW, 20);
+
+                currentHeaderY = 25;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8.5);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 4.5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(18);
+                doc.text(bizName, 14, 18);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 4.5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(22);
+            doc.text("INVOICE", 196, 20, { align: "right" });
+            doc.setFontSize(9.5);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textDark);
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 26, { align: "right" });
+            doc.text(`Date: ${dateFormatted}`, 196, 31, { align: "right" });
+
+            doc.setDrawColor(...lineLight);
+            doc.setLineWidth(0.4);
+            doc.line(14, 42, 196, 42);
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO", 14, 50);
+
+            doc.setFontSize(10);
+            doc.text(safeText(data.customer_name), 14, 56);
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(9);
+            let billY = 61;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 4.5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 4.5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 4.5; }
+
+            autoTable(doc, {
+                startY: Math.max(76, billY + 6),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'striped',
+                headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 9, cellPadding: 3 },
+                bodyStyles: { textColor: textDark, fontSize: 8.5, cellPadding: 3, lineColor: [241, 245, 249] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 8;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 6;
+                doc.setTextColor(...(row.bold ? brandColor : textLight));
+                doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 4;
+                    doc.setFillColor(241, 245, 249);
+                    doc.setDrawColor(...lineLight);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 12, 1.5, 1.5, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 8.5);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 8.5, { align: "right" });
+                    currentTotalY += 6;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 28;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 38;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(8.5);
+                doc.setTextColor(...textDark);
+                doc.setFont("helvetica", "normal");
+                doc.text("Authorized Representative", 196, sigY + renderH + 4, { align: "right" });
+            }
+
+            doc.setDrawColor(...lineLight);
+            doc.line(14, pageHeight - 16, 196, pageHeight - 16);
+            doc.setFontSize(8);
+            doc.setTextColor(...textLight);
+            doc.setFont("helvetica", "italic");
+            doc.text("Thank you for your business.", 105, pageHeight - 10, { align: "center" });
+
+        } else if (theme === 'retro-amber') {
+            const brandColor: [number, number, number] = [217, 119, 6]; // amber-600
+            const textDark: [number, number, number] = [67, 40, 24]; // warm dark brown
+            const textLight: [number, number, number] = [120, 113, 108]; // stone-500
+            const lineLight: [number, number, number] = [251, 191, 36]; // amber-400
+
+            doc.setFillColor(...brandColor);
+            doc.rect(0, 0, 210, 6, "F");
+
+            doc.setTextColor(...textDark);
+            doc.setFont("times", "bold");
+
+            let currentHeaderY = 24;
+
+            if (logoBase64) {
+                const maxDim = 28;
+                let renderW = logoBase64.width;
+                let renderH = logoBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const startY = 12;
+                doc.addImage(logoBase64.dataUrl, "PNG", 14, startY, renderW, renderH);
+
+                doc.setFontSize(18);
+                doc.text(bizName, 18 + renderW, 22);
+
+                currentHeaderY = 30;
+                doc.setFont("times", "normal");
+                doc.setFontSize(9.5);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 18 + renderW, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 18 + renderW, currentHeaderY);
+                }
+            } else {
+                doc.setFontSize(22);
+                doc.text(bizName, 14, 22);
+
+                doc.setFont("times", "normal");
+                doc.setFontSize(10);
+                doc.setTextColor(...textLight);
+                if (data.business_details?.address) {
+                    doc.text(safeText(data.business_details.address), 14, currentHeaderY);
+                    currentHeaderY += 5;
+                }
+                if (data.business_details?.phone || data.business_details?.gst) {
+                    const extraDetails = [
+                        data.business_details.phone ? `Phone: ${safeText(data.business_details.phone)}` : '',
+                        data.business_details.gst ? `GSTIN: ${safeText(data.business_details.gst)}` : ''
+                    ].filter(Boolean).join(" | ");
+                    if (extraDetails) doc.text(extraDetails, 14, currentHeaderY);
+                }
+            }
+
+            doc.setFont("times", "bold");
+            doc.setFontSize(26);
+            doc.setTextColor(...brandColor);
+            doc.text("INVOICE", 196, 22, { align: "right" });
+            doc.setFontSize(11);
+            doc.setFont("times", "normal");
+            doc.setTextColor(...textDark);
+            doc.text(`No. ${safeText(data.invoice_number)}`, 196, 29, { align: "right" });
+            doc.setTextColor(...textLight);
+            doc.text(`Date: ${dateFormatted}`, 196, 34, { align: "right" });
+
+            doc.setDrawColor(...lineLight);
+            doc.setLineWidth(0.6);
+            doc.line(14, 50, 196, 50);
+
+            doc.setTextColor(...textDark);
+            doc.setFontSize(12);
+            doc.setFont("times", "bold");
+            doc.text("BILL TO", 14, 60);
+
+            doc.setFontSize(11);
+            doc.text(safeText(data.customer_name), 14, 67);
+
+            doc.setFont("times", "normal");
+            doc.setTextColor(...textLight);
+            doc.setFontSize(10);
+            let billY = 72;
+            if (data.customer_phone) { doc.text(`Phone: ${safeText(data.customer_phone)}`, 14, billY); billY += 5; }
+            if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
+            if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
+
+            autoTable(doc, {
+                startY: Math.max(90, billY + 8),
+                head: [["Item Description", "Qty", "Price", "Amount"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4, font: 'times' },
+                bodyStyles: { textColor: textDark, fontSize: 9.5, cellPadding: 4, lineColor: [254, 243, 199], font: 'times' },
+                alternateRowStyles: { fillColor: [255, 251, 235] },
+                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+                margin: { left: 14, right: 14 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalBlockX = 120;
+            const vAlignX = 196;
+
+            doc.setFontSize(10.5);
+            doc.setTextColor(...textLight);
+            doc.setFont("times", "normal");
+            doc.text("Subtotal:", totalBlockX, finalY);
+            doc.setTextColor(...textDark);
+            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+
+            let currentTotalY = finalY;
+            totalRows.slice(1).forEach(row => {
+                currentTotalY += 7;
+                doc.setTextColor(...(row.bold ? brandColor : textLight));
+                doc.setFont("times", row.bold ? "bold" : "normal");
+                if (row.bold) {
+                    const totalBoxY = currentTotalY - 5;
+                    doc.setFillColor(254, 243, 199); // amber-100
+                    doc.setDrawColor(...brandColor);
+                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                    currentTotalY += 7;
+                } else {
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.setTextColor(...textDark);
+                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                }
+            });
+
+            if (signatureBase64) {
+                const maxDim = 35;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                const sigY = pageHeight - 45;
+                const sigX = 196 - renderW;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                doc.setFontSize(9.5);
+                doc.setTextColor(...textDark);
+                doc.setFont("times", "normal");
+                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+            }
+
+            doc.setDrawColor(...lineLight);
+            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.setFontSize(9);
+            doc.setTextColor(...textLight);
+            doc.setFont("times", "italic");
+            doc.text("Thank you for your custom. We appreciate your patronage.", 105, pageHeight - 12, { align: "center" });
+        } else if (theme === 'tally-accounting') {
+            const lineDark: [number, number, number] = [0, 0, 0]; // black lines
+            const textDark: [number, number, number] = [0, 0, 0];
+            const fontStyle = "helvetica";
+
+            // Outer border around the page (margin 10)
+            doc.setDrawColor(...lineDark);
+            doc.setLineWidth(0.5);
+            doc.rect(10, 10, 190, pageHeight - 20);
+
+            // Centered Header Label: "TAX INVOICE"
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(11);
+            doc.text("TAX INVOICE", 105, 16, { align: "center" });
+            doc.line(10, 19, 200, 19);
+
+            // Quadrants: Vertical divider
+            doc.line(105, 19, 105, 75);
+
+            // Quadrant 1: Seller Details (Top Left)
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(7.5);
+            doc.text("Sender / Company Details:", 12, 23);
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(11);
+            doc.text(bizName, 12, 28);
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8.5);
+            let sellerY = 33;
+            if (data.business_details?.address) {
+                doc.text(doc.splitTextToSize(safeText(data.business_details.address), 90), 12, sellerY);
+                sellerY += 10;
+            }
+            if (data.business_details?.phone) {
+                doc.text(`Phone: ${safeText(data.business_details.phone)}`, 12, sellerY);
+                sellerY += 4;
+            }
+            if (data.business_details?.gst) {
+                doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 12, sellerY);
+            }
+
+            // Quadrant 2: Invoice Details (Top Right)
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
+            doc.text(`Invoice No:`, 107, 24);
+            doc.setFont(fontStyle, "bold");
+            doc.text(safeText(data.invoice_number), 135, 24);
+            
+            doc.setFont(fontStyle, "normal");
+            doc.text(`Dated:`, 107, 30);
+            doc.text(dateFormatted, 135, 30);
+
+            doc.text(`Delivery Note:`, 107, 36);
+            doc.text("Direct Delivery", 135, 36);
+
+            doc.text(`Mode/Terms of Payment:`, 107, 42);
+            doc.text("Immediate / Paid", 135, 42);
+
+            // Horizontal border separating Quadrants 1/2 from 3/4
+            doc.line(10, 47, 200, 47);
+
+            // Quadrant 3: Buyer Details (Bottom Left)
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
+            doc.text("Buyer (Bill to):", 12, 51);
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(10);
+            doc.text(safeText(data.customer_name), 12, 56);
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8.5);
+            let buyerY = 61;
+            if (data.customer_phone) {
+                doc.text(`Phone: ${safeText(data.customer_phone)}`, 12, buyerY);
+                buyerY += 4.5;
+            }
+            if (data.customer_email) {
+                doc.text(`Email: ${safeText(data.customer_email)}`, 12, buyerY);
+                buyerY += 4.5;
+            }
+            if (custGSTIN) {
+                doc.text(`GSTIN/UIN: ${custGSTIN}`, 12, buyerY);
+            }
+
+            // Quadrant 4: Dispatch Details (Bottom Right)
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
+            doc.text("Consignee (Ship to):", 107, 51);
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(9.5);
+            doc.text(safeText(data.customer_name), 107, 56);
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8.5);
+            doc.text("Same as billing address", 107, 61);
+
+            // Border above table
+            doc.line(10, 75, 200, 75);
+
+            // Autotable
+            const tableRowsTally = data.items.map((item, index) => [
+                (index + 1).toString(),
+                safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
+                item.quantity.toString(),
+                formatCurrencySafe(item.price),
+                "Nos",
+                formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+            ]);
+
+            autoTable(doc, {
+                startY: 75,
+                head: [["S.No", "Description of Goods", "Qty", "Rate", "per", "Amount"]],
+                body: tableRowsTally,
+                theme: 'grid',
+                headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8.5, cellPadding: 3, lineWidth: 0.5, lineColor: [0, 0, 0] },
+                bodyStyles: { textColor: [0, 0, 0], fontSize: 8.5, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.5 },
+                columnStyles: { 
+                    0: { cellWidth: 12, halign: 'center' }, 
+                    1: { cellWidth: 90 }, 
+                    2: { cellWidth: 15, halign: 'center' }, 
+                    3: { cellWidth: 28, halign: 'right' }, 
+                    4: { cellWidth: 15, halign: 'center' },
+                    5: { cellWidth: 30, halign: 'right' } 
+                },
+                margin: { left: 10, right: 10 },
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY;
+
+            // Draw grid bottom lines
+            doc.setDrawColor(...lineDark);
+            
+            // Box for bank/amount details
+            doc.rect(10, finalY, 190, pageHeight - 10 - finalY);
+            
+            // Vertical split at 125mm
+            doc.line(125, finalY, 125, pageHeight - 10);
+            
+            // Left Column: Bank / Words / Declarations
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
+            doc.text("Amount Chargeable (in words):", 12, finalY + 5);
+            doc.setFont(fontStyle, "bold");
+            doc.text(`INR ${formatCurrencySafe(data.total_amount).replace("Rs. ", "")} Only`, 12, finalY + 10);
+
+            // Horizontal line in left column
+            doc.line(10, finalY + 15, 125, finalY + 15);
+            
+            // GST Tax split details
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
+            doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", 12, finalY + 20);
+
+            // Bank details
+            doc.text("Bank Name: State Bank of India", 12, finalY + 28);
+            doc.text("A/c No: 332405891234", 12, finalY + 32);
+            doc.text("Branch & IFSC: SBI0001609", 12, finalY + 36);
+
+            // Horizontal line above declaration
+            doc.line(10, finalY + 40, 125, finalY + 40);
+            
+            // Declaration
+            doc.setFont(fontStyle, "bold");
+            doc.text("Declaration:", 12, finalY + 44);
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(7.5);
+            doc.text(doc.splitTextToSize("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 110), 12, finalY + 49);
+
+            // Right Column: Summary & Signatory
+            let rightY = finalY + 5;
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(9);
+            
+            // Display Subtotal, Tax, and Grand Total
+            doc.text("Subtotal:", 127, rightY);
+            doc.text(formatCurrencySafe(data.subtotal), 198, rightY, { align: "right" });
+            rightY += 5;
+            
+            if (data.discount_amount && data.discount_amount > 0) {
+                doc.text("Discount:", 127, rightY);
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 198, rightY, { align: "right" });
+                rightY += 5;
+            }
+            if (data.tax_amount && data.tax_amount > 0) {
+                doc.text(`CGST (${taxRate/2}%):`, 127, rightY);
+                doc.text(formatCurrencySafe(parseFloat(cgst)), 198, rightY, { align: "right" });
+                rightY += 5;
+                doc.text(`SGST (${taxRate/2}%):`, 127, rightY);
+                doc.text(formatCurrencySafe(parseFloat(sgst)), 198, rightY, { align: "right" });
+                rightY += 5;
+            }
+            
+            doc.line(125, rightY - 2, 200, rightY - 2);
+            doc.setFont(fontStyle, "bold");
+            doc.text("Total:", 127, rightY + 3);
+            doc.text(formatCurrencySafe(data.total_amount), 198, rightY + 3, { align: "right" });
+            rightY += 8;
+
+            doc.line(125, rightY, 200, rightY);
+
+            // Signatory Block
+            const sigY = pageHeight - 35;
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8.5);
+            doc.text(`for ${bizName.toUpperCase()}`, 127, rightY + 5);
+            
+            if (signatureBase64) {
+                const maxDim = 28;
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                if (renderW > maxDim || renderH > maxDim) {
+                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                    renderW *= ratio;
+                    renderH *= ratio;
+                }
+                doc.addImage(signatureBase64.dataUrl, "PNG", 162 - renderW/2, sigY - 2, renderW, renderH);
+            }
+            
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
+            doc.text("Authorized Signatory", 162, pageHeight - 14, { align: "center" });
         }
 
         if (action === 'download') {
