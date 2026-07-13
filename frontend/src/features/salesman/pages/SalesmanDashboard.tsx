@@ -244,7 +244,7 @@ export default function SalesmanDashboard() {
         };
 
         const channel = supabase
-            .channel("salesman-dashboard-realtime")
+            .channel(`salesman-dashboard-realtime:${currentStoreId}`)
             .on(
                 "postgres_changes",
                 {
