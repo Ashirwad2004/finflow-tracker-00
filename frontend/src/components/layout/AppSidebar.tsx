@@ -355,8 +355,6 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           </DialogContent>
         </Dialog>
 
-        <RequestFeatureDialog collapsed={collapsed} />
-
         <div className={cn(
           "flex items-center gap-1",
           collapsed ? "flex-col" : "justify-between"
