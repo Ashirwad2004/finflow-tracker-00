@@ -277,7 +277,7 @@ Recent (Last 5) [Format: amount|desc|date|extra]:
                         <Bot className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-semibold leading-none">FinFlow Gemini AI</h3>
+                        <h3 className="font-semibold leading-none">FinFlow  AI</h3>
                         <p className="text-xs text-white/80 mt-1">Finance & Store Copilot</p>
                     </div>
                 </div>
