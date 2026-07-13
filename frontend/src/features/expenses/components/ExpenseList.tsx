@@ -266,7 +266,7 @@ export const ExpenseList = ({ expenses, isLoading, onEdit, onDelete, onDeleteAll
             </div>
           </div>
 
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border max-h-[300px] overflow-y-auto overscroll-contain">
             {expenses.map((expense, index) => {
               // Safety check for category
               const categoryName = expense.categories?.name || 'Uncategorized';
