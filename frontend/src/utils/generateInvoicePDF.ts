@@ -2537,9 +2537,28 @@ export const generateInvoicePDF = async (
             doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", tallyMarginX + 2, finalY + 20);
 
             // Bank details
-            doc.text("Bank Name: State Bank of India", tallyMarginX + 2, finalY + 28);
-            doc.text("A/c No: 332405891234", tallyMarginX + 2, finalY + 32);
-            doc.text("Branch & IFSC: SBI0001609", tallyMarginX + 2, finalY + 36);
+            let bankNameText = "Bank Name: State Bank of India";
+            let bankAccText = "A/c No: 332405891234";
+            let bankIfscText = "Branch & IFSC: SBI0001609";
+
+            try {
+                const savedBanks = localStorage.getItem("finflow_bank_accounts");
+                if (savedBanks) {
+                    const accounts = JSON.parse(savedBanks);
+                    const defaultAcc = accounts.find((a: any) => a.isDefault) || accounts[0];
+                    if (defaultAcc) {
+                        bankNameText = `Bank Name: ${defaultAcc.bankName || ""}`;
+                        bankAccText = `A/c No: ${defaultAcc.accountNumber || ""}`;
+                        bankIfscText = `Branch & IFSC: ${defaultAcc.branchName || ""} / ${defaultAcc.ifscCode || ""}`;
+                    }
+                }
+            } catch (e) {
+                console.error("Error reading bank details", e);
+            }
+
+            doc.text(bankNameText, tallyMarginX + 2, finalY + 28);
+            doc.text(bankAccText, tallyMarginX + 2, finalY + 32);
+            doc.text(bankIfscText, tallyMarginX + 2, finalY + 36);
 
             // Horizontal line above declaration
             doc.line(tallyMarginX, finalY + 40, splitX, finalY + 40);

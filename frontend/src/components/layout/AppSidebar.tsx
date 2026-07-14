@@ -16,7 +16,8 @@ import {
   FileBarChart,
   Printer,
   Globe,
-  Sparkles
+  Sparkles,
+  Landmark
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/core/lib/utils";
@@ -106,6 +107,12 @@ export const businessMenuItems = [
     path: "/parties",
     icon: Users,
     description: "Customers & Vendors"
+  },
+  {
+    title: "Bank Details",
+    path: "/bank-details",
+    icon: Landmark,
+    description: "Manage Bank Accounts"
   },
   {
     title: "Inventory",
