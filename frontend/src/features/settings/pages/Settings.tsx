@@ -63,6 +63,20 @@ const SettingsPage = () => {
 
     const [showBusinessDialog, setShowBusinessDialog] = useState(false);
     const [isBackingUp, setIsBackingUp] = useState(false);
+    const [autoAddParties, setAutoAddParties] = useState(() => {
+        return localStorage.getItem("finflow_auto_add_parties") === "true";
+    });
+
+    const handleAutoAddPartiesToggle = (checked: boolean) => {
+        setAutoAddParties(checked);
+        localStorage.setItem("finflow_auto_add_parties", checked ? "true" : "false");
+        toast({
+            title: checked ? "Feature Enabled" : "Feature Disabled",
+            description: checked 
+                ? "New customers will be automatically saved to your Parties directory." 
+                : "New customers will not be saved automatically.",
+        });
+    };
 
     const handleBusinessToggle = async (checked: boolean) => {
         if (checked) {
@@ -201,6 +215,24 @@ const SettingsPage = () => {
                                         aria-label="Toggle Business Mode"
                                     />
                                 </div>
+                                {isBusinessMode && (
+                                    <div className="flex items-center justify-between space-x-2 border-t pt-4 mt-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="auto-add-parties" className="text-sm font-semibold">Auto-Add Customers to Parties</Label>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Automatically save new customer details to the Parties directory when creating an invoice.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="auto-add-parties"
+                                            checked={autoAddParties}
+                                            onCheckedChange={handleAutoAddPartiesToggle}
+                                            className="transition-all duration-300 scale-90"
+                                            title="Toggle Auto-Add Customers"
+                                            aria-label="Toggle Auto-Add Customers"
+                                        />
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
