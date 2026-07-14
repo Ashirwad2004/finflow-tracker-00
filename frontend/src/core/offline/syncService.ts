@@ -45,16 +45,17 @@ export const processSyncQueue = async (userId: string) => {
                 const payload = decryptPayload(item.payload_encrypted, userId) || {};
 
                 // Supabase API Execution
+                const keyColumn = item.table === 'profiles' ? 'user_id' : 'id';
                 if (item.action === 'insert') {
                     // Use upsert to handle idempotency and avoid duplicate key issues on retries
-                    const { error } = await (supabase as any).from(item.table).upsert({ ...payload, id: item.recordId });
+                    const { error } = await (supabase as any).from(item.table).upsert({ ...payload, [keyColumn]: item.recordId });
                     if (error) throw error;
                 } else if (item.action === 'update') {
                     // "Last write wins" enforced by updated_at payload mapping applied in apiService
-                    const { error } = await (supabase as any).from(item.table).update(payload).eq('id', item.recordId);
+                    const { error } = await (supabase as any).from(item.table).update(payload).eq(keyColumn, item.recordId);
                     if (error) throw error;
                 } else if (item.action === 'delete') {
-                    const { error } = await (supabase as any).from(item.table).delete().eq('id', item.recordId);
+                    const { error } = await (supabase as any).from(item.table).delete().eq(keyColumn, item.recordId);
                     if (error) throw error;
                 }
 

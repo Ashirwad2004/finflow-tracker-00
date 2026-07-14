@@ -26,7 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { format } from "date-fns";
-import { generateInvoicePDF, InvoiceDetails, InvoicePdfTheme } from "@/utils/generateInvoicePDF";
+import { generateInvoicePDF, InvoiceDetails, InvoicePdfTheme, PageSize } from "@/utils/generateInvoicePDF";
 import { printThermalReceipt } from "@/utils/printThermalReceipt";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { toast } from "sonner";
@@ -155,12 +155,16 @@ const InvoiceMockPreview = ({
     sale, 
     profile, 
     theme, 
-    formatCurrency 
+    formatCurrency,
+    pageSize,
+    customTerms
 }: { 
     sale: any; 
     profile: any; 
     theme: InvoiceTheme; 
     formatCurrency: (n: number) => string;
+    pageSize: PageSize;
+    customTerms: string;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "FinFlow Ventures";
     const dateFormatted = sale.created_at ? format(new Date(sale.created_at), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
@@ -178,7 +182,10 @@ const InvoiceMockPreview = ({
     // 1. TALLY ERP GST TAX INVOICE PREVIEW
     if (theme === 'tally-accounting') {
         return (
-            <div className="bg-white text-black p-6 mx-auto font-sans text-xs border border-black shadow-lg w-full max-w-[680px] min-h-[750px] flex flex-col justify-between select-none">
+            <div className={cn(
+                "bg-white text-black p-6 mx-auto font-sans text-xs border border-black shadow-lg w-full flex flex-col justify-between select-none transition-all duration-300",
+                pageSize === 'a5' ? "max-w-[500px] min-h-[530px]" : "max-w-[680px] min-h-[750px]"
+            )}>
                 {/* Header label */}
                 <div className="text-center font-bold text-sm tracking-wide border-b border-black pb-2 mb-2">
                     TAX INVOICE
@@ -293,7 +300,7 @@ const InvoiceMockPreview = ({
                         </div>
                         <div className="border-t border-black/10 pt-2 text-[8px] text-slate-500">
                             <span className="font-bold text-[9px] text-slate-700 block mb-0.5">Declaration</span>
-                            We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
+                            {customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."}
                         </div>
                     </div>
                     
@@ -551,7 +558,11 @@ const InvoiceMockPreview = ({
     };
 
     return (
-        <div className={cn("bg-white border rounded-xl overflow-hidden shadow-lg transition-all duration-300 w-full min-h-[700px] flex flex-col justify-between p-0", styles.font)}>
+        <div className={cn(
+            "bg-white border rounded-xl overflow-hidden shadow-lg transition-all duration-300 w-full flex flex-col justify-between p-0", 
+            pageSize === 'a5' ? "max-w-[500px] min-h-[530px]" : "max-w-[680px] min-h-[700px]",
+            styles.font
+        )}>
             
             {/* INVOICE TOP BAR */}
             <div className={cn("p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4", styles.header)}>
@@ -684,6 +695,24 @@ const PrintStudioPage = () => {
     const { user } = useAuth();
     const [selectedTheme, setSelectedTheme] = useState<InvoiceTheme>("corporate");
     const [selectedSale, setSelectedSale] = useState<any>(null);
+    const [pageSize, setPageSize] = useState<PageSize>(() => {
+        return (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || "a4";
+    });
+
+    const handlePageSizeChange = (size: PageSize) => {
+        setPageSize(size);
+        localStorage.setItem("finflow_invoice_pagesize", size);
+        toast.success(`Print page size set to ${size.toUpperCase()}`);
+    };
+
+    const [customTerms, setCustomTerms] = useState<string>(() => {
+        return localStorage.getItem("finflow_invoice_terms") || "";
+    });
+
+    const handleTermsChange = (text: string) => {
+        setCustomTerms(text);
+        localStorage.setItem("finflow_invoice_terms", text);
+    };
 
     useEffect(() => {
         const savedTheme = localStorage.getItem("finflow_invoice_theme") as InvoiceTheme;
@@ -769,7 +798,7 @@ const PrintStudioPage = () => {
             await printThermalReceipt(invoiceDetails);
         } else {
             toast.success(`Generating PDF via ${themeMeta[selectedTheme].name} template...`);
-            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme as InvoicePdfTheme });
+            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms });
         }
     };
 
@@ -887,6 +916,73 @@ const PrintStudioPage = () => {
                             </div>
                         </div>
 
+                        {/* 3. Page Layout Settings */}
+                        <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
+                            <h2 className="text-base font-bold flex items-center gap-2 border-b pb-3">
+                                <LayoutTemplate className="w-4 h-4 text-primary" />
+                                3. Page Layout Settings
+                            </h2>
+                            <div className="space-y-3">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-350 block">Select Print Page Size</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => handlePageSizeChange('a4')}
+                                        className={cn(
+                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1.5",
+                                            pageSize === 'a4'
+                                                ? "border-primary bg-primary/5 text-primary font-bold"
+                                                : "border-border hover:bg-muted text-slate-600 dark:text-slate-300"
+                                        )}
+                                    >
+                                        <FileText className="w-5 h-5" />
+                                        <div className="text-center">
+                                            <span className="text-xs block font-bold">A4 Sheet</span>
+                                            <span className="text-[9px] opacity-75 block mt-0.5">210 x 297 mm</span>
+                                        </div>
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => handlePageSizeChange('a5')}
+                                        className={cn(
+                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1.5",
+                                            pageSize === 'a5'
+                                                ? "border-primary bg-primary/5 text-primary font-bold"
+                                                : "border-border hover:bg-muted text-slate-600 dark:text-slate-300"
+                                        )}
+                                    >
+                                        <FileText className="w-4 h-4" />
+                                        <div className="text-center">
+                                            <span className="text-xs block font-bold">A5 Sheet</span>
+                                            <span className="text-[9px] opacity-75 block mt-0.5">148 x 210 mm</span>
+                                        </div>
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    A4 is standard for long tax invoices. A5 is a compact ledger format ideal for shorter bills to save paper.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* 4. Terms & Conditions Card */}
+                        <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
+                            <h2 className="text-base font-bold flex items-center gap-2 border-b pb-3">
+                                <FileCheck className="w-4 h-4 text-primary" />
+                                4. Terms & Conditions
+                            </h2>
+                            <div className="space-y-3">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">Custom Terms / Declaration</label>
+                                <textarea
+                                    value={customTerms}
+                                    onChange={(e) => handleTermsChange(e.target.value)}
+                                    placeholder="Type your payment terms, return policy, or legal declaration here..."
+                                    className="w-full text-xs p-3 rounded-xl border border-input bg-background min-h-[90px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 transition-all resize-none"
+                                />
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    This text will be printed in the footer (or as the legal declaration/verification block) of your invoice. Leaving it empty will print template defaults.
+                                </p>
+                            </div>
+                        </div>
+
                     </div>
 
                     {/* RIGHT PANEL: LIVE PREVIEW & TOOLBAR (col-span-8) */}
@@ -939,7 +1035,7 @@ const PrintStudioPage = () => {
                                                         signature_url: profile.signature_url || undefined,
                                                     } : undefined
                                                 }, 
-                                                { action: 'preview', theme: selectedTheme as InvoicePdfTheme }
+                                                { action: 'preview', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms }
                                             );
                                         }}
                                         className="rounded-xl text-xs h-9 border-border flex items-center gap-1.5 flex-1 sm:flex-initial"
@@ -953,12 +1049,14 @@ const PrintStudioPage = () => {
 
                         {/* Invoice Canvas Sheet Wrapper */}
                         <div className="bg-slate-100 dark:bg-slate-900/60 p-4 sm:p-8 border rounded-2xl flex justify-center items-start overflow-x-auto min-h-[750px] shadow-inner">
-                            <div className="w-full max-w-[680px]">
+                            <div className={cn("w-full transition-all duration-300", pageSize === 'a5' ? "max-w-[500px]" : "max-w-[680px]")}>
                                 <InvoiceMockPreview 
                                     sale={activeSaleData}
                                     profile={profile}
                                     theme={selectedTheme}
                                     formatCurrency={formatCurrency}
+                                    pageSize={pageSize}
+                                    customTerms={customTerms}
                                 />
                             </div>
                         </div>
