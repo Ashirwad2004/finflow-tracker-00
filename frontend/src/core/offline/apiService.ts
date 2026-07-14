@@ -22,18 +22,19 @@ export const offlineMutate = async ({ table, action, recordId, payload, userId }
 
   // Idempotency: Map 'insert' seamlessly into Supabase 'upsert'
   const performLiveCall = async () => {
+    const keyColumn = table === 'profiles' ? 'user_id' : 'id';
     if (action === 'insert') {
-      const { data, error } = await (supabase as any).from(table).upsert({ ...payload, id: recordId }).select().single();
+      const { data, error } = await (supabase as any).from(table).upsert({ ...payload, [keyColumn]: recordId }).select().single();
       if (error) throw error;
       return data;
     } else if (action === 'update') {
-      const { data, error } = await (supabase as any).from(table).update(payload).eq('id', recordId).select().single();
+      const { data, error } = await (supabase as any).from(table).update(payload).eq(keyColumn, recordId).select().single();
       if (error) throw error;
       return data;
     } else if (action === 'delete') {
-      const { error } = await (supabase as any).from(table).delete().eq('id', recordId);
+      const { error } = await (supabase as any).from(table).delete().eq(keyColumn, recordId);
       if (error) throw error;
-      return { id: recordId, deleted: true };
+      return { [keyColumn]: recordId, deleted: true };
     }
   };
 

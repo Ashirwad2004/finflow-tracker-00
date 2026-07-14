@@ -53,10 +53,30 @@ const formatCurrencySafe = (amount: number | string) => {
 };
 
 const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width: number, height: number } | null> => {
+    if (!url) return null;
     try {
+        if (url.startsWith("data:")) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    resolve({
+                        dataUrl: url,
+                        width: img.width,
+                        height: img.height
+                    });
+                };
+                img.onerror = () => resolve(null);
+                img.src = url;
+            });
+        }
+
         const response = await fetch(url);
+        if (!response.ok) {
+            console.warn("Failed to fetch image status:", response.status, url);
+            return null;
+        }
         const blob = await response.blob();
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 const img = new Image();
@@ -67,10 +87,10 @@ const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width
                         height: img.height
                     });
                 };
-                img.onerror = reject;
+                img.onerror = () => resolve(null);
                 img.src = reader.result as string;
             };
-            reader.onerror = reject;
+            reader.onerror = () => resolve(null);
             reader.readAsDataURL(blob);
         });
     } catch (e) {
@@ -137,23 +157,99 @@ const runAutoTable = (pdfDoc: jsPDF, opts: any) => {
     autoTable(pdfDoc, opts);
 };
 
+export type PageSize = 'a4' | 'a5';
+
+export const handleContinuationPage = (
+    doc: jsPDF, 
+    finalY: number, 
+    pageHeight: number, 
+    pageWidth: number,
+    brandColor: [number, number, number] | null, 
+    themeName: string, 
+    invoiceNum: string, 
+    bizName: string
+): number => {
+    if (finalY + 55 > pageHeight - 15) {
+        doc.addPage();
+        if (themeName === 'tally-accounting') {
+            const scale = pageWidth / 210;
+            const tallyMarginX = 10 * scale;
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.5);
+            doc.rect(tallyMarginX, tallyMarginX, pageWidth - 2 * tallyMarginX, pageHeight - 2 * tallyMarginX);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.text(`${bizName} - Invoice ${invoiceNum} (Continuation)`, tallyMarginX + 2, 16);
+            doc.line(tallyMarginX, 19, pageWidth - tallyMarginX, 19);
+            return 24;
+        } else if (themeName === 'modern-dark') {
+            doc.setFillColor(15, 23, 42); // slate-900
+            doc.rect(0, 0, pageWidth, 15, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text(`${bizName} - Invoice ${invoiceNum} (Continuation)`, 14, 10);
+            return 25;
+        } else if (themeName === 'minimal-white' || themeName === 'elegant-mono') {
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.5);
+            doc.line(14, 15, pageWidth - 14, 15);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`${bizName} - Invoice ${invoiceNum} (Continuation)`, 14, 11);
+            return 22;
+        } else {
+            const color = brandColor || [37, 99, 235];
+            doc.setFillColor(...color);
+            doc.rect(0, 0, pageWidth, 15, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text(`${bizName} - Invoice ${invoiceNum} (Continuation)`, 14, 10);
+            return 25;
+        }
+    }
+    return finalY;
+};
+
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
-    options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string }
+    options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string, pageSize?: PageSize, customTerms?: string }
 ) => {
     try {
         const autoTable = runAutoTable;
-        const doc = new jsPDF();
         const action = options?.action || 'download';
         const savedTheme = options?.theme || localStorage.getItem("finflow_invoice_theme") || 'corporate';
         const theme = savedTheme === 'thermal' ? 'corporate' : savedTheme;
         const documentTitle = options?.documentTitle;
+        const pageSize = options?.pageSize || (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || 'a4';
+        const customTerms = options?.customTerms || localStorage.getItem("finflow_invoice_terms") || "";
+
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: pageSize
+        });
 
         const safeText = (txt: string | undefined | null) => sanitizeText(txt || "");
         const dateFormatted = data.date ? format(new Date(data.date), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
         const bizName = safeText(data.business_details?.name || "FinFlow Business");
         const pageHeight = doc.internal.pageSize.getHeight();
         const pageWidth = doc.internal.pageSize.getWidth();
+        const scale = pageWidth / 210;
+        const getScaledColumnStyles = (baseStyles: Record<number, any>) => {
+            const scaled: any = {};
+            for (const key in baseStyles) {
+                const style = baseStyles[key];
+                scaled[key] = {
+                    ...style,
+                    cellWidth: style.cellWidth ? style.cellWidth * scale : undefined
+                };
+            }
+            return scaled;
+        };
+        const marginX = 14 * scale;
 
         const tableRows = data.items.map(item => [
             safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
@@ -231,7 +327,7 @@ export const generateInvoicePDF = async (
             const lineLight: [number, number, number] = [226, 232, 240];
 
             doc.setFillColor(...brandColor);
-            doc.rect(0, 0, 210, 40, "F");
+            doc.rect(0, 0, pageWidth, 40, "F");
 
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
@@ -322,65 +418,68 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [241, 245, 249] },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
-
-            doc.setFontSize(10);
-            doc.setTextColor(...textLight);
-            doc.setFont("helvetica", "normal");
-            doc.text("Subtotal:", totalBlockX, finalY);
-            doc.setTextColor(...textDark);
-            doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
-
-            let currentTotalY = finalY;
-            totalRows.slice(1).forEach(row => {
-                currentTotalY += 7;
-                doc.setTextColor(...(row.bold ? brandColor : textLight));
-                doc.setFont("helvetica", row.bold ? "bold" : "normal");
-                if (row.bold) {
-                    const totalBoxY = currentTotalY - 5;
-                    doc.setFillColor(241, 245, 249);
-                    doc.setDrawColor(...lineLight);
-                    doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
-                    doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
-                    doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
-                    currentTotalY += 7;
-                } else {
-                    doc.text(row.label + ":", totalBlockX, currentTotalY);
-                    doc.setTextColor(...textDark);
-                    doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
-                }
-            });
-
-            if (signatureBase64) {
-                const maxDim = 35;
-                let renderW = signatureBase64.width;
-                let renderH = signatureBase64.height;
-                if (renderW > maxDim || renderH > maxDim) {
-                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
-                    renderW *= ratio;
-                    renderH *= ratio;
-                }
-                const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
-                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
-                doc.setFontSize(9);
-                doc.setTextColor(...textDark);
-                doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
-            }
-
-            doc.setDrawColor(...lineLight);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
-            doc.setFontSize(9);
-            doc.setTextColor(...textLight);
-            doc.setFont("helvetica", "italic");
-            doc.text("Thank you for your business. For any inquiries, please contact us.", 105, pageHeight - 12, { align: "center" });
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, brandColor, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
+ 
+             doc.setFontSize(10);
+             doc.setTextColor(...textLight);
+             doc.setFont("helvetica", "normal");
+             doc.text("Subtotal:", totalBlockX, finalY);
+             doc.setTextColor(...textDark);
+             doc.text(formatCurrencySafe(data.subtotal), vAlignX, finalY, { align: "right" });
+ 
+             let currentTotalY = finalY;
+             totalRows.slice(1).forEach(row => {
+                 currentTotalY += 7;
+                 doc.setTextColor(...(row.bold ? brandColor : textLight));
+                 doc.setFont("helvetica", row.bold ? "bold" : "normal");
+                 if (row.bold) {
+                     const totalBoxY = currentTotalY - 5;
+                     doc.setFillColor(241, 245, 249);
+                     doc.setDrawColor(...lineLight);
+                     doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                     doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
+                     doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
+                     currentTotalY += 7;
+                 } else {
+                     doc.text(row.label + ":", totalBlockX, currentTotalY);
+                     doc.setTextColor(...textDark);
+                     doc.text((row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value)), vAlignX, currentTotalY, { align: "right" });
+                 }
+             });
+ 
+             if (signatureBase64) {
+                 const maxDim = 35;
+                 let renderW = signatureBase64.width;
+                 let renderH = signatureBase64.height;
+                 if (renderW > maxDim || renderH > maxDim) {
+                     const ratio = Math.min(maxDim / renderW, maxDim / renderH);
+                     renderW *= ratio;
+                     renderH *= ratio;
+                 }
+                 const sigY = pageHeight - 45;
+                 const sigX = pageWidth - 14 - renderW;
+                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+                 doc.setFontSize(9);
+                 doc.setTextColor(...textDark);
+                 doc.setFont("helvetica", "normal");
+                 doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
+             }
+ 
+             doc.setDrawColor(...lineLight);
+             doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+             doc.setFontSize(9);
+             doc.setTextColor(...textLight);
+             doc.setFont("helvetica", "italic");
+             const termsText = customTerms || "Thank you for your business. For any inquiries, please contact us.";
+             doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'modern-dark') {
             const darkBg: [number, number, number] = [15, 23, 42]; // slate-900
@@ -390,7 +489,7 @@ export const generateInvoicePDF = async (
             const lineDark: [number, number, number] = [51, 65, 85]; // slate-700
 
             doc.setFillColor(...darkBg);
-            doc.rect(0, 0, 210, 60, "F");
+            doc.rect(0, 0, pageWidth, 60, "F");
 
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
@@ -487,13 +586,15 @@ export const generateInvoicePDF = async (
                 theme: 'striped',
                 headStyles: { fillColor: darkBg, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5, cellPadding: 4 },
                 bodyStyles: { textColor: darkBg, fontSize: 9, cellPadding: 4, lineColor: [241, 245, 249] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, darkBg, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textGray);
@@ -534,20 +635,21 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...darkBg);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(226, 232, 240);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(8.5);
             doc.setTextColor(...textGray);
             doc.setFont("helvetica", "italic");
-            doc.text("Digital Invoice. Generated via FinFlow ledger.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Digital Invoice. Generated via FinFlow ledger.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'minimal-white') {
             const inkDark: [number, number, number] = [15, 23, 42]; // slate-900
@@ -627,13 +729,15 @@ export const generateInvoicePDF = async (
                 theme: 'plain',
                 headStyles: { textColor: inkDark, fontStyle: 'bold', fontSize: 9.5, cellPadding: { top: 4, bottom: 4, left: 0, right: 0 }, lineWidth: { bottom: 1, top: 0, left: 0, right: 0 }, lineColor: borderInk },
                 bodyStyles: { textColor: inkDark, fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 0, right: 0 }, lineWidth: { bottom: 0.2 }, lineColor: [226, 232, 240] },
-                columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 31, halign: 'right' }, 3: { cellWidth: 31, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 100 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 31, halign: 'right' }, 3: { cellWidth: 31, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 140;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, null, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 70;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(9.5);
             doc.setTextColor(...inkMuted);
@@ -674,18 +778,19 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...inkDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setFontSize(8);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(...inkMuted);
-            doc.text("Thank you for your business.", 14, pageHeight - 12);
+            const termsText = customTerms || "Thank you for your business.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), 14, pageHeight - 12);
 
         } else if (theme === 'professional-green') {
             const greenPrimary: [number, number, number] = [6, 95, 70]; // emerald-800
@@ -695,7 +800,7 @@ export const generateInvoicePDF = async (
             const lineGreen: [number, number, number] = [209, 250, 229]; // emerald-100
 
             doc.setFillColor(...greenPrimary);
-            doc.rect(0, 0, 210, 40, "F");
+            doc.rect(0, 0, pageWidth, 40, "F");
 
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
@@ -786,13 +891,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: greenPrimary, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [237, 247, 242] },
                 alternateRowStyles: { fillColor: [244, 252, 248] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, greenPrimary, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);
@@ -836,15 +943,16 @@ export const generateInvoicePDF = async (
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(...lineGreen);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            doc.text("Thank you for your green business support. Contact us for questions.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Thank you for your green business support. Contact us for questions.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'premium-gold') {
             const goldPrimary: [number, number, number] = [153, 115, 30]; // dark gold
@@ -854,7 +962,7 @@ export const generateInvoicePDF = async (
             const lineGold: [number, number, number] = [254, 243, 199]; // amber-100
 
             doc.setFillColor(...goldAccent);
-            doc.rect(0, 0, 210, 8, "F");
+            doc.rect(0, 0, pageWidth, 8, "F");
 
             doc.setTextColor(...textDark);
             doc.setFont("helvetica", "bold");
@@ -950,13 +1058,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: goldPrimary, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [253, 251, 244] },
                 alternateRowStyles: { fillColor: [255, 254, 250] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, goldPrimary, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);
@@ -995,20 +1105,21 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(...lineGold);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            doc.text("Your business is highly valued. Premium Quality Guaranteed.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Your business is highly valued. Premium Quality Guaranteed.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'creative-purple') {
             const purplePrimary: [number, number, number] = [109, 40, 217]; // violet-700
@@ -1018,7 +1129,7 @@ export const generateInvoicePDF = async (
             const linePurple: [number, number, number] = [245, 243, 255]; // violet-50
 
             doc.setFillColor(...purplePrimary);
-            doc.rect(0, 0, 210, 40, "F");
+            doc.rect(0, 0, pageWidth, 40, "F");
 
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
@@ -1109,13 +1220,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: purplePrimary, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 232, 255] },
                 alternateRowStyles: { fillColor: [250, 245, 255] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, purplePrimary, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);
@@ -1154,20 +1267,21 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(...linePurple);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            doc.text("Thank you for your creative collaboration. Best wishes!", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Thank you for your creative collaboration. Best wishes!";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'startup-gradient') {
             const indigoColor: [number, number, number] = [79, 70, 229]; // Indigo
@@ -1181,7 +1295,7 @@ export const generateInvoicePDF = async (
                 const g = Math.round(indigoColor[1] + ratio * (pinkColor[1] - indigoColor[1]));
                 const b = Math.round(indigoColor[2] + ratio * (pinkColor[2] - indigoColor[2]));
                 doc.setFillColor(r, g, b);
-                doc.rect(0, i, 210, 1, "F");
+                doc.rect(0, i, pageWidth, 1, "F");
             }
 
             doc.setTextColor(255, 255, 255);
@@ -1273,13 +1387,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: indigoColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 244, 246] },
                 alternateRowStyles: { fillColor: [249, 250, 251] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, indigoColor, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);
@@ -1318,20 +1434,21 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(243, 244, 246);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            doc.text("Generated with love via FinFlow Ledger. Growth is a habit.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Generated with love via FinFlow Ledger. Growth is a habit.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'elegant-mono') {
             const textDark: [number, number, number] = [0, 0, 0];
@@ -1429,14 +1546,16 @@ export const generateInvoicePDF = async (
                 theme: 'plain',
                 headStyles: { font: 'times', fontStyle: 'bold', textColor: [0, 0, 0], fontSize: 10, cellPadding: 3, lineWidth: { bottom: 1 }, lineColor: [0, 0, 0] },
                 bodyStyles: { font: 'times', textColor: [0, 0, 0], fontSize: 9.5, cellPadding: 3, lineWidth: { bottom: 0.5 }, lineColor: [220, 220, 220] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
             doc.setFont("times", "normal");
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, null, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10.5);
             doc.text("Subtotal:", totalBlockX, finalY);
@@ -1470,17 +1589,18 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9.5);
                 doc.setTextColor(...textDark);
                 doc.setFont("times", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setFontSize(9);
             doc.setFont("times", "italic");
-            doc.text("This document constitutes an official record. Thank you for your custom.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "This document constitutes an official record. Thank you for your custom.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'retail') {
             const accentColor: [number, number, number] = [14, 165, 233]; // sky-500
@@ -1553,8 +1673,8 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: [248, 250, 252], textColor: textDark, fontStyle: 'bold', fontSize: 9, cellPadding: 4, lineColor: lineLight, lineWidth: { bottom: 1, top: 1, left: 0, right: 0 } },
                 bodyStyles: { textColor: textDark, fontSize: 8, cellPadding: 3 },
                 alternateRowStyles: { fillColor: [255, 255, 255] },
-                columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 15, halign: 'center' }, 2: { cellWidth: 20, halign: 'right' }, 3: { cellWidth: 25, halign: 'right' } },
-                margin: { left: 14, right: 86 }, 
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 50 }, 1: { cellWidth: 15, halign: 'center' }, 2: { cellWidth: 20, halign: 'right' }, 3: { cellWidth: 25, halign: 'right' } }),
+                margin: { left: marginX, right: 86 * scale }, 
             });
 
             let trayY = Math.max(85, cliY + 15);
@@ -1589,12 +1709,12 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 40;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(...lineLight);
@@ -1603,7 +1723,8 @@ export const generateInvoicePDF = async (
             doc.setFontSize(8);
             doc.setTextColor(148, 163, 184); // slate-400
             doc.setFont("helvetica", "italic");
-            doc.text("Thank you.", 14, pageHeight - 12);
+            const termsText = customTerms || "Thank you.";
+            doc.text(doc.splitTextToSize(termsText, 96), 14, pageHeight - 12);
 
         } else if (theme === 'construction') {
             const orangeAccent: [number, number, number] = [234, 88, 12]; // safety orange
@@ -1612,11 +1733,11 @@ export const generateInvoicePDF = async (
             const lineBorder: [number, number, number] = [75, 85, 99]; // gray-600
 
             doc.setFillColor(...orangeAccent);
-            doc.rect(0, 0, 210, 8, "F");
+            doc.rect(0, 0, pageWidth, 8, "F");
 
             doc.setDrawColor(...lineBorder);
             doc.setLineWidth(0.4);
-            doc.rect(10, 14, 190, pageHeight - 24);
+            doc.rect(10, 14, pageWidth - 20, pageHeight - 24);
 
             doc.setTextColor(...charcoalDark);
             doc.setFont("helvetica", "bold");
@@ -1710,13 +1831,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: charcoalDark, textColor: 255, fontStyle: 'bold', fontSize: 9.5, cellPadding: 3 },
                 bodyStyles: { textColor: charcoalDark, fontSize: 9, cellPadding: 3, lineColor: [156, 163, 175] },
                 alternateRowStyles: { fillColor: [243, 244, 246] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, orangeAccent, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);
@@ -1750,7 +1873,8 @@ export const generateInvoicePDF = async (
             doc.setTextColor(...textLight);
             doc.text("Declaration / Verification:", 14, pageHeight - 38);
             doc.setFont("helvetica", "normal");
-            doc.text("All materials and works certified to be completed and billed according to standard terms.", 14, pageHeight - 33, { maxWidth: 100 });
+            const termsText = customTerms || "All materials and works certified to be completed and billed according to standard terms.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth / 2), 14, pageHeight - 33);
 
             if (signatureBase64) {
                 const maxDim = 28;
@@ -1762,12 +1886,12 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 42;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9);
                 doc.setTextColor(...charcoalDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Representative", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Representative", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
         } else if (theme === 'bold-crimson') {
             const brandColor: [number, number, number] = [190, 18, 60]; // rose-700
@@ -1776,7 +1900,7 @@ export const generateInvoicePDF = async (
             const lineLight: [number, number, number] = [244, 244, 245];
 
             doc.setFillColor(...brandColor);
-            doc.rect(0, 0, 210, 40, "F");
+            doc.rect(0, 0, pageWidth, 40, "F");
 
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
@@ -1867,13 +1991,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [254, 242, 242] },
                 alternateRowStyles: { fillColor: [255, 244, 244] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, brandColor, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);
@@ -1917,15 +2043,16 @@ export const generateInvoicePDF = async (
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(...lineLight);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            doc.text("Thank you for your business. For any inquiries, please contact us.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Thank you for your business. For any inquiries, please contact us.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'navy-compact') {
             const brandColor: [number, number, number] = [15, 23, 42]; // slate-900 / navy
@@ -1934,7 +2061,7 @@ export const generateInvoicePDF = async (
             const lineLight: [number, number, number] = [226, 232, 240];
 
             doc.setFillColor(...brandColor);
-            doc.rect(0, 0, 210, 5, "F");
+            doc.rect(0, 0, pageWidth, 5, "F");
 
             doc.setTextColor(...brandColor);
             doc.setFont("helvetica", "bold");
@@ -2027,13 +2154,15 @@ export const generateInvoicePDF = async (
                 theme: 'striped',
                 headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 9, cellPadding: 3 },
                 bodyStyles: { textColor: textDark, fontSize: 8.5, cellPadding: 3, lineColor: [241, 245, 249] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 8;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 8;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, brandColor, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
@@ -2072,20 +2201,21 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 38;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(8.5);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text("Authorized Representative", 196, sigY + renderH + 4, { align: "right" });
+                doc.text("Authorized Representative", pageWidth - 14, sigY + renderH + 4, { align: "right" });
             }
 
             doc.setDrawColor(...lineLight);
-            doc.line(14, pageHeight - 16, 196, pageHeight - 16);
+            doc.line(14, pageHeight - 16, pageWidth - 14, pageHeight - 16);
             doc.setFontSize(8);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            doc.text("Thank you for your business.", 105, pageHeight - 10, { align: "center" });
+            const termsText = customTerms || "Thank you for your business.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 10, { align: "center" });
 
         } else if (theme === 'retro-amber') {
             const brandColor: [number, number, number] = [217, 119, 6]; // amber-600
@@ -2094,7 +2224,7 @@ export const generateInvoicePDF = async (
             const lineLight: [number, number, number] = [251, 191, 36]; // amber-400
 
             doc.setFillColor(...brandColor);
-            doc.rect(0, 0, 210, 6, "F");
+            doc.rect(0, 0, pageWidth, 6, "F");
 
             doc.setTextColor(...textDark);
             doc.setFont("times", "bold");
@@ -2190,13 +2320,15 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: brandColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4, font: 'times' },
                 bodyStyles: { textColor: textDark, fontSize: 9.5, cellPadding: 4, lineColor: [254, 243, 199], font: 'times' },
                 alternateRowStyles: { fillColor: [255, 251, 235] },
-                columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
-                margin: { left: 14, right: 14 },
+                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                margin: { left: marginX, right: marginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY + 10;
-            const totalBlockX = 120;
-            const vAlignX = 196;
+            let finalY = (doc as any).lastAutoTable.finalY + 10;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, brandColor, theme, data.invoice_number, bizName);
+            
+            const totalBlockX = pageWidth - 90;
+            const vAlignX = pageWidth - 14;
 
             doc.setFontSize(10.5);
             doc.setTextColor(...textLight);
@@ -2235,116 +2367,119 @@ export const generateInvoicePDF = async (
                     renderH *= ratio;
                 }
                 const sigY = pageHeight - 45;
-                const sigX = 196 - renderW;
+                const sigX = pageWidth - 14 - renderW;
                 doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
                 doc.setFontSize(9.5);
                 doc.setTextColor(...textDark);
                 doc.setFont("times", "normal");
-                doc.text("Authorized Signature", 196, sigY + renderH + 5, { align: "right" });
+                doc.text("Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(...lineLight);
-            doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+            doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("times", "italic");
-            doc.text("Thank you for your custom. We appreciate your patronage.", 105, pageHeight - 12, { align: "center" });
+            const termsText = customTerms || "Thank you for your custom. We appreciate your patronage.";
+            doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
         } else if (theme === 'tally-accounting') {
             const lineDark: [number, number, number] = [0, 0, 0]; // black lines
             const textDark: [number, number, number] = [0, 0, 0];
             const fontStyle = "helvetica";
+            const scale = pageWidth / 210;
+            const tallyMarginX = 10 * scale;
 
             // Outer border around the page (margin 10)
             doc.setDrawColor(...lineDark);
             doc.setLineWidth(0.5);
-            doc.rect(10, 10, 190, pageHeight - 20);
+            doc.rect(tallyMarginX, tallyMarginX, pageWidth - 2 * tallyMarginX, pageHeight - 2 * tallyMarginX);
 
             // Centered Header Label: "TAX INVOICE"
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(11);
-            doc.text("TAX INVOICE", 105, 16, { align: "center" });
-            doc.line(10, 19, 200, 19);
+            doc.text("TAX INVOICE", pageWidth / 2, 16, { align: "center" });
+            doc.line(tallyMarginX, 19, pageWidth - tallyMarginX, 19);
 
             // Quadrants: Vertical divider
-            doc.line(105, 19, 105, 75);
+            doc.line(pageWidth / 2, 19, pageWidth / 2, 75);
 
             // Quadrant 1: Seller Details (Top Left)
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
-            doc.text("Sender / Company Details:", 12, 23);
+            doc.text("Sender / Company Details:", tallyMarginX + 2, 23);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(11);
-            doc.text(bizName, 12, 28);
+            doc.text(bizName, tallyMarginX + 2, 28);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8.5);
             let sellerY = 33;
             if (data.business_details?.address) {
-                doc.text(doc.splitTextToSize(safeText(data.business_details.address), 90), 12, sellerY);
+                doc.text(doc.splitTextToSize(safeText(data.business_details.address), pageWidth / 2 - tallyMarginX - 5), tallyMarginX + 2, sellerY);
                 sellerY += 10;
             }
             if (data.business_details?.phone) {
-                doc.text(`Phone: ${safeText(data.business_details.phone)}`, 12, sellerY);
+                doc.text(`Phone: ${safeText(data.business_details.phone)}`, tallyMarginX + 2, sellerY);
                 sellerY += 4;
             }
             if (data.business_details?.gst) {
-                doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, 12, sellerY);
+                doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, tallyMarginX + 2, sellerY);
             }
 
             // Quadrant 2: Invoice Details (Top Right)
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text(`Invoice No:`, 107, 24);
+            doc.text(`Invoice No:`, pageWidth / 2 + 2, 24);
             doc.setFont(fontStyle, "bold");
-            doc.text(safeText(data.invoice_number), 135, 24);
+            doc.text(safeText(data.invoice_number), pageWidth / 2 + 30, 24);
             
             doc.setFont(fontStyle, "normal");
-            doc.text(`Dated:`, 107, 30);
-            doc.text(dateFormatted, 135, 30);
+            doc.text(`Dated:`, pageWidth / 2 + 2, 30);
+            doc.text(dateFormatted, pageWidth / 2 + 30, 30);
 
-            doc.text(`Delivery Note:`, 107, 36);
-            doc.text("Direct Delivery", 135, 36);
+            doc.text(`Delivery Note:`, pageWidth / 2 + 2, 36);
+            doc.text("Direct Delivery", pageWidth / 2 + 30, 36);
 
-            doc.text(`Mode/Terms of Payment:`, 107, 42);
-            doc.text("Immediate / Paid", 135, 42);
+            doc.text(`Mode/Terms of Payment:`, pageWidth / 2 + 2, 42);
+            doc.text("Immediate / Paid", pageWidth / 2 + 30, 42);
 
             // Horizontal border separating Quadrants 1/2 from 3/4
-            doc.line(10, 47, 200, 47);
+            doc.line(tallyMarginX, 47, pageWidth - tallyMarginX, 47);
 
             // Quadrant 3: Buyer Details (Bottom Left)
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Buyer (Bill to):", 12, 51);
+            doc.text("Buyer (Bill to):", tallyMarginX + 2, 51);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(10);
-            doc.text(safeText(data.customer_name), 12, 56);
+            doc.text(safeText(data.customer_name), tallyMarginX + 2, 56);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8.5);
             let buyerY = 61;
             if (data.customer_phone) {
-                doc.text(`Phone: ${safeText(data.customer_phone)}`, 12, buyerY);
+                doc.text(`Phone: ${safeText(data.customer_phone)}`, tallyMarginX + 2, buyerY);
                 buyerY += 4.5;
             }
             if (data.customer_email) {
-                doc.text(`Email: ${safeText(data.customer_email)}`, 12, buyerY);
+                doc.text(`Email: ${safeText(data.customer_email)}`, tallyMarginX + 2, buyerY);
                 buyerY += 4.5;
             }
             if (custGSTIN) {
-                doc.text(`GSTIN/UIN: ${custGSTIN}`, 12, buyerY);
+                doc.text(`GSTIN/UIN: ${custGSTIN}`, tallyMarginX + 2, buyerY);
             }
 
             // Quadrant 4: Dispatch Details (Bottom Right)
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Consignee (Ship to):", 107, 51);
+            doc.text("Consignee (Ship to):", pageWidth / 2 + 2, 51);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(9.5);
-            doc.text(safeText(data.customer_name), 107, 56);
+            doc.text(safeText(data.customer_name), pageWidth / 2 + 2, 56);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8.5);
-            doc.text("Same as billing address", 107, 61);
+            doc.text("Same as billing address", pageWidth / 2 + 2, 61);
 
             // Border above table
-            doc.line(10, 75, 200, 75);
+            doc.line(tallyMarginX, 75, pageWidth - tallyMarginX, 75);
 
             // Autotable
             const tableRowsTally = data.items.map((item, index) => [
@@ -2364,56 +2499,58 @@ export const generateInvoicePDF = async (
                 headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8.5, cellPadding: 3, lineWidth: 0.5, lineColor: [0, 0, 0] },
                 bodyStyles: { textColor: [0, 0, 0], fontSize: 8.5, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.5 },
                 columnStyles: { 
-                    0: { cellWidth: 12, halign: 'center' }, 
-                    1: { cellWidth: 90 }, 
-                    2: { cellWidth: 15, halign: 'center' }, 
-                    3: { cellWidth: 28, halign: 'right' }, 
-                    4: { cellWidth: 15, halign: 'center' },
-                    5: { cellWidth: 30, halign: 'right' } 
+                    0: { cellWidth: 12 * scale, halign: 'center' }, 
+                    2: { cellWidth: 15 * scale, halign: 'center' }, 
+                    3: { cellWidth: 28 * scale, halign: 'right' }, 
+                    4: { cellWidth: 15 * scale, halign: 'center' },
+                    5: { cellWidth: 30 * scale, halign: 'right' } 
                 },
-                margin: { left: 10, right: 10 },
+                margin: { left: tallyMarginX, right: tallyMarginX },
             });
 
-            const finalY = (doc as any).lastAutoTable.finalY;
+            let finalY = (doc as any).lastAutoTable.finalY;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, lineDark, theme, data.invoice_number, bizName);
 
             // Draw grid bottom lines
             doc.setDrawColor(...lineDark);
             
             // Box for bank/amount details
-            doc.rect(10, finalY, 190, pageHeight - 10 - finalY);
+            doc.rect(tallyMarginX, finalY, pageWidth - 2 * tallyMarginX, pageHeight - 10 - finalY);
             
-            // Vertical split at 125mm
-            doc.line(125, finalY, 125, pageHeight - 10);
+            // Vertical split
+            const splitX = pageWidth - 85 * scale;
+            doc.line(splitX, finalY, splitX, pageHeight - 10);
             
             // Left Column: Bank / Words / Declarations
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Amount Chargeable (in words):", 12, finalY + 5);
+            doc.text("Amount Chargeable (in words):", tallyMarginX + 2, finalY + 5);
             doc.setFont(fontStyle, "bold");
-            doc.text(`INR ${formatCurrencySafe(data.total_amount).replace("Rs. ", "")} Only`, 12, finalY + 10);
+            doc.text(`INR ${formatCurrencySafe(data.total_amount).replace("Rs. ", "")} Only`, tallyMarginX + 2, finalY + 10);
 
             // Horizontal line in left column
-            doc.line(10, finalY + 15, 125, finalY + 15);
+            doc.line(tallyMarginX, finalY + 15, splitX, finalY + 15);
             
             // GST Tax split details
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", 12, finalY + 20);
+            doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", tallyMarginX + 2, finalY + 20);
 
             // Bank details
-            doc.text("Bank Name: State Bank of India", 12, finalY + 28);
-            doc.text("A/c No: 332405891234", 12, finalY + 32);
-            doc.text("Branch & IFSC: SBI0001609", 12, finalY + 36);
+            doc.text("Bank Name: State Bank of India", tallyMarginX + 2, finalY + 28);
+            doc.text("A/c No: 332405891234", tallyMarginX + 2, finalY + 32);
+            doc.text("Branch & IFSC: SBI0001609", tallyMarginX + 2, finalY + 36);
 
             // Horizontal line above declaration
-            doc.line(10, finalY + 40, 125, finalY + 40);
+            doc.line(tallyMarginX, finalY + 40, splitX, finalY + 40);
             
             // Declaration
             doc.setFont(fontStyle, "bold");
-            doc.text("Declaration:", 12, finalY + 44);
+            doc.text("Declaration:", tallyMarginX + 2, finalY + 44);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
-            doc.text(doc.splitTextToSize("We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", 110), 12, finalY + 49);
+            const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+            doc.text(doc.splitTextToSize(termsText, splitX - tallyMarginX - 4), tallyMarginX + 2, finalY + 49);
 
             // Right Column: Summary & Signatory
             let rightY = finalY + 5;
@@ -2421,40 +2558,42 @@ export const generateInvoicePDF = async (
             doc.setFontSize(9);
             
             // Display Subtotal, Tax, and Grand Total
-            doc.text("Subtotal:", 127, rightY);
-            doc.text(formatCurrencySafe(data.subtotal), 198, rightY, { align: "right" });
+            doc.text("Subtotal:", splitX + 2, rightY);
+            doc.text(formatCurrencySafe(data.subtotal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
             rightY += 5;
             
             if (data.discount_amount && data.discount_amount > 0) {
-                doc.text("Discount:", 127, rightY);
-                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, 198, rightY, { align: "right" });
+                doc.text("Discount:", splitX + 2, rightY);
+                doc.text(`-${formatCurrencySafe(data.discount_amount)}`, pageWidth - tallyMarginX - 2, rightY, { align: "right" });
                 rightY += 5;
             }
             if (data.tax_amount && data.tax_amount > 0) {
-                doc.text(`CGST (${taxRate/2}%):`, 127, rightY);
-                doc.text(formatCurrencySafe(parseFloat(cgst)), 198, rightY, { align: "right" });
+                const tr = data.tax_rate || 0;
+                doc.text(`CGST (${tr/2}%):`, splitX + 2, rightY);
+                doc.text(formatCurrencySafe(cgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
                 rightY += 5;
-                doc.text(`SGST (${taxRate/2}%):`, 127, rightY);
-                doc.text(formatCurrencySafe(parseFloat(sgst)), 198, rightY, { align: "right" });
+                doc.text(`SGST (${tr/2}%):`, splitX + 2, rightY);
+                doc.text(formatCurrencySafe(sgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
                 rightY += 5;
             }
             
-            doc.line(125, rightY - 2, 200, rightY - 2);
+            doc.line(splitX, rightY - 2, pageWidth - tallyMarginX, rightY - 2);
             doc.setFont(fontStyle, "bold");
-            doc.text("Total:", 127, rightY + 3);
-            doc.text(formatCurrencySafe(data.total_amount), 198, rightY + 3, { align: "right" });
+            doc.text("Total:", splitX + 2, rightY + 3);
+            doc.text(formatCurrencySafe(data.total_amount), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
             rightY += 8;
 
-            doc.line(125, rightY, 200, rightY);
+            doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
 
             // Signatory Block
             const sigY = pageHeight - 35;
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8.5);
-            doc.text(`for ${bizName.toUpperCase()}`, 127, rightY + 5);
+            doc.text(`for ${bizName.toUpperCase()}`, splitX + 2, rightY + 5);
             
+            const signatoryCenterX = splitX + (pageWidth - tallyMarginX - splitX) / 2;
             if (signatureBase64) {
-                const maxDim = 28;
+                const maxDim = 28 * scale;
                 let renderW = signatureBase64.width;
                 let renderH = signatureBase64.height;
                 if (renderW > maxDim || renderH > maxDim) {
@@ -2462,12 +2601,12 @@ export const generateInvoicePDF = async (
                     renderW *= ratio;
                     renderH *= ratio;
                 }
-                doc.addImage(signatureBase64.dataUrl, "PNG", 162 - renderW/2, sigY - 2, renderW, renderH);
+                doc.addImage(signatureBase64.dataUrl, "PNG", signatoryCenterX - renderW/2, sigY - 2, renderW, renderH);
             }
             
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Authorized Signatory", 162, pageHeight - 14, { align: "center" });
+            doc.text("Authorized Signatory", signatoryCenterX, pageHeight - 14, { align: "center" });
         }
 
         if (action === 'download') {
