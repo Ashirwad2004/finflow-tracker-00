@@ -32,6 +32,7 @@ const SalesPage = lazy(() => import("@/features/business/pages/Sales"));
 const PurchasesPage = lazy(() => import("@/features/business/pages/Purchases"));
 const BusinessDashboardPage = lazy(() => import("@/features/business/pages/BusinessDashboard"));
 const PartiesPage = lazy(() => import("@/features/business/pages/Parties"));
+const BankDetailsPage = lazy(() => import("@/features/business/pages/BankDetails"));
 const PrintStudioPage = lazy(() => import("@/features/business/pages/PrintStudio"));
 const InventoryPage = lazy(() => import("@/features/business/pages/Inventory"));
 const OnlineStorePage = lazy(() => import("@/features/business/pages/OnlineStore"));
@@ -257,6 +258,7 @@ const AppRoutes = () => {
         <Route path="/business-dashboard" element={<MerchantRoute><AppLayout><BusinessDashboardPage /></AppLayout></MerchantRoute>} />
         <Route path="/print-studio" element={<MerchantRoute><PrintStudioPage /></MerchantRoute>} />
         <Route path="/parties" element={<MerchantRoute><PartiesPage /></MerchantRoute>} />
+        <Route path="/bank-details" element={<MerchantRoute><BankDetailsPage /></MerchantRoute>} />
         <Route path="/inventory" element={<MerchantRoute><InventoryPage /></MerchantRoute>} />
         <Route path="/online-store" element={<MerchantRoute><OnlineStorePage /></MerchantRoute>} />
         <Route path="/salesman-dashboard" element={<SalesmanRoute><SalesmanDashboard /></SalesmanRoute>} />

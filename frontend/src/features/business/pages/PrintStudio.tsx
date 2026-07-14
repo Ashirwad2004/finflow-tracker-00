@@ -179,6 +179,21 @@ const InvoiceMockPreview = ({
     const cgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
     const sgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
 
+    const [bankAccount, setBankAccount] = useState<{bankName: string; accountNumber: string; ifscCode: string; branchName: string} | null>(null);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("finflow_bank_accounts");
+            if (saved) {
+                const list = JSON.parse(saved);
+                const defaultAcc = list.find((a: any) => a.isDefault) || list[0];
+                if (defaultAcc) {
+                    setBankAccount(defaultAcc);
+                }
+            }
+        } catch {}
+    }, []);
+
     // 1. TALLY ERP GST TAX INVOICE PREVIEW
     if (theme === 'tally-accounting') {
         return (
@@ -295,8 +310,8 @@ const InvoiceMockPreview = ({
                         </div>
                         <div className="border-t border-black/10 pt-2 space-y-1 text-[9px] text-slate-700">
                             <p className="font-bold text-[10px] text-slate-900">Company Bank Details</p>
-                            <p>Bank Name: State Bank of India</p>
-                            <p>A/c No: 332405891234  |  IFSC: SBI0001609</p>
+                            <p>Bank Name: {bankAccount?.bankName || "State Bank of India"}</p>
+                            <p>A/c No: {bankAccount?.accountNumber || "332405891234"}  |  IFSC: {bankAccount?.ifscCode || "SBI0001609"}</p>
                         </div>
                         <div className="border-t border-black/10 pt-2 text-[8px] text-slate-500">
                             <span className="font-bold text-[9px] text-slate-700 block mb-0.5">Declaration</span>
