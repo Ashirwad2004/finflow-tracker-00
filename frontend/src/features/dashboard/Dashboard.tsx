@@ -301,16 +301,24 @@ export const Dashboard = () => {
     return dayNames[shortName] || shortName;
   };
 
+  const thisMonthExpensesList = useMemo(() => {
+    const now = new Date();
+    return expenses.filter(exp => {
+      const expDate = new Date(exp.date);
+      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
+    });
+  }, [expenses]);
+
   // Pre-calculate memoized components to avoid conditional hook calls in JSX
   const memoizedExpenseList = useMemo(() => (
     <ExpenseList
-      expenses={expenses.slice(0, 5)}
+      expenses={thisMonthExpensesList}
       isLoading={isLoading}
       onEdit={(expense) => setExpenseToEdit(expense)}
       onDelete={(id) => deleteExpense.mutate(id)}
       onDeleteAll={() => { }}
     />
-  ), [expenses, isLoading, deleteExpense]);
+  ), [thisMonthExpensesList, isLoading, deleteExpense]);
 
   const memoizedExpenseChart = useMemo(() => (
     <ExpenseChart expenses={expenses} />
@@ -387,13 +395,7 @@ export const Dashboard = () => {
   };
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
-  const thisMonthExpenses = expenses
-    .filter(exp => {
-      const expDate = new Date(exp.date);
-      const now = new Date();
-      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
+  const thisMonthExpenses = thisMonthExpensesList.reduce((sum, exp) => sum + parseFloat(exp.amount.toString()), 0);
 
   const lastMonthExpenses = expenses
     .filter(exp => {
