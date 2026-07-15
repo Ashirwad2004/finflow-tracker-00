@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PackageOpen, ShoppingBag, Minus, Plus } from "lucide-react";
+import { getThumbnailUrl } from "@/core/utils/image";
 
 export interface StoreProduct {
     id: string;
@@ -51,7 +52,7 @@ export function ProductCard({
             <div className="relative w-full aspect-square bg-slate-100 overflow-hidden">
                 {product.image_url && !imgErr ? (
                     <img
-                        src={product.image_url}
+                        src={getThumbnailUrl(product.image_url)}
                         alt={product.name}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         onError={() => setImgErr(true)}

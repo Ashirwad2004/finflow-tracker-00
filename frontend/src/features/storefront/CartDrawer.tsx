@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { getThumbnailUrl } from "@/core/utils/image";
 import {
     ShoppingBag,
     PackageOpen,
@@ -197,7 +198,7 @@ export function CartDrawer({
                                                 {/* Thumbnail */}
                                                 <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-slate-200">
                                                     {p.image_url ? (
-                                                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                                        <img src={getThumbnailUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center">
                                                             <PackageOpen className="w-6 h-6 text-slate-400" />

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, X, ImageIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
+import { compressAndConvertToWebP, getPathFromPublicUrl } from "@/core/utils/image";
 
 interface ProductImageUploadProps {
     /** Current image URL (from DB / form state) */
@@ -47,34 +48,60 @@ export function ProductImageUpload({
                 return;
             }
 
-            // Validate size
-            if (file.size > MAX_MB * 1024 * 1024) {
-                toast({
-                    title: "File too large",
-                    description: `Maximum file size is ${MAX_MB} MB.`,
-                    variant: "destructive",
-                });
-                return;
-            }
-
             setUploading(true);
             try {
-                // Use user_id as folder so RLS foldername() check passes
-                const ext = file.name.split(".").pop() ?? "jpg";
-                const filename = `${user.id}/${Date.now()}.${ext}`;
+                const timestamp = Date.now();
+                const mainFilename = `${user.id}/${timestamp}.webp`;
+                const thumbFilename = `${user.id}/${timestamp}_thumb.webp`;
 
+                // Compress images on the client (before upload) and convert to WebP
+                const mainBlob = await compressAndConvertToWebP(file, 800, 0.85);
+                const thumbBlob = await compressAndConvertToWebP(file, 200, 0.75);
+
+                // Upload main compressed WebP image
                 const { error: uploadError } = await supabase.storage
                     .from("product-images")
-                    .upload(filename, file, { upsert: true, contentType: file.type });
+                    .upload(mainFilename, mainBlob, { upsert: true, contentType: "image/webp" });
 
                 if (uploadError) throw uploadError;
 
+                // Upload thumbnail WebP image
+                const { error: thumbUploadError } = await supabase.storage
+                    .from("product-images")
+                    .upload(thumbFilename, thumbBlob, { upsert: true, contentType: "image/webp" });
+
+                if (thumbUploadError) {
+                    // Cleanup main image if thumbnail fails
+                    await supabase.storage.from("product-images").remove([mainFilename]);
+                    throw thumbUploadError;
+                }
+
+                // Delete old image if it exists (replaces/changes image)
+                if (value) {
+                    const oldPath = getPathFromPublicUrl(value);
+                    if (oldPath) {
+                        const pathsToRemove = [oldPath];
+                        if (oldPath.endsWith(".webp") && !oldPath.includes("_thumb.webp")) {
+                            pathsToRemove.push(oldPath.replace(/\.webp$/, "_thumb.webp"));
+                        } else {
+                            const ext = oldPath.split(".").pop();
+                            if (ext) {
+                                pathsToRemove.push(oldPath.replace(`.${ext}`, `_thumb.webp`));
+                            }
+                        }
+                        supabase.storage
+                            .from("product-images")
+                            .remove(pathsToRemove)
+                            .catch(err => console.error("Error deleting old image from storage:", err));
+                    }
+                }
+
                 const { data } = supabase.storage
                     .from("product-images")
-                    .getPublicUrl(filename);
+                    .getPublicUrl(mainFilename);
 
                 onChange(data.publicUrl);
-                toast({ title: "Image uploaded successfully" });
+                toast({ title: "Image uploaded and compressed successfully" });
             } catch (err: any) {
                 console.error("[ProductImageUpload] upload error:", err);
                 toast({
@@ -86,7 +113,7 @@ export function ProductImageUpload({
                 setUploading(false);
             }
         },
-        [user, onChange, toast]
+        [user, value, onChange, toast]
     );
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,7 +130,29 @@ export function ProductImageUpload({
         if (file) upload(file);
     };
 
-    const handleRemove = () => {
+    const handleRemove = async () => {
+        if (value) {
+            const oldPath = getPathFromPublicUrl(value);
+            if (oldPath) {
+                const pathsToRemove = [oldPath];
+                if (oldPath.endsWith(".webp") && !oldPath.includes("_thumb.webp")) {
+                    pathsToRemove.push(oldPath.replace(/\.webp$/, "_thumb.webp"));
+                } else {
+                    const ext = oldPath.split(".").pop();
+                    if (ext) {
+                        pathsToRemove.push(oldPath.replace(`.${ext}`, `_thumb.webp`));
+                    }
+                }
+                try {
+                    setUploading(true);
+                    await supabase.storage.from("product-images").remove(pathsToRemove);
+                } catch (e) {
+                    console.error("Error deleting image on remove:", e);
+                } finally {
+                    setUploading(false);
+                }
+            }
+        }
         onChange("");
         if (inputRef.current) inputRef.current.value = "";
     };
