@@ -377,6 +377,49 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             });
             if (result.error) throw result.error;
 
+            // Auto-add Customer to Parties directory if enabled
+            try {
+                const autoAddParties = localStorage.getItem("finflow_auto_add_parties") === "true";
+                if (autoAddParties && values.customer_name?.trim()) {
+                    const partyExists = parties.some(
+                        (p: any) => p.name.toLowerCase() === values.customer_name.trim().toLowerCase()
+                    );
+                    if (!partyExists) {
+                        const newPartyId = uuidv4();
+                        const partyPayload = {
+                            id: newPartyId,
+                            user_id: user.id,
+                            name: values.customer_name.trim(),
+                            phone: values.customer_phone?.trim() || null,
+                            email: values.customer_email?.trim() || null,
+                            address: null,
+                            gst_number: values.customer_gstin?.trim() || null,
+                            type: "customer",
+                            created_at: new Date().toISOString()
+                        };
+
+                        await offlineMutate({
+                            table: "parties",
+                            action: "insert",
+                            recordId: newPartyId,
+                            payload: partyPayload,
+                            userId: user.id
+                        });
+
+                        queryClient.setQueryData(["parties", user.id], (old: any) => {
+                            const prev = old || [];
+                            return [...prev, partyPayload];
+                        });
+                        queryClient.setQueryData(["invoice-parties"], (old: any) => {
+                            const prev = old || [];
+                            return [...prev, partyPayload];
+                        });
+                    }
+                }
+            } catch (partyErr) {
+                console.error("Error auto-adding party:", partyErr);
+            }
+
             // Update Inventory (Optimistically and in IndexedDB queue)
             if (!invoiceToEdit) {
                 const shouldDeduct = settings.deductStockOnlyOnPaid
