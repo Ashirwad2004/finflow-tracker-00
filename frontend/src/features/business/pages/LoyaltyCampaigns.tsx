@@ -537,7 +537,7 @@ export default function LoyaltyCampaigns() {
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-1.5">
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="outline"
                                 className="h-8 px-2.5 rounded-lg border-primary/30 text-primary hover:bg-primary/5 text-xs"
                                 onClick={() => {
@@ -549,7 +549,7 @@ export default function LoyaltyCampaigns() {
                                 Adjust
                               </Button>
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="ghost"
                                 className="h-8 px-2.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-xs font-semibold"
                                 onClick={() => {
