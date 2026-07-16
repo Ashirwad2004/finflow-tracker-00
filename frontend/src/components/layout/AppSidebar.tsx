@@ -139,6 +139,12 @@ export const businessMenuItems = [
     description: "Manage storefront"
   },
   {
+    title: "Loyalty & Campaigns",
+    path: "/loyalty",
+    icon: Sparkles,
+    description: "Reward & Marketing Hub"
+  },
+  {
     title: "Reports",
     path: "/reports",
     icon: FileBarChart,
