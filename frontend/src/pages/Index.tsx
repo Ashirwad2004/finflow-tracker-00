@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { BookDemoModal } from "@/features/demo/BookDemoModal";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { Dashboard } from "@/features/dashboard/Dashboard";
@@ -822,10 +822,11 @@ const Index = () => {
               <a href="#" className="hover:text-foreground transition-colors">Product</a>
               <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
               <a href="#" className="hover:text-foreground transition-colors">Security</a>
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             </div>
             <div className="text-sm text-muted-foreground">
-              © 2025 FinFlow
+              © 2026 FinFlow
             </div>
           </div>
         </div>
