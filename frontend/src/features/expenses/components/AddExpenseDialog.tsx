@@ -356,7 +356,7 @@ export const AddExpenseDialog = ({
       addExpensesMutation.mutate();
     } catch (e) {
       if (e instanceof z.ZodError) {
-        toast({ title: "Validation Error", description: "Please check all fields.", variant: "destructive" });
+        toast({ title: "somthing is missing", description: "Please check all fields.", variant: "destructive" });
       }
     }
   };

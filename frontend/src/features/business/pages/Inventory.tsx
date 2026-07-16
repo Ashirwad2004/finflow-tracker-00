@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { getPathFromPublicUrl } from "@/core/utils/image";
 import { offlineMutate } from "@/core/offline/apiService";
 import { v4 as uuidv4 } from "uuid";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -94,6 +95,85 @@ export default function Inventory() {
     const { formatCurrency } = useCurrency();
     const { settings, updateSetting, resetSettings } = useItemSettings(user?.id);
     const { settings: salesSettings } = useSalesSettings(user?.id);
+
+    useEffect(() => {
+        if (userId) {
+            // Run orphaned images cleanup asynchronously in the background
+            const runCleanup = async () => {
+                const LAST_RUN_KEY = `last_image_cleanup_${userId}`;
+                const lastRun = localStorage.getItem(LAST_RUN_KEY);
+                const now = Date.now();
+                
+                // Only run once every 7 days (weekly)
+                const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+                if (lastRun && now - parseInt(lastRun) < ONE_WEEK_MS) {
+                    return;
+                }
+
+                try {
+                    // 1. Get all products for this user
+                    const { data: dbProducts } = await (supabase as any)
+                        .from("products")
+                        .select("image_url")
+                        .eq("user_id", userId);
+
+                    // 2. Extract referenced paths
+                    const referencedPaths = new Set<string>();
+                    (dbProducts as any[])?.forEach((p: any) => {
+                        if (p.image_url) {
+                            const path = getPathFromPublicUrl(p.image_url);
+                            if (path) {
+                                referencedPaths.add(path);
+                                if (path.endsWith(".webp")) {
+                                    referencedPaths.add(path.replace(/\.webp$/, "_thumb.webp"));
+                                } else {
+                                    const ext = path.split(".").pop();
+                                    if (ext) {
+                                        referencedPaths.add(path.replace(`.${ext}`, `_thumb.webp`));
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 3. List all files in the user's storage folder
+                    const { data: files } = await supabase.storage
+                        .from("product-images")
+                        .list(userId, { limit: 1000 });
+
+                    if (!files || files.length === 0) return;
+
+                    const filesToDelete: string[] = [];
+                    const oneHourAgo = now - 60 * 60 * 1000; // 1 hour safety margin
+
+                    files.forEach(file => {
+                        if (file.name === ".emptyFolderPlaceholder") return;
+
+                        const filePath = `${userId}/${file.name}`;
+                        
+                        if (!referencedPaths.has(filePath)) {
+                            const fileCreatedAt = file.created_at ? new Date(file.created_at).getTime() : 0;
+                            if (fileCreatedAt < oneHourAgo) {
+                                filesToDelete.push(filePath);
+                            }
+                        }
+                    });
+
+                    if (filesToDelete.length > 0) {
+                        console.log(`[Cleanup] Deleting ${filesToDelete.length} orphaned images...`);
+                        await supabase.storage
+                            .from("product-images")
+                            .remove(filesToDelete);
+                    }
+
+                    localStorage.setItem(LAST_RUN_KEY, now.toString());
+                } catch (err) {
+                    console.error("[Cleanup] Failed to clean orphaned images:", err);
+                }
+            };
+            runCleanup();
+        }
+    }, [userId]);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -239,6 +319,26 @@ export default function Inventory() {
                 const existingStr = localStorage.getItem(key);
                 const existing = existingStr ? JSON.parse(existingStr) : [];
                 localStorage.setItem(key, JSON.stringify([deletedItem, ...existing]));
+
+                // Clean up the image and thumbnail from Supabase Storage
+                if (productToDelete.image_url) {
+                    const oldPath = getPathFromPublicUrl(productToDelete.image_url);
+                    if (oldPath) {
+                        const pathsToRemove = [oldPath];
+                        if (oldPath.endsWith(".webp") && !oldPath.includes("_thumb.webp")) {
+                            pathsToRemove.push(oldPath.replace(/\.webp$/, "_thumb.webp"));
+                        } else {
+                            const ext = oldPath.split(".").pop();
+                            if (ext) {
+                                pathsToRemove.push(oldPath.replace(`.${ext}`, `_thumb.webp`));
+                            }
+                        }
+                        supabase.storage
+                            .from("product-images")
+                            .remove(pathsToRemove)
+                            .catch(err => console.error("Error deleting product image from storage:", err));
+                    }
+                }
             }
 
             const result = await offlineMutate({
