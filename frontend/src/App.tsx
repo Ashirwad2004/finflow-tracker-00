@@ -44,6 +44,7 @@ const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentFailurePage = lazy(() => import("@/pages/PaymentFailure"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
+const LoyaltyCampaigns = lazy(() => import("@/features/business/pages/LoyaltyCampaigns"));
 
 // Optimize React Query: 
 // 1. Keep data fresh for 5 mins (reduces duplicate network requests)
@@ -271,6 +272,7 @@ const AppRoutes = () => {
         <Route path="/admin" element={<AdminRoute><AdminDemoPage /></AdminRoute>} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/loyalty" element={<MerchantRoute><LoyaltyCampaigns /></MerchantRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
