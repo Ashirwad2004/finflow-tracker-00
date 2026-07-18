@@ -54,6 +54,7 @@ interface Expense {
 interface Props {
   sales: Sale[];
   expenses: Expense[];
+  purchases?: any[];
 }
 
 // ─── Custom Tooltip ──────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ const KpiCard = ({
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function RevenueAnalytics({ sales, expenses }: Props) {
+export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
   const { formatCurrency } = useCurrency();
   const [filter, setFilter] = useState<FilterMode>("monthly");
   const [chartType, setChartType] = useState<ChartMode>("area");
@@ -124,7 +125,7 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
   const now = new Date();
 
   // ── Build chart data based on active filter ──────────────────────────────
-  const { chartData, currentRevenue, currentExpenses, prevRevenue, prevExpenses } = useMemo(() => {
+  const { chartData, currentRevenue, currentPurchases, currentExpenses, prevRevenue, prevPurchases, prevExpenses } = useMemo(() => {
     const getSaleAmt = (s: Sale) => Number(s.total_amount || 0);
     const getExpAmt = (e: Expense) => Number(e.amount || 0);
     const parseSaleDate = (s: Sale) => parseISO(s.date);
@@ -140,10 +141,13 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
         const rev = sales
           .filter((s) => isSameDay(parseSaleDate(s), day))
           .reduce((sum, s) => sum + getSaleAmt(s), 0);
+        const pur = (purchases || [])
+          .filter((p) => isSameDay(parseISO(p.date), day))
+          .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
         const exp = expenses
           .filter((e) => isSameDay(parseExpDate(e), day))
           .reduce((sum, e) => sum + getExpAmt(e), 0);
-        return { name: format(day, "dd MMM"), revenue: rev, expenses: exp };
+        return { name: format(day, "dd MMM"), revenue: rev, purchases: pur, expenses: exp };
       });
 
       // Current window = last 30 days, previous window = 30 days before that
@@ -153,6 +157,10 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
         const d = parseSaleDate(s);
         return d >= start && d <= end;
       }).reduce((sum, s) => sum + getSaleAmt(s), 0);
+      const curPur = (purchases || []).filter((p) => {
+        const d = parseISO(p.date);
+        return d >= start && d <= end;
+      }).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const curExp = expenses.filter((e) => {
         const d = parseExpDate(e);
         return d >= start && d <= end;
@@ -161,12 +169,16 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
         const d = parseSaleDate(s);
         return d >= prevStart && d <= prevEnd;
       }).reduce((sum, s) => sum + getSaleAmt(s), 0);
+      const pPur = (purchases || []).filter((p) => {
+        const d = parseISO(p.date);
+        return d >= prevStart && d <= prevEnd;
+      }).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const pExp = expenses.filter((e) => {
         const d = parseExpDate(e);
         return d >= prevStart && d <= prevEnd;
       }).reduce((sum, e) => sum + getExpAmt(e), 0);
 
-      return { chartData: data, currentRevenue: curRev, currentExpenses: curExp, prevRevenue: pRev, prevExpenses: pExp };
+      return { chartData: data, currentRevenue: curRev, currentPurchases: curPur, currentExpenses: curExp, prevRevenue: pRev, prevPurchases: pPur, prevExpenses: pExp };
     }
 
     if (filter === "monthly") {
@@ -180,10 +192,13 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
         const rev = sales
           .filter((s) => isSameMonth(parseSaleDate(s), month))
           .reduce((sum, s) => sum + getSaleAmt(s), 0);
+        const pur = (purchases || [])
+          .filter((p) => isSameMonth(parseISO(p.date), month))
+          .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
         const exp = expenses
           .filter((e) => isSameMonth(parseExpDate(e), month))
           .reduce((sum, e) => sum + getExpAmt(e), 0);
-        return { name: format(month, "MMM yy"), revenue: rev, expenses: exp };
+        return { name: format(month, "MMM yy"), revenue: rev, purchases: pur, expenses: exp };
       });
 
       // Current = last 12 months, previous = 12 months before
@@ -192,17 +207,22 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
       const prevWinEnd = startOfMonth(subMonths(now, 12));
 
       const curRev = sales.filter((s) => parseSaleDate(s) >= winStart).reduce((sum, s) => sum + getSaleAmt(s), 0);
+      const curPur = (purchases || []).filter((p) => parseISO(p.date) >= winStart).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const curExp = expenses.filter((e) => parseExpDate(e) >= winStart).reduce((sum, e) => sum + getExpAmt(e), 0);
       const pRev = sales.filter((s) => {
         const d = parseSaleDate(s);
         return d >= prevWinStart && d <= prevWinEnd;
       }).reduce((sum, s) => sum + getSaleAmt(s), 0);
+      const pPur = (purchases || []).filter((p) => {
+        const d = parseISO(p.date);
+        return d >= prevWinStart && d <= prevWinEnd;
+      }).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const pExp = expenses.filter((e) => {
         const d = parseExpDate(e);
         return d >= prevWinStart && d <= prevWinEnd;
       }).reduce((sum, e) => sum + getExpAmt(e), 0);
 
-      return { chartData: data, currentRevenue: curRev, currentExpenses: curExp, prevRevenue: pRev, prevExpenses: pExp };
+      return { chartData: data, currentRevenue: curRev, currentPurchases: curPur, currentExpenses: curExp, prevRevenue: pRev, prevPurchases: pPur, prevExpenses: pExp };
     }
 
     // Yearly — last 5 years
@@ -215,24 +235,29 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
       const rev = sales
         .filter((s) => isSameYear(parseSaleDate(s), year))
         .reduce((sum, s) => sum + getSaleAmt(s), 0);
+      const pur = (purchases || [])
+        .filter((p) => isSameYear(parseISO(p.date), year))
+        .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const exp = expenses
         .filter((e) => isSameYear(parseExpDate(e), year))
         .reduce((sum, e) => sum + getExpAmt(e), 0);
-      return { name: format(year, "yyyy"), revenue: rev, expenses: exp };
+      return { name: format(year, "yyyy"), revenue: rev, purchases: pur, expenses: exp };
     });
 
     const curYear = startOfYear(now);
     const prevYear = startOfYear(subYears(now, 1));
     const curRev = sales.filter((s) => isSameYear(parseSaleDate(s), curYear)).reduce((sum, s) => sum + getSaleAmt(s), 0);
+    const curPur = (purchases || []).filter((p) => isSameYear(parseISO(p.date), curYear)).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
     const curExp = expenses.filter((e) => isSameYear(parseExpDate(e), curYear)).reduce((sum, e) => sum + getExpAmt(e), 0);
     const pRev = sales.filter((s) => isSameYear(parseSaleDate(s), prevYear)).reduce((sum, s) => sum + getSaleAmt(s), 0);
+    const pPur = (purchases || []).filter((p) => isSameYear(parseISO(p.date), prevYear)).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
     const pExp = expenses.filter((e) => isSameYear(parseExpDate(e), prevYear)).reduce((sum, e) => sum + getExpAmt(e), 0);
 
-    return { chartData: data, currentRevenue: curRev, currentExpenses: curExp, prevRevenue: pRev, prevExpenses: pExp };
+    return { chartData: data, currentRevenue: curRev, currentPurchases: curPur, currentExpenses: curExp, prevRevenue: pRev, prevPurchases: pPur, prevExpenses: pExp };
   }, [filter, sales, expenses]);
 
   // ── KPI Derived Values ────────────────────────────────────────────────────
-  const netProfit = currentRevenue - currentExpenses;
+  const netProfit = currentRevenue - currentPurchases - currentExpenses;
   const avgRevenue =
     chartData.length > 0
       ? chartData.reduce((s, d) => s + d.revenue, 0) / chartData.filter((d) => d.revenue > 0).length || currentRevenue
@@ -369,7 +394,7 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
         <div className="xl:col-span-2 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h4 className="font-bold text-slate-900 dark:text-white">Revenue vs Expenses</h4>
+              <h4 className="font-bold text-slate-900 dark:text-white">Revenue vs Costs</h4>
               <p className="text-xs text-slate-500 mt-0.5">{filterLabel}</p>
             </div>
             <div className="flex items-center gap-4">
@@ -377,7 +402,10 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
                 <span className="w-2.5 h-2.5 rounded-full bg-primary" /> Revenue
               </span>
               <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-400" /> Expenses
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Purchases
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-2.5 h-2.5 rounded-full bg-teal-400" /> Expenses
               </span>
             </div>
           </div>
@@ -390,9 +418,13 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
                       <stop offset="5%" stopColor="#137fec" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#137fec" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="purGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.25} />
                       <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.4} />
@@ -413,7 +445,8 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
                   />
                   <Tooltip content={<CustomTooltip formatCurrency={formatCurrency} />} />
                   <Area type="monotone" dataKey="revenue" stroke="#137fec" strokeWidth={2.5} fill="url(#revGrad)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
-                  <Area type="monotone" dataKey="expenses" stroke="#f43f5e" strokeWidth={2.5} fill="url(#expGrad)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                  <Area type="monotone" dataKey="purchases" stroke="#f43f5e" strokeWidth={2.5} fill="url(#purGrad)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                  <Area type="monotone" dataKey="expenses" stroke="#2dd4bf" strokeWidth={2.5} fill="url(#expGrad)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
                 </AreaChart>
               ) : (
                 <BarChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
@@ -435,7 +468,8 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
                   />
                   <Tooltip content={<CustomTooltip formatCurrency={formatCurrency} />} />
                   <Bar dataKey="revenue" fill="#137fec" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                  <Bar dataKey="expenses" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={32} fillOpacity={0.75} />
+                  <Bar dataKey="purchases" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="expenses" fill="#2dd4bf" radius={[4, 4, 0, 0]} maxBarSize={32} fillOpacity={0.75} />
                 </BarChart>
               )}
             </ResponsiveContainer>
@@ -455,7 +489,7 @@ export function RevenueAnalytics({ sales, expenses }: Props) {
             <div className="space-y-4 flex-1">
               {topPeriods.map((period, i) => {
                 const pct = maxRev > 0 ? (period.revenue / maxRev) * 100 : 0;
-                const profit = period.revenue - period.expenses;
+                const profit = period.revenue - (period.purchases || 0) - period.expenses;
                 return (
                   <div key={period.name} className="group">
                     <div className="flex items-center justify-between mb-1.5">

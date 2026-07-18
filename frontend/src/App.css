@@ -110,6 +110,7 @@ h1 {
   margin-bottom: 0.5em;
   background: -webkit-linear-gradient(120deg, #fff, #999);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
 }

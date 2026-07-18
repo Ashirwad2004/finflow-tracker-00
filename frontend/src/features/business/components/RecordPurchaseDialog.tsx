@@ -34,6 +34,8 @@ interface PurchaseFormValues {
     date: string;
     items: PurchaseItem[];
     attachment_url?: string;
+    vendor_gstin?: string;
+    place_of_supply?: string;
 }
 
 export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: RecordPurchaseDialogProps) => {
@@ -47,7 +49,9 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
             vendor_name: "",
             bill_number: "",
             date: new Date().toISOString().split("T")[0],
-            items: [{ description: "", quantity: 1, price: 0, total: 0 }]
+            items: [{ description: "", quantity: 1, price: 0, total: 0 }],
+            vendor_gstin: "",
+            place_of_supply: ""
         }
     });
 
@@ -63,14 +67,18 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
                 vendor_name: purchaseToEdit.vendor_name,
                 bill_number: purchaseToEdit.bill_number,
                 date: purchaseToEdit.date,
-                items: purchaseToEdit.items || []
+                items: purchaseToEdit.items || [],
+                vendor_gstin: purchaseToEdit.vendor_gstin || "",
+                place_of_supply: purchaseToEdit.place_of_supply || ""
             });
         } else if (open && !purchaseToEdit) {
             reset({
                 vendor_name: "",
                 bill_number: "",
                 date: new Date().toISOString().split("T")[0],
-                items: [{ description: "", quantity: 1, price: 0, total: 0 }]
+                items: [{ description: "", quantity: 1, price: 0, total: 0 }],
+                vendor_gstin: "",
+                place_of_supply: ""
             });
         }
     }, [open, purchaseToEdit, reset]);
@@ -132,6 +140,8 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
                 user_id: user.id,
                 bill_number: values.bill_number,
                 vendor_name: values.vendor_name,
+                vendor_gstin: values.vendor_gstin || null,
+                place_of_supply: values.place_of_supply || (values.vendor_gstin ? values.vendor_gstin.substring(0, 2) : null),
                 date: values.date,
                 items: values.items.map(item => ({
                     ...item,
@@ -339,6 +349,28 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
                                     ))}
                                 </datalist>
                                 {errors.vendor_name && <span className="text-red-500 text-xs">{errors.vendor_name.message}</span>}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Vendor GSTIN (Optional)</Label>
+                                    <Input 
+                                        {...register("vendor_gstin")} 
+                                        placeholder="15-digit GSTIN" 
+                                        maxLength={15}
+                                        onChange={(e) => {
+                                            const val = e.target.value.toUpperCase();
+                                            setValue("vendor_gstin", val);
+                                            if (val.length >= 2 && !watch("place_of_supply")) {
+                                                setValue("place_of_supply", val.substring(0, 2));
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Place of Supply</Label>
+                                    <Input {...register("place_of_supply")} placeholder="e.g. 29" maxLength={2} />
+                                </div>
                             </div>
 
                             {/* Items */}

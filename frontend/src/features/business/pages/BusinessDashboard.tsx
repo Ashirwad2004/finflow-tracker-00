@@ -66,10 +66,27 @@ export default function BusinessDashboard() {
         enabled: !!user
     });
 
+    // Fetch Purchases (COGS)
+    const { data: purchases = [] } = useQuery({
+        queryKey: ["purchases", user?.id],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from("purchases")
+                .select("*")
+                .eq("user_id", user?.id || "")
+                .order("date", { ascending: false });
+            if (error) throw error;
+            return data as any[];
+        },
+        enabled: !!user
+    });
+
     // --- Data Aggregation ---
     const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
+    const totalPurchases = purchases.reduce((sum, purchase) => sum + Number(purchase.total_amount || 0), 0);
     const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
-    const netProfit = totalRevenue - totalExpenses;
+    const grossProfit = totalRevenue - totalPurchases;
+    const netProfit = grossProfit - totalExpenses;
     const cashFlow = netProfit; // Simplified
 
     // Line Chart: P&L over last 6 months
@@ -80,12 +97,15 @@ export default function BusinessDashboard() {
 
     const chartData = last6Months.map(month => {
         const monthSales = sales.filter(s => isSameMonth(new Date(s.date), month));
+        const monthPurchases = purchases.filter(p => isSameMonth(new Date(p.date), month));
         const monthExpenses = expenses.filter(e => isSameMonth(new Date(e.date), month));
         const rev = monthSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+        const pur = monthPurchases.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
         const exp = monthExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
         return {
             name: format(month, 'MMM'),
             revenue: rev,
+            purchases: pur,
             expenses: exp
         };
     });
@@ -116,7 +136,6 @@ export default function BusinessDashboard() {
 
     const COLORS = ['#137fec', '#2dd4bf', '#64748b', '#cbd5e1'];
 
-    // Recent Transactions (Merged)
     const combinedHistory = [
         ...sales.map(s => ({
             id: s.id,
@@ -125,6 +144,14 @@ export default function BusinessDashboard() {
             ref: s.invoice_number,
             amount: Number(s.total_amount),
             date: new Date(s.date)
+        })),
+        ...purchases.map(p => ({
+            id: p.id,
+            type: 'purchase',
+            title: `Purchase - ${p.vendor_name || 'Vendor'}`,
+            ref: p.bill_number || 'Bill',
+            amount: Number(p.total_amount),
+            date: new Date(p.date)
         })),
         ...expenses.map(e => ({
             id: e.id,
@@ -174,8 +201,8 @@ export default function BusinessDashboard() {
                             <Landmark className="w-5 h-5" />
                         </div>
                     </div>
-                    <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Net Profit</p>
-                    <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(netProfit)}</h3>
+                    <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Gross Profit</p>
+                    <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(grossProfit)}</h3>
                 </div>
 
                 {/* Card 3 */}
@@ -185,8 +212,8 @@ export default function BusinessDashboard() {
                             <ReceiptText className="w-5 h-5" />
                         </div>
                     </div>
-                    <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Operating Expenses</p>
-                    <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(totalExpenses)}</h3>
+                    <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Purchases & Expenses</p>
+                    <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(totalPurchases + totalExpenses)}</h3>
                 </div>
 
                 {/* Card 4 */}
@@ -196,8 +223,8 @@ export default function BusinessDashboard() {
                             <TrendingUp className="w-5 h-5" />
                         </div>
                     </div>
-                    <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Cash Flow</p>
-                    <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(cashFlow)}</h3>
+                    <p className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">Net Profit (Cash Flow)</p>
+                    <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(netProfit)}</h3>
                 </div>
             </div>
 
@@ -206,7 +233,7 @@ export default function BusinessDashboard() {
 
             {/* Revenue Analytics Section */}
             <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-                <RevenueAnalytics sales={sales} expenses={expenses} />
+                <RevenueAnalytics sales={sales} purchases={purchases} expenses={expenses} />
             </div>
 
             {/* Charts Section */}
@@ -219,6 +246,10 @@ export default function BusinessDashboard() {
                             <div className="flex items-center gap-2">
                                 <span className="rounded-full size-3 bg-primary"></span>
                                 <span className="text-xs text-slate-500">Revenue</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="rounded-full size-3 bg-rose-500"></span>
+                                <span className="text-xs text-slate-500">Purchases</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="rounded-full size-3 bg-teal-400"></span>
@@ -242,6 +273,7 @@ export default function BusinessDashboard() {
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 />
                                 <Line type="monotone" dataKey="revenue" stroke="#137fec" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                                <Line type="monotone" dataKey="purchases" stroke="#f43f5e" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                                 <Line type="monotone" dataKey="expenses" stroke="#2dd4bf" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                             </LineChart>
                         </ResponsiveContainer>
