@@ -41,12 +41,21 @@ interface InvoiceFormValues {
     customer_email: string;
     /** 15-character GST Identification Number — drives B2B/B2C classification in GSTR-1 */
     customer_gstin: string;
+    place_of_supply?: string;
+    is_reverse_charge?: boolean;
+    document_type?: 'invoice' | 'credit_note' | 'debit_note';
+    original_invoice_id?: string;
+    is_amendment?: boolean;
+    amended_invoice_id?: string;
     invoice_number: string;
     date: string;
     items: InvoiceItem[];
     tax_rate: number;
     overall_discount: number;
     status: "paid" | "pending";
+    irn?: string;
+    eway_bill_number?: string;
+    qr_code?: string;
 }
 
 export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSettings }: CreateInvoiceDialogProps) => {
@@ -65,6 +74,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             customer_phone: "",
             customer_email: "",
             customer_gstin: "",
+            place_of_supply: "",
+            is_reverse_charge: false,
+            document_type: "invoice",
+            original_invoice_id: "",
             invoice_number: "",
             date: new Date().toISOString().split("T")[0],
             items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
@@ -163,12 +176,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 customer_phone: invoiceToEdit.customer_phone,
                 customer_email: invoiceToEdit.customer_email,
                 customer_gstin: invoiceToEdit.customer_gstin || "",
+                place_of_supply: invoiceToEdit.place_of_supply || "",
+                is_reverse_charge: invoiceToEdit.is_reverse_charge || false,
+                document_type: invoiceToEdit.document_type || "invoice",
+                original_invoice_id: invoiceToEdit.original_invoice_id || "",
                 invoice_number: invoiceToEdit.invoice_number,
                 date: invoiceToEdit.date,
                 items: items,
                 tax_rate: (invoiceToEdit.tax_amount / (invoiceToEdit.subtotal || 1)) * 100,
                 overall_discount: invoiceToEdit.overall_discount || 0,
-                status: invoiceToEdit.status || "paid"
+                status: invoiceToEdit.status || "paid",
+                irn: invoiceToEdit.irn || "",
+                eway_bill_number: invoiceToEdit.eway_bill_number || "",
+                qr_code: invoiceToEdit.qr_code || ""
             });
         } else if (open && !invoiceToEdit) {
             reset({
@@ -176,12 +196,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 customer_phone: "",
                 customer_email: "",
                 customer_gstin: "",
+                place_of_supply: "",
+                is_reverse_charge: false,
+                document_type: "invoice",
+                original_invoice_id: "",
                 invoice_number: "",
                 date: new Date().toISOString().split("T")[0],
                 items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
                 tax_rate: salesSettings?.defaultTaxRate ?? 0,
                 overall_discount: 0,
                 status: salesSettings?.defaultStatus ?? "paid",
+                irn: "",
+                eway_bill_number: "",
+                qr_code: ""
             });
         }
     }, [open, invoiceToEdit, reset]);
@@ -347,6 +374,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 customer_phone: values.customer_phone,
                 customer_email: values.customer_email,
                 customer_gstin: values.customer_gstin?.trim().toUpperCase() || null,
+                place_of_supply: values.place_of_supply || (values.customer_gstin ? values.customer_gstin.trim().substring(0, 2) : null),
+                is_reverse_charge: values.is_reverse_charge || false,
+                document_type: values.document_type || "invoice",
+                original_invoice_id: values.original_invoice_id || null,
                 date: values.date,
                 items: processedItems,
                 subtotal: subtotal,
@@ -355,7 +386,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 tax_amount: taxAmount,
                 total_amount: totalAmount,
                 status: values.status,
-                payment_method: values.status === 'paid' ? "cash" : null
+                payment_method: values.status === 'paid' ? "cash" : null,
+                irn: values.irn || null,
+                eway_bill_number: values.eway_bill_number || null,
+                qr_code: values.qr_code || null
             };
 
             // Invoice number conflicts: check React Query cache
@@ -631,13 +665,44 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                         <Input
                                             className="h-9 rounded-sm border-slate-300 bg-white font-mono uppercase tracking-widest text-sm"
                                             {...register("customer_gstin", {
-                                                validate: v => !v || v.length === 0 || v.length === 15 || "GSTIN must be exactly 15 characters"
+                                                validate: v => !v || v.length === 0 || (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(v)) || "Invalid GSTIN format or checksum"
                                             })}
                                             placeholder="e.g. 29AABCD1234E1Z5"
                                             maxLength={15}
                                             onChange={e => setValue("customer_gstin", e.target.value.toUpperCase())}
                                         />
                                         {errors.customer_gstin && <span className="text-destructive text-xs block">{errors.customer_gstin.message}</span>}
+                                    </div>
+
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium text-slate-700">Place of Supply (POS)</Label>
+                                            <select
+                                                {...register("place_of_supply")}
+                                                className="flex h-9 w-full rounded-sm border border-slate-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            >
+                                                <option value="">Default (Auto)</option>
+                                                <option value="27">27 - Maharashtra</option>
+                                                <option value="29">29 - Karnataka</option>
+                                                <option value="07">07 - Delhi</option>
+                                                <option value="09">09 - Uttar Pradesh</option>
+                                                <option value="33">33 - Tamil Nadu</option>
+                                                <option value="24">24 - Gujarat</option>
+                                                <option value="08">08 - Rajasthan</option>
+                                                <option value="19">19 - West Bengal</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5 flex flex-col justify-end">
+                                            <label className="flex items-center space-x-2 h-9 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    {...register("is_reverse_charge")}
+                                                    className="w-4 h-4 rounded border-slate-300 text-slate-800 focus:ring-slate-800"
+                                                />
+                                                <span className="text-xs font-medium text-slate-700">Reverse Charge (RCM)</span>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -647,7 +712,56 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 border-b border-slate-100 pb-2">Invoice Details</h3>
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-xs font-medium text-slate-600">Invoice No.</Label>
+                                        <Label className="text-xs font-medium text-slate-600">Doc Type</Label>
+                                        <div className="w-[140px]">
+                                            <select
+                                                {...register("document_type")}
+                                                className="flex h-9 w-full rounded-sm border border-slate-300 bg-white px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            >
+                                                <option value="invoice">Tax Invoice</option>
+                                                <option value="credit_note">Credit Note</option>
+                                                <option value="debit_note">Debit Note</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {watch("document_type") !== "invoice" && (
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-xs font-medium text-slate-600">Original Inv UUID</Label>
+                                            <div className="w-[140px] relative">
+                                                <Input
+                                                    {...register("original_invoice_id")}
+                                                    placeholder="Optional UUID"
+                                                    className="h-9 rounded-sm border-slate-300 bg-white text-xs font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-xs font-medium text-slate-600">Is Amendment?</Label>
+                                        <div className="w-[140px] flex items-center h-9">
+                                            <input
+                                                type="checkbox"
+                                                {...register("is_amendment")}
+                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    {watch("is_amendment") && (
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-xs font-medium text-slate-600">Amended UUID</Label>
+                                            <div className="w-[140px] relative">
+                                                <Input
+                                                    {...register("amended_invoice_id")}
+                                                    placeholder="Target UUID"
+                                                    className="h-9 rounded-sm border-slate-300 bg-white text-xs font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-xs font-medium text-slate-600">
+                                            {watch("document_type") === "invoice" ? "Invoice No." : "Note No."}
+                                        </Label>
                                         <div className="w-[140px] relative">
                                             <span className="absolute left-2.5 top-2 text-slate-400 text-sm">#</span>
                                             <Input
@@ -679,11 +793,25 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                             </select>
                                         </div>
                                     </div>
+
+                                    {/* E-Invoice Info */}
+                                    {watch("customer_gstin")?.length === 15 && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-medium text-slate-700">IRN</Label>
+                                                <Input className="h-9 rounded-sm border-slate-300 bg-white" {...register("irn")} placeholder="64-char hash" />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-medium text-slate-700">E-Way Bill No</Label>
+                                                <Input className="h-9 rounded-sm border-slate-300 bg-white" {...register("eway_bill_number")} placeholder="e.g. 123456789" />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Items Table */}
+                        {/* RIGHT COLUMN: ITEMS */}
                         <div className="space-y-2">
                             {errors.items && !Array.isArray(errors.items) && (
                                 <p className="text-destructive text-sm mb-2">{(errors.items as any).message}</p>

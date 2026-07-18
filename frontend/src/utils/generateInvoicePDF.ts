@@ -24,6 +24,9 @@ export interface InvoiceDetails {
     igst?: number;
     total_amount: number;
     customer_gstin?: string;
+    irn?: string;
+    eway_bill_number?: string;
+    qr_code?: string;
     business_details?: {
         name: string;
         address?: string;
@@ -265,6 +268,41 @@ export const generateInvoicePDF = async (
         if (data.business_details?.logo_url) {
             logoBase64 = await fetchImageAsBase64(data.business_details.logo_url);
         }
+        
+        const drawEInvoiceSection = (details: any, startY: number, startX: number, colWidth: number, styles: any) => {
+            let yPos = startY;
+            
+            // Add E-Invoice Info if present
+            if (details.irn) {
+                let eInvY = startY;
+                const eInvX = startX + colWidth + 5;
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(...styles.primary);
+                doc.text("E-INVOICE DETAILS", eInvX, eInvY);
+                eInvY += 6;
+                
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(...styles.text);
+                
+                // Draw IRN (might be long)
+                const splitIrn = doc.splitTextToSize(details.irn, colWidth);
+                doc.setFont("helvetica", "bold");
+                doc.text("IRN:", eInvX, eInvY);
+                doc.setFont("helvetica", "normal");
+                doc.text(splitIrn, eInvX + 10, eInvY);
+                eInvY += (splitIrn.length * 4) + 2;
+                
+                if (details.eway_bill_number) {
+                    doc.setFont("helvetica", "bold");
+                    doc.text("E-Way Bill:", eInvX, eInvY);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(details.eway_bill_number, eInvX + 22, eInvY);
+                }
+            }
+
+            return Math.max(yPos, startY + (details.irn ? 20 : 0));
+        };
+        
         if (data.business_details?.signature_url) {
             signatureBase64 = await fetchImageAsBase64(data.business_details.signature_url);
         }
@@ -2626,6 +2664,44 @@ export const generateInvoicePDF = async (
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
             doc.text("Authorized Signatory", signatoryCenterX, pageHeight - 14, { align: "center" });
+        }
+
+        // --- E-INVOICE DETAILS PAGE ---
+        if (data.irn) {
+            doc.addPage();
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(16);
+            doc.setTextColor(0, 0, 0);
+            doc.text("E-INVOICE DETAILS", 14 * scale, 20 * scale);
+
+            doc.setDrawColor(200, 200, 200);
+            doc.line(14 * scale, 25 * scale, pageWidth - 14 * scale, 25 * scale);
+
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.text("Invoice Reference Number (IRN):", 14 * scale, 35 * scale);
+            doc.setFont("helvetica", "normal");
+            
+            const splitIrn = doc.splitTextToSize(data.irn, pageWidth - 28 * scale);
+            doc.text(splitIrn, 14 * scale, 42 * scale);
+
+            if (data.eway_bill_number) {
+                doc.setFont("helvetica", "bold");
+                doc.text("E-Way Bill Number:", 14 * scale, 42 * scale + (splitIrn.length * 5 * scale) + 5 * scale);
+                doc.setFont("helvetica", "normal");
+                doc.text(data.eway_bill_number, 14 * scale, 42 * scale + (splitIrn.length * 5 * scale) + 12 * scale);
+            }
+            
+            if (data.qr_code) {
+                // If a QR code image URL is provided, we could render it. 
+                // For now, we will just print the text or a placeholder.
+                const qrY = 42 * scale + (splitIrn.length * 5 * scale) + (data.eway_bill_number ? 25 * scale : 10 * scale);
+                doc.setFont("helvetica", "bold");
+                doc.text("QR Code Data:", 14 * scale, qrY);
+                doc.setFont("helvetica", "normal");
+                const splitQr = doc.splitTextToSize(data.qr_code, pageWidth - 28 * scale);
+                doc.text(splitQr, 14 * scale, qrY + 7 * scale);
+            }
         }
 
         if (action === 'download') {

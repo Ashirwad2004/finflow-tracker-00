@@ -3,6 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PartyReport } from "@/features/business/components/PartyReport";
 import { DetailedPartyReport } from "@/features/business/components/DetailedPartyReport";
 import { GSTR1Report } from "@/features/business/components/GSTR1Report";
+import { GSTR2BReport } from "@/features/business/components/GSTR2BReport";
+import { GSTR3BReport } from "@/features/business/components/GSTR3BReport";
 import { OnlineStoreReport } from "@/features/business/components/OnlineStoreReport";
 import { BusinessAiInsights } from "@/features/business/components/BusinessAiInsights";
 import { FileBarChart, ShieldCheck, ShoppingBag, Sparkles } from "lucide-react";
@@ -23,7 +25,7 @@ const ReportsPage = () => {
 
                 <Tabs defaultValue="party-report" className="space-y-6">
                     <div className="bg-card w-full sm:w-auto inline-block p-1 rounded-lg border">
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto p-0 bg-transparent gap-1">
+                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-7 h-auto p-0 bg-transparent gap-1">
                             <TabsTrigger
                                 value="party-report"
                                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2.5 px-6 rounded-md shadow-sm transition-all"
@@ -38,10 +40,24 @@ const ReportsPage = () => {
                             </TabsTrigger>
                             <TabsTrigger
                                 value="gstr1"
-                                className="data-[state=active]:bg-orange-500 data-[state=active]:text-white py-2.5 px-6 rounded-md shadow-sm transition-all flex items-center gap-2"
+                                className="data-[state=active]:bg-orange-500 data-[state=active]:text-white py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center gap-2"
                             >
                                 <ShieldCheck className="w-4 h-4" />
                                 GSTR-1
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="gstr2b"
+                                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                <ShieldCheck className="w-4 h-4" />
+                                GSTR-2B
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="gstr3b"
+                                className="data-[state=active]:bg-violet-600 data-[state=active]:text-white py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                <ShieldCheck className="w-4 h-4" />
+                                GSTR-3B
                             </TabsTrigger>
                             <TabsTrigger
                                 value="online-store"
@@ -70,6 +86,14 @@ const ReportsPage = () => {
 
                     <TabsContent value="gstr1" className="mt-0 outline-none">
                         <GSTR1Report />
+                    </TabsContent>
+
+                    <TabsContent value="gstr2b" className="mt-0 outline-none">
+                        <GSTR2BReport />
+                    </TabsContent>
+
+                    <TabsContent value="gstr3b" className="mt-0 outline-none">
+                        <GSTR3BReport />
                     </TabsContent>
 
                     <TabsContent value="online-store" className="mt-0 outline-none">

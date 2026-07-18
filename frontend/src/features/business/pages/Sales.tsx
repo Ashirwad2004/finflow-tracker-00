@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare } from "lucide-react";
+import { generateEInvoiceJSON, downloadJSON } from "@/core/utils/einvoiceGenerator";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { CreateInvoiceDialog } from "@/features/business/components/CreateInvoiceDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -98,6 +99,9 @@ export default function SalesPage() {
             tax_amount: invoice.tax_amount || 0,
             total_amount: invoice.total_amount,
             tax_rate: invoice.tax_rate || 0,
+            irn: (invoice as any).irn,
+            eway_bill_number: (invoice as any).eway_bill_number,
+            qr_code: (invoice as any).qr_code,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -127,6 +131,9 @@ export default function SalesPage() {
             tax_amount: invoice.tax_amount || 0,
             total_amount: invoice.total_amount,
             tax_rate: invoice.tax_rate || 0,
+            irn: (invoice as any).irn,
+            eway_bill_number: (invoice as any).eway_bill_number,
+            qr_code: (invoice as any).qr_code,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -153,6 +160,9 @@ export default function SalesPage() {
                 tax_amount: invoice.tax_amount || 0,
                 total_amount: invoice.total_amount,
                 tax_rate: invoice.tax_rate || 0,
+                irn: (invoice as any).irn,
+                eway_bill_number: (invoice as any).eway_bill_number,
+                qr_code: (invoice as any).qr_code,
                 business_details: profile ? {
                     name: (profile as any).business_name,
                     address: (profile as any).business_address,
@@ -183,6 +193,26 @@ export default function SalesPage() {
         } catch (error) {
             console.error("Error sharing invoice:", error);
             alert("Failed to share invoice.");
+        }
+    };
+
+    const handleGenerateEInvoice = (invoice: Sale) => {
+        if (!profile) return toast.error("Profile not loaded.");
+        if (!invoice.customer_gstin || invoice.customer_gstin.length < 15) {
+            toast.error("E-Invoice requires a valid 15-digit customer GSTIN.");
+            return;
+        }
+        if (invoice.total_amount <= 0) {
+            toast.error("Invoice amount must be greater than 0.");
+            return;
+        }
+        try {
+            const payload = generateEInvoiceJSON(invoice, profile);
+            downloadJSON(payload, `EInvoice_${invoice.invoice_number}.json`);
+            toast.success("E-Invoice JSON generated successfully!");
+        } catch (error) {
+            console.error("Error generating E-Invoice:", error);
+            toast.error("Failed to generate E-Invoice JSON.");
         }
     };
 
@@ -501,6 +531,12 @@ export default function SalesPage() {
                                                                 <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
                                                                 Send via WhatsApp
                                                             </DropdownMenuItem>
+                                                            {invoice.customer_gstin && invoice.customer_gstin.length === 15 && (
+                                                                <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)}>
+                                                                    <QrCode className="w-4 h-4 mr-2 text-violet-500" />
+                                                                    Generate E-Invoice JSON
+                                                                </DropdownMenuItem>
+                                                            )}
                                                             <DropdownMenuItem onClick={() => handleEdit(invoice)}>
                                                                 <Pencil className="w-4 h-4 mr-2" />
                                                                 Edit Invoice

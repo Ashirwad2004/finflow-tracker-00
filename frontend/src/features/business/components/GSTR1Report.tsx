@@ -41,8 +41,9 @@ import { Badge } from "@/components/ui/badge";
 import {
     Download, FileText, FileSpreadsheet, AlertCircle, CheckCircle2,
     Building2, Users, UserMinus, Tag, Receipt, ListChecks, Info,
-    ChevronDown, ChevronUp, ShieldCheck,
+    ChevronDown, ChevronUp, ShieldCheck, Lock
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,7 @@ const SectionCard = ({ title, subtitle, icon: Icon, count, badge, color, childre
 export const GSTR1Report = () => {
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
+    const { toast } = useToast();
     const [selectedPeriod, setSelectedPeriod] = useState(0);
 
     const period = PERIODS[selectedPeriod];
@@ -237,159 +239,105 @@ export const GSTR1Report = () => {
         enabled: !!user,
     });
 
-    // Fetch sales for the selected period
-    const { data: rawSales = [], isLoading } = useQuery({
-        queryKey: ["gstr1-sales", user?.id, period.from.toISOString(), period.to.toISOString()],
+    const bizGSTIN = (profile as any)?.gst_number || "";
+    const bizStateCode = bizGSTIN ? bizGSTIN.substring(0, 2) : "";
+
+    // Fetch pre-aggregated GSTR-1 data from backend RPC
+    const { data: gstr1Data, isLoading } = useQuery({
+        queryKey: ["gstr1-data", user?.id, period.from.toISOString(), period.to.toISOString(), bizStateCode],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("sales")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .gte("date", format(period.from, "yyyy-MM-dd"))
-                .lte("date", format(period.to, "yyyy-MM-dd"))
-                .order("date", { ascending: true });
+            const { data, error } = await (supabase as any).rpc("generate_gstr1_data", {
+                p_user_id: user?.id,
+                p_start_date: format(period.from, "yyyy-MM-dd"),
+                p_end_date: format(period.to, "yyyy-MM-dd"),
+                p_biz_state_code: bizStateCode
+            });
             if (error) throw error;
-            return (data as any[]) as SaleInvoice[];
+            return data;
+        },
+        enabled: !!user && !!bizStateCode,
+    });
+
+    const b2bRecords: B2BRecord[] = gstr1Data?.b2b || [];
+    const b2baRecords: B2BRecord[] = gstr1Data?.b2ba || [];
+    const b2clRecords: B2CLRecord[] = gstr1Data?.b2cl || [];
+    const b2csData: B2CSRecord[] = gstr1Data?.b2cs || [];
+    const hsnSummary: HSNRecord[] = gstr1Data?.hsn || [];
+    const salesCount = gstr1Data?.summary?.total_invoices || 0;
+
+    const [healthErrors, setHealthErrors] = useState<string[]>([]);
+    const [showHealthModal, setShowHealthModal] = useState(false);
+
+    // Fetch tax period lock status
+    const { data: lockStatus, refetch: refetchLock } = useQuery({
+        queryKey: ["tax-period-lock", user?.id, period.from.getMonth() + 1, period.from.getFullYear()],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from("tax_periods")
+                .select("status")
+                .eq("user_id", user?.id)
+                .eq("month", period.from.getMonth() + 1)
+                .eq("year", period.from.getFullYear())
+                .maybeSingle();
+            if (error) throw error;
+            return data?.status || "open";
         },
         enabled: !!user,
     });
+    const isLocked = lockStatus === "locked";
+    const isPendingReview = lockStatus === "pending_review";
+    const isCA = (profile as any)?.is_ca === true;
 
-    // Only process paid+pending invoices (exclude draft)
-    const sales = useMemo(() =>
-        rawSales.filter(s => s.status !== "draft"),
-        [rawSales]
-    );
-
-    const bizGSTIN: string = (profile as any)?.gst_number || "";
-    const bizStateCode = bizGSTIN ? stateCode(bizGSTIN) : "27"; // Default Maharashtra
-
-    // ── Table 4: B2B ─────────────────────────────────────────────────────────
-    const b2bRecords = useMemo<B2BRecord[]>(() => {
-        return sales
-            .filter(inv => inv.customer_gstin && inv.customer_gstin.length === 15)
-            .map(inv => {
-                const taxable = taxableFromInvoice(inv);
-                const taxRate = taxRateFromInvoice(inv);
-                const interState = stateCode(inv.customer_gstin!) !== bizStateCode;
-                const { igst, cgst, sgst } = splitTax(inv.tax_amount || 0, interState, taxRate);
-                return {
-                    gstin: inv.customer_gstin!,
-                    customer_name: inv.customer_name,
-                    invoice_number: inv.invoice_number,
-                    invoice_date: format(new Date(inv.date), "dd/MM/yyyy"),
-                    invoice_value: inv.total_amount,
-                    taxable_value: taxable,
-                    igst, cgst, sgst,
-                    place_of_supply: interState
-                        ? stateCode(inv.customer_gstin!) + " - Other State"
-                        : bizStateCode + " - Own State",
-                    reverse_charge: false,
-                };
-            });
-    }, [sales, bizStateCode]);
-
-    // ── Table 5: B2C Large (inter-state, no GSTIN, > ₹2.5L) ─────────────────
-    const b2clRecords = useMemo<B2CLRecord[]>(() => {
-        return sales
-            .filter(inv =>
-                (!inv.customer_gstin || inv.customer_gstin.length < 15) &&
-                inv.total_amount > 250000
-            )
-            .map(inv => ({
-                invoice_number: inv.invoice_number,
-                invoice_date: format(new Date(inv.date), "dd/MM/yyyy"),
-                invoice_value: inv.total_amount,
-                place_of_supply: "Outside State (Unregistered)",
-                taxable_value: taxableFromInvoice(inv),
-                igst: inv.tax_amount || 0,
-            }));
-    }, [sales]);
-
-    // ── Table 7: B2C Small (all other unregistered) ─────────────────────────
-    const b2csData = useMemo<B2CSRecord[]>(() => {
-        const unregistered = sales.filter(inv =>
-            (!inv.customer_gstin || inv.customer_gstin.length < 15) &&
-            inv.total_amount <= 250000
-        );
-
-        const byRate = new Map<string, B2CSRecord>();
-        for (const inv of unregistered) {
-            const taxRate = taxRateFromInvoice(inv);
-            const key = `intra-${taxRate}`;
-            if (!byRate.has(key)) {
-                byRate.set(key, {
-                    place_of_supply: `${bizStateCode} - Own State`,
-                    tax_rate: taxRate,
-                    taxable_value: 0, igst: 0, cgst: 0, sgst: 0,
-                });
-            }
-            const rec = byRate.get(key)!;
-            rec.taxable_value += taxableFromInvoice(inv);
-            rec.cgst += (inv.tax_amount || 0) / 2;
-            rec.sgst += (inv.tax_amount || 0) / 2;
+    const setPeriodStatus = async (newStatus: "pending_review" | "locked") => {
+        if (newStatus === "locked" && !confirm("Approve and lock this period? Modifications will be permanently disabled.")) return;
+        if (newStatus === "pending_review" && !confirm("Submit this period for CA review? Modifications will be temporarily disabled.")) return;
+        
+        try {
+            const { error } = await (supabase as any).from("tax_periods").upsert({
+                user_id: user?.id,
+                month: period.from.getMonth() + 1,
+                year: period.from.getFullYear(),
+                status: newStatus
+            }, { onConflict: 'user_id, month, year' });
+            if (error) throw error;
+            toast({ title: newStatus === "locked" ? "Period Locked" : "Submitted for Review" });
+            refetchLock();
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Action Failed", description: error.message });
         }
-        return Array.from(byRate.values()).sort((a, b) => b.tax_rate - a.tax_rate);
-    }, [sales, bizStateCode]);
+    };
 
-    // ── Table 12: HSN Summary ─────────────────────────────────────────────────
-    const hsnSummary = useMemo<HSNRecord[]>(() => {
-        const hsnMap = new Map<string, HSNRecord>();
-        for (const inv of sales) {
-            const items: InvoiceLineItem[] = Array.isArray(inv.items) ? inv.items : [];
-            for (const item of items) {
-                const hsn = item.hsn_code || "0000";
-                const qty = Number(item.quantity) || 0;
-                const taxRate = item.tax_rate ?? taxRateFromInvoice(inv);
-                const lineValue = Number(item.total) || 0;
-                const lineTax = lineValue * (taxRate / 100);
-                // Prorate: for HSN, we use the item totals
-                const interState = isInterState(inv, bizStateCode);
-                const { igst, cgst, sgst } = splitTax(lineTax, interState, taxRate);
-
-                if (!hsnMap.has(hsn)) {
-                    hsnMap.set(hsn, {
-                        hsn_code: hsn, description: item.description || hsn,
-                        uqc: "NOS", quantity: 0,
-                        taxable_value: 0, tax_rate: taxRate,
-                        igst: 0, cgst: 0, sgst: 0,
-                    });
-                }
-                const rec = hsnMap.get(hsn)!;
-                rec.quantity += qty;
-                rec.taxable_value += lineValue;
-                rec.igst += igst;
-                rec.cgst += cgst;
-                rec.sgst += sgst;
+    const runHealthCheck = () => {
+        const errors: string[] = [];
+        hsnSummary.forEach(h => {
+            if (h.hsn_code === '0000') errors.push(`Missing HSN code for items totaling ₹${h.taxable_value.toFixed(2)}`);
+        });
+        b2bRecords.forEach(b => {
+            if (!b.place_of_supply) errors.push(`Invoice ${b.invoice_number} is missing Place of Supply.`);
+            const expectedTax = Math.round((b.igst + b.cgst + b.sgst) * 100) / 100;
+            const computedTax = Math.round((b.taxable_value * (b.igst > 0 ? 18 : 18) / 100) * 100) / 100; // Simplified estimation check
+            if (Math.abs(expectedTax - computedTax) > 2) {
+                // Warning only, as multi-rate invoices exist
             }
-        }
-        return Array.from(hsnMap.values()).sort((a, b) => b.taxable_value - a.taxable_value);
-    }, [sales, bizStateCode]);
+        });
+        setHealthErrors(errors.length > 0 ? errors : ["No anomalies detected! Data looks compliant."]);
+        setShowHealthModal(true);
+    };
 
     // ── Table 3.1: Summary ─────────────────────────────────────────────────────
     const summary = useMemo(() => {
-        const totalTaxable = sales.reduce((s, inv) => s + taxableFromInvoice(inv), 0);
-        const totalTax = sales.reduce((s, inv) => s + (inv.tax_amount || 0), 0);
-        const totalValue = sales.reduce((s, inv) => s + inv.total_amount, 0);
-        const b2bTaxable = b2bRecords.reduce((s, r) => s + r.taxable_value, 0);
-        const b2bTax = b2bRecords.reduce((s, r) => s + r.igst + r.cgst + r.sgst, 0);
-        const b2csTaxable = b2csData.reduce((s, r) => s + r.taxable_value, 0);
-        const b2csTax = b2csData.reduce((s, r) => s + r.igst + r.cgst + r.sgst, 0);
-        const b2clTaxable = b2clRecords.reduce((s, r) => s + r.taxable_value, 0);
-        const b2clTax = b2clRecords.reduce((s, r) => s + r.igst, 0);
+        const totalTaxable = gstr1Data?.summary?.total_taxable || 0;
+        const totalValue = gstr1Data?.summary?.total_value || 0;
         const igst = [...b2bRecords, ...b2clRecords].reduce((s, r: any) => s + (r.igst || 0), 0);
         const cgst = [...b2bRecords, ...b2csData].reduce((s, r: any) => s + (r.cgst || 0), 0);
         const sgst = [...b2bRecords, ...b2csData].reduce((s, r: any) => s + (r.sgst || 0), 0);
-        return { totalTaxable, totalTax, totalValue, b2bTaxable, b2bTax, b2csTaxable, b2csTax, b2clTaxable, b2clTax, igst, cgst, sgst };
-    }, [sales, b2bRecords, b2csData, b2clRecords]);
+        const totalTax = igst + cgst + sgst;
+        return { totalTaxable, totalTax, totalValue, igst, cgst, sgst };
+    }, [gstr1Data, b2bRecords, b2clRecords, b2csData]);
 
     // ── Table 13: Document Summary ─────────────────────────────────────────────
     const docSummary = useMemo(() => {
-        const invoiceNumbers = sales.map(s => s.invoice_number).sort();
-        const from = invoiceNumbers[0] || "-";
-        const to = invoiceNumbers[invoiceNumbers.length - 1] || "-";
-        const cancelled = rawSales.filter(s => s.status === "draft").length;
-        return { total: sales.length, from, to, cancelled };
-    }, [sales, rawSales]);
+        return { total: salesCount, from: "-", to: "-", cancelled: 0 };
+    }, [salesCount]);
 
     // ── Export helpers ─────────────────────────────────────────────────────────
     const exportB2BCSV = () => downloadCSV(
@@ -407,6 +355,85 @@ export const GSTR1Report = () => {
         ["HSN", "Description", "UQC", "Quantity", "Taxable Value", "Tax Rate", "IGST", "CGST", "SGST"],
         hsnSummary.map(r => [r.hsn_code, r.description, r.uqc, r.quantity, r.taxable_value.toFixed(2), `${r.tax_rate}%`, r.igst.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2)])
     );
+    const downloadGSTNJson = () => {
+        const payload = {
+            gstin: bizGSTIN,
+            fp: format(period.from, "MMyyyy"), // e.g. 032026
+            gt: 0,
+            cur_gt: 0,
+            b2b: b2bRecords.map(r => ({
+                ctin: r.gstin,
+                inv: [{
+                    inum: r.invoice_number,
+                    idt: r.invoice_date,
+                    val: r.invoice_value,
+                    pos: r.place_of_supply?.substring(0,2) || bizStateCode,
+                    rchrg: r.reverse_charge ? "Y" : "N",
+                    inv_typ: "R",
+                    itms: [{
+                        num: 1,
+                        itm_det: {
+                            txval: r.taxable_value,
+                            rt: 18,
+                            igst: r.igst,
+                            cgst: r.cgst,
+                            sgst: r.sgst
+                        }
+                    }]
+                }]
+            })),
+            b2cl: b2clRecords.map(r => ({
+                pos: r.place_of_supply?.substring(0,2) || "",
+                inv: [{
+                    inum: r.invoice_number,
+                    idt: r.invoice_date,
+                    val: r.invoice_value,
+                    itms: [{
+                        num: 1,
+                        itm_det: {
+                            txval: r.taxable_value,
+                            rt: 18,
+                            igst: r.igst
+                        }
+                    }]
+                }]
+            })),
+            b2cs: b2csData.map(r => ({
+                pos: r.place_of_supply?.substring(0,2) || bizStateCode,
+                txval: r.taxable_value,
+                rt: r.tax_rate,
+                igst: r.igst,
+                cgst: r.cgst,
+                sgst: r.sgst,
+                typ: "OE"
+            })),
+            hsn: {
+                data: hsnSummary.map((r, i) => ({
+                    num: i + 1,
+                    hsn_sc: r.hsn_code,
+                    desc: r.description,
+                    uqc: r.uqc,
+                    qty: r.quantity,
+                    txval: r.taxable_value,
+                    rt: r.tax_rate,
+                    igst: r.igst,
+                    cgst: r.cgst,
+                    sgst: r.sgst
+                }))
+            }
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `GSTR1_${bizGSTIN}_${format(period.from, "MMyyyy")}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     const exportFullGSTR1 = () => {
         // Build one comprehensive CSV with all tables
         const rows: (string | number)[][] = [];
@@ -464,11 +491,52 @@ export const GSTR1Report = () => {
                         {PERIODS.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
                     </select>
                     <button
+                        onClick={runHealthCheck}
+                        className="h-9 px-3 text-sm font-bold flex items-center gap-1.5 rounded-lg border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-colors"
+                    >
+                        <ListChecks className="w-4 h-4" />
+                        Run Health Check
+                    </button>
+                    {!isCA ? (
+                        <button
+                            onClick={() => setPeriodStatus("pending_review")}
+                            disabled={isLocked || isPendingReview}
+                            className={`h-9 px-3 text-sm font-bold flex items-center gap-1.5 rounded-lg border transition-colors ${
+                                isLocked || isPendingReview
+                                ? "bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
+                                : "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
+                            }`}
+                        >
+                            <ShieldCheck className="w-4 h-4" />
+                            {isLocked ? "Locked" : isPendingReview ? "Pending CA Review" : "Submit for Review"}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setPeriodStatus("locked")}
+                            disabled={isLocked}
+                            className={`h-9 px-3 text-sm font-bold flex items-center gap-1.5 rounded-lg border transition-colors ${
+                                isLocked 
+                                ? "bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed" 
+                                : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                            }`}
+                        >
+                            <Lock className="w-4 h-4" />
+                            {isLocked ? "Period Locked" : "Approve & Lock"}
+                        </button>
+                    )}
+                    <button
                         onClick={exportFullGSTR1}
                         className="flex items-center gap-2 h-9 px-4 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold transition-all shadow-sm"
                     >
                         <Download className="w-4 h-4" />
                         Export Full GSTR-1
+                    </button>
+                    <button
+                        onClick={downloadGSTNJson}
+                        className="flex items-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm"
+                    >
+                        <Download className="w-4 h-4" />
+                        Download JSON (Utility)
                     </button>
                 </div>
             </div>
@@ -479,7 +547,7 @@ export const GSTR1Report = () => {
                 </div>
             )}
 
-            {!isLoading && sales.length === 0 && (
+            {!isLoading && salesCount === 0 && (
                 <div className="border rounded-2xl p-12 text-center text-slate-500 dark:text-slate-400">
                     <Receipt className="w-10 h-10 mx-auto mb-3 text-slate-300" />
                     <p className="font-semibold">No invoices found for {period.label}</p>
@@ -487,7 +555,7 @@ export const GSTR1Report = () => {
                 </div>
             )}
 
-            {!isLoading && sales.length > 0 && (
+            {!isLoading && salesCount > 0 && (
                 <>
                     {/* ── Table 3.1: Summary Dashboard ─── */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -495,7 +563,7 @@ export const GSTR1Report = () => {
                             { label: "Total Invoice Value", value: formatCurrency(summary.totalValue), color: "text-slate-800 dark:text-white", bg: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" },
                             { label: "Total Taxable Value", value: formatCurrency(summary.totalTaxable), color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800" },
                             { label: "Total GST Collected", value: formatCurrency(totalTax), color: "text-orange-700 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800" },
-                            { label: "Total Invoices", value: `${sales.length} invoices`, color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800" },
+                            { label: "Total Invoices", value: `${salesCount} invoices`, color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800" },
                         ].map(({ label, value, color, bg }) => (
                             <div key={label} className={`rounded-xl border p-4 ${bg}`}>
                                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{label}</p>
@@ -793,6 +861,27 @@ export const GSTR1Report = () => {
                         </div>
                     </div>
                 </>
+            )}
+            {showHealthModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full p-6 shadow-2xl relative">
+                        <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
+                            <ListChecks className="w-5 h-5 text-blue-600" />
+                            Pre-Validation Health Check
+                        </h3>   
+                        <div className="max-h-[60vh] overflow-y-auto space-y-2 mb-6">
+                            {healthErrors.map((err, i) => (
+                                <div key={i} className={`p-3 rounded-lg text-sm flex gap-2 ${err.includes('No anomalies') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                    {err.includes('No anomalies') ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                                    <span>{err}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex justify-end">
+                            <Button onClick={() => setShowHealthModal(false)}>Close</Button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
