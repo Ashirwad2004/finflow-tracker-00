@@ -36,6 +36,7 @@ import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { BRAND } from "@/core/constants/brand";
 import { Badge } from "@/components/ui/badge";
 import { RequestFeatureDialog } from "@/components/shared/RequestFeatureDialog";
+import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 
 const personalMenuItems = [
@@ -254,6 +255,12 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           </div>
         )}
       </div>
+
+      {!collapsed && (
+        <div className="px-4 py-2 border-b bg-muted/20 flex items-center justify-between">
+          <SyncStatusBadge />
+        </div>
+      )}
 
       {/* Collapse Toggle */}
       <Button

@@ -5,6 +5,7 @@ import { startSyncInterval, processSyncQueue } from '../offline/syncService';
 import { useAuth } from '@/core/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { decryptPayload } from '../offline/crypto';
+import { connectivityService } from '../offline/connectivityService';
 
 export const useOfflineSync = () => {
     const { user } = useAuth();
@@ -85,18 +86,28 @@ export const useOfflineSync = () => {
         const handleOnline = () => {
             setIsOnline(true);
             setIsSyncing(true);
+            connectivityService.setStatus('online');
             if (user) {
                 processSyncQueue(user.id).finally(() => {
                     setIsSyncing(false);
-                    queryClient.invalidateQueries(); // Refresh all queries once sync completes
+                    queryClient.invalidateQueries(); // Refresh all UI queries once sync completes
                 });
             }
         };
-        
-        const handleOffline = () => setIsOnline(false);
+
+        const handleSyncComplete = () => {
+            queryClient.invalidateQueries();
+        };
+
+        const handleOffline = () => {
+            setIsOnline(false);
+            connectivityService.setStatus('offline');
+        };
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
+        window.addEventListener('app-online-reconnect', handleOnline);
+        window.addEventListener('finflow-sync-complete', handleSyncComplete);
 
         let cleanup: (() => void) | undefined;
         if (user) {
@@ -106,9 +117,11 @@ export const useOfflineSync = () => {
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            window.removeEventListener('app-online-reconnect', handleOnline);
+            window.removeEventListener('finflow-sync-complete', handleSyncComplete);
             if (cleanup) cleanup();
         };
-    }, [user?.id]);
+    }, [user?.id, queryClient]);
 
     return {
         isOnline,
