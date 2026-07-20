@@ -54,7 +54,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { GroupExpenseDialog } from "@/features/groups/GroupExpenseDialog";
-import { SendWhatsAppDialog } from "@/components/SendWhatsAppDialog";
 
 // Types
 interface Expense {
@@ -99,13 +98,6 @@ const GroupDetail = () => {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isWhatsappOpen, setIsWhatsappOpen] = useState(false);
-  const [selectedSettlementForWhatsapp, setSelectedSettlementForWhatsapp] = useState<any>(null);
-
-  const handleWhatsappSettlement = (settlement: any) => {
-    setSelectedSettlementForWhatsapp(settlement);
-    setIsWhatsappOpen(true);
-  };
 
   // --- QUERIES ---
 
@@ -545,15 +537,6 @@ const GroupDetail = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="font-bold text-red-500 mr-1">₹{s.amount.toFixed(0)}</div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-green-500 hover:text-green-600 hover:bg-green-50"
-                          onClick={() => handleWhatsappSettlement(s)}
-                          title="Send WhatsApp Reminder"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </Button>
                       </div>
                     </Card>
                   ))}
@@ -680,18 +663,6 @@ const GroupDetail = () => {
             </div>
           </DialogContent>
         </Dialog>
-
-        {selectedSettlementForWhatsapp && (
-          <SendWhatsAppDialog
-            open={isWhatsappOpen}
-            onOpenChange={setIsWhatsappOpen}
-            recipientName={selectedSettlementForWhatsapp.from}
-            amount={selectedSettlementForWhatsapp.amount}
-            mode="group"
-            groupName={group?.name}
-            creditorName={selectedSettlementForWhatsapp.to}
-          />
-        )}
 
       </div>
     </AppLayout>
