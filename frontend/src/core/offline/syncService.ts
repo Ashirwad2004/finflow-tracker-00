@@ -1,120 +1,213 @@
-import db, { SyncRecord } from "./db";
-import { decryptPayload } from "./crypto";
-import { supabase } from "@/core/integrations/supabase/client";
-
 /**
- * Iteratively flushes the offline synchronization queue strictly in chronological order.
- * If a request fails, it halts the entire batch process to prevent order corruption (Partial Fallback).
+ * SyncService
+ *
+ * Background synchronization engine. Processes the offline queue in strict chronological
+ * order with exponential backoff retries, newest-wins conflict resolution based on updated_at,
+ * and automatic status tracking.
  */
+
+import { queueService } from "./queueService";
+import { supabaseRepository } from "./supabaseRepository";
+import { sqliteService } from "./sqliteService";
+import { connectivityService } from "./connectivityService";
+
 let isSyncingActive = false;
 
-/**
- * Iteratively flushes the offline synchronization queue strictly in chronological order.
- * If a request fails, it halts the entire batch process to prevent order corruption (Partial Fallback).
- */
-export const processSyncQueue = async (userId: string) => {
-    if (!navigator.onLine) return;
-    if (isSyncingActive) {
-        console.log("[Sync Engine] Synchronization already in progress, skipping duplicate call.");
-        return;
-    }
+const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases']);
 
-    isSyncingActive = true;
+const sanitizePayloadForTable = (table: string, action: string, payload: any) => {
+  if (!payload || typeof payload !== 'object') return payload;
 
-    try {
-        // Strict Ordering by Creation Time (ASC)
-        const rawItems = await db.syncQueue
-            .where('userId').equals(userId)
-            .filter(item => item.status === 'pending')
-            .toArray();
-            
-        const pendingItems = rawItems.sort((a, b) => a.createdAt - b.createdAt);
+  const clean = { ...payload };
 
-        if (pendingItems.length === 0) return;
+  // Remove updated_at if table schema does not include updated_at column
+  if (TABLES_WITHOUT_UPDATED_AT.has(table)) {
+    delete clean.updated_at;
+  }
 
-        for (const item of pendingItems) {
-            if (!navigator.onLine) break; // Halt progressively if connection drops mid-batch
+  if (table === 'purchases') {
+    const { id, user_id, bill_number, vendor_name, date, status, subtotal, tax_amount, total_amount, items } = clean;
+    return { id, user_id, bill_number, vendor_name, date, status, subtotal, tax_amount, total_amount, items };
+  }
+  
+  if (table === 'sales') {
+    const { id, user_id, invoice_number, customer_name, customer_phone, customer_email, date, status, subtotal, tax_amount, total_amount, payment_method, items } = clean;
+    return { id, user_id, invoice_number, customer_name, customer_phone, customer_email, date, status, subtotal, tax_amount, total_amount, payment_method, items };
+  }
 
-            try {
-                // Progressive Backoff implementation
-                if (item.retryCount > 0) {
-                    const backoffDelay = Math.pow(2, item.retryCount) * 1000;
-                    await new Promise(res => setTimeout(res, backoffDelay));
-                }
-                
-                const payload = decryptPayload(item.payload_encrypted, userId) || {};
-
-                // Supabase API Execution
-                const keyColumn = item.table === 'profiles' ? 'user_id' : 'id';
-                if (item.action === 'insert') {
-                    // Use upsert to handle idempotency and avoid duplicate key issues on retries
-                    const { error } = await (supabase as any).from(item.table).upsert({ ...payload, [keyColumn]: item.recordId });
-                    if (error) throw error;
-                } else if (item.action === 'update') {
-                    // "Last write wins" enforced by updated_at payload mapping applied in apiService
-                    const { error } = await (supabase as any).from(item.table).update(payload).eq(keyColumn, item.recordId);
-                    if (error) throw error;
-                } else if (item.action === 'delete') {
-                    const { error } = await (supabase as any).from(item.table).delete().eq(keyColumn, item.recordId);
-                    if (error) throw error;
-                }
-
-                // Optimistic Commit
-                await db.syncQueue.update(item.id, { status: 'synced' });
-
-            } catch (err: any) {
-                console.error(`[Sync Engine] Interrupted on item ID ${item.id}`, err);
-                
-                // Identify non-transient database errors (RLS, schema errors, type constraints)
-                const isNonTransient = err && err.code && (
-                    err.code.startsWith('23') || // Integrity constraint violations
-                    err.code.startsWith('42') || // Syntax / Access rule / RLS violations
-                    err.code === 'P0001'         // Custom raised exceptions
-                );
-
-                const newRetryCount = item.retryCount + 1;
-                const errorMessage = err?.message || err?.details || String(err);
-                
-                if (newRetryCount >= 5 || isNonTransient) {
-                    // Exhausted retries or non-transient: Mark as failed gracefully so we don't block the queue
-                    await db.syncQueue.update(item.id, { 
-                        status: 'failed', 
-                        retryCount: newRetryCount,
-                        error: errorMessage
-                    });
-                } else {
-                    // Standard retry increment
-                    await db.syncQueue.update(item.id, { 
-                        retryCount: newRetryCount,
-                        error: errorMessage
-                    });
-                    // We BREAK here to ensure strict ordering. 
-                    // E.g., if "Update Expense" fails, we must not jump to "Delete Expense"
-                    break;
-                }
-            }
-        }
-    } finally {
-        isSyncingActive = false;
-    }
+  return clean;
 };
 
 /**
- * Bootstraps standard JS fallback Interval Loop for Sync
+ * Processes all pending items in the sync queue strictly in order of creation.
  */
-export const startSyncInterval = (userId: string) => {
+export const processSyncQueue = async (userId: string): Promise<void> => {
+  if (!navigator.onLine) {
+    connectivityService.setStatus('offline');
+    return;
+  }
+
+  if (isSyncingActive) {
+    return;
+  }
+
+  isSyncingActive = true;
+  connectivityService.setStatus('syncing');
+
+  try {
+    const pendingItems = await queueService.getPending(userId);
+
+    if (pendingItems.length === 0) {
+      connectivityService.setStatus('online');
+      return;
+    }
+
+    for (const item of pendingItems) {
+      if (!navigator.onLine) {
+        connectivityService.setStatus('offline');
+        break;
+      }
+
+      try {
+        // Progressive exponential backoff
+        if (item.retryCount > 0) {
+          const backoffMs = Math.pow(2, item.retryCount) * 1000;
+          await new Promise(res => setTimeout(res, backoffMs));
+        }
+
+        const rawPayload = queueService.getPayload(item);
+        const payload = sanitizePayloadForTable(item.table, item.action, rawPayload);
+
+        // Supabase REST Execution with Conflict Resolution
+        if (item.action === 'insert') {
+          // Check conflict resolution for inserts if updated_at is supported
+          let shouldUpdateRemote = true;
+          if (!TABLES_WITHOUT_UPDATED_AT.has(item.table)) {
+            try {
+              const remoteRecord = await supabaseRepository.fetch(item.table, userId);
+              const existing = remoteRecord.find((r: any) => r.id === item.recordId);
+
+              if (existing && existing.updated_at && payload.updated_at) {
+                const remoteTime = new Date(existing.updated_at).getTime();
+                const localTime = new Date(payload.updated_at).getTime();
+                if (remoteTime > localTime) {
+                  await sqliteService.upsert(item.table, userId, existing);
+                  shouldUpdateRemote = false;
+                }
+              }
+            } catch {
+              // Ignore conflict check network failures
+            }
+          }
+
+          if (shouldUpdateRemote) {
+            try {
+              const result = await supabaseRepository.upsert(item.table, payload);
+              if (result) {
+                await sqliteService.upsert(item.table, userId, result);
+              }
+            } catch (upsertErr: any) {
+              const errText = String(upsertErr?.message || upsertErr?.details || '');
+              if (errText.includes('Could not find') || upsertErr?.code === '42703' || upsertErr?.code === 'PGRST204') {
+                console.warn(`[Sync Engine] Schema mismatch for insert on ${item.table}, retrying with core payload...`);
+                const corePayload = sanitizePayloadForTable(item.table, item.action, payload);
+                const result = await supabaseRepository.upsert(item.table, corePayload);
+                if (result) {
+                  await sqliteService.upsert(item.table, userId, result);
+                }
+              } else {
+                throw upsertErr;
+              }
+            }
+          }
+        } else if (item.action === 'update') {
+          // Execute UPDATE operation directly against remote DB
+          try {
+            const result = await supabaseRepository.update(item.table, item.recordId, payload);
+            if (result) {
+              await sqliteService.upsert(item.table, userId, result);
+            }
+          } catch (updateErr: any) {
+            const errText = String(updateErr?.message || updateErr?.details || '');
+            if (errText.includes('Could not find') || updateErr?.code === '42703' || updateErr?.code === 'PGRST204') {
+              console.warn(`[Sync Engine] Schema mismatch for update on ${item.table}, retrying with core payload...`);
+              const corePayload = sanitizePayloadForTable(item.table, item.action, payload);
+              const result = await supabaseRepository.update(item.table, item.recordId, corePayload);
+              if (result) {
+                await sqliteService.upsert(item.table, userId, result);
+              }
+            } else {
+              throw updateErr;
+            }
+          }
+        } else if (item.action === 'delete') {
+          await supabaseRepository.delete(item.table, item.recordId);
+          await sqliteService.delete(item.recordId);
+        }
+
+        // Successfully synced item: mark synced and remove from queue
+        await queueService.markSynced(item.id, userId);
+
+      } catch (err: any) {
+        console.error(`[Sync Engine] Failed processing item ${item.id} on ${item.table}:`, err);
+
+        const errorMessage = err?.message || err?.details || String(err);
+        const isPermanent = err && err.code && (
+          err.code.startsWith('23') || // Integrity constraint violations
+          (err.code.startsWith('42') && !errorMessage.includes('Could not find')) ||
+          err.code === 'P0001'
+        );
+
+        const newRetryCount = item.retryCount + 1;
+        await queueService.markFailed(item.id, userId, errorMessage, newRetryCount, !!isPermanent);
+
+        if (!isPermanent && newRetryCount < 5) {
+          break;
+        }
+      }
+    }
+
+    connectivityService.updateLastSyncTime();
+    connectivityService.setStatus('online');
+  } finally {
+    isSyncingActive = false;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('finflow-sync-complete', { detail: { userId } }));
+    }
+  }
+};
+
+/**
+ * Initializes automatic background sync polling and reconnection listeners.
+ */
+export const startSyncInterval = (userId: string): (() => void) => {
+  // Initial sync attempt
+  if (navigator.onLine && userId) {
     processSyncQueue(userId);
+  }
 
-    // Poll every 30 seconds
-    const interval = setInterval(() => {
-        if (navigator.onLine) processSyncQueue(userId);
-    }, 30000);
+  // Poll every 30 seconds
+  const intervalId = setInterval(() => {
+    if (navigator.onLine && userId) {
+      processSyncQueue(userId);
+    }
+  }, 30000);
 
-    const handleOnline = () => processSyncQueue(userId);
-    window.addEventListener('online', handleOnline);
+  const handleOnline = () => {
+    connectivityService.setStatus('online');
+    if (userId) processSyncQueue(userId);
+  };
 
-    return () => {
-        clearInterval(interval);
-        window.removeEventListener('online', handleOnline);
-    };
+  const handleOffline = () => {
+    connectivityService.setStatus('offline');
+  };
+
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+
+  return () => {
+    clearInterval(intervalId);
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
 };

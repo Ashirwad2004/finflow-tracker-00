@@ -1,7 +1,20 @@
 import { supabase } from "@/core/integrations/supabase/client";
-import db, { SyncRecord } from "./db";
-import { encryptPayload } from "./crypto";
-import { v4 as uuidv4 } from "uuid";
+import { sqliteService } from "./sqliteService";
+import { queueService } from "./queueService";
+
+const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases']);
+
+export const sanitizePayload = (table: string, action: string, payload: any) => {
+  if (!payload || typeof payload !== 'object') return payload;
+
+  const clean = { ...payload };
+
+  if (TABLES_WITHOUT_UPDATED_AT.has(table)) {
+    delete clean.updated_at;
+  }
+
+  return clean;
+};
 
 interface OfflineMutateParams {
   table: string;
@@ -12,27 +25,55 @@ interface OfflineMutateParams {
 }
 
 /**
- * An Offline First wrapper around Supabase mutations.
- * Attempts Live sync -> Caches to Dexie on Drop
+ * An Offline-First wrapper around Supabase mutations.
+ * Reads and writes update local storage immediately, queue offline tasks,
+ * and synchronize with Supabase asynchronously.
  */
 export const offlineMutate = async ({ table, action, recordId, payload, userId }: OfflineMutateParams) => {
-  // We rely on Supabase's native insert/update conflict resolutions and Dexie's 
-  // chronological ordering to manage offline conflict resolution, rather than 
-  // forceful updated_at payload mapping which breaks tables lacking this column.
+  const basePayload = {
+    id: recordId,
+    user_id: userId,
+    ...(payload || {})
+  };
 
-  // Idempotency: Map 'insert' seamlessly into Supabase 'upsert'
+  if (!TABLES_WITHOUT_UPDATED_AT.has(table) && !basePayload.updated_at) {
+    basePayload.updated_at = new Date().toISOString();
+  }
+
+  const cleanPayload = sanitizePayload(table, action, basePayload);
+
+  // 1. Instant local SQLite/IndexedDB write
+  if (action === 'delete') {
+    await sqliteService.delete(recordId);
+  } else {
+    await sqliteService.upsert(table, userId, cleanPayload);
+  }
+
+  // 2. Perform live call if network is online
   const performLiveCall = async () => {
     const keyColumn = table === 'profiles' ? 'user_id' : 'id';
     if (action === 'insert') {
-      const { data, error } = await (supabase as any).from(table).upsert({ ...payload, [keyColumn]: recordId }).select().single();
+      const { data, error } = await (supabase as any)
+        .from(table)
+        .upsert({ ...cleanPayload, [keyColumn]: recordId })
+        .select()
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data || cleanPayload;
     } else if (action === 'update') {
-      const { data, error } = await (supabase as any).from(table).update(payload).eq(keyColumn, recordId).select().single();
+      const { data, error } = await (supabase as any)
+        .from(table)
+        .update(cleanPayload)
+        .eq(keyColumn, recordId)
+        .select()
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data || cleanPayload;
     } else if (action === 'delete') {
-      const { error } = await (supabase as any).from(table).delete().eq(keyColumn, recordId);
+      const { error } = await (supabase as any)
+        .from(table)
+        .delete()
+        .eq(keyColumn, recordId);
       if (error) throw error;
       return { [keyColumn]: recordId, deleted: true };
     }
@@ -41,50 +82,20 @@ export const offlineMutate = async ({ table, action, recordId, payload, userId }
   if (navigator.onLine) {
     try {
       const result = await performLiveCall();
-      return { data: result, error: null, offline: false };
-    } catch (error: any) {
-      // If the error contains a Postgrest 'code', it means the network call succeeded 
-      // but the database rejected the payload (e.g., Schema validation, missing required column, RLS).
-      // We absolutely MUST throw this to the UI and NOT queue it, otherwise it traps invalid data in a loop.
-      if (error && error.code) {
-          throw error;
+      if (result && action !== 'delete') {
+        await sqliteService.upsert(table, userId, result);
       }
-      console.warn(`[Offline Sync] Live call failed natively, routing to Queue:`, error.message);
-      // Fallthrough to IndexDB queue caching for actual network connection drops
+      return { data: result || cleanPayload, error: null, offline: false };
+    } catch (error: any) {
+      // Postgrest schema errors (non-network drops)
+      if (error && error.code) {
+        throw error;
+      }
+      console.warn(`[Offline Sync] Live call failed, enqueueing to offline Queue:`, error.message);
     }
   }
 
-  // Deduplication Check 
-  // If the exact same record is pending the SAME operation natively, we update the existing queue item
-  const pendingArray = await db.syncQueue
-      .where('recordId').equals(recordId)
-      .toArray();
-      
-  const existingPending = pendingArray.find(
-      (item: SyncRecord) => item.userId === userId && item.table === table && item.status === 'pending' && item.action === action
-  );
-
-  if (existingPending) {
-    await db.syncQueue.update(existingPending.id, {
-        payload_encrypted: encryptPayload(payload, userId),
-        createdAt: Date.now() // bump time to push to end of strict chronological line
-    });
-    return { data: payload, error: null, offline: true };
-  }
-
-  // Standard Insert to Queue
-  const syncRecord: SyncRecord = {
-    id: uuidv4(),
-    userId,
-    action,
-    table,
-    recordId,
-    payload_encrypted: encryptPayload(payload || {}, userId),
-    status: 'pending',
-    createdAt: Date.now(),
-    retryCount: 0
-  };
-
-  await db.syncQueue.add(syncRecord);
-  return { data: payload, error: null, offline: true };
+  // 3. Queue for offline background sync
+  await queueService.enqueue(userId, table, action, recordId, cleanPayload);
+  return { data: cleanPayload, error: null, offline: true };
 };

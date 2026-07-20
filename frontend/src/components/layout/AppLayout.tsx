@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
+import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { BRAND } from "@/core/constants/brand";
 
 interface AppLayoutProps {
@@ -30,6 +31,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </Sheet>
           <span className="text-sm font-semibold">{BRAND.name}</span>
         </div>
+        <SyncStatusBadge />
       </header>
       <div className="flex-1 flex overflow-hidden">
         <div className="hidden md:block h-full shrink-0">
