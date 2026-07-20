@@ -1,5 +1,5 @@
 -- Add bill_url column to expenses table
-ALTER TABLE public.expenses ADD COLUMN bill_url text;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS bill_url text;
 
 -- Create storage bucket for bills
 INSERT INTO storage.buckets (id, name, public) VALUES ('bills', 'bills', false);

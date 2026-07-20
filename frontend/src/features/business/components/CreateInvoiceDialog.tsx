@@ -49,6 +49,8 @@ interface InvoiceFormValues {
     amended_invoice_id?: string;
     invoice_number: string;
     date: string;
+    due_date?: string;
+    notes?: string;
     items: InvoiceItem[];
     tax_rate: number;
     overall_discount: number;
@@ -80,6 +82,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             original_invoice_id: "",
             invoice_number: "",
             date: new Date().toISOString().split("T")[0],
+            due_date: "",
             items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
             tax_rate: 0,
             overall_discount: 0,
@@ -188,7 +191,9 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 status: invoiceToEdit.status || "paid",
                 irn: invoiceToEdit.irn || "",
                 eway_bill_number: invoiceToEdit.eway_bill_number || "",
-                qr_code: invoiceToEdit.qr_code || ""
+                qr_code: invoiceToEdit.qr_code || "",
+                due_date: invoiceToEdit.due_date || "",
+                notes: invoiceToEdit.notes || ""
             });
         } else if (open && !invoiceToEdit) {
             reset({
@@ -208,7 +213,9 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 status: salesSettings?.defaultStatus ?? "paid",
                 irn: "",
                 eway_bill_number: "",
-                qr_code: ""
+                qr_code: "",
+                due_date: salesSettings?.defaultPaymentTermsDays ? new Date(new Date().getTime() + salesSettings.defaultPaymentTermsDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : "",
+                notes: salesSettings?.defaultTermsAndConditions || ""
             });
         }
     }, [open, invoiceToEdit, reset]);
@@ -283,6 +290,11 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 setValue(`items.${index}.hsn_code`, product.hsn_code);
             }
         }
+
+        // Automatic Next Line Creation: If typing in the last row, automatically append a new empty line
+        if (productName.trim() !== "" && index === fields.length - 1) {
+            append({ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" });
+        }
     };
 
     // Outstanding balance check helper
@@ -347,7 +359,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             if (!profileData) {
                 try {
                     const { data } = await supabase
-                        .from("profiles")
+                        .from("profiles" as any)
                         .select("business_name, gst_number, business_address, business_phone")
                         .eq("user_id", user.id)
                         .single();
@@ -357,7 +369,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 }
             }
 
-            const processedItems = values.items.map(item => {
+            const validItems = values.items.filter(item => item.description && item.description.trim() !== "");
+            const itemsToProcess = validItems.length > 0 ? validItems : values.items;
+
+            const processedItems = itemsToProcess.map(item => {
                 const qty = Number(item.quantity) || 0;
                 const price = Number(item.price) || 0;
                 const disc = Number(item.discount) || 0;
@@ -379,6 +394,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 document_type: values.document_type || "invoice",
                 original_invoice_id: values.original_invoice_id || null,
                 date: values.date,
+                due_date: values.due_date || null,
                 items: processedItems,
                 subtotal: subtotal,
                 discount_amount: overallDiscountAmount,
@@ -389,7 +405,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 payment_method: values.status === 'paid' ? "cash" : null,
                 irn: values.irn || null,
                 eway_bill_number: values.eway_bill_number || null,
-                qr_code: values.qr_code || null
+                qr_code: values.qr_code || null,
+                notes: values.notes || null
             };
 
             // Invoice number conflicts: check React Query cache
@@ -401,14 +418,50 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
             const recordId = invoiceToEdit ? invoiceToEdit.id : uuidv4();
             
-            // Route through offlineMutate
-            const result = await offlineMutate({
-                table: "sales",
-                action: invoiceToEdit ? "update" : "insert",
-                recordId,
-                payload: { id: recordId, ...saleData, created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString() },
-                userId: user.id
-            });
+            // Route through offlineMutate with safe DB fallback for missing columns
+            const fullSalePayload = { id: recordId, ...saleData, created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString() };
+
+            const saveSaleToDB = async (action: "insert" | "update", rId: string, sPayload: any) => {
+                try {
+                    const res = await offlineMutate({
+                        table: "sales",
+                        action,
+                        recordId: rId,
+                        payload: sPayload,
+                        userId: user.id
+                    });
+                    if (!res.error) return res;
+                } catch (err: any) {
+                    console.warn("Full sales schema insert threw exception, falling back to core DB schema:", err);
+                }
+
+                // Fallback: strip extended columns if remote DB has not applied migration
+                const coreSaleData = {
+                    id: sPayload.id,
+                    user_id: sPayload.user_id,
+                    invoice_number: sPayload.invoice_number,
+                    customer_name: sPayload.customer_name,
+                    customer_phone: sPayload.customer_phone,
+                    customer_email: sPayload.customer_email,
+                    date: sPayload.date,
+                    status: sPayload.status,
+                    subtotal: sPayload.subtotal,
+                    tax_amount: sPayload.tax_amount,
+                    total_amount: sPayload.total_amount,
+                    payment_method: sPayload.payment_method,
+                    items: sPayload.items
+                };
+
+                return await offlineMutate({
+                    table: "sales",
+                    action,
+                    recordId: rId,
+                    payload: coreSaleData,
+                    userId: user.id
+                });
+            };
+
+            const result = await saveSaleToDB(invoiceToEdit ? "update" : "insert", recordId, fullSalePayload);
             if (result.error) throw result.error;
 
             // Auto-add Customer to Parties directory if enabled
@@ -522,11 +575,12 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     });
 
     const onSubmit = async (data: InvoiceFormValues) => {
-        // Validation: Ensure there is at least one item
-        if (data.items.length === 0) {
+        // Validation: Ensure there is at least one non-empty product item
+        const validItems = data.items.filter(it => it.description && it.description.trim() !== "");
+        if (validItems.length === 0) {
             toast({
                 title: "Validation Error",
-                description: "You must add at least one item to the invoice.",
+                description: "Please enter at least one product description for the invoice.",
                 variant: "destructive"
             });
             return;
@@ -781,6 +835,16 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                             />
                                         </div>
                                     </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-xs font-medium text-slate-600">Due Date</Label>
+                                        <div className="w-[140px]">
+                                            <Input
+                                                type="date"
+                                                {...register("due_date")}
+                                                className="h-9 rounded-sm border-slate-300 bg-white text-sm"
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="flex items-center justify-between pt-1">
                                         <Label className="text-xs font-medium text-slate-600">Status</Label>
                                         <div className="w-[140px]">
@@ -846,7 +910,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                                 <div className="sm:p-0">
                                                     <Input
                                                         className={`h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 bg-transparent focus-visible:ring-1 focus-visible:ring-inset ${errors.items?.[index]?.description ? "border-destructive sm:border-destructive sm:ring-1 sm:ring-inset sm:ring-destructive/50" : ""}`}
-                                                        {...register(`items.${index}.description` as const, { required: true })}
+                                                        {...register(`items.${index}.description` as const)}
                                                         placeholder="Enter item description"
                                                         list={`products-list-${index}`}
                                                         onChange={(e) => {
@@ -883,7 +947,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                                     <Input
                                                         type="number"
                                                         className="h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 text-right bg-transparent focus-visible:ring-1 focus-visible:ring-inset"
-                                                        {...register(`items.${index}.quantity` as const, { required: true, min: 1 })}
+                                                        {...register(`items.${index}.quantity` as const, { valueAsNumber: true, min: 1 })}
                                                         min="1"
                                                     />
                                                 </div>
@@ -931,25 +995,21 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                     })}
                                 </div>
                             </div>
-
-                            <div className="pt-2">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className="text-primary hover:bg-primary/5 text-sm font-medium px-2 h-8"
-                                    onClick={() => append({ description: "", quantity: 1, price: 0, discount: 0, total: 0 })}>
-                                    <Plus className="w-4 h-4 mr-1.5" /> Add Line
-                                </Button>
-                            </div>
                         </div>
 
                         {/* Bottom Section: Notes & Totals */}
                         <div className="flex flex-col md:flex-row justify-between gap-8 pt-4 pb-8 border-t border-slate-100">
-                            <div className="flex-1 max-w-sm">
-                                {/* Optional: Add Notes or Terms area here later if needed */}
-                                <div className="p-4 bg-slate-50 rounded-sm border border-slate-100 text-xs text-slate-500 italic">
-                                    Notes and payment terms will appear on the final generated document.
-                                </div>
+                            <div className="flex-1 max-w-sm space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5 text-primary" /> Seller Notes & Terms
+                                </Label>
+                                <textarea
+                                    {...register("notes")}
+                                    placeholder="Add payment terms, bank details, or thank-you note for customer..."
+                                    rows={3}
+                                    className="w-full text-xs p-2.5 rounded-sm border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-slate-800 transition-all resize-none"
+                                />
+                                <p className="text-[10px] text-slate-400">These notes will be printed on the invoice PDF.</p>
                             </div>
 
                             <div className="w-full md:w-[320px]">

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { useCurrency, CURRENCIES } from "@/core/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, MessageSquare } from "lucide-react";
+import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, MessageSquare, Bell, Clock } from "lucide-react";
+import { getOverdueDaysThreshold, setOverdueDaysThreshold } from "@/core/utils/overdue";
 import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -66,6 +67,19 @@ const SettingsPage = () => {
     const [autoAddParties, setAutoAddParties] = useState(() => {
         return localStorage.getItem("finflow_auto_add_parties") === "true";
     });
+    const [overdueDays, setOverdueDays] = useState<number>(() => getOverdueDaysThreshold());
+
+    const handleOverdueDaysChange = (val: string) => {
+        const num = parseInt(val, 10);
+        if (!isNaN(num)) {
+            setOverdueDays(num);
+            setOverdueDaysThreshold(num);
+            toast({
+                title: "Overdue Setting Saved",
+                description: `Unpaid bills older than ${num} days will now automatically flag as Overdue across the system.`,
+            });
+        }
+    };
 
     const handleAutoAddPartiesToggle = (checked: boolean) => {
         setAutoAddParties(checked);
@@ -181,7 +195,7 @@ const SettingsPage = () => {
                             Store
                         </TabsTrigger>
                         <TabsTrigger value="notifications" className="flex items-center gap-2 text-xs font-semibold">
-                            <MessageSquare className="w-3.5 h-3.5" />
+                            <Bell className="w-3.5 h-3.5" />
                             Notifications
                         </TabsTrigger>
                     </TabsList>
@@ -233,6 +247,43 @@ const SettingsPage = () => {
                                         />
                                     </div>
                                 )}
+                            </CardContent>
+                        </Card>
+
+                        {/* System-wide Overdue Threshold Settings */}
+                        <Card className="rounded-md">
+                            <CardHeader className="p-4 pb-2">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-amber-500" />
+                                    <CardTitle className="text-base">Payment Terms & Overdue Threshold</CardTitle>
+                                </div>
+                                <CardDescription className="text-xs">
+                                    System-wide rule for automatic overdue calculation on unpaid bills & invoices.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0">
+                                <div className="space-y-2">
+                                    <Label htmlFor="overdue-threshold" className="text-xs font-semibold">Overdue Period (Days)</Label>
+                                    <Select
+                                        value={overdueDays.toString()}
+                                        onValueChange={handleOverdueDaysChange}
+                                    >
+                                        <SelectTrigger id="overdue-threshold" className="h-8 text-xs">
+                                            <SelectValue placeholder="Select Overdue Period" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="7">7 Days (Weekly)</SelectItem>
+                                            <SelectItem value="15">15 Days (Net 15)</SelectItem>
+                                            <SelectItem value="30">30 Days (Net 30)</SelectItem>
+                                            <SelectItem value="45">45 Days (Net 45)</SelectItem>
+                                            <SelectItem value="60">60 Days (Net 60)</SelectItem>
+                                            <SelectItem value="90">90 Days (Quarterly)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-[11px] text-muted-foreground mt-1">
+                                        Unpaid bills and invoices older than <span className="font-bold text-slate-700 dark:text-slate-200">{overdueDays} days</span> are automatically classified as Overdue across Purchases, Sales, and Reports.
+                                    </p>
+                                </div>
                             </CardContent>
                         </Card>
 

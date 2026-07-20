@@ -41,6 +41,8 @@ import {
   Check
 } from "lucide-react";
 import { cn } from "@/core/lib/utils";
+import { useLoanSettings } from "@/core/hooks/use-loan-settings";
+import { addDays, format } from "date-fns";
 
 const lentMoneySchema = z.object({
   amount: z.string().min(1, "Amount is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive number"),
@@ -64,12 +66,19 @@ export const LentMoneyDialog = ({ open, onOpenChange, userId, defaultPersonName 
   const [loading, setLoading] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
 
+  const { settings } = useLoanSettings(userId);
+
   // Sync prop changes to state
   useEffect(() => {
     if (open) {
       setPersonName(defaultPersonName);
+      if (settings.defaultDueDateDays > 0) {
+        setDueDate(format(addDays(new Date(), settings.defaultDueDateDays), "yyyy-MM-dd"));
+      } else {
+        setDueDate("");
+      }
     }
-  }, [defaultPersonName, open]);
+  }, [defaultPersonName, open, settings.defaultDueDateDays]);
 
   const queryClient = useQueryClient();
 

@@ -27,14 +27,8 @@ export default function TermsOfService() {
         "Certain features, such as advanced AI scanning, custom storefront branding, and team collaboration, require a paid subscription. Subscriptions are billed on a recurring basis and can be canceled at any time."
     },
     {
-      icon: MessageSquare,
-      title: "4. WhatsApp Messaging Guidelines",
-      content:
-        "FinFlow enables you to send invoices to your customers via WhatsApp. You are responsible for ensuring that you have consent from your customers to contact them and that you comply with WhatsApp's spam and acceptable use policies."
-    },
-    {
       icon: AlertTriangle,
-      title: "5. Limitation of Liability",
+      title: "4. Limitation of Liability",
       content:
         "FinFlow is provided 'as-is' without warranties of any kind. We are not liable for any financial inaccuracies, business disruptions, or data loss occurring due to hardware failures or local device issues."
     }

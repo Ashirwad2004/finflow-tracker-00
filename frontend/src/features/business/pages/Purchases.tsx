@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag } from "lucide-react";
@@ -8,6 +9,7 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { isRecordOverdue, getOverdueDaysThreshold } from "@/core/utils/overdue";
 import { format, isSameMonth } from "date-fns";
 import {
     DropdownMenu,
@@ -23,6 +25,8 @@ export default function PurchasesPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingPurchase, setEditingPurchase] = useState<any>(null);
+    
+    const tableContainerRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
     const queryClient = useQueryClient();
@@ -56,7 +60,10 @@ export default function PurchasesPage() {
         tax_amount?: number;
         tax_rate?: number;
         discount_amount?: number;
+        amount_paid?: number;
+        balance_due?: number;
         date: string;
+        due_date?: string;
         items: any[];
     }
 
@@ -227,15 +234,16 @@ export default function PurchasesPage() {
         }
     };
 
-    // Calculate Metrics
+    // Calculate Metrics using system-wide overdue logic
     const today = new Date();
-
-    const outstandingTotal = purchases
-        .filter(p => p.status === 'pending')
-        .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const overdueDaysThreshold = getOverdueDaysThreshold();
 
     const overdueTotal = purchases
-        .filter(p => p.status === 'overdue')
+        .filter(p => isRecordOverdue(p))
+        .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+
+    const outstandingTotal = purchases
+        .filter(p => p.status === 'pending' && !isRecordOverdue(p))
         .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
 
     const spentThisMonth = purchases
@@ -246,8 +254,21 @@ export default function PurchasesPage() {
         const matchesSearch =
             purchase.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             purchase.bill_number?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filterStatus === 'all' || purchase.status === filterStatus;
-        return matchesSearch && matchesFilter;
+        
+        let matchesFilter = filterStatus === 'all';
+        if (filterStatus === 'paid') matchesFilter = purchase.status === 'paid';
+        if (filterStatus === 'draft') matchesFilter = !purchase.status || purchase.status === 'draft';
+        if (filterStatus === 'overdue') matchesFilter = isRecordOverdue(purchase);
+        if (filterStatus === 'pending') matchesFilter = purchase.status === 'pending' && !isRecordOverdue(purchase);
+
+        return matchesFilter && matchesSearch;
+    });
+
+    const rowVirtualizer = useVirtualizer({
+        count: filteredPurchases.length,
+        getScrollElement: () => tableContainerRef.current,
+        estimateSize: () => 80, // Approximate height of table row
+        overscan: 10,
     });
 
     return (
@@ -354,9 +375,12 @@ export default function PurchasesPage() {
                         </button>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[1000px]">
-                            <thead>
+                    <div 
+                        className="overflow-auto max-h-[65vh] w-full"
+                        ref={tableContainerRef}
+                    >
+                        <table className="w-full text-left border-collapse min-w-[1000px] relative">
+                            <thead className="sticky top-0 z-10 shadow-sm">
                                 <tr className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                     <th className="px-6 py-4">Bill Ref</th>
                                     <th className="px-6 py-4">Vendor</th>
@@ -373,8 +397,16 @@ export default function PurchasesPage() {
                                 ) : filteredPurchases.length === 0 ? (
                                     <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No purchases matching your criteria.</td></tr>
                                 ) : (
-                                    filteredPurchases.map((purchase) => (
-                                        <tr key={purchase.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
+                                    <>
+                                        {rowVirtualizer.getVirtualItems().length > 0 && (
+                                            <tr>
+                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }} />
+                                            </tr>
+                                        )}
+                                        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                            const purchase = filteredPurchases[virtualRow.index];
+                                            return (
+                                        <tr key={purchase.id} onClick={() => handleEdit(purchase)} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
                                             <td className="px-6 py-4">
                                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{purchase.bill_number ? purchase.bill_number : `#${purchase.id.substring(0, 6)}`}</p>
                                                 <p className="text-[10px] text-slate-400 mt-0.5">{purchase.items?.length || 0} items</p>
@@ -398,12 +430,30 @@ export default function PurchasesPage() {
                                             <td className="px-6 py-4 text-sm font-extrabold text-slate-900 dark:text-white text-right">
                                                 {formatCurrency(purchase.total_amount)}
                                             </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {purchase.status === 'paid' && <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">Paid</span>}
-                                                {purchase.status === 'pending' && <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">Pending</span>}
-                                                {purchase.status === 'overdue' && <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50">Overdue</span>}
-                                                {(!purchase.status || purchase.status === 'draft') && <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">Draft</span>}
-                                            </td>
+                                             <td className="px-6 py-4 text-center">
+                                                 {(() => {
+                                                     const amtPaid = Number(purchase.amount_paid || 0);
+                                                     const balDue = Number(purchase.balance_due || (purchase.total_amount - amtPaid));
+
+                                                     if (purchase.status === 'paid') {
+                                                         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">Paid</span>;
+                                                     }
+                                                     if (amtPaid > 0 && amtPaid < purchase.total_amount) {
+                                                         return (
+                                                             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50" title={`Paid ${formatCurrency(amtPaid)}`}>
+                                                                 Partial ({formatCurrency(balDue)})
+                                                             </span>
+                                                         );
+                                                     }
+                                                     if (isRecordOverdue(purchase) && amtPaid === 0) {
+                                                         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50" title={`Overdue (Threshold: ${overdueDaysThreshold} days)`}>Overdue</span>;
+                                                     }
+                                                     if (purchase.status === 'pending' && amtPaid === 0 && !isRecordOverdue(purchase)) {
+                                                         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">Unpaid</span>;
+                                                     }
+                                                     return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">Draft</span>;
+                                                 })()}
+                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                     <button
@@ -445,7 +495,14 @@ export default function PurchasesPage() {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
+                                            );
+                                        })}
+                                        {rowVirtualizer.getVirtualItems().length > 0 && (
+                                            <tr>
+                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }} />
+                                            </tr>
+                                        )}
+                                    </>
                                 )}
                             </tbody>
                         </table>

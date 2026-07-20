@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef } from "react";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -33,6 +35,7 @@ const AllExpenses = () => {
   const [aiReport, setAiReport] = useState<FinanceInsight | null>(null);
   const [aiReportTitle, setAiReportTitle] = useState("");
   const [activeAiAction, setActiveAiAction] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: expenses = [], isLoading, refetch } = useExpensesQuery(user?.id);
 
@@ -118,6 +121,13 @@ const AllExpenses = () => {
     });
 
   const totalFiltered = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredExpenses.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 80, // estimated height of row + gap
+    overscan: 5,
+  });
 
   const runFinanceAi = async (
     mode: "explain-expenses" | "losing-money" | "tax-summary" | "spending-prediction",
@@ -335,45 +345,69 @@ const AllExpenses = () => {
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {filteredExpenses.map((expense) => (
-                        <div
-                          key={expense.id}
-                          className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
-                        >
-                          <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: `${expense.categories?.color}20` }}
-                          >
-                            <CategoryIcon
-                              name={expense.categories?.icon}
-                              className="w-5 h-5"
-                              color={expense.categories?.color}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{expense.description}</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Calendar className="w-3 h-3" />
-                              {format(new Date(expense.date), "MMM d, yyyy")}
-                              <Badge variant="secondary" className="text-xs">
-                                {expense.categories?.name}
-                              </Badge>
+                    <div 
+                      ref={scrollContainerRef} 
+                      className="max-h-[70vh] overflow-y-auto pr-2 rounded-lg"
+                    >
+                      <div
+                        style={{
+                          height: `${rowVirtualizer.getTotalSize()}px`,
+                          width: '100%',
+                          position: 'relative',
+                        }}
+                      >
+                        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                          const expense = filteredExpenses[virtualRow.index];
+                          return (
+                            <div
+                              key={virtualRow.key}
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: `${virtualRow.size}px`,
+                                transform: `translateY(${virtualRow.start}px)`,
+                              }}
+                              className="pb-3" // Adds spacing between virtualized rows
+                            >
+                              <div className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors group h-full">
+                                <div
+                                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                                  style={{ backgroundColor: `${expense.categories?.color}20` }}
+                                >
+                                  <CategoryIcon
+                                    name={expense.categories?.icon}
+                                    className="w-5 h-5"
+                                    color={expense.categories?.color}
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{expense.description}</p>
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Calendar className="w-3 h-3" />
+                                    {format(new Date(expense.date), "MMM d, yyyy")}
+                                    <Badge variant="secondary" className="text-xs shrink-0">
+                                      {expense.categories?.name}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="font-bold text-lg">₹{expense.amount.toFixed(2)}</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => deleteExpense.mutate(expense.id)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive shrink-0"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-lg">₹{expense.amount.toFixed(2)}</p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteExpense.mutate(expense.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </CardContent>

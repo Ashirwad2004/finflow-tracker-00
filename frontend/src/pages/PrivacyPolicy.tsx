@@ -30,7 +30,7 @@ export default function PrivacyPolicy() {
       icon: Server,
       title: "4. Third-Party Integrations & Sharing",
       content:
-        "We do not sell your personal or financial data to third parties. We integrate with services like WhatsApp to facilitate sending automated invoices to your clients at your explicit trigger."
+        "We do not sell your personal or financial data to third parties. We integrate with external services to facilitate sending automated invoices to your clients at your explicit trigger."
     },
     {
       icon: Shield,
