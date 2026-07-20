@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { offlineMutate } from "@/core/offline/apiService";
 import { v4 as uuidv4 } from "uuid";
+import imageCompression from "browser-image-compression";
 import {
   Dialog,
   DialogContent,
@@ -243,12 +244,28 @@ export const AddExpenseDialog = ({
 
   // --- Submission Logic ---
   const uploadBillToStorage = async (file: File): Promise<string | null> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const { error } = await supabase.storage.from('bills').upload(fileName, file);
-    if (error) return null;
-    const { data } = supabase.storage.from('bills').getPublicUrl(fileName);
-    return data.publicUrl;
+    try {
+      // Compress image before upload
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      };
+      
+      let fileToUpload = file;
+      if (file.type.startsWith('image/')) {
+        fileToUpload = await imageCompression(file, options);
+      }
+
+      const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
+      const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const { error } = await supabase.storage.from('bills').upload(fileName, fileToUpload);
+      if (error) return null;
+      return fileName;
+    } catch (err) {
+      console.error("Error uploading bill:", err);
+      return null;
+    }
   };
 
   const addExpensesMutation = useMutation({

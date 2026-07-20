@@ -24,6 +24,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/core/integrations/supabase/client";
+import { toast } from "sonner";
 
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useBusiness } from "@/core/contexts/BusinessContext";
@@ -59,6 +61,28 @@ export const ExpenseList = ({ expenses, isLoading, onEdit, onDelete, onDeleteAll
   const { formatCurrency, currency } = useCurrency();
   const { isBusinessMode } = useBusiness();
   const [billPreviewUrl, setBillPreviewUrl] = useState<string | null>(null);
+  const [isGeneratingSignedUrl, setIsGeneratingSignedUrl] = useState(false);
+
+  const handleViewBill = async (path: string) => {
+    if (path.startsWith('http')) {
+      setBillPreviewUrl(path);
+      return;
+    }
+    
+    setIsGeneratingSignedUrl(true);
+    try {
+      const { data, error } = await supabase.storage.from('bills').createSignedUrl(path, 900); // 15 mins expiry
+      if (error) {
+        toast.error("Failed to access secure document");
+        return;
+      }
+      setBillPreviewUrl(data.signedUrl);
+    } catch (e) {
+      toast.error("Error accessing secure document");
+    } finally {
+      setIsGeneratingSignedUrl(false);
+    }
+  };
 
   const formatDateForCSV = (d?: string | Date | null) => {
     if (!d) return '';
@@ -298,9 +322,9 @@ export const ExpenseList = ({ expenses, isLoading, onEdit, onDelete, onDeleteAll
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 opacity-60 hover:opacity-100"
-                            onClick={() => setBillPreviewUrl(expense.bill_url!)}
-                            title="View bill"
+                            className={`h-6 w-6 opacity-60 hover:opacity-100 ${isGeneratingSignedUrl ? 'animate-pulse' : ''}`}
+                            onClick={() => handleViewBill(expense.bill_url!)}
+                            title="View secure bill"
                           >
                             <FileText className="h-3.5 w-3.5 text-primary" />
                           </Button>

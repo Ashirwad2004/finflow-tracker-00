@@ -33,15 +33,17 @@ import {
   Trash2,
   FileDown,
   Loader2,
-  MessageSquare
+  MessageSquare,
+  TrendingUp,
+  Settings2
 } from "lucide-react";
 import { format } from "date-fns";
 import { EditLentMoneyDialog } from "@/features/loans/components/EditLentMoneyDialog";
-import { SendWhatsAppDialog } from "@/components/SendWhatsAppDialog";
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { useBusiness } from "@/core/contexts/BusinessContext";
+import { LoanSettingsDialog } from "@/features/loans/components/LoanSettingsDialog";import { useBusiness } from "@/core/contexts/BusinessContext";
 
 interface LentMoneySectionProps {
   userId: string;
@@ -67,13 +69,8 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
   const [selectedLoan, setSelectedLoan] = useState<LentMoneyRecord | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isWhatsappOpen, setIsWhatsappOpen] = useState(false);
-  const [selectedLoanForWhatsapp, setSelectedLoanForWhatsapp] = useState<LentMoneyRecord | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const handleWhatsappReminder = (loan: LentMoneyRecord) => {
-    setSelectedLoanForWhatsapp(loan);
-    setIsWhatsappOpen(true);
-  };
 
   const { data: lentMoney = [], isLoading } = useQuery({
     queryKey: ["lent-money", userId],
@@ -326,10 +323,19 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
                 </Badge>
               )}
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSettingsOpen(true)}
+                className="h-8"
+              >
+                <Settings2 className="w-3.5 h-3.5 mr-2" />
+                Settings
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
               onClick={handleExportPDF}
               disabled={isExporting || lentMoney.length === 0}
               className="h-8"
@@ -340,7 +346,8 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
                 <FileDown className="w-3.5 h-3.5 mr-2" />
               )}
               Export PDF
-            </Button>
+              </Button>
+            </div>
 
           </div>
         </CardHeader>
@@ -403,10 +410,6 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleWhatsappReminder(loan)}>
-                          <MessageSquare className="w-4 h-4 mr-2 text-green-500" />
-                          WhatsApp Reminder
-                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEdit(loan)}>
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
@@ -501,17 +504,10 @@ export const LentMoneySection = ({ userId }: LentMoneySectionProps) => {
         onOpenChange={setEditDialogOpen}
         lentMoney={selectedLoan}
       />
-
-      {selectedLoanForWhatsapp && (
-        <SendWhatsAppDialog
-          open={isWhatsappOpen}
-          onOpenChange={setIsWhatsappOpen}
-          recipientName={selectedLoanForWhatsapp.person_name}
-          amount={selectedLoanForWhatsapp.amount}
-          dueDate={selectedLoanForWhatsapp.due_date}
-          mode="lent"
-        />
-      )}
+      <LoanSettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+      />
     </>
   );
 };

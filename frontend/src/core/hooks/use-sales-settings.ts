@@ -53,6 +53,8 @@ export interface SalesSettings {
   confirmBeforeDelete: boolean;
   /** Enable HSN code entry on products and invoices. */
   enableHsnCode: boolean;
+  /** Default Terms & Conditions prefilled on new invoices. */
+  defaultTermsAndConditions?: string;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -67,6 +69,7 @@ const DEFAULTS: SalesSettings = {
   warnOnOutstandingBalance: false,
   confirmBeforeDelete: true,
   enableHsnCode: false,
+  defaultTermsAndConditions: "Thank you for your business. For any inquiries, please contact us.",
 };
 
 function getStorageKey(userId: string | undefined) {

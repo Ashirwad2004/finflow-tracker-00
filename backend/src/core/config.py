@@ -22,12 +22,6 @@ class Settings(BaseSettings):
     VITE_SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
-    # WhatsApp API configuration
-    WHATSAPP_TOKEN: str = ""
-    WHATSAPP_PHONE_ID: str = ""
-    MAX_DAILY_MESSAGES: int = 3
-    DND_START_HOUR: int = 21
-    DND_END_HOUR: int = 9
 
     @property
     def SUPABASE_URL(self) -> str:
@@ -37,9 +31,6 @@ class Settings(BaseSettings):
     def SUPABASE_KEY(self) -> str:
         return self.SUPABASE_SERVICE_ROLE_KEY
 
-    @property
-    def WHATSAPP_API_URL(self) -> str:
-        return f"https://graph.facebook.com/v18.0/{self.WHATSAPP_PHONE_ID}/messages"
 
     model_config = SettingsConfigDict(
         case_sensitive=True,

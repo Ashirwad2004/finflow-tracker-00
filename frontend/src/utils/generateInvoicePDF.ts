@@ -24,6 +24,7 @@ export interface InvoiceDetails {
     igst?: number;
     total_amount: number;
     customer_gstin?: string;
+    notes?: string;
     irn?: string;
     eway_bill_number?: string;
     qr_code?: string;
@@ -227,7 +228,7 @@ export const generateInvoicePDF = async (
         const theme = savedTheme === 'thermal' ? 'corporate' : savedTheme;
         const documentTitle = options?.documentTitle;
         const pageSize = options?.pageSize || (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || 'a4';
-        const customTerms = options?.customTerms || localStorage.getItem("finflow_invoice_terms") || "";
+        const customTerms = data.notes || options?.customTerms || localStorage.getItem("finflow_invoice_terms") || "";
 
         const doc = new jsPDF({
             orientation: 'portrait',
@@ -277,12 +278,12 @@ export const generateInvoicePDF = async (
                 let eInvY = startY;
                 const eInvX = startX + colWidth + 5;
                 doc.setFont("helvetica", "bold");
-                doc.setTextColor(...styles.primary);
+                doc.setTextColor(...(styles.primary as [number, number, number]));
                 doc.text("E-INVOICE DETAILS", eInvX, eInvY);
                 eInvY += 6;
                 
                 doc.setFont("helvetica", "normal");
-                doc.setTextColor(...styles.text);
+                doc.setTextColor(...(styles.text as [number, number, number]));
                 
                 // Draw IRN (might be long)
                 const splitIrn = doc.splitTextToSize(details.irn, colWidth);

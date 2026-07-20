@@ -32,13 +32,15 @@ import {
     FileDown,
     Loader2,
     TrendingDown,
-    MessageSquare
+    MessageSquare,
+    Settings2
 } from "lucide-react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { SendWhatsAppDialog } from "@/components/SendWhatsAppDialog";
+
 import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { LoanSettingsDialog } from "@/features/loans/components/LoanSettingsDialog";
 
 interface BorrowedMoneySectionProps {
     userId: string;
@@ -63,13 +65,7 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedDebt, setSelectedDebt] = useState<BorrowedMoneyRecord | null>(null);
     const [isExporting, setIsExporting] = useState(false);
-    const [isWhatsappOpen, setIsWhatsappOpen] = useState(false);
-    const [selectedDebtForWhatsapp, setSelectedDebtForWhatsapp] = useState<BorrowedMoneyRecord | null>(null);
-
-    const handleWhatsappUpdate = (debt: BorrowedMoneyRecord) => {
-        setSelectedDebtForWhatsapp(debt);
-        setIsWhatsappOpen(true);
-    };
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const { data: borrowedMoney = [], isLoading, refetch } = useQuery({
         queryKey: ["borrowed-money", userId],
@@ -325,10 +321,19 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                                 </Badge>
                             )}
                         </div>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsSettingsOpen(true)}
+                                className="h-8"
+                            >
+                                <Settings2 className="w-3.5 h-3.5 mr-2" />
+                                Settings
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
                             onClick={handleExportPDF}
                             disabled={isExporting || borrowedMoney.length === 0}
                             className="h-8"
@@ -339,8 +344,8 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                                 <FileDown className="w-3.5 h-3.5 mr-2" />
                             )}
                             Export PDF
-                        </Button>
-
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -403,10 +408,6 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleWhatsappUpdate(debt)}>
-                                                    <MessageSquare className="w-4 h-4 mr-2 text-green-500" />
-                                                    WhatsApp Update
-                                                </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => handleDelete(debt)}
                                                     className="text-destructive focus:text-destructive"
@@ -487,17 +488,10 @@ export const BorrowedMoneySection = ({ userId, onRefetchReady }: BorrowedMoneySe
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-
-            {selectedDebtForWhatsapp && (
-                <SendWhatsAppDialog
-                    open={isWhatsappOpen}
-                    onOpenChange={setIsWhatsappOpen}
-                    recipientName={selectedDebtForWhatsapp.person_name}
-                    amount={selectedDebtForWhatsapp.amount}
-                    dueDate={selectedDebtForWhatsapp.due_date}
-                    mode="borrowed"
-                />
-            )}
+            <LoanSettingsDialog
+                open={isSettingsOpen}
+                onOpenChange={setIsSettingsOpen}
+            />
         </>
     );
 };

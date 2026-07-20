@@ -48,7 +48,7 @@ const Index = () => {
   const feedbacks = [
     { text: "Wi-Fi dropped but counter kept billing!", rating: 5, shop: "Aroma Roasters" },
     { text: "E-commerce storefront ready in 60s!", rating: 4.5, shop: "Style Studio" },
-    { text: "Clean receipts, WhatsApp invoices are perfect!", rating: 5, shop: "Delhi Grocery" },
+    { text: "Clean receipts and instant invoices are perfect!", rating: 5, shop: "Delhi Grocery" },
     { text: "Saved our business during a power blackout!", rating: 5, shop: "Baker's Hub" },
     { text: "Fast inventory sync, very easy to use", rating: 4, shop: "Electro World" },
     { text: "Automatic local backup is a lifesaver", rating: 5, shop: "Green Organic" },
@@ -357,7 +357,7 @@ const Index = () => {
               <h3 className="text-primary font-bold text-sm tracking-widest uppercase mb-4">Invoicing</h3>
               <h2 className="text-4xl md:text-5xl font-bold mb-6">Get paid 3x faster.</h2>
               <p className="text-xl text-muted-foreground mb-8">
-                Create professional invoices in seconds. Send them via email or WhatsApp, and track exactly when they're viewed and paid.
+                Create professional invoices in seconds. Send them instantly to clients, and track exactly when they're viewed and paid.
               </p>
               <ul className="space-y-4 mb-8">
                 {["Custom Branding", "Auto-reminders", "Multi-currency support", "PDF Export"].map((feature, i) => (

@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { generateEInvoiceJSON, downloadJSON } from "@/core/utils/einvoiceGenerator";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { dispatchJob, subscribeToJob, JobEvent } from "@/core/utils/jobQueue";
 import { CreateInvoiceDialog } from "@/features/business/components/CreateInvoiceDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -28,6 +30,8 @@ export default function SalesPage() {
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingInvoice, setEditingInvoice] = useState<any>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    
+    const tableContainerRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
     const { formatCurrency } = useCurrency();
     const queryClient = useQueryClient();
@@ -63,6 +67,7 @@ export default function SalesPage() {
         tax_rate?: number;
         discount_amount?: number;
         date: string;
+        due_date?: string | null;
         items: any[];
     }
 
@@ -75,7 +80,14 @@ export default function SalesPage() {
                 .eq("user_id", user?.id || "")
                 .order("date", { ascending: false });
             if (error) throw error;
-            return data as any as Sale[];
+            
+            const today = new Date().toISOString().split("T")[0];
+            return (data as any[]).map(inv => {
+                if (inv.status === 'pending' && inv.due_date && inv.due_date < today) {
+                    return { ...inv, status: 'overdue' };
+                }
+                return inv;
+            }) as Sale[];
         },
         enabled: !!user
     });
@@ -216,54 +228,28 @@ export default function SalesPage() {
         }
     };
 
-    const handleSendWhatsApp = async (invoice: Sale) => {
-        if (!invoice.customer_phone) {
-            toast.error("Customer does not have a phone number configured.");
+    const handleBulkEmail = async () => {
+        const overdueInvoices = invoices.filter(inv => inv.status === 'overdue');
+        if (overdueInvoices.length === 0) {
+            toast.info("No overdue invoices to send reminders for.");
             return;
         }
 
-        const toastId = toast.loading(`Sending invoice ${invoice.invoice_number} to ${invoice.customer_name} via WhatsApp...`);
-
         try {
-            // Build the billing event payload
-            const eventPayload = {
-                event_type: invoice.status === 'paid' ? "payment_received" : "invoice_created",
-                customer_id: user?.id || "unknown",
-                customer_name: invoice.customer_name,
-                customer_phone: invoice.customer_phone,
-                customer_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
-                invoice_number: invoice.invoice_number,
-                amount: invoice.total_amount,
-                due_date: invoice.date,
-                payment_link: `${window.location.origin}/store`, // customer storefront checkout link fallback
-                transaction_id: invoice.id
-            };
-
-            const res = await fetch("/api/v1/whatsapp/webhook/billing-event", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(eventPayload)
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                if (data.success && data.result?.status === "sent") {
-                    toast.success(`Invoice sent successfully to ${invoice.customer_name}!`, { id: toastId });
-                } else if (data.result?.skipped) {
-                    toast.error(`Message skipped: ${data.result.reason || "Rule check failed. Please check your Notification Settings."}`, { id: toastId });
-                } else {
-                    const errMsg = data.result?.error || "WhatsApp is not authenticated. Please scan the QR code in Settings first.";
-                    toast.error(errMsg, { id: toastId });
+            const jobId = await dispatchJob('send_bulk_email', { invoices: overdueInvoices });
+            toast.success(`Dispatched email reminders for ${overdueInvoices.length} customers in the background.`);
+            
+            // Subscribe to listen to completion
+            subscribeToJob(jobId, (job) => {
+                if (job.status === 'completed') {
+                    const res = JSON.parse(job.error_log || '{}');
+                    toast.success(`Bulk Email finished: Sent ${res.sent} emails, ${res.failed} failed.`);
+                } else if (job.status === 'failed') {
+                    toast.error(`Bulk Email failed: ${job.error_log}`);
                 }
-            } else {
-                const errData = await res.json().catch(() => ({}));
-                toast.error(errData.detail || "Failed to send WhatsApp message.", { id: toastId });
-            }
+            });
         } catch (error) {
-            console.error("Error sending WhatsApp:", error);
-            toast.error("Connection error. Ensure your backend server is running.", { id: toastId });
+            toast.error("Failed to start bulk email task.");
         }
     };
 
@@ -335,7 +321,14 @@ export default function SalesPage() {
             invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = filterStatus === 'all' || invoice.status === filterStatus;
-        return matchesSearch && matchesFilter;
+        return matchesFilter && matchesSearch;
+    });
+
+    const rowVirtualizer = useVirtualizer({
+        count: filteredInvoices.length,
+        getScrollElement: () => tableContainerRef.current,
+        estimateSize: () => 80, // Approximate height of table row
+        overscan: 10,
     });
 
     return (
@@ -366,6 +359,18 @@ export default function SalesPage() {
                             <Settings2 className="w-4 h-4" />
                             Sales Settings
                         </button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg shadow-sm transition-all">
+                                    Bulk Actions <MoreHorizontal className="w-4 h-4 ml-1" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <DropdownMenuItem onClick={handleBulkEmail} className="cursor-pointer py-2">
+                                    <Mail className="w-4 h-4 mr-2" /> Send Emails to Overdue
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                         <button
                             onClick={() => {
                                 setEditingInvoice(null);
@@ -378,6 +383,8 @@ export default function SalesPage() {
                         </button>
                     </div>
                 </div>
+
+
 
                 {/* Top Metrics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -449,9 +456,12 @@ export default function SalesPage() {
                         </button>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[1000px]">
-                            <thead>
+                    <div 
+                        className="overflow-auto max-h-[65vh] w-full"
+                        ref={tableContainerRef}
+                    >
+                        <table className="w-full text-left border-collapse min-w-[1000px] relative">
+                            <thead className="sticky top-0 z-10 shadow-sm">
                                 <tr className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                     <th className="px-6 py-4">Invoice</th>
                                     <th className="px-6 py-4">Customer</th>
@@ -468,7 +478,15 @@ export default function SalesPage() {
                                 ) : filteredInvoices.length === 0 ? (
                                     <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No invoices matching your criteria.</td></tr>
                                 ) : (
-                                    filteredInvoices.map((invoice) => (
+                                    <>
+                                        {rowVirtualizer.getVirtualItems().length > 0 && (
+                                            <tr>
+                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }} />
+                                            </tr>
+                                        )}
+                                        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                            const invoice = filteredInvoices[virtualRow.index];
+                                            return (
                                         <tr key={invoice.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
                                             <td className="px-6 py-4">
                                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.invoice_number}</p>
@@ -485,7 +503,10 @@ export default function SalesPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                                {format(new Date(invoice.date), "MMM dd, yyyy")}
+                                                <div>{format(new Date(invoice.date), "MMM dd, yyyy")}</div>
+                                                {invoice.due_date && (
+                                                    <div className="text-[10px] text-slate-400 mt-0.5">Due: {format(new Date(invoice.due_date), "MMM dd")}</div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 text-right">
                                                 {invoice.tax_amount ? formatCurrency(invoice.tax_amount) : formatCurrency(0)}
@@ -527,14 +548,14 @@ export default function SalesPage() {
                                                                 <Share2 className="w-4 h-4 mr-2" />
                                                                 Share Invoice
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => handleSendWhatsApp(invoice)}>
-                                                                <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
-                                                                Send via WhatsApp
+                                                            <DropdownMenuItem onClick={() => handleGeneratePDF(invoice)} className="cursor-pointer py-2">
+                                                                <FileText className="w-4 h-4 mr-2 text-indigo-500" />
+                                                                Generate PDF
                                                             </DropdownMenuItem>
                                                             {invoice.customer_gstin && invoice.customer_gstin.length === 15 && (
-                                                                <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)}>
-                                                                    <QrCode className="w-4 h-4 mr-2 text-violet-500" />
-                                                                    Generate E-Invoice JSON
+                                                                <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)} className="cursor-pointer py-2">
+                                                                    <Download className="w-4 h-4 mr-2 text-blue-500" />
+                                                                    E-Invoice JSON
                                                                 </DropdownMenuItem>
                                                             )}
                                                             <DropdownMenuItem onClick={() => handleEdit(invoice)}>
@@ -550,7 +571,14 @@ export default function SalesPage() {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
+                                            );
+                                        })}
+                                        {rowVirtualizer.getVirtualItems().length > 0 && (
+                                            <tr>
+                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }} />
+                                            </tr>
+                                        )}
+                                    </>
                                 )}
                             </tbody>
                         </table>

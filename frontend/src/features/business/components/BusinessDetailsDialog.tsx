@@ -11,6 +11,7 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
+import imageCompression from "browser-image-compression";
 
 interface BusinessDetailsDialogProps {
     open: boolean;
@@ -76,13 +77,28 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
     }, [open, user, reset]);
 
     const uploadImage = async (file: File, pathPrefix: string): Promise<string> => {
-        const fileExt = file.name.split('.').pop();
+        // Compress image before upload
+        const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+        };
+        let fileToUpload = file;
+        if (file.type.startsWith('image/')) {
+            try {
+                fileToUpload = await imageCompression(file, options);
+            } catch (error) {
+                console.error("Compression error:", error);
+            }
+        }
+
+        const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
         const fileName = `${pathPrefix}-${user?.id}-${Math.random()}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('business_assets')
-            .upload(filePath, file);
+            .upload(filePath, fileToUpload);
 
         if (uploadError) throw uploadError;
 
