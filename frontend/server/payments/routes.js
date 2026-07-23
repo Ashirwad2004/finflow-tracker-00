@@ -31,14 +31,55 @@ async function generateInvoiceNumber() {
   return `INV-${year}-${rand}`;
 }
 
-// 1. Create Payment Order
+// 1. Create Payment Order (Direct & Store Orders)
 paymentRouter.post(
   '/create-order',
-  rateLimiter(10, 60000), // Max 10 requests per minute per IP
-  validateRequest({ orderId: 'string', idempotencyKey: 'string' }),
+  rateLimiter(20, 60000), // Max 20 requests per minute per IP
   async (req, res) => {
     try {
+      const keyId = process.env.RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+      if (!keyId || !keySecret) {
+        return res.status(401).json({ error: 'Razorpay API credentials not configured in environment.' });
+      }
+
+      // Handle Direct Standard Web Checkout Request (where amount in paise is provided directly)
+      if (req.body.amount !== undefined) {
+        let amountInPaise = Number(req.body.amount);
+        if (isNaN(amountInPaise) || amountInPaise < 100) {
+          return res.status(400).json({ error: 'Invalid amount. Minimum amount must be at least 100 paise (₹1).' });
+        }
+
+        const currency = (req.body.currency || 'INR').toUpperCase();
+        const receipt = req.body.receipt || `receipt_${Date.now()}`;
+
+        const driver = getGatewayDriver('razorpay');
+        const gatewayResponse = await driver.createOrder({
+          orderId: receipt,
+          amount: amountInPaise / 100, // driver converts to paise (subunits)
+          currency,
+          customer: {
+            name: req.body.customerName || 'Valued Customer',
+            phone: req.body.customerPhone || '9999999999'
+          }
+        });
+
+        return res.json({
+          success: true,
+          order_id: gatewayResponse.gatewayOrderId,
+          gatewayOrderId: gatewayResponse.gatewayOrderId,
+          amount: amountInPaise,
+          currency,
+          key_id: keyId
+        });
+      }
+
+      // Existing store online_orders flow
       const { orderId, idempotencyKey } = req.body;
+      if (!orderId) {
+        return res.status(400).json({ error: 'Missing required field: orderId or amount' });
+      }
 
       // Check if order payment is already successful or processing
       const { data: existingPayment } = await supabaseAdmin
@@ -52,25 +93,6 @@ paymentRouter.post(
         return res.status(400).json({ error: 'This order has already been paid successfully.' });
       }
 
-      // Check for duplicate payment via idempotency key
-      const { data: duplicatePayment } = await supabaseAdmin
-        .from('payments')
-        .select('*')
-        .eq('idempotency_key', idempotencyKey)
-        .maybeSingle();
-
-      if (duplicatePayment) {
-        // Return existing payment details to client to prevent re-creation
-        const driver = getGatewayDriver();
-        return res.json({
-          success: true,
-          paymentId: duplicatePayment.id,
-          gatewayOrderId: duplicatePayment.gateway_order_id,
-          status: duplicatePayment.status,
-          amount: duplicatePayment.amount
-        });
-      }
-
       // Fetch the actual order from the database
       const { data: order, error: orderError } = await supabaseAdmin
         .from('online_orders')
@@ -82,7 +104,7 @@ paymentRouter.post(
         return res.status(404).json({ error: 'Order not found.' });
       }
 
-      const driver = getGatewayDriver();
+      const driver = getGatewayDriver('razorpay');
       const gatewayResponse = await driver.createOrder({
         orderId: order.id,
         amount: order.total_amount,
@@ -97,40 +119,13 @@ paymentRouter.post(
         throw new Error('Failed to create payment in gateway.');
       }
 
-      // Insert pending payment into DB
-      const { data: paymentRecord, error: insertError } = await supabaseAdmin
-        .from('payments')
-        .insert({
-          order_id: orderId,
-          user_id: order.store_id, // Store owner
-          amount: order.total_amount,
-          currency: order.currency || 'INR',
-          status: 'pending',
-          gateway: driver.name,
-          gateway_order_id: gatewayResponse.gatewayOrderId,
-          idempotency_key: idempotencyKey
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      // Log order creation in Audit logs
-      await supabaseAdmin.from('payment_audit_logs').insert({
-        payment_id: paymentRecord.id,
-        user_id: order.store_id,
-        action: 'order_created',
-        ip_address: req.ip,
-        details: { gatewayOrderId: gatewayResponse.gatewayOrderId, idempotencyKey }
-      });
-
       return res.json({
         success: true,
-        paymentId: paymentRecord.id,
+        order_id: gatewayResponse.gatewayOrderId,
         gatewayOrderId: gatewayResponse.gatewayOrderId,
-        checkoutUrl: gatewayResponse.checkoutUrl,
+        amount: Math.round(order.total_amount * 100),
+        currency: order.currency || 'INR',
+        key_id: keyId,
         details: gatewayResponse.details
       });
 
@@ -197,28 +192,151 @@ paymentRouter.post(
 );
 
 // 2. Verify Payment Integrity
+// 1.8 Create Subscription Payment Order
 paymentRouter.post(
-  '/verify-payment',
-  rateLimiter(20, 60000), // Max 20 attempts per minute
-  validateRequest({ gatewayOrderId: 'string', gatewayPaymentId: 'string' }),
+  '/create-subscription-order',
+  rateLimiter(10, 60000), // Max 10 requests per minute per IP
+  validateRequest({ planId: 'string', billingCycle: 'string', userId: 'string' }),
   async (req, res) => {
     try {
-      const { gatewayOrderId, gatewayPaymentId, gatewaySignature } = req.body;
+      const { planId, billingCycle, userId, couponCode, idempotencyKey } = req.body;
 
-      // Find the payment record
-      const { data: payment, error: fetchErr } = await supabaseAdmin
+      const planPrices = {
+        starter: { monthly: 0, annual: 0 },
+        pro: { monthly: 799, annual: 639 },
+        business: { monthly: 2499, annual: 1999 }
+      };
+
+      const selectedPlan = planPrices[planId] || planPrices.pro;
+      const baseMonthly = billingCycle === 'annual' ? selectedPlan.annual : selectedPlan.monthly;
+      const months = billingCycle === 'annual' ? 12 : 1;
+      let rawSubtotal = baseMonthly * months;
+
+      let discountPercent = 0;
+      if (couponCode) {
+        const code = couponCode.trim().toUpperCase();
+        if (code === 'FINFLOW20' || code === 'WELCOME20') discountPercent = 20;
+        else if (code === 'SPECIAL10') discountPercent = 10;
+      }
+
+      const discountAmt = Math.round(rawSubtotal * (discountPercent / 100));
+      const subtotal = rawSubtotal - discountAmt;
+      const gstAmount = Math.round(subtotal * 0.18);
+      const grandTotal = subtotal + gstAmount;
+
+      const orderRef = `SUB-${planId.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+      const driver = getGatewayDriver();
+
+      const gatewayResponse = await driver.createOrder({
+        orderId: orderRef,
+        amount: grandTotal,
+        currency: 'INR',
+        customer: {
+          name: req.body.customerName || 'FinFlow User',
+          phone: req.body.customerPhone || '9999999999'
+        }
+      });
+
+      if (!gatewayResponse.success) {
+        throw new Error('Failed to initialize subscription payment in gateway.');
+      }
+
+      // Record pending payment in DB
+      const { data: paymentRecord, error: insertErr } = await supabaseAdmin
         .from('payments')
-        .select('*, online_orders(status)')
+        .insert({
+          user_id: userId,
+          amount: grandTotal,
+          currency: 'INR',
+          status: 'pending',
+          gateway: driver.name,
+          gateway_order_id: gatewayResponse.gatewayOrderId,
+          idempotency_key: idempotencyKey || orderRef,
+          notes: { planId, billingCycle, grandTotal, gstAmount, discountPercent }
+        })
+        .select()
+        .single();
+
+      if (insertErr) {
+        console.warn('Subscription payment record insert warning:', insertErr.message);
+      }
+
+      return res.json({
+        success: true,
+        paymentId: paymentRecord?.id || orderRef,
+        gatewayOrderId: gatewayResponse.gatewayOrderId,
+        amount: grandTotal,
+        currency: 'INR',
+        details: gatewayResponse.details
+      });
+
+    } catch (err) {
+      console.error('Create Subscription Order Error:', err);
+      return res.status(500).json({ error: err.message || 'Failed to create subscription order.' });
+    }
+  }
+);
+
+// 2. Verify Payment Integrity
+paymentRouter.post(
+  '/verify-payment',
+  rateLimiter(30, 60000), // Max 30 attempts per minute
+  async (req, res) => {
+    try {
+      const gatewayOrderId = req.body.razorpay_order_id || req.body.gatewayOrderId || req.body.order_id;
+      const gatewayPaymentId = req.body.razorpay_payment_id || req.body.gatewayPaymentId || req.body.payment_id;
+      const gatewaySignature = req.body.razorpay_signature || req.body.gatewaySignature || req.body.signature;
+
+      if (!gatewayOrderId || !gatewayPaymentId) {
+        return res.status(400).json({ error: 'Missing required fields: order_id and payment_id are required.' });
+      }
+
+      if (!gatewaySignature) {
+        return res.status(400).json({ error: 'Missing required field: razorpay_signature is required.' });
+      }
+
+      const driver = getGatewayDriver('razorpay');
+      
+      // Perform HMAC-SHA256 verification via driver
+      let verification;
+      try {
+        verification = await driver.verifyPayment({
+          gatewayOrderId,
+          gatewayPaymentId,
+          gatewaySignature
+        });
+      } catch (verifyErr) {
+        return res.status(400).json({
+          success: false,
+          error: verifyErr.message || 'Signature mismatch: Invalid payment signature.'
+        });
+      }
+
+      // Find the payment record in database if present
+      const { data: payment } = await supabaseAdmin
+        .from('payments')
+        .select('*')
         .eq('gateway_order_id', gatewayOrderId)
         .maybeSingle();
 
-      if (fetchErr || !payment) {
-        return res.status(404).json({ error: 'Payment record not found for this gateway order.' });
+      if (!payment) {
+        return res.json({
+          success: true,
+          message: 'Payment verified successfully.',
+          payment_id: gatewayPaymentId,
+          order_id: gatewayOrderId,
+          status: 'success'
+        });
       }
 
       if (payment.status === 'success') {
-        // Already processed, return immediately
-        return res.json({ success: true, status: 'success', paymentId: payment.id });
+        return res.json({
+          success: true,
+          message: 'Payment already verified.',
+          payment_id: payment.gateway_payment_id || gatewayPaymentId,
+          order_id: gatewayOrderId,
+          status: 'success'
+        });
       }
 
       const driver = getGatewayDriver();
@@ -241,31 +359,71 @@ paymentRouter.post(
           })
           .eq('id', payment.id);
 
-        if (updateErr) throw updateErr;
+        if (updateErr) console.warn('Payment status update warning:', updateErr.message);
 
-        // Update online_orders status to 'accepted'
-        await supabaseAdmin
-          .from('online_orders')
-          .update({ status: 'accepted' })
-          .eq('id', payment.order_id);
+        // If payment has order_id, update online_orders status to 'accepted'
+        if (payment.order_id) {
+          await supabaseAdmin
+            .from('online_orders')
+            .update({ status: 'accepted' })
+            .eq('id', payment.order_id);
+        }
+
+        // If payment is for subscription, update subscription_status table
+        const notes = payment.notes || {};
+        if (notes.planId || req.body.planId) {
+          const planId = notes.planId || req.body.planId;
+          const billingCycle = notes.billingCycle || req.body.billingCycle || 'annual';
+          const now = new Date();
+          const periodEnd = new Date();
+          if (billingCycle === 'annual') {
+            periodEnd.setFullYear(now.getFullYear() + 1);
+          } else {
+            periodEnd.setMonth(now.getMonth() + 1);
+          }
+
+          try {
+            await supabaseAdmin
+              .from('subscription_status')
+              .upsert({
+                user_id: payment.user_id,
+                plan: planId,
+                status: 'active',
+                current_period_start: now.toISOString(),
+                current_period_end: periodEnd.toISOString(),
+                cancel_at_period_end: false,
+                updated_at: now.toISOString()
+              });
+          } catch (subErr) {
+            console.warn('Subscription status upsert warning:', subErr);
+          }
+        }
 
         // Generate Invoice
         const invNum = await generateInvoiceNumber();
-        await supabaseAdmin
-          .from('invoices')
-          .insert({
-            payment_id: payment.id,
-            invoice_number: invNum
-          });
+        try {
+          await supabaseAdmin
+            .from('invoices')
+            .insert({
+              payment_id: payment.id,
+              invoice_number: invNum
+            });
+        } catch (invErr) {
+          console.warn('Invoice insert warning:', invErr);
+        }
 
         // Audit Log
-        await supabaseAdmin.from('payment_audit_logs').insert({
-          payment_id: payment.id,
-          user_id: payment.user_id,
-          action: 'payment_success',
-          ip_address: req.ip,
-          details: { gatewayPaymentId, method: verification.paymentMethod }
-        });
+        try {
+          await supabaseAdmin.from('payment_audit_logs').insert({
+            payment_id: payment.id,
+            user_id: payment.user_id,
+            action: 'payment_success',
+            ip_address: req.ip,
+            details: { gatewayPaymentId, method: verification.paymentMethod }
+          });
+        } catch (audErr) {
+          console.warn('Audit log warning:', audErr);
+        }
 
         return res.json({
           success: true,

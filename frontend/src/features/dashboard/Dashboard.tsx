@@ -23,7 +23,14 @@ import {
   X,
   ArrowRight,
   Zap,
-  BarChart3
+  BarChart3,
+  ChevronRight,
+  HandCoins,
+  FileBarChart,
+  Globe,
+  Sparkles,
+  ShoppingCart,
+  ReceiptIndianRupee
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from "recharts";
 import { ExpenseList } from "@/features/expenses/components/ExpenseList";
@@ -34,7 +41,6 @@ import { LentMoneyDialog } from "@/features/loans/components/LentMoneyDialog";
 import { BorrowedMoneyDialog } from "@/features/loans/components/BorrowedMoneyDialog";
 import { BudgetSection } from "@/features/settings/components/BudgetSection";
 import { RecentlyDeleted } from "@/features/trash/components/RecentlyDeleted";
-import { LentMoneySection } from "@/features/loans/components/LentMoneySection";
 import { Calculator as CalculatorComponent } from "@/components/shared/calculator";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { toast } from "@/core/hooks/use-toast";
@@ -52,6 +58,8 @@ import { AnimatedCounter, DashboardCard } from "@/features/dashboard/DashboardCo
 import { OnboardingDialog } from "@/features/settings/components/OnboardingDialog";
 import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
+
+import { LoansDebtsOverview } from "./LoansDebtsOverview";
 
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -724,8 +732,13 @@ export const Dashboard = () => {
                     {memoizedExpenseChart}
                   </div>
                 </div>
-
-                <LentMoneySection userId={user?.id || ""} />
+                <LoansDebtsOverview
+                  lentMoney={lentMoney}
+                  borrowedMoney={borrowedMoney}
+                  userId={user?.id || ""}
+                  onLendClick={() => setIsLentMoneyDialogOpen(true)}
+                  onBorrowClick={() => setIsBorrowedMoneyDialogOpen(true)}
+                />
               </motion.div>
             </div>
           </div>
