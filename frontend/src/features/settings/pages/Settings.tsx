@@ -4,15 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { useCurrency, CURRENCIES } from "@/core/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, MessageSquare, Bell, Clock } from "lucide-react";
+import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, Bell, Clock, CreditCard, Sparkles, ShieldCheck } from "lucide-react";
 import { getOverdueDaysThreshold, setOverdueDaysThreshold } from "@/core/utils/overdue";
 import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { useToast } from "@/core/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,6 +24,7 @@ import {
 import { StoreSettings } from "../components/StoreSettings";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RealSubscriptionCheckout } from "@/features/landing/components/RealSubscriptionCheckout";
 
 type BackupFormat = "json" | "csv";
 
@@ -64,10 +67,27 @@ const SettingsPage = () => {
 
     const [showBusinessDialog, setShowBusinessDialog] = useState(false);
     const [isBackingUp, setIsBackingUp] = useState(false);
+    const [checkoutOpen, setCheckoutOpen] = useState(false);
     const [autoAddParties, setAutoAddParties] = useState(() => {
         return localStorage.getItem("finflow_auto_add_parties") === "true";
     });
     const [overdueDays, setOverdueDays] = useState<number>(() => getOverdueDaysThreshold());
+
+    // Fetch user's subscription status
+    const { data: subStatus, isLoading: subLoading } = useQuery({
+        queryKey: ["subscription_status", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return null;
+            const { data, error } = await (supabase as any)
+                .from("subscription_status")
+                .select("*")
+                .eq("user_id", user.id)
+                .maybeSingle();
+            if (error) console.warn("Fetch subscription status warning:", error.message);
+            return data || { plan: "starter", status: "active" };
+        },
+        enabled: !!user?.id,
+    });
 
     const handleOverdueDaysChange = (val: string) => {
         const num = parseInt(val, 10);
@@ -179,27 +199,34 @@ const SettingsPage = () => {
         }
     };
 
+    const activePlanName = subStatus?.plan ? subStatus.plan.toUpperCase() : "STARTER";
+
     return (
         <AppLayout>
             <div className="container mx-auto p-4 max-w-2xl animate-fade-in">
                 <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
                 <Tabs defaultValue="general" className="w-full space-y-4">
-                    <TabsList className="grid grid-cols-3 w-full bg-slate-100/50 p-1 rounded-lg border">
-                        <TabsTrigger value="general" className="flex items-center gap-2 text-xs font-semibold">
+                    <TabsList className="grid grid-cols-4 w-full bg-slate-100/50 p-1 rounded-lg border">
+                        <TabsTrigger value="general" className="flex items-center gap-1.5 text-xs font-semibold">
                             <Sliders className="w-3.5 h-3.5" />
                             General
                         </TabsTrigger>
-                        <TabsTrigger value="store" className="flex items-center gap-2 text-xs font-semibold">
+                        <TabsTrigger value="billing" className="flex items-center gap-1.5 text-xs font-semibold">
+                            <CreditCard className="w-3.5 h-3.5" />
+                            Subscription
+                        </TabsTrigger>
+                        <TabsTrigger value="store" className="flex items-center gap-1.5 text-xs font-semibold">
                             <Building2 className="w-3.5 h-3.5" />
                             Store
                         </TabsTrigger>
-                        <TabsTrigger value="notifications" className="flex items-center gap-2 text-xs font-semibold">
+                        <TabsTrigger value="notifications" className="flex items-center gap-1.5 text-xs font-semibold">
                             <Bell className="w-3.5 h-3.5" />
                             Notifications
                         </TabsTrigger>
                     </TabsList>
 
+                    {/* GENERAL TAB */}
                     <TabsContent value="general" className="space-y-4 outline-none">
                         {/* Business Mode Section */}
                         <Card className="rounded-md">
@@ -373,6 +400,92 @@ const SettingsPage = () => {
                         </Card>
                     </TabsContent>
 
+                    {/* SUBSCRIPTION & BILLING TAB */}
+                    <TabsContent value="billing" className="space-y-4 outline-none">
+                        <Card className="rounded-2xl border bg-gradient-to-br from-card via-card to-primary/5 shadow-md">
+                            <CardHeader className="p-6 pb-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                                            <Sparkles className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-lg font-black">Subscription Status</CardTitle>
+                                            <CardDescription className="text-xs">
+                                                Manage your FinFlow tier and payment methods.
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                    <Badge className={`px-3 py-1 font-bold text-xs ${
+                                        activePlanName === "PRO" || activePlanName === "BUSINESS"
+                                            ? "bg-emerald-500 text-white"
+                                            : "bg-muted text-muted-foreground"
+                                    }`}>
+                                        {activePlanName} TIER
+                                    </Badge>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-6 pt-2 space-y-6">
+                                <div className="p-4 rounded-xl bg-background border space-y-3 text-xs">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Current Active Plan:</span>
+                                        <span className="font-black text-foreground text-sm">{activePlanName}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Subscription Status:</span>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                            <ShieldCheck className="w-3.5 h-3.5" /> Active & Verified
+                                        </span>
+                                    </div>
+                                    {subStatus?.current_period_end && (
+                                        <div className="flex justify-between items-center pt-2 border-t text-[11px]">
+                                            <span className="text-muted-foreground">Renewal / Expiry Date:</span>
+                                            <span className="font-semibold text-foreground">
+                                                {new Date(subStatus.current_period_end).toLocaleDateString("en-IN", {
+                                                    day: "numeric",
+                                                    month: "short",
+                                                    year: "numeric"
+                                                })}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {activePlanName === "PRO" || activePlanName === "BUSINESS" ? (
+                                    <div className="space-y-3">
+                                        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center justify-between">
+                                            <span className="flex items-center gap-2">
+                                                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                                All Premium {activePlanName} Features Unlocked
+                                            </span>
+                                            <Badge className="bg-emerald-500 text-white font-bold text-[10px]">ACTIVE</Badge>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setCheckoutOpen(true)}
+                                            className="w-full text-xs font-semibold text-muted-foreground hover:text-foreground"
+                                        >
+                                            Manage Subscription / Billing Details
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <Button
+                                            onClick={() => setCheckoutOpen(true)}
+                                            className="w-full h-12 rounded-xl font-bold text-sm bg-gradient-to-r from-primary to-violet-600 text-white shadow-lg hover:opacity-95 transition-all"
+                                        >
+                                            <CreditCard className="w-4 h-4 mr-2" />
+                                            Upgrade Plan & Make Payment
+                                        </Button>
+                                        <p className="text-[11px] text-center text-muted-foreground">
+                                            Upgrade to unlock AI OCR receipt scanning, Party ledgers, online storefront & priority sync.
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
                     <TabsContent value="store" className="outline-none">
                         <StoreSettings />
                     </TabsContent>
@@ -388,8 +501,15 @@ const SettingsPage = () => {
                 onOpenChange={setShowBusinessDialog}
                 onSuccess={() => toggleBusinessMode(true)}
             />
+
+            <RealSubscriptionCheckout
+                open={checkoutOpen}
+                onOpenChange={setCheckoutOpen}
+                initialPlanId="pro"
+                initialBillingCycle="annual"
+            />
         </AppLayout>
     );
 };
 
-export default SettingsPage;
+export default SettingsPage;

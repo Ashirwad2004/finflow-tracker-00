@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { BookDemoModal } from "@/features/demo/BookDemoModal";
 import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/core/hooks/use-toast";
 import {
   Wallet,
   TrendingUp,
@@ -36,6 +37,7 @@ import { FeatureCard, StatCounter } from "@/features/landing/components/LandingS
 import { DashboardMockup } from "@/features/landing/components/DashboardMockup";
 import { CheckoutMockup } from "@/features/landing/components/CheckoutMockup";
 import { InteractivePlayground } from "@/features/landing/components/InteractivePlayground";
+import { RealSubscriptionCheckout, PLAN_CONFIGS } from "@/features/landing/components/RealSubscriptionCheckout";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -44,6 +46,30 @@ const Index = () => {
   const targetRef = useRef<HTMLDivElement>(null);
   const [demoOpen, setDemoOpen] = useState(false);
   const [heroMode, setHeroMode] = useState<"pos" | "storefront">("pos");
+  
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<"starter" | "pro" | "business">("pro");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
+
+  // Auto-resume pending subscription after login
+  useEffect(() => {
+    const pendingPlan = localStorage.getItem("pending_subscription_plan") as "starter" | "pro" | "business" | null;
+    const pendingCycle = localStorage.getItem("pending_subscription_cycle") as "monthly" | "annual" | null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldOpenCheckout = urlParams.get("open_checkout") === "true";
+
+    if (user && (pendingPlan || shouldOpenCheckout)) {
+      if (pendingPlan) setSelectedPlanId(pendingPlan);
+      if (pendingCycle) setBillingCycle(pendingCycle);
+      setSubscriptionOpen(true);
+      localStorage.removeItem("pending_subscription_plan");
+      localStorage.removeItem("pending_subscription_cycle");
+      toast({
+        title: "Welcome Back!",
+        description: "Please complete your subscription payment to unlock all premium features.",
+      });
+    }
+  }, [user]);
 
   const feedbacks = [
     { text: "Wi-Fi dropped but counter kept billing!", rating: 5, shop: "Aroma Roasters" },
@@ -619,7 +645,7 @@ const Index = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            className="text-center mb-16"
+            className="text-center mb-12"
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-6">
               <Zap className="w-3.5 h-3.5" /> Simple, Transparent Pricing
@@ -627,85 +653,103 @@ const Index = () => {
             <h2 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
               Invest in your <span className="bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent">financial clarity</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-xl mx-auto mb-8">
               Start free. Upgrade when you're ready. No hidden fees, ever.
             </p>
+
+            {/* Interactive Billing Cycle Toggle */}
+            <div className="inline-flex items-center gap-2 bg-background border p-1.5 rounded-full shadow-sm">
+              <button
+                type="button"
+                onClick={() => setBillingCycle("monthly")}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${
+                  billingCycle === "monthly"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Monthly Billing
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle("annual")}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${
+                  billingCycle === "annual"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Annual Billing
+                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">
+                  Save 20%
+                </span>
+              </button>
+            </div>
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20 max-w-5xl mx-auto">
-            {[
-              {
-                name: "Starter",
-                price: "Free",
-                period: "",
-                desc: "Perfect for individuals getting started.",
-                features: ["Up to 50 expenses/month", "Basic analytics", "Invoice templates", "Email support"],
-                cta: "Get Started",
-                highlight: false,
-              },
-              {
-                name: "Pro",
-                price: "₹799",
-                period: "/month",
-                desc: "For freelancers and growing businesses.",
-                features: ["Unlimited expenses", "Advanced AI analytics", "Business mode + Parties", "Priority support", "GST Reports", "Multi-currency"],
-                cta: "Upgrade to Pro",
-                highlight: true,
-              },
-              {
-                name: "Business",
-                price: "₹2,499",
-                period: "/month",
-                desc: "For teams that need powerful tools.",
-                features: ["Everything in Pro", "Team collaboration", "Custom branding", "API access", "Dedicated account manager"],
-                cta: "Contact Sales",
-                highlight: false,
-              },
-            ].map((plan, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className={`relative rounded-3xl p-8 flex flex-col ${plan.highlight
-                  ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-2xl shadow-primary/40 scale-105"
-                  : "bg-background border border-border/60 shadow-lg"
-                }`}
-              >
-                {plan.highlight && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md tracking-wide uppercase">
-                    Most Popular
-                  </div>
-                )}
-                <div className={`text-sm font-semibold uppercase tracking-widest mb-3 ${plan.highlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.name}</div>
-                <div className="flex items-baseline gap-1 mb-2">
-                  <span className={`text-5xl font-extrabold ${plan.highlight ? "text-white" : "text-foreground"}`}>{plan.price}</span>
-                  <span className={`text-lg font-medium ${plan.highlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.period}</span>
-                </div>
-                <p className={`text-sm mb-6 ${plan.highlight ? "text-white/80" : "text-muted-foreground"}`}>{plan.desc}</p>
-                <ul className="space-y-3 mb-8 flex-1">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${plan.highlight ? "text-white/90" : "text-green-500"}`} />
-                      <span className={plan.highlight ? "text-white/90" : "text-foreground"}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  onClick={() => navigate("/auth")}
-                  className={`w-full h-12 rounded-full font-semibold transition-all hover:scale-105 ${plan.highlight
-                    ? "bg-white text-primary hover:bg-white/90 shadow-lg"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+            {PLAN_CONFIGS.map((plan, i) => {
+              const price = billingCycle === "annual" ? plan.annualPricePerMonth : plan.monthlyPrice;
+              const isHighlight = plan.recommended;
+
+              return (
+                <motion.div
+                  key={plan.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className={`relative rounded-3xl p-8 flex flex-col ${isHighlight
+                    ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-2xl shadow-primary/40 scale-105"
+                    : "bg-background border border-border/60 shadow-lg"
                   }`}
                 >
-                  {plan.cta}
-                </Button>
-              </motion.div>
-            ))}
+                  {isHighlight && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md tracking-wide uppercase">
+                      Most Popular
+                    </div>
+                  )}
+                  <div className={`text-sm font-semibold uppercase tracking-widest mb-3 ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.name}</div>
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <span className={`text-5xl font-extrabold ${isHighlight ? "text-white" : "text-foreground"}`}>
+                      {price === 0 ? "Free" : `₹${price}`}
+                    </span>
+                    {price > 0 && (
+                      <span className={`text-sm font-medium ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>/month</span>
+                    )}
+                  </div>
+                  <p className={`text-xs mb-6 ${isHighlight ? "text-white/80" : "text-muted-foreground"}`}>{plan.description}</p>
+                  <ul className="space-y-3 mb-8 flex-1">
+                    {plan.features.map((f, j) => (
+                      <li key={j} className="flex items-center gap-2 text-xs">
+                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isHighlight ? "text-white/90" : "text-emerald-500"}`} />
+                        <span className={isHighlight ? "text-white/90" : "text-foreground"}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    onClick={() => {
+                      setSelectedPlanId(plan.id);
+                      setSubscriptionOpen(true);
+                    }}
+                    className={`w-full h-12 rounded-full font-semibold transition-all hover:scale-105 ${isHighlight
+                      ? "bg-white text-primary hover:bg-white/90 shadow-lg"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    }`}
+                  >
+                    {plan.id === "starter" ? "Get Started Free" : plan.id === "pro" ? "Upgrade to Pro" : "Subscribe to Business"}
+                  </Button>
+                </motion.div>
+              );
+            })}
           </div>
 
-          {/* Payment Checkout Card — Stitch Design (FinFlow INR Payment UI) */}
-          <CheckoutMockup onPayClick={() => navigate("/auth")} />
+          {/* Interactive Live Subscription Preview & Payment Options Card */}
+          <CheckoutMockup 
+            onPayClick={(planId) => {
+              setSelectedPlanId(planId || "pro");
+              setSubscriptionOpen(true);
+            }} 
+          />
         </div>
       </section>
 
@@ -835,6 +879,14 @@ const Index = () => {
 
     {/* Book a Demo Modal */}
     <BookDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
+
+    {/* Real Subscription & Payment Checkout Modal */}
+    <RealSubscriptionCheckout 
+      open={subscriptionOpen} 
+      onOpenChange={setSubscriptionOpen} 
+      initialPlanId={selectedPlanId} 
+      initialBillingCycle={billingCycle} 
+    />
   </>);
 };
 

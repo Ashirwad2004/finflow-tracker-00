@@ -435,6 +435,12 @@ export const ResetPasswordForm = ({ onSuccess }: { onSuccess: () => void }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const passwordScore = useMemo(() => {
+    return passwordChecks.filter((check) => check.test(newPassword)).length;
+  }, [newPassword]);
+
+  const passwordsMatch = newPassword === confirmPassword || !confirmPassword;
+
   const canSubmit = passwordIsStrong(newPassword) && newPassword === confirmPassword && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -483,6 +489,30 @@ export const ResetPasswordForm = ({ onSuccess }: { onSuccess: () => void }) => {
           />
           <PasswordToggle visible={showPassword} onToggle={() => setShowPassword((value) => !value)} />
         </div>
+        
+        {/* Password Strength Indicators */}
+        {newPassword && (
+          <div className="space-y-2 rounded-md border bg-muted/30 p-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex gap-1">
+              {passwordChecks.map((check, index) => (
+                <span
+                  key={check.label}
+                  className={`h-1.5 flex-1 rounded-full ${index < passwordScore ? "bg-primary" : "bg-border"}`}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+              {passwordChecks.map((check) => {
+                const passed = check.test(newPassword);
+                return (
+                  <span key={check.label} className={passed ? "text-emerald-600 animate-in fade-in" : undefined}>
+                    {passed ? "✓" : "-"} {check.label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -495,8 +525,15 @@ export const ResetPasswordForm = ({ onSuccess }: { onSuccess: () => void }) => {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           disabled={loading}
+          aria-invalid={!passwordsMatch}
           required
         />
+        {!passwordsMatch && (
+          <p className="flex items-center gap-1 text-xs text-destructive animate-in fade-in duration-200">
+            <AlertCircle className="h-3.5 w-3.5" />
+            Passwords do not match.
+          </p>
+        )}
       </div>
 
       <Button type="submit" className="w-full bg-gradient-primary" disabled={!canSubmit}>

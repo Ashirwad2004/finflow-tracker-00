@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { RequestFeatureDialog } from "@/components/shared/RequestFeatureDialog";
 import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { useBusiness } from "@/core/contexts/BusinessContext";
+import { RealSubscriptionCheckout } from "@/features/landing/components/RealSubscriptionCheckout";
 
 const personalMenuItems = [
   {
@@ -186,6 +187,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const handleModeToggle = async (checked: boolean) => {
     if (isSalesman) return;
@@ -227,6 +229,24 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
     },
     enabled: !!currentStoreId,
   });
+
+  // Query user subscription status to conditionally hide upgrade prompts
+  const { data: subStatus } = useQuery({
+    queryKey: ["subscription_status", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await (supabase as any)
+        .from("subscription_status")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) console.warn("Fetch subscription status warning:", error.message);
+      return data || { plan: "starter", status: "active" };
+    },
+    enabled: !!user?.id,
+  });
+
+  const isUpgraded = subStatus?.plan === "pro" || subStatus?.plan === "business";
 
   const currentMenuItems = isSalesman
     ? businessMenuItems.filter(item => item.path === "/online-store" || item.path === "/settings")
@@ -350,6 +370,22 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       </nav>
 
       <div className="p-3 border-t space-y-2">
+        {/* Upgrade Plan Button (Hidden if user is already upgraded) */}
+        {!isSalesman && !isUpgraded && (
+          <Button
+            variant="outline"
+            onClick={() => setIsCheckoutOpen(true)}
+            className={cn(
+              "w-full justify-start gap-3 bg-gradient-to-r from-primary/10 to-violet-500/10 border-primary/20 text-primary font-bold hover:bg-primary/20 transition-all",
+              collapsed && "justify-center px-0"
+            )}
+            title="Upgrade Subscription"
+          >
+            <Sparkles className="w-5 h-5 text-primary shrink-0" />
+            {!collapsed && <span>Upgrade Plan</span>}
+          </Button>
+        )}
+
         <RequestFeatureDialog collapsed={collapsed} />
 
         <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
@@ -395,6 +431,13 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           </Button>
         </div>
       </div>
-    </aside >
+
+      <RealSubscriptionCheckout
+        open={isCheckoutOpen}
+        onOpenChange={setIsCheckoutOpen}
+        initialPlanId="pro"
+        initialBillingCycle="annual"
+      />
+    </aside>
   );
-}
+}
