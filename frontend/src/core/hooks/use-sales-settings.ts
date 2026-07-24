@@ -55,6 +55,8 @@ export interface SalesSettings {
   enableHsnCode: boolean;
   /** Default Terms & Conditions prefilled on new invoices. */
   defaultTermsAndConditions?: string;
+  /** Default to Quick Invoicing mode in the Create Invoice Dialog. */
+  enableQuickBilling: boolean;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -70,6 +72,7 @@ const DEFAULTS: SalesSettings = {
   confirmBeforeDelete: true,
   enableHsnCode: false,
   defaultTermsAndConditions: "Thank you for your business. For any inquiries, please contact us.",
+  enableQuickBilling: false,
 };
 
 function getStorageKey(userId: string | undefined) {
