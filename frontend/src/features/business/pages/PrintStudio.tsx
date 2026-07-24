@@ -714,10 +714,19 @@ const PrintStudioPage = () => {
         return (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || "a4";
     });
 
+    const [fontSizeFactor, setFontSizeFactor] = useState<number>(() => {
+        return Number(localStorage.getItem("finflow_invoice_fontsize_factor")) || 1.0;
+    });
+
     const handlePageSizeChange = (size: PageSize) => {
         setPageSize(size);
         localStorage.setItem("finflow_invoice_pagesize", size);
         toast.success(`Print page size set to ${size.toUpperCase()}`);
+    };
+
+    const handleFontSizeChange = (factor: number) => {
+        setFontSizeFactor(factor);
+        localStorage.setItem("finflow_invoice_fontsize_factor", factor.toString());
     };
 
     const [customTerms, setCustomTerms] = useState<string>(() => {
@@ -813,7 +822,7 @@ const PrintStudioPage = () => {
             await printThermalReceipt(invoiceDetails);
         } else {
             toast.success(`Generating PDF via ${themeMeta[selectedTheme].name} template...`);
-            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms });
+            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms, fontSizeFactor });
         }
     };
 
@@ -821,37 +830,34 @@ const PrintStudioPage = () => {
 
     return (
         <AppLayout>
-            <div className="container mx-auto px-4 py-8 animate-fade-in max-w-7xl">
+            <div className="h-full flex flex-col p-4 md:p-5 animate-fade-in max-w-[1600px] mx-auto w-full overflow-hidden">
                 
-                {/* HERO HEADER */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 bg-gradient-to-r from-primary/10 via-purple-500/5 to-transparent p-6 rounded-2xl border border-primary/10">
-                    <div>
-                        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary mb-1">
-                            <Sparkles className="w-3.5 h-3.5" />
-                            Premium Invoice Designer
+                {/* COMPACT HERO HEADER */}
+                <div className="flex items-center justify-between p-3 mb-4 bg-gradient-to-r from-primary/5 via-purple-500/5 to-transparent rounded-xl border border-primary/10 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <Printer className="w-5.5 h-5.5 text-primary flex-shrink-0" />
+                        <div>
+                            <h1 className="text-base font-black tracking-tight leading-none flex items-center gap-1.5">
+                                Print Studio
+                                <Badge variant="outline" className="text-[8px] font-bold px-1.5 py-0 border-primary/20 text-primary bg-primary/5">Designer</Badge>
+                            </h1>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">Select templates, preview layouts, and generate client invoices.</p>
                         </div>
-                        <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-                            <Printer className="w-8 h-8 text-primary" />
-                            Print Studio
-                        </h1>
-                        <p className="text-muted-foreground mt-1 text-sm md:text-base">
-                            Select an industry-standard template, preview live billing layouts, and quickly generate client invoices.
-                        </p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-5 overflow-hidden">
                     
                     {/* LEFT PANEL: SELECTORS (col-span-4) */}
-                    <div className="lg:col-span-4 space-y-6">
+                    <div className="lg:col-span-4 flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-4 shrink-0">
                         
                         {/* 1. Choose Template Card */}
-                        <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
-                            <h2 className="text-base font-bold flex items-center gap-2 border-b pb-3">
-                                <LayoutTemplate className="w-4 h-4 text-primary" />
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
+                                <LayoutTemplate className="w-3.5 h-3.5 text-primary" />
                                 1. Choose Template
                             </h2>
-                            <div className="grid grid-cols-1 gap-2 max-h-[350px] overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 gap-1.5 max-h-[160px] overflow-y-auto pr-1">
                                 {invoiceThemes.map((theme) => {
                                     const meta = themeMeta[theme];
                                     const isSelected = selectedTheme === theme;
@@ -860,19 +866,19 @@ const PrintStudioPage = () => {
                                             key={theme}
                                             onClick={() => handleThemeSelect(theme)}
                                             className={cn(
-                                                "w-full text-left p-3 rounded-xl border-2 transition-all flex items-start gap-3",
+                                                "w-full text-left p-2.5 rounded-xl border-2 transition-all flex items-start gap-2.5",
                                                 isSelected 
                                                     ? "border-primary bg-primary/5 ring-2 ring-primary/15" 
                                                     : "border-border hover:bg-muted/50"
                                             )}
                                         >
-                                            <div className={cn("w-6 h-6 rounded-md flex-shrink-0 mt-0.5 shadow-sm", meta.color)} />
+                                            <div className={cn("w-5 h-5 rounded-md flex-shrink-0 mt-0.5 shadow-sm", meta.color)} />
                                             <div className="min-w-0">
-                                                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                                <div className="text-[11px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                                                     {meta.name}
-                                                    {isSelected && <Badge className="text-[8px] px-1 bg-primary text-white h-4">Default</Badge>}
+                                                    {isSelected && <Badge className="text-[8px] px-1 bg-primary text-white h-3.5">Default</Badge>}
                                                 </div>
-                                                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1 leading-tight">{meta.desc}</p>
+                                                <p className="text-[9px] text-muted-foreground mt-0.5 line-clamp-1 leading-tight">{meta.desc}</p>
                                             </div>
                                         </button>
                                     );
@@ -881,22 +887,22 @@ const PrintStudioPage = () => {
                         </div>
 
                         {/* 2. Choose Invoice / Recent Sales Card */}
-                        <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
-                            <h2 className="text-base font-bold flex items-center gap-2 border-b pb-3">
-                                <History className="w-4 h-4 text-primary" />
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
+                                <History className="w-3.5 h-3.5 text-primary" />
                                 2. Choose Invoice Record
                             </h2>
                             
-                            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                            <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
                                 {isLoading ? (
-                                    <div className="space-y-2">
-                                        {[1, 2, 3].map(i => <div key={i} className="w-full h-11 bg-muted animate-pulse rounded-lg" />)}
+                                    <div className="space-y-1.5">
+                                        {[1, 2, 3].map(i => <div key={i} className="w-full h-9 bg-muted animate-pulse rounded-lg" />)}
                                     </div>
                                 ) : recentSales.length === 0 ? (
-                                    <div className="text-center py-6 text-muted-foreground border-2 border-dashed border-border rounded-xl">
-                                        <FileText className="w-6 h-6 mx-auto mb-1 opacity-40" />
-                                        <p className="text-xs font-medium">No sales recorded yet</p>
-                                        <p className="text-[10px] opacity-75 mt-0.5">Showing mock invoice preview</p>
+                                    <div className="text-center py-4 text-muted-foreground border border-dashed border-border rounded-xl">
+                                        <FileText className="w-5 h-5 mx-auto mb-1 opacity-40" />
+                                        <p className="text-[11px] font-medium">No sales recorded yet</p>
+                                        <p className="text-[9px] opacity-75 mt-0.5">Showing mock invoice preview</p>
                                     </div>
                                 ) : (
                                     recentSales.map((sale: any) => {
@@ -906,22 +912,22 @@ const PrintStudioPage = () => {
                                                 key={sale.id}
                                                 onClick={() => setSelectedSale(sale)}
                                                 className={cn(
-                                                    "w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 text-xs",
+                                                    "w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-2.5 text-xs",
                                                     isSelected
                                                         ? "border-primary bg-primary/5 font-semibold text-primary"
                                                         : "border-border hover:bg-muted/40 text-slate-700 dark:text-slate-200"
                                                 )}
                                             >
                                                 <div className="min-w-0">
-                                                    <p className="font-bold truncate">{sale.customer_name || "Walk-in Guest"}</p>
-                                                    <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                                                    <p className="font-bold truncate text-[11px]">{sale.customer_name || "Walk-in Guest"}</p>
+                                                    <div className="text-[9px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
                                                         <span>{sale.invoice_number || `INV-${sale.id.slice(0,6).toUpperCase()}`}</span>
                                                         <span>•</span>
                                                         <span>{format(new Date(sale.created_at), "MMM d")}</span>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <span className="font-bold text-slate-800 dark:text-slate-100">{formatCurrency(sale.total_amount)}</span>
+                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                    <span className="font-bold text-[11px] text-slate-800 dark:text-slate-100">{formatCurrency(sale.total_amount)}</span>
                                                     {isSelected && <Check className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
                                                 </div>
                                             </button>
@@ -932,91 +938,97 @@ const PrintStudioPage = () => {
                         </div>
 
                         {/* 3. Page Layout Settings */}
-                        <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
-                            <h2 className="text-base font-bold flex items-center gap-2 border-b pb-3">
-                                <LayoutTemplate className="w-4 h-4 text-primary" />
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
+                                <LayoutTemplate className="w-3.5 h-3.5 text-primary" />
                                 3. Page Layout Settings
                             </h2>
                             <div className="space-y-3">
-                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-350 block">Select Print Page Size</label>
+                                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-350 block">Print Page Size</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         onClick={() => handlePageSizeChange('a4')}
                                         className={cn(
-                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1.5",
+                                            "p-2 rounded-lg border transition-all flex items-center justify-center gap-2 text-xs",
                                             pageSize === 'a4'
                                                 ? "border-primary bg-primary/5 text-primary font-bold"
-                                                : "border-border hover:bg-muted text-slate-600 dark:text-slate-300"
+                                                : "border-border hover:bg-muted text-slate-650 dark:text-slate-300"
                                         )}
                                     >
-                                        <FileText className="w-5 h-5" />
-                                        <div className="text-center">
-                                            <span className="text-xs block font-bold">A4 Sheet</span>
-                                            <span className="text-[9px] opacity-75 block mt-0.5">210 x 297 mm</span>
-                                        </div>
+                                        <FileText className="w-4 h-4" />
+                                        <span>A4 Sheet</span>
                                     </button>
                                     
                                     <button
                                         onClick={() => handlePageSizeChange('a5')}
                                         className={cn(
-                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1.5",
+                                            "p-2 rounded-lg border transition-all flex items-center justify-center gap-2 text-xs",
                                             pageSize === 'a5'
                                                 ? "border-primary bg-primary/5 text-primary font-bold"
-                                                : "border-border hover:bg-muted text-slate-600 dark:text-slate-300"
+                                                : "border-border hover:bg-muted text-slate-650 dark:text-slate-300"
                                         )}
                                     >
-                                        <FileText className="w-4 h-4" />
-                                        <div className="text-center">
-                                            <span className="text-xs block font-bold">A5 Sheet</span>
-                                            <span className="text-[9px] opacity-75 block mt-0.5">148 x 210 mm</span>
-                                        </div>
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span>A5 Sheet</span>
                                     </button>
                                 </div>
-                                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                    A4 is standard for long tax invoices. A5 is a compact ledger format ideal for shorter bills to save paper.
-                                </p>
+
+                                {/* Font Size Preferences */}
+                                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-350 flex items-center justify-between">
+                                        <span>Invoice Font Size</span>
+                                        <span className="text-[10px] font-bold text-primary px-1.5 py-0.2 bg-primary/10 rounded-full">{Math.round(fontSizeFactor * 100)}%</span>
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] text-slate-400">A-</span>
+                                        <input
+                                            type="range"
+                                            min="0.6"
+                                            max="1.4"
+                                            step="0.05"
+                                            value={fontSizeFactor}
+                                            onChange={(e) => handleFontSizeChange(parseFloat(e.target.value))}
+                                            className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+                                        />
+                                        <span className="text-[9px] text-slate-400">A+</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         {/* 4. Terms & Conditions Card */}
-                        <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
-                            <h2 className="text-base font-bold flex items-center gap-2 border-b pb-3">
-                                <FileCheck className="w-4 h-4 text-primary" />
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
+                                <FileCheck className="w-3.5 h-3.5 text-primary" />
                                 4. Terms & Conditions
                             </h2>
-                            <div className="space-y-3">
-                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">Custom Terms / Declaration</label>
-                                <textarea
-                                    value={customTerms}
-                                    onChange={(e) => handleTermsChange(e.target.value)}
-                                    placeholder="Type your payment terms, return policy, or legal declaration here..."
-                                    className="w-full text-xs p-3 rounded-xl border border-input bg-background min-h-[90px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 transition-all resize-none"
-                                />
-                                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                    This text will be printed in the footer (or as the legal declaration/verification block) of your invoice. Leaving it empty will print template defaults.
-                                </p>
-                            </div>
+                            <textarea
+                                value={customTerms}
+                                onChange={(e) => handleTermsChange(e.target.value)}
+                                placeholder="Type custom payment terms or legal declaration here..."
+                                className="w-full text-xs p-2 rounded-lg border border-input bg-background min-h-[50px] max-h-[80px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 transition-all resize-none"
+                            />
                         </div>
 
                     </div>
 
                     {/* RIGHT PANEL: LIVE PREVIEW & TOOLBAR (col-span-8) */}
-                    <div className="lg:col-span-8 space-y-4">
+                    <div className="lg:col-span-8 flex flex-col gap-4 h-full overflow-hidden">
                         
                         {/* Interactive Toolbar */}
-                        <div className="bg-card border rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="bg-card border rounded-xl p-3 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
                             <div>
-                                <h3 className="font-bold text-sm flex items-center gap-1.5">
-                                    <Eye className="w-4 h-4 text-indigo-500" />
+                                <h3 className="font-bold text-xs flex items-center gap-1.5">
+                                    <Eye className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
                                     Live Invoice Preview
                                 </h3>
-                                <p className="text-[10px] text-muted-foreground">Showing: {selectedSale ? selectedSale.invoice_number : "Sample Invoice Template"}</p>
+                                <p className="text-[9px] text-muted-foreground mt-0.5">Showing: {selectedSale ? selectedSale.invoice_number : "Sample Invoice Template"}</p>
                             </div>
                             
-                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                            <div className="flex gap-2 w-full sm:w-auto">
                                 <Button
                                     onClick={() => handlePrintSale(activeSaleData)}
-                                    className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs h-9 px-4 flex items-center gap-1.5 flex-1 sm:flex-initial"
+                                    className="bg-primary hover:bg-primary/95 text-white font-bold rounded-lg text-xs h-8.5 px-3 flex items-center gap-1.5 flex-1 sm:flex-initial"
                                 >
                                     <Printer className="w-3.5 h-3.5" />
                                     {selectedTheme === 'thermal' ? 'Print Thermal' : 'Download Invoice'}
@@ -1050,10 +1062,10 @@ const PrintStudioPage = () => {
                                                         signature_url: profile.signature_url || undefined,
                                                     } : undefined
                                                 }, 
-                                                { action: 'preview', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms }
+                                                { action: 'preview', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms, fontSizeFactor }
                                             );
                                         }}
-                                        className="rounded-xl text-xs h-9 border-border flex items-center gap-1.5 flex-1 sm:flex-initial"
+                                        className="rounded-lg text-xs h-8.5 border-border flex items-center gap-1.5 flex-1 sm:flex-initial"
                                     >
                                         <Eye className="w-3.5 h-3.5" />
                                         Print Preview
@@ -1063,16 +1075,57 @@ const PrintStudioPage = () => {
                         </div>
 
                         {/* Invoice Canvas Sheet Wrapper */}
-                        <div className="bg-slate-100 dark:bg-slate-900/60 p-4 sm:p-8 border rounded-2xl flex justify-center items-start overflow-x-auto min-h-[750px] shadow-inner">
+                        <div className="flex-1 min-h-0 bg-slate-100 dark:bg-slate-900/60 p-4 border rounded-xl flex justify-center items-start overflow-auto shadow-inner">
                             <div className={cn("w-full transition-all duration-300", pageSize === 'a5' ? "max-w-[500px]" : "max-w-[680px]")}>
-                                <InvoiceMockPreview 
-                                    sale={activeSaleData}
-                                    profile={profile}
-                                    theme={selectedTheme}
-                                    formatCurrency={formatCurrency}
-                                    pageSize={pageSize}
-                                    customTerms={customTerms}
-                                />
+                                <div className="w-full relative">
+                                    <style dangerouslySetInnerHTML={{ __html: `
+                                        .invoice-preview-container-wrap {
+                                            font-size: ${12 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-xs,
+                                        .invoice-preview-container-wrap td,
+                                        .invoice-preview-container-wrap th {
+                                            font-size: ${12 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-sm {
+                                            font-size: ${14 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-base {
+                                            font-size: ${16 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-lg {
+                                            font-size: ${18 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-xl {
+                                            font-size: ${20 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-2xl {
+                                            font-size: ${24 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-[8px] {
+                                            font-size: ${8 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-[9px] {
+                                            font-size: ${9 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-[10px] {
+                                            font-size: ${10 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                        .invoice-preview-container-wrap .text-[11px] {
+                                            font-size: ${11 * fontSizeFactor * (pageSize === 'a5' ? 0.75 : 1.0)}px !important;
+                                        }
+                                    `}} />
+                                    <div className="invoice-preview-container-wrap w-full">
+                                        <InvoiceMockPreview 
+                                            sale={activeSaleData}
+                                            profile={profile}
+                                            theme={selectedTheme}
+                                            formatCurrency={formatCurrency}
+                                            pageSize={pageSize}
+                                            customTerms={customTerms}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

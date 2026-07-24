@@ -219,7 +219,7 @@ export const handleContinuationPage = (
 
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
-    options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string, pageSize?: PageSize, customTerms?: string }
+    options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string, pageSize?: PageSize, customTerms?: string, fontSizeFactor?: number }
 ) => {
     try {
         const autoTable = runAutoTable;
@@ -229,12 +229,22 @@ export const generateInvoicePDF = async (
         const documentTitle = options?.documentTitle;
         const pageSize = options?.pageSize || (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || 'a4';
         const customTerms = data.notes || options?.customTerms || localStorage.getItem("finflow_invoice_terms") || "";
+        
+        const savedFontSizeFactor = (options?.fontSizeFactor ?? Number(localStorage.getItem("finflow_invoice_fontsize_factor"))) || 1.0;
+        const autoFitFactor = pageSize === 'a5' ? 0.75 : 1.0;
+        const finalFontScale = savedFontSizeFactor * autoFitFactor;
 
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
             format: pageSize
         });
+
+        // Intercept setFontSize to scale text dynamically
+        const originalSetFontSize = doc.setFontSize;
+        doc.setFontSize = function(size: number) {
+            return originalSetFontSize.call(this, size * finalFontScale);
+        };
 
         const safeText = (txt: string | undefined | null) => sanitizeText(txt || "");
         const dateFormatted = data.date ? format(new Date(data.date), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
@@ -2450,11 +2460,12 @@ export const generateInvoicePDF = async (
             doc.setFontSize(11);
             doc.text(bizName, tallyMarginX + 2, 28);
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8.5);
-            let sellerY = 33;
+            doc.setFontSize(8);
+            let sellerY = 32;
             if (data.business_details?.address) {
-                doc.text(doc.splitTextToSize(safeText(data.business_details.address), pageWidth / 2 - tallyMarginX - 5), tallyMarginX + 2, sellerY);
-                sellerY += 10;
+                const addrLines = doc.splitTextToSize(safeText(data.business_details.address), pageWidth / 2 - tallyMarginX - 5);
+                doc.text(addrLines, tallyMarginX + 2, sellerY);
+                sellerY += addrLines.length * 3.6 + 1.2;
             }
             if (data.business_details?.phone) {
                 doc.text(`Phone: ${safeText(data.business_details.phone)}`, tallyMarginX + 2, sellerY);
@@ -2469,17 +2480,17 @@ export const generateInvoicePDF = async (
             doc.setFontSize(8);
             doc.text(`Invoice No:`, pageWidth / 2 + 2, 24);
             doc.setFont(fontStyle, "bold");
-            doc.text(safeText(data.invoice_number), pageWidth / 2 + 30, 24);
+            doc.text(safeText(data.invoice_number), pageWidth / 2 + 38, 24);
             
             doc.setFont(fontStyle, "normal");
             doc.text(`Dated:`, pageWidth / 2 + 2, 30);
-            doc.text(dateFormatted, pageWidth / 2 + 30, 30);
+            doc.text(dateFormatted, pageWidth / 2 + 38, 30);
 
             doc.text(`Delivery Note:`, pageWidth / 2 + 2, 36);
-            doc.text("Direct Delivery", pageWidth / 2 + 30, 36);
+            doc.text("Direct Delivery", pageWidth / 2 + 38, 36);
 
             doc.text(`Mode/Terms of Payment:`, pageWidth / 2 + 2, 42);
-            doc.text("Immediate / Paid", pageWidth / 2 + 30, 42);
+            doc.text("Immediate / Paid", pageWidth / 2 + 38, 42);
 
             // Horizontal border separating Quadrants 1/2 from 3/4
             doc.line(tallyMarginX, 47, pageWidth - tallyMarginX, 47);
@@ -2550,30 +2561,47 @@ export const generateInvoicePDF = async (
             let finalY = (doc as any).lastAutoTable.finalY;
             finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, lineDark, theme, data.invoice_number, bizName);
 
-            // Draw grid bottom lines
+            // Calculate footer start to avoid large empty gaps when the invoice has few items
+            const footerHeight = 70;
+            const footerStartY = Math.max(finalY, pageHeight - 10 - footerHeight);
+
+            // Draw vertical grid lines to fill the gap between the end of table and the start of the footer
             doc.setDrawColor(...lineDark);
-            
-            // Box for bank/amount details
-            doc.rect(tallyMarginX, finalY, pageWidth - 2 * tallyMarginX, pageHeight - 10 - finalY);
+            doc.setLineWidth(0.5);
+            if (finalY < footerStartY) {
+                const colXs = [
+                    tallyMarginX + 12 * scale,
+                    tallyMarginX + 102 * scale,
+                    tallyMarginX + 117 * scale,
+                    tallyMarginX + 145 * scale,
+                    tallyMarginX + 160 * scale
+                ];
+                colXs.forEach(x => {
+                    doc.line(x, finalY, x, footerStartY);
+                });
+            }
+
+            // Box for bank/amount details starting at footerStartY instead of finalY
+            doc.rect(tallyMarginX, footerStartY, pageWidth - 2 * tallyMarginX, pageHeight - 10 - footerStartY);
             
             // Vertical split
             const splitX = pageWidth - 85 * scale;
-            doc.line(splitX, finalY, splitX, pageHeight - 10);
+            doc.line(splitX, footerStartY, splitX, pageHeight - 10);
             
             // Left Column: Bank / Words / Declarations
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Amount Chargeable (in words):", tallyMarginX + 2, finalY + 5);
+            doc.text("Amount Chargeable (in words):", tallyMarginX + 2, footerStartY + 5);
             doc.setFont(fontStyle, "bold");
-            doc.text(`INR ${formatCurrencySafe(data.total_amount).replace("Rs. ", "")} Only`, tallyMarginX + 2, finalY + 10);
+            doc.text(`INR ${formatCurrencySafe(data.total_amount).replace("Rs. ", "")} Only`, tallyMarginX + 2, footerStartY + 10);
 
             // Horizontal line in left column
-            doc.line(tallyMarginX, finalY + 15, splitX, finalY + 15);
+            doc.line(tallyMarginX, footerStartY + 15, splitX, footerStartY + 15);
             
             // GST Tax split details
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", tallyMarginX + 2, finalY + 20);
+            doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", tallyMarginX + 2, footerStartY + 20);
 
             // Bank details
             let bankNameText = "Bank Name: State Bank of India";
@@ -2595,23 +2623,23 @@ export const generateInvoicePDF = async (
                 console.error("Error reading bank details", e);
             }
 
-            doc.text(bankNameText, tallyMarginX + 2, finalY + 28);
-            doc.text(bankAccText, tallyMarginX + 2, finalY + 32);
-            doc.text(bankIfscText, tallyMarginX + 2, finalY + 36);
+            doc.text(bankNameText, tallyMarginX + 2, footerStartY + 28);
+            doc.text(bankAccText, tallyMarginX + 2, footerStartY + 32);
+            doc.text(bankIfscText, tallyMarginX + 2, footerStartY + 36);
 
             // Horizontal line above declaration
-            doc.line(tallyMarginX, finalY + 40, splitX, finalY + 40);
+            doc.line(tallyMarginX, footerStartY + 40, splitX, footerStartY + 40);
             
             // Declaration
             doc.setFont(fontStyle, "bold");
-            doc.text("Declaration:", tallyMarginX + 2, finalY + 44);
+            doc.text("Declaration:", tallyMarginX + 2, footerStartY + 44);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
             const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
-            doc.text(doc.splitTextToSize(termsText, splitX - tallyMarginX - 4), tallyMarginX + 2, finalY + 49);
+            doc.text(doc.splitTextToSize(termsText, splitX - tallyMarginX - 4), tallyMarginX + 2, footerStartY + 49);
 
             // Right Column: Summary & Signatory
-            let rightY = finalY + 5;
+            let rightY = footerStartY + 5;
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(9);
             
@@ -2647,7 +2675,7 @@ export const generateInvoicePDF = async (
             const sigY = pageHeight - 35;
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8.5);
-            doc.text(`for ${bizName.toUpperCase()}`, splitX + 2, rightY + 5);
+            doc.text(`for ${bizName.toUpperCase()}`, splitX + 2, Math.max(rightY + 5, sigY - 6));
             
             const signatoryCenterX = splitX + (pageWidth - tallyMarginX - splitX) / 2;
             if (signatureBase64) {

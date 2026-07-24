@@ -58,6 +58,8 @@ interface InvoiceFormValues {
     irn?: string;
     eway_bill_number?: string;
     qr_code?: string;
+    quick_item_name?: string;
+    quick_total_amount?: number;
 }
 
 export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSettings }: CreateInvoiceDialogProps) => {
@@ -69,6 +71,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
     // Load item settings (keyed by current user)
     const { settings } = useItemSettings(currentUserId);
+
+    const [isQuickBilling, setIsQuickBilling] = useState(salesSettings?.enableQuickBilling ?? false);
 
     const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<InvoiceFormValues>({
         defaultValues: {
@@ -86,7 +90,9 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
             tax_rate: 0,
             overall_discount: 0,
-            status: "paid"
+            status: "paid",
+            quick_item_name: "General Sale",
+            quick_total_amount: 0
         },
         mode: "onBlur"
     });
@@ -100,6 +106,31 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     const watchItems = watch("items");
     const watchTaxRate = watch("tax_rate");
     const watchOverallDiscount = watch("overall_discount");
+    const watchQuickItemName = watch("quick_item_name");
+    const watchQuickTotalAmount = watch("quick_total_amount");
+
+    useEffect(() => {
+        if (open) {
+            setIsQuickBilling(invoiceToEdit ? false : (salesSettings?.enableQuickBilling ?? false));
+        }
+    }, [open, invoiceToEdit, salesSettings?.enableQuickBilling]);
+
+    useEffect(() => {
+        if (isQuickBilling) {
+            const tax = Number(watchTaxRate) || 0;
+            const total = Number(watchQuickTotalAmount) || 0;
+            const price = total / (1 + tax / 100);
+            
+            setValue("items", [{
+                description: watchQuickItemName || "General Sale",
+                quantity: 1,
+                price: price,
+                discount: 0,
+                total: price,
+                hsn_code: ""
+            }], { shouldValidate: true, shouldDirty: true });
+        }
+    }, [isQuickBilling, watchQuickItemName, watchQuickTotalAmount, watchTaxRate, setValue]);
 
     // Fetch Parties for Auto-complete
     const { data: parties = [] } = useQuery({
@@ -297,6 +328,13 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
         }
     };
 
+    const handleQuickProductSelect = (productName: string) => {
+        const product = (products as any[]).find((p: any) => p.name === productName);
+        if (product) {
+            setValue("quick_total_amount", product.price, { shouldValidate: true, shouldDirty: true });
+        }
+    };
+
     // Outstanding balance check helper
     const checkOutstandingBalance = async (customerName: string): Promise<boolean> => {
         if (!salesSettings?.warnOnOutstandingBalance || !customerName.trim()) return true;
@@ -369,18 +407,51 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 }
             }
 
-            const validItems = values.items.filter(item => item.description && item.description.trim() !== "");
-            const itemsToProcess = validItems.length > 0 ? validItems : values.items;
+            const calcTaxRate = Number(values.tax_rate) || 0;
+            let processedItems: any[] = [];
+            let calcSubtotal = 0;
+            let calcOverallDiscountAmount = 0;
+            let calcTaxAmount = 0;
+            let calcTotalAmount = 0;
 
-            const processedItems = itemsToProcess.map(item => {
-                const qty = Number(item.quantity) || 0;
-                const price = Number(item.price) || 0;
-                const disc = Number(item.discount) || 0;
-                return {
-                    ...item,
-                    total: (qty * price) * (1 - (disc / 100))
-                };
-            });
+            if (isQuickBilling) {
+                const totalVal = Number(values.quick_total_amount) || 0;
+                const priceVal = totalVal / (1 + calcTaxRate / 100);
+                processedItems = [{
+                    description: values.quick_item_name?.trim() || "General Sale",
+                    quantity: 1,
+                    price: priceVal,
+                    discount: 0,
+                    total: priceVal,
+                    hsn_code: ""
+                }];
+                calcSubtotal = priceVal;
+                calcOverallDiscountAmount = 0;
+                calcTaxAmount = totalVal - priceVal;
+                calcTotalAmount = totalVal;
+            } else {
+                const validItems = values.items.filter(item => item.description && item.description.trim() !== "");
+                const itemsToProcess = validItems.length > 0 ? validItems : values.items;
+
+                processedItems = itemsToProcess.map(item => {
+                    const qty = Number(item.quantity) || 0;
+                    const price = Number(item.price) || 0;
+                    const disc = Number(item.discount) || 0;
+                    return {
+                        ...item,
+                        total: (qty * price) * (1 - (disc / 100))
+                    };
+                });
+
+                calcSubtotal = processedItems.reduce((sum, item) => sum + item.total, 0);
+                const calcOverallDiscountPercent = Number(values.overall_discount) || 0;
+                calcOverallDiscountAmount = (calcSubtotal * calcOverallDiscountPercent) / 100;
+                const calcTaxableAmount = Math.max(0, calcSubtotal - calcOverallDiscountAmount);
+                const calcTaxAmountVal = (calcTaxableAmount * calcTaxRate) / 100;
+                const calcRawTotal = calcTaxableAmount + calcTaxAmountVal;
+                calcTotalAmount = salesSettings?.roundOffTotal ? Math.round(calcRawTotal) : calcRawTotal;
+                calcTaxAmount = calcTaxAmountVal;
+            }
 
             const saleData = {
                 user_id: user.id,
@@ -396,11 +467,11 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 date: values.date,
                 due_date: values.due_date || null,
                 items: processedItems,
-                subtotal: subtotal,
-                discount_amount: overallDiscountAmount,
-                tax_rate: taxRate,
-                tax_amount: taxAmount,
-                total_amount: totalAmount,
+                subtotal: calcSubtotal,
+                discount_amount: calcOverallDiscountAmount,
+                tax_rate: calcTaxRate,
+                tax_amount: calcTaxAmount,
+                total_amount: calcTotalAmount,
                 status: values.status,
                 payment_method: values.status === 'paid' ? "cash" : null,
                 irn: values.irn || null,
@@ -641,11 +712,34 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[1100px] max-h-[90vh] p-0 flex flex-col bg-background border-slate-200 shadow-xl overflow-hidden rounded-md">
                 <DialogHeader className="px-8 py-5 border-b border-border/60 bg-slate-50/50">
-                    <div className="flex justify-between items-center">
-                        <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-800">
-                            {invoiceToEdit ? "Edit Invoice" : "New Invoice"}
-                        </DialogTitle>
-                        <div className="flex items-center space-x-3">
+                    <div className="flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-800">
+                                {invoiceToEdit ? "Edit Invoice" : "New Invoice"}
+                            </DialogTitle>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {!invoiceToEdit && (
+                                <div className="flex items-center space-x-1 border rounded-lg p-0.5 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsQuickBilling(true);
+                                            setValue("quick_total_amount", 0);
+                                        }}
+                                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${isQuickBilling ? 'bg-white dark:bg-slate-800 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'}`}
+                                    >
+                                        Quick Billing
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsQuickBilling(false)}
+                                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!isQuickBilling ? 'bg-white dark:bg-slate-800 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'}`}
+                                    >
+                                        Full Billing
+                                    </button>
+                                </div>
+                            )}
                             <span className={`px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border ${watch("status") === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                                 {watch("status") === 'paid' ? 'PAID' : 'PENDING'}
                             </span>
@@ -654,10 +748,132 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto flex flex-col">
-                    <div className="flex-1 px-8 py-6 space-y-10">
-                        {/* AI Smart Fill for Invoice */}
-                        {!invoiceToEdit && (
-                            <div className="bg-violet-500/5 dark:bg-violet-950/5 border border-violet-500/10 p-4 rounded-lg">
+                    {isQuickBilling ? (
+                        /* Simplified Quick Invoicing */
+                        <div className="flex-1 px-8 py-6 max-w-xl mx-auto w-full space-y-6">
+                            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-5 shadow-sm">
+                                
+                                {/* Customer Name */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Customer Name <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950"
+                                        {...register("customer_name", { required: "Customer name is required" })}
+                                        placeholder="Select or enter customer"
+                                        list="quick-customer-list"
+                                        onChange={(e) => {
+                                            register("customer_name").onChange(e);
+                                            handleCustomerSelect(e.target.value);
+                                        }}
+                                    />
+                                    <datalist id="quick-customer-list">
+                                        {parties.map((party: any) => (
+                                            <option key={party.id} value={party.name} />
+                                        ))}
+                                    </datalist>
+                                    {errors.customer_name && <span className="text-destructive text-xs block">{errors.customer_name.message}</span>}
+                                </div>
+
+                                {/* Item/Product Name */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Product / Service Description</Label>
+                                    <Input
+                                        className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950"
+                                        {...register("quick_item_name")}
+                                        placeholder="e.g. General Sale, Service Charge"
+                                        list="quick-product-list"
+                                        onChange={(e) => {
+                                            register("quick_item_name").onChange(e);
+                                            handleQuickProductSelect(e.target.value);
+                                        }}
+                                    />
+                                    <datalist id="quick-product-list">
+                                        {products.map((p: any) => (
+                                            <option key={p.id} value={p.name} />
+                                        ))}
+                                    </datalist>
+                                </div>
+
+                                {/* Total Amount */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Total Amount (₹) <span className="text-destructive">*</span></Label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
+                                            <Input
+                                                type="number"
+                                                min={0.01}
+                                                step="any"
+                                                className="h-10 pl-7 rounded-md border-slate-300 bg-white dark:bg-slate-950 font-semibold"
+                                                {...register("quick_total_amount", { 
+                                                    required: "Amount is required",
+                                                    validate: v => Number(v) > 0 || "Amount must be greater than 0"
+                                                })}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        {errors.quick_total_amount && <span className="text-destructive text-xs block">{errors.quick_total_amount.message}</span>}
+                                    </div>
+
+                                    {/* Tax Rate */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">GST Tax Rate (%)</Label>
+                                        <select
+                                            {...register("tax_rate")}
+                                            className="flex h-10 w-full rounded-md border border-slate-300 bg-white dark:bg-slate-950 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-semibold"
+                                        >
+                                            <option value="0">0% (Exempt)</option>
+                                            <option value="5">5% GST</option>
+                                            <option value="12">12% GST</option>
+                                            <option value="18">18% GST</option>
+                                            <option value="28">28% GST</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Invoice Number */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Invoice Number</Label>
+                                        <Input
+                                            className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950 font-medium"
+                                            {...register("invoice_number", { required: "Required" })}
+                                        />
+                                        {errors.invoice_number && <span className="text-destructive text-xs block">{errors.invoice_number.message}</span>}
+                                    </div>
+
+                                    {/* Date */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Date</Label>
+                                        <Input
+                                            type="date"
+                                            className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950"
+                                            {...register("date")}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Status Toggle */}
+                                <div className="flex items-center justify-between p-4 rounded-lg border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800/80 mt-2">
+                                    <div>
+                                        <Label className="text-sm font-semibold text-slate-800 dark:text-white">Payment Status</Label>
+                                        <p className="text-[11px] text-slate-400">Mark this invoice as immediately paid or pending.</p>
+                                    </div>
+                                    <select
+                                        {...register("status")}
+                                        className="h-9 rounded-md border border-slate-300 bg-white dark:bg-slate-950 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="paid">Paid</option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 px-8 py-6 space-y-10">
+                            {/* AI Smart Fill for Invoice */}
+                            {!invoiceToEdit && (
+                                <div className="bg-violet-500/5 dark:bg-violet-950/5 border border-violet-500/10 p-4 rounded-lg">
                                 <Label className="text-xs font-semibold text-violet-500 mb-1.5 flex items-center gap-1 uppercase tracking-wide">
                                     <Wand2 className="w-3 h-3" /> AI Smart Fill Invoice
                                 </Label>
@@ -1096,17 +1312,17 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
 
-                        {/* Sidebar Footer Actions */}
-                        <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 sticky bottom-0 z-20 mt-auto rounded-b-md">
-                            <Button type="button" variant="outline" className="min-w-[100px] border-slate-300 bg-white" onClick={() => onOpenChange(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" className="min-w-[140px] bg-slate-800 hover:bg-slate-900 text-white shadow-sm" disabled={createInvoiceMutation.isPending}>
-                                {createInvoiceMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                {invoiceToEdit ? "Update Invoice" : "Save Invoice"}
-                            </Button>
-                        </div>
+                    <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 sticky bottom-0 z-20 mt-auto rounded-b-md">
+                        <Button type="button" variant="outline" className="min-w-[100px] border-slate-300 bg-white" onClick={() => onOpenChange(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" className="min-w-[140px] bg-slate-800 hover:bg-slate-900 text-white shadow-sm" disabled={createInvoiceMutation.isPending}>
+                            {createInvoiceMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            {invoiceToEdit ? "Update Invoice" : "Save Invoice"}
+                        </Button>
                     </div>
                 </form>
             </DialogContent>
