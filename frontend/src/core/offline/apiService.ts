@@ -2,7 +2,7 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { sqliteService } from "./sqliteService";
 import { queueService } from "./queueService";
 
-const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases']);
+const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants']);
 
 export const sanitizePayload = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;
