@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
@@ -30,6 +30,7 @@ export default function SalesPage() {
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingInvoice, setEditingInvoice] = useState<any>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
     
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
@@ -316,16 +317,34 @@ export default function SalesPage() {
         .filter(inv => inv.status === 'paid' && isSameMonth(new Date(inv.date), today))
         .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
 
-    const filteredInvoices = invoices.filter((invoice) => {
-        const matchesSearch =
-            invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filterStatus === 'all' || invoice.status === filterStatus;
-        return matchesFilter && matchesSearch;
-    });
+    const sortedAndFilteredInvoices = useMemo(() => {
+        const filtered = invoices.filter((invoice) => {
+            const matchesSearch =
+                invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesFilter = filterStatus === 'all' || invoice.status === filterStatus;
+            return matchesFilter && matchesSearch;
+        });
+
+        return [...filtered].sort((a, b) => {
+            if (sortBy === 'date-desc') {
+                return new Date(b.date).getTime() - new Date(a.date).getTime();
+            }
+            if (sortBy === 'date-asc') {
+                return new Date(a.date).getTime() - new Date(b.date).getTime();
+            }
+            if (sortBy === 'amount-desc') {
+                return Number(b.total_amount || 0) - Number(a.total_amount || 0);
+            }
+            if (sortBy === 'amount-asc') {
+                return Number(a.total_amount || 0) - Number(b.total_amount || 0);
+            }
+            return 0;
+        });
+    }, [invoices, searchTerm, filterStatus, sortBy]);
 
     const rowVirtualizer = useVirtualizer({
-        count: filteredInvoices.length,
+        count: sortedAndFilteredInvoices.length,
         getScrollElement: () => tableContainerRef.current,
         estimateSize: () => 80, // Approximate height of table row
         overscan: 10,
@@ -336,51 +355,53 @@ export default function SalesPage() {
             <div className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-8 animate-fade-in text-slate-900 dark:text-slate-100 font-display">
 
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-8">
                     <div>
                         <h2 className="text-3xl font-extrabold tracking-tight">Sales & Invoices</h2>
                         <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">Manage and monitor all your customer billing operations.</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <div className="relative group">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                        <div className="relative group w-full sm:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
                             <input
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full sm:w-64 h-10 pl-10 pr-4 text-sm rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100"
+                                className="w-full h-10 pl-10 pr-4 text-sm rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100"
                                 placeholder="Search invoices..."
                             />
                         </div>
-                        <button
-                            onClick={() => setIsSettingsOpen(true)}
-                            className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg shadow-sm transition-all"
-                        >
-                            <Settings2 className="w-4 h-4" />
-                            Sales Settings
-                        </button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg shadow-sm transition-all">
-                                    Bulk Actions <MoreHorizontal className="w-4 h-4 ml-1" />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                <DropdownMenuItem onClick={handleBulkEmail} className="cursor-pointer py-2">
-                                    <Mail className="w-4 h-4 mr-2" /> Send Emails to Overdue
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <button
-                            onClick={() => {
-                                setEditingInvoice(null);
-                                setIsCreateOpen(true);
-                            }}
-                            className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Create Invoice
-                        </button>
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={() => setIsSettingsOpen(true)}
+                                className="flex items-center justify-center whitespace-nowrap gap-2 px-3 py-2 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg shadow-sm transition-all flex-1 sm:flex-initial"
+                            >
+                                <Settings2 className="w-4 h-4" />
+                                Sales Settings
+                            </button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button className="flex items-center justify-center whitespace-nowrap gap-2 px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg shadow-sm transition-all flex-1 sm:flex-initial">
+                                        Bulk Actions <MoreHorizontal className="w-4 h-4 ml-1" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                    <DropdownMenuItem onClick={handleBulkEmail} className="cursor-pointer py-2">
+                                        <Mail className="w-4 h-4 mr-2" /> Send Emails to Overdue
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <button
+                                onClick={() => {
+                                    setEditingInvoice(null);
+                                    setIsCreateOpen(true);
+                                }}
+                                className="flex items-center justify-center whitespace-nowrap gap-2 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all flex-1 sm:flex-initial"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Create Invoice
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -451,9 +472,27 @@ export default function SalesPage() {
                                 </button>
                             ))}
                         </div>
-                        <button className="text-slate-400 hover:text-slate-600 p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800">
-                            <Filter className="w-4 h-4" />
-                        </button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="text-slate-400 hover:text-slate-600 p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" title="Sort Invoices">
+                                    <Filter className="w-4 h-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <DropdownMenuItem onClick={() => setSortBy('date-desc')} className={`cursor-pointer py-2 ${sortBy === 'date-desc' ? 'font-bold text-primary' : ''}`}>
+                                    Date: Newest First
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortBy('date-asc')} className={`cursor-pointer py-2 ${sortBy === 'date-asc' ? 'font-bold text-primary' : ''}`}>
+                                    Date: Oldest First
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortBy('amount-desc')} className={`cursor-pointer py-2 ${sortBy === 'amount-desc' ? 'font-bold text-primary' : ''}`}>
+                                    Amount: High to Low
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortBy('amount-asc')} className={`cursor-pointer py-2 ${sortBy === 'amount-asc' ? 'font-bold text-primary' : ''}`}>
+                                    Amount: Low to High
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
 
                     <div 
@@ -475,7 +514,7 @@ export default function SalesPage() {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
                                     <TableLoadingRows cols={7} rows={6} />
-                                ) : filteredInvoices.length === 0 ? (
+                                ) : sortedAndFilteredInvoices.length === 0 ? (
                                     <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No invoices matching your criteria.</td></tr>
                                 ) : (
                                     <>
@@ -485,7 +524,7 @@ export default function SalesPage() {
                                             </tr>
                                         )}
                                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                            const invoice = filteredInvoices[virtualRow.index];
+                                            const invoice = sortedAndFilteredInvoices[virtualRow.index];
                                             return (
                                         <tr key={invoice.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
                                             <td className="px-6 py-4">
@@ -547,10 +586,6 @@ export default function SalesPage() {
                                                             <DropdownMenuItem onClick={() => handleShare(invoice)}>
                                                                 <Share2 className="w-4 h-4 mr-2" />
                                                                 Share Invoice
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => handleGeneratePDF(invoice)} className="cursor-pointer py-2">
-                                                                <FileText className="w-4 h-4 mr-2 text-indigo-500" />
-                                                                Generate PDF
                                                             </DropdownMenuItem>
                                                             {invoice.customer_gstin && invoice.customer_gstin.length === 15 && (
                                                                 <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)} className="cursor-pointer py-2">
