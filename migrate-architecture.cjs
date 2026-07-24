@@ -36,7 +36,7 @@ coreFoldersToMove.forEach(folder => {
 });
 
 
-    
+const filesToMove = {
     // auth
     'pages/Auth.tsx': 'features/auth/Auth.tsx',
 

@@ -611,7 +611,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 }
             }
 
-            return { ...values, items: processedItems, profile: profileData, discountAmountVal: overallDiscountAmount, id: recordId, created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString() };
+            return { ...values, items: processedItems, profile: profileData, discount_amount: calcOverallDiscountAmount, id: recordId, created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString() };
         },
         onSuccess: (data: any) => {
             // Optimistically update React Query sales cache
