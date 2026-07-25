@@ -21,6 +21,7 @@ interface OrdersDrawerProps {
     formatCurrency: (n: number) => string;
     storeId: string | null;
     savedOrderIds: string[];
+    merchantProfile?: any;
     onPayOrder?: (order: any) => void;
 }
 
@@ -30,6 +31,7 @@ export function OrdersDrawer({
     formatCurrency,
     storeId,
     savedOrderIds,
+    merchantProfile,
     onPayOrder,
 }: OrdersDrawerProps) {
     const queryClient = useQueryClient();
@@ -98,7 +100,7 @@ export function OrdersDrawer({
 
             // Query payment records for these orders
             const orderIds = fetchedOrders.map((o: any) => o.id);
-            const { data: payments } = await supabase
+            const { data: payments } = await (supabase as any)
                 .from("payments")
                 .select("*, invoices(invoice_number)")
                 .in("order_id", orderIds);
@@ -113,7 +115,7 @@ export function OrdersDrawer({
             // Query return records for these orders
             const returnsMap = new Map();
             try {
-                const { data: returns, error: returnsError } = await supabase
+                const { data: returns, error: returnsError } = await (supabase as any)
                     .from("order_returns")
                     .select("*")
                     .in("order_id", orderIds);
@@ -285,17 +287,26 @@ export function OrdersDrawer({
                                             )}
 
                                             <div className="flex gap-2">
-                                                {order.payment?.status === 'success' && (
+                                                {order.status === 'completed' && (
                                                     <button
                                                         onClick={() => {
-                                                            const invoiceNo = order.payment.invoices?.[0]?.invoice_number || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                                                            const invoiceNo = order.payment?.invoices?.[0]?.invoice_number || `INV-${new Date(order.created_at).getFullYear()}-${order.id.slice(0, 6).toUpperCase()}`;
+                                                            const invoiceDate = order.payment?.created_at ? new Date(order.payment.created_at).toLocaleDateString() : new Date(order.created_at).toLocaleDateString();
+                                                            const paymentMode = order.payment?.payment_method || "Cash on Delivery";
+                                                            const paymentStatus = order.payment?.status || (order.status === 'completed' ? 'success' : 'pending');
+
                                                             generateInvoicePDF({
                                                                 invoiceNumber: invoiceNo,
-                                                                date: new Date(order.payment.created_at).toLocaleDateString(),
-                                                                storeName: "FinFlow Storefront",
-                                                                customerName: order.customer_name,
-                                                                customerPhone: order.customer_phone,
-                                                                customerAddress: order.customer_address,
+                                                                date: invoiceDate,
+                                                                storeName: merchantProfile?.business_name || merchantProfile?.display_name || "FinFlow Storefront",
+                                                                storeAddress: merchantProfile?.business_address || "Storefront Pickup",
+                                                                storePhone: merchantProfile?.business_phone || "",
+                                                                storeGst: merchantProfile?.gst_number || "",
+                                                                storeLogo: merchantProfile?.business_logo || "",
+                                                                storeSignature: merchantProfile?.signature_url || "",
+                                                                customerName: order.customer_name || "Valued Customer",
+                                                                customerPhone: order.customer_phone || "",
+                                                                customerAddress: order.customer_address || "Storefront Pickup",
                                                                 items: orderItems.map((it: any) => ({
                                                                     name: it.product_name || "Product Item",
                                                                     quantity: it.quantity || 1,
@@ -304,8 +315,9 @@ export function OrdersDrawer({
                                                                 subtotal: Number(order.total_amount) - Number(order.delivery_charge || 0),
                                                                 deliveryCharge: Number(order.delivery_charge || 0),
                                                                 totalAmount: Number(order.total_amount),
-                                                                paymentMethod: order.payment.payment_method || "online",
-                                                                status: order.payment.status
+                                                                paymentMethod: paymentMode,
+                                                                status: paymentStatus,
+                                                                orderId: order.id
                                                             });
                                                         }}
                                                         className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary/5 active:scale-[0.98] transition-all"

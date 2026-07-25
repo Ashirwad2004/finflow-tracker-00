@@ -122,6 +122,35 @@ export default function Storefront() {
 
     const storeId = storeProfile?.user_id ?? null;
 
+    // Fetch merchant details (business address, phone, GST, signature)
+    const { data: merchantProfile } = useQuery({
+        queryKey: ["merchantProfile", storeId],
+        queryFn: async () => {
+            if (!storeId) return null;
+            if (storeId === "demo-user-id") {
+                return {
+                    business_name: "Aroma Coffee Roasters Ltd.",
+                    business_address: "123 Gourmet Coffee Blvd, Roast City, RC 560001",
+                    business_phone: "+91 98765 43210",
+                    gst_number: "29AAAAA1111A1Z1",
+                    signature_url: null,
+                    business_logo: null
+                };
+            }
+            const { data, error } = await (supabase as any)
+                .from("profiles")
+                .select("business_name, business_address, business_phone, gst_number, business_logo, signature_url, display_name")
+                .eq("user_id", storeId)
+                .single();
+            if (error) {
+                console.error("Error fetching merchant profile:", error);
+                return null;
+            }
+            return data;
+        },
+        enabled: !!storeId,
+    });
+
     // Auto-load payment retry if query parameter (?retryOrder=xxx) is set
     useEffect(() => {
         if (retryOrderId && storeId) {
@@ -910,6 +939,7 @@ export default function Storefront() {
                 formatCurrency={formatCurrency}
                 storeId={storeId}
                 savedOrderIds={customerOrderIds}
+                merchantProfile={merchantProfile}
                 onPayOrder={(order) => {
                     setSelectedOrderForPayment({
                         id: order.id,
