@@ -44,7 +44,7 @@ export const CurrencyProvider = ({ children }: { children: React.ReactNode }) =>
 
     // Load from local storage on mount
     useEffect(() => {
-        const saved = localStorage.getItem('finflow_currency');
+        const saved = localStorage.getItem('rupeebill_currency');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -61,7 +61,7 @@ export const CurrencyProvider = ({ children }: { children: React.ReactNode }) =>
 
     const setCurrency = (newCurrency: Currency) => {
         setCurrencyState(newCurrency);
-        localStorage.setItem('finflow_currency', JSON.stringify(newCurrency));
+        localStorage.setItem('rupeebill_currency', JSON.stringify(newCurrency));
     };
 
     const formatCurrency = (amount: number) => {

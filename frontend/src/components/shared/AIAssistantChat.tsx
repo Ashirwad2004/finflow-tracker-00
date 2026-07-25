@@ -42,7 +42,7 @@ export function AIAssistantChat() {
         { 
             id: "system-init",
             role: "system", 
-            content: `You are FinFlow AI, virtual accountant and store copilot.
+            content: `You are RupeeBill AI, virtual accountant and store copilot.
 App Features:
 1. Dashboard: income/expense charts.
 2. Expenses: manual or OCR scanner.
@@ -63,7 +63,7 @@ To record a transaction, append at the end:
         { 
             id: "assistant-init",
             role: "assistant", 
-            content: "Hi! I'm your FinFlow AI copilot. Ask me about your sales, expenses, inventory, debts, or how to use the app's business features!" 
+            content: "Hi! I'm your RupeeBill AI copilot. Ask me about your sales, expenses, inventory, debts, or how to use the app's business features!" 
         }
     ]);
     const [input, setInput] = useState("");
@@ -116,7 +116,7 @@ To record a transaction, append at the end:
         // Pipe-delimited compact context (saves 70% tokens over JSON)
         const formatPipe = (arr: any[], mapper: (item: any) => string) => arr.slice(0, 5).map(mapper).join("; ") || "None";
 
-        const contextMsg = `FinFlow Indicators:
+        const contextMsg = `RupeeBill Indicators:
 - Net Cash Flow: ₹${netCashFlow.toFixed(0)} (Sales: ₹${totalSales.toFixed(0)}, Expenses: ₹${totalExpenses.toFixed(0)})
 - Debt: Lent ₹${totalLent.toFixed(0)}, Borrowed ₹${totalBorrowed.toFixed(0)}
 - Inventory: ${products.length} products. ${lowStockProducts.length} low stock, ${outOfStockCount} out of stock.
@@ -277,7 +277,7 @@ Recent (Last 5) [Format: amount|desc|date|extra]:
                         <Bot className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-semibold leading-none">FinFlow  AI</h3>
+                        <h3 className="font-semibold leading-none">RupeeBill AI</h3>
                         <p className="text-xs text-white/80 mt-1">Finance & Store Copilot</p>
                     </div>
                 </div>

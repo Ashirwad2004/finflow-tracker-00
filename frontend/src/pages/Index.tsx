@@ -38,6 +38,7 @@ import { DashboardMockup } from "@/features/landing/components/DashboardMockup";
 import { CheckoutMockup } from "@/features/landing/components/CheckoutMockup";
 import { InteractivePlayground } from "@/features/landing/components/InteractivePlayground";
 import { RealSubscriptionCheckout, PLAN_CONFIGS } from "@/features/landing/components/RealSubscriptionCheckout";
+import { Logo } from "@/components/shared/Logo";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -161,12 +162,7 @@ const Index = () => {
         className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Wallet className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight">FinFlow</span>
-          </div>
+          <Logo size={32} showText={true} />
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <Button onClick={() => navigate("/auth")} variant="ghost" className="hidden sm:flex font-medium">
@@ -623,7 +619,7 @@ const Index = () => {
               <h3 className="text-amber-500 font-bold text-sm tracking-widest uppercase mb-4">Offline Protection</h3>
               <h2 className="text-4xl md:text-5xl font-bold mb-6">No Internet? Keep Selling.</h2>
               <p className="text-xl text-muted-foreground mb-8">
-                Wi-Fi outages or power cuts shouldn't stop your sales. FinFlow securely saves all your transactions, invoices, and expense logs directly on your device. The instant your internet is back, your data automatically backs up to the cloud.
+                Wi-Fi outages or power cuts shouldn't stop your sales. RupeeBill securely saves all your transactions, invoices, and expense logs directly on your device. The instant your internet is back, your data automatically backs up to the cloud.
               </p>
               <ul className="space-y-4 mb-8">
                 {["Uninterrupted sales billing during outages", "Automatic cloud backup when internet reconnects", "Encrypted device-level local storage", "Instant screen response times with zero loading"].map((feature, i) => (
@@ -856,12 +852,7 @@ const Index = () => {
       <footer className="py-12 border-t bg-muted/20">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-lg">FinFlow</span>
-            </div>
+            <Logo size={32} showText={true} />
             <div className="flex gap-8 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Product</a>
               <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
@@ -870,7 +861,7 @@ const Index = () => {
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             </div>
             <div className="text-sm text-muted-foreground">
-              © 2026 FinFlow
+              © 2026 RupeeBill
             </div>
           </div>
         </div>

@@ -199,7 +199,7 @@ export function RealSubscriptionCheckout({
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
 
-    if (code === "FINFLOW20" || code === "WELCOME20") {
+    if (code === "RUPEEBILL20" || code === "WELCOME20") {
       setAppliedDiscountPercent(20);
       setCouponError("");
       toast({
@@ -214,7 +214,7 @@ export function RealSubscriptionCheckout({
         description: "10% additional discount applied.",
       });
     } else {
-      setCouponError("Invalid coupon code. Try FINFLOW20 for 20% off.");
+      setCouponError("Invalid coupon code. Try RUPEEBILL20 for 20% off.");
     }
   };
 
@@ -348,7 +348,7 @@ export function RealSubscriptionCheckout({
         key: razorpayKey,
         amount: grandTotal * 100, // in paise
         currency: "INR",
-        name: "FinFlow Tracker",
+        name: "RupeeBill Tracker",
         description: `${currentPlan.name} (${billingCycle === "annual" ? "Annual" : "Monthly"}) Subscription`,
         order_id: gatewayOrderId.startsWith("SUB-") ? undefined : gatewayOrderId,
         prefill: {
@@ -377,7 +377,7 @@ export function RealSubscriptionCheckout({
             setIsSuccess(true);
             toast({
               title: "🎉 Payment Successful & Subscription Active!",
-              description: `Welcome to FinFlow ${currentPlan.name}! All premium features are unlocked.`,
+              description: `Welcome to RupeeBill ${currentPlan.name}! All premium features are unlocked.`,
             });
 
             setTimeout(() => {
@@ -485,7 +485,7 @@ export function RealSubscriptionCheckout({
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-foreground">Upgrade Confirmed!</h2>
               <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                Your account has been upgraded to <span className="font-bold text-primary">FinFlow {currentPlan.name} ({billingCycle === "annual" ? "Annual" : "Monthly"})</span>.
+                Your account has been upgraded to <span className="font-bold text-primary">RupeeBill {currentPlan.name} ({billingCycle === "annual" ? "Annual" : "Monthly"})</span>.
               </p>
             </div>
             <div className="p-4 rounded-2xl bg-card border max-w-sm mx-auto text-left text-xs space-y-2">
@@ -775,7 +775,7 @@ export function RealSubscriptionCheckout({
                           setCouponCode(e.target.value);
                           setCouponError("");
                         }}
-                        placeholder="Try FINFLOW20"
+                        placeholder="Try RUPEEBILL20"
                         className="h-9 text-xs font-mono uppercase bg-background pr-7"
                         disabled={appliedDiscountPercent > 0}
                       />

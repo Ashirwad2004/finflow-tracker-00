@@ -166,7 +166,7 @@ const InvoiceMockPreview = ({
     pageSize: PageSize;
     customTerms: string;
 }) => {
-    const bizName = profile?.business_name || profile?.display_name || "FinFlow Ventures";
+    const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
     const parsedDate = sale.created_at ? new Date(sale.created_at) : new Date();
     const dateFormatted = isNaN(parsedDate.getTime()) ? format(new Date(), "dd MMM yyyy") : format(parsedDate, "dd MMM yyyy");
     
@@ -189,7 +189,7 @@ const InvoiceMockPreview = ({
 
     useEffect(() => {
         try {
-            const saved = localStorage.getItem("finflow_bank_accounts");
+            const saved = localStorage.getItem("rupeebill_bank_accounts");
             if (saved) {
                 const list = JSON.parse(saved);
                 const defaultAcc = list.find((a: any) => a.isDefault) || list[0];
@@ -717,35 +717,35 @@ const PrintStudioPage = () => {
     const [selectedTheme, setSelectedTheme] = useState<InvoiceTheme>("corporate");
     const [selectedSale, setSelectedSale] = useState<any>(null);
     const [pageSize, setPageSize] = useState<PageSize>(() => {
-        return (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || "a4";
+        return (localStorage.getItem("rupeebill_invoice_pagesize") as PageSize) || "a4";
     });
 
     const [fontSizeFactor, setFontSizeFactor] = useState<number>(() => {
-        return Number(localStorage.getItem("finflow_invoice_fontsize_factor")) || 1.0;
+        return Number(localStorage.getItem("rupeebill_invoice_fontsize_factor")) || 1.0;
     });
 
     const handlePageSizeChange = (size: PageSize) => {
         setPageSize(size);
-        localStorage.setItem("finflow_invoice_pagesize", size);
+        localStorage.setItem("rupeebill_invoice_pagesize", size);
         toast.success(`Print page size set to ${size.toUpperCase()}`);
     };
 
     const handleFontSizeChange = (factor: number) => {
         setFontSizeFactor(factor);
-        localStorage.setItem("finflow_invoice_fontsize_factor", factor.toString());
+        localStorage.setItem("rupeebill_invoice_fontsize_factor", factor.toString());
     };
 
     const [customTerms, setCustomTerms] = useState<string>(() => {
-        return localStorage.getItem("finflow_invoice_terms") || "";
+        return localStorage.getItem("rupeebill_invoice_terms") || "";
     });
 
     const handleTermsChange = (text: string) => {
         setCustomTerms(text);
-        localStorage.setItem("finflow_invoice_terms", text);
+        localStorage.setItem("rupeebill_invoice_terms", text);
     };
 
     useEffect(() => {
-        const savedTheme = localStorage.getItem("finflow_invoice_theme") as InvoiceTheme;
+        const savedTheme = localStorage.getItem("rupeebill_invoice_theme") as InvoiceTheme;
         if (savedTheme && invoiceThemes.includes(savedTheme)) {
             setSelectedTheme(savedTheme);
         }
@@ -753,7 +753,7 @@ const PrintStudioPage = () => {
 
     const handleThemeSelect = (theme: InvoiceTheme) => {
         setSelectedTheme(theme);
-        localStorage.setItem("finflow_invoice_theme", theme);
+        localStorage.setItem("rupeebill_invoice_theme", theme);
         toast.success(`Default template changed to ${themeMeta[theme].name}`);
     };
 

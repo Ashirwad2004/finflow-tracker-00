@@ -372,7 +372,7 @@ export default function SalesmanDashboard() {
                             <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-md">
                                 <Truck className="w-5 h-5 text-white" />
                             </div>
-                            <h1 className="font-black text-base tracking-tight text-slate-900 dark:text-white">FinFlow Delivery</h1>
+                            <h1 className="font-black text-base tracking-tight text-slate-900 dark:text-white">RupeeBill Delivery</h1>
                         </div>
                         <Button variant="ghost" size="icon" onClick={handleLogout}>
                             <LogOut className="w-5 h-5" />
@@ -402,7 +402,7 @@ export default function SalesmanDashboard() {
                             <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-md">
                                 <Truck className="w-5 h-5 text-white" />
                             </div>
-                            <h1 className="font-black text-base tracking-tight text-slate-900 dark:text-white">FinFlow Delivery</h1>
+                            <h1 className="font-black text-base tracking-tight text-slate-900 dark:text-white">RupeeBill Delivery</h1>
                         </div>
                         <Button variant="ghost" size="icon" onClick={handleLogout}>
                             <LogOut className="w-5 h-5" />
@@ -435,7 +435,7 @@ export default function SalesmanDashboard() {
                             <Truck className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="font-black text-base tracking-tight leading-none text-slate-900 dark:text-white">FinFlow Delivery</h1>
+                            <h1 className="font-black text-base tracking-tight leading-none text-slate-900 dark:text-white">RupeeBill Delivery</h1>
                             <p className="text-[10px] text-muted-foreground mt-1">Fulfillment Portal</p>
                         </div>
                     </div>

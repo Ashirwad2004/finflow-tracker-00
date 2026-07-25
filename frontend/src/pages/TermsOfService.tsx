@@ -1,8 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Wallet, ArrowLeft, Scale, Info, ShieldAlert, CreditCard, MessageSquare, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Scale, Info, ShieldAlert, CreditCard, MessageSquare, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
+import { Logo } from "@/components/shared/Logo";
 
 export default function TermsOfService() {
   const navigate = useNavigate();
@@ -12,13 +13,13 @@ export default function TermsOfService() {
       icon: Info,
       title: "1. Acceptance of Terms",
       content:
-        "By accessing or using FinFlow, you agree to be bound by these Terms of Service. If you do not agree, you may not use our services."
+        "By accessing or using RupeeBill, you agree to be bound by these Terms of Service. If you do not agree, you may not use our services."
     },
     {
       icon: ShieldAlert,
       title: "2. Offline-First Device Responsibility",
       content:
-        "Because FinFlow operates offline-first, your transactions and customer logs are stored directly on your local device. You are solely responsible for ensuring you do not clear your browser cache or app storage before data is backed up to the cloud."
+        "Because RupeeBill operates offline-first, your transactions and customer logs are stored directly on your local device. You are solely responsible for ensuring you do not clear your browser cache or app storage before data is backed up to the cloud."
     },
     {
       icon: CreditCard,
@@ -30,7 +31,7 @@ export default function TermsOfService() {
       icon: AlertTriangle,
       title: "4. Limitation of Liability",
       content:
-        "FinFlow is provided 'as-is' without warranties of any kind. We are not liable for any financial inaccuracies, business disruptions, or data loss occurring due to hardware failures or local device issues."
+        "RupeeBill is provided 'as-is' without warranties of any kind. We are not liable for any financial inaccuracies, business disruptions, or data loss occurring due to hardware failures or local device issues."
     }
   ];
 
@@ -44,10 +45,7 @@ export default function TermsOfService() {
       <nav className="border-b border-border/40 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Wallet className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight">FinFlow</span>
+            <Logo size={32} showText={true} />
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -73,7 +71,7 @@ export default function TermsOfService() {
             Terms of Service
           </h1>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Last Updated: July 16, 2026. Please read our guidelines and requirements for using FinFlow.
+            Last Updated: July 16, 2026. Please read our guidelines and requirements for using RupeeBill.
           </p>
         </motion.div>
 
@@ -110,8 +108,8 @@ export default function TermsOfService() {
 
         {/* Footer info inside Terms Page */}
         <div className="mt-16 text-center text-xs text-muted-foreground pt-8 border-t border-border/40">
-          <p className="mb-2">For custom enterprise agreements or commercial terms, reach out to corporate@finflow.io</p>
-          <p>© 2026 FinFlow. All rights reserved.</p>
+          <p className="mb-2">For custom enterprise agreements or commercial terms, reach out to corporate@rupeebill.com</p>
+          <p>© 2026 RupeeBill. All rights reserved.</p>
         </div>
       </main>
     </div>

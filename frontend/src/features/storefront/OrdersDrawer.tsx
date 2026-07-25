@@ -298,7 +298,7 @@ export function OrdersDrawer({
                                                             generateInvoicePDF({
                                                                 invoiceNumber: invoiceNo,
                                                                 date: invoiceDate,
-                                                                storeName: merchantProfile?.business_name || merchantProfile?.display_name || "FinFlow Storefront",
+                                                                storeName: merchantProfile?.business_name || merchantProfile?.display_name || "RupeeBill Storefront",
                                                                 storeAddress: merchantProfile?.business_address || "Storefront Pickup",
                                                                 storePhone: merchantProfile?.business_phone || "",
                                                                 storeGst: merchantProfile?.gst_number || "",

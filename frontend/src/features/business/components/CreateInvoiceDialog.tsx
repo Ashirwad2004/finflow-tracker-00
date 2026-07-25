@@ -543,7 +543,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
             // Auto-add Customer to Parties directory if enabled
             try {
-                const autoAddParties = localStorage.getItem("finflow_auto_add_parties") === "true";
+                const autoAddParties = localStorage.getItem("rupeebill_auto_add_parties") === "true";
                 if (autoAddParties && values.customer_name?.trim()) {
                     const partyExists = parties.some(
                         (p: any) => p.name.toLowerCase() === values.customer_name.trim().toLowerCase()

@@ -12,7 +12,7 @@ export const OnboardingDialog = ({ open, onSelect }: OnboardingDialogProps) => {
         <Dialog open={open} onOpenChange={() => { }}>
             <DialogContent className="sm:max-w-2xl [&>button]:hidden">
                 <DialogHeader className="text-center pb-4">
-                    <DialogTitle className="text-3xl font-bold mb-2">Welcome to FinFlow!</DialogTitle>
+                    <DialogTitle className="text-3xl font-bold mb-2">Welcome to RupeeBill!</DialogTitle>
                     <DialogDescription className="text-lg">
                         How are you planning to use this application?
                     </DialogDescription>

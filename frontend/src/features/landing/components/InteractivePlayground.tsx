@@ -652,10 +652,10 @@ export const InteractivePlayground = () => {
               <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center font-bold text-sm text-white shadow-md">
-                    F
+                    R
                   </div>
                   <div>
-                    <h3 className="font-bold text-xs leading-none">FinFlow Command Center</h3>
+                    <h3 className="font-bold text-xs leading-none">RupeeBill Command Center</h3>
                     <p className="text-[9px] text-slate-500 mt-1">Aroma Roasters Workspace</p>
                   </div>
                 </div>

@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { RequestFeatureDialog } from "@/components/shared/RequestFeatureDialog";
 import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { useBusiness } from "@/core/contexts/BusinessContext";
+import { Logo } from "@/components/shared/Logo";
 import { RealSubscriptionCheckout } from "@/features/landing/components/RealSubscriptionCheckout";
 
 const personalMenuItems = [
@@ -260,18 +261,26 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       )}
     >
       {/* Logo & Brand */}
-      <div className="flex items-center gap-3 p-4 border-b">
-        <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
-          <Wallet className="w-6 h-6 text-primary-foreground" />
+      <div className="flex flex-col gap-2.5 p-4 border-b">
+        <div className="flex items-center">
+          {collapsed ? (
+            <div className="mx-auto">
+              <Logo size={40} showText={false} />
+            </div>
+          ) : (
+            <Logo size={36} showText={true} />
+          )}
         </div>
         {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <h1 className="font-bold text-lg text-foreground truncate">
-              {isBusinessMode ? BRAND.businessLabel : BRAND.name}
-            </h1>
-            <p className="text-xs text-muted-foreground truncate">
-              {isSalesman ? "Salesman Access" : (profile?.display_name ?? profile?.business_name ?? "Welcome")}
-            </p>
+          <div className="mt-1 px-2.5 py-1.5 bg-muted/40 rounded-xl border border-border/40 flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                {isBusinessMode ? BRAND.businessLabel : BRAND.name}
+              </p>
+              <p className="text-xs font-semibold text-foreground truncate mt-0.5">
+                {isSalesman ? "Salesman Session" : (profile?.display_name ?? profile?.business_name ?? "Welcome")}
+              </p>
+            </div>
           </div>
         )}
       </div>

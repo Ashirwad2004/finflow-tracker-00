@@ -26,7 +26,7 @@ export interface LocalEntityRecord {
     [key: string]: any;
 }
 
-const db = new Dexie('FinFlowOfflineDB') as Dexie & {
+const db = new Dexie('RupeeBillOfflineDB') as Dexie & {
   syncQueue: EntityTable<SyncRecord, 'id'>;
   queryCache: EntityTable<CacheRecord, 'key'>;
   entities: EntityTable<LocalEntityRecord, 'id'>;

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Wallet, ShieldCheck, Lock, CheckCircle2, Zap, Tag, Sparkles, Smartphone, CreditCard, Building2 } from "lucide-react";
+import { ShieldCheck, Lock, CheckCircle2, Zap, Tag, Sparkles, Smartphone, CreditCard, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Logo } from "@/components/shared/Logo";
 
 interface CheckoutMockupProps {
   onPayClick: (planId?: "pro" | "business") => void;
@@ -23,13 +24,8 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
         <div className="p-8 md:p-10 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-violet-600 flex items-center justify-center shadow-lg text-white">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="font-extrabold text-lg tracking-tight">FinFlow <span className="text-primary">Pro Tier</span></span>
-                <p className="text-[11px] text-muted-foreground">Instant Subscription Activation</p>
-              </div>
+              <Logo size={28} showText={true} />
+              <Badge variant="outline" className="text-[10px] font-bold border-violet-500/30 text-violet-500 bg-violet-500/5">Pro Tier</Badge>
             </div>
 
             <h3 className="text-2xl font-black mb-1 text-foreground">Select Payment Method</h3>
@@ -83,7 +79,7 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                  Coupon <span className="font-mono font-bold uppercase">FINFLOW20</span> applied!
+                  Coupon <span className="font-mono font-bold uppercase">RUPEEBILL20</span> applied!
                 </span>
               </div>
               <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">20% OFF</span>
@@ -110,7 +106,7 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
               <h3 className="text-lg font-bold text-white">Subscription Summary</h3>
               <Badge className="bg-primary text-white text-xs font-bold">Annual Savings</Badge>
             </div>
-            <p className="text-xs text-white/60 mb-6">FinFlow Pro Tier · Billed annually</p>
+            <p className="text-xs text-white/60 mb-6">RupeeBill Pro Tier · Billed annually</p>
 
             <div className="space-y-3.5 text-xs">
               <div className="flex justify-between text-white/70">
