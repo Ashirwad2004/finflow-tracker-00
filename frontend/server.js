@@ -20,7 +20,7 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "1; mode=block");
-  res.setHeader("Content-Security-Policy", "default-src 'self' * 'unsafe-inline' 'unsafe-eval' data: blob:;");
+  res.setHeader("Content-Security-Policy", "default-src 'self' * 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' *;");
   
   // Intercept res.setHeader to ensure charset=utf-8 is appended for text, JS, and JSON
   const originalSetHeader = res.setHeader;

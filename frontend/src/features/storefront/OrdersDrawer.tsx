@@ -438,6 +438,8 @@ export function OrdersDrawer({
                                 Reason for Return
                             </label>
                             <textarea
+                                id="return_reason"
+                                name="return_reason"
                                 placeholder="E.g., Product arrived damaged, wrong size, or parts missing."
                                 value={returnReason}
                                 onChange={(e) => setReturnReason(e.target.value)}
@@ -451,6 +453,8 @@ export function OrdersDrawer({
                             </label>
                             <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-250 rounded-xl p-4 bg-slate-50 hover:bg-slate-100/50 transition-colors relative cursor-pointer group">
                                 <input
+                                    id="return_image"
+                                    name="return_image"
                                     type="file"
                                     accept="image/*"
                                     onChange={(e) => {
