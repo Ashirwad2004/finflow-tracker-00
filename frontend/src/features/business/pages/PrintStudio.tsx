@@ -145,8 +145,8 @@ const sampleSale = {
     tax_amount: 2340,
     total_amount: 15340,
     items: [
-        { description: "Premium Software Subscription (Annual)", quantity: 1, price: 12000, total: 12000, hsn_code: "998313" },
-        { description: "Developer API Integration Consultancy", quantity: 2, price: 1250, total: 2500, hsn_code: "998314" }
+        { description: "Premium Software Subscription (Annual)", quantity: 1, price: 12000, total: 12000, hsn_code: "998313", unit: "pcs" },
+        { description: "Developer API Integration Consultancy", quantity: 2, price: 1250, total: 2500, hsn_code: "998314", unit: "Hours" }
     ]
 };
 
@@ -288,7 +288,7 @@ const InvoiceMockPreview = ({
                                         </td>
                                         <td className="p-2 border-r border-b border-black text-center">{item.quantity}</td>
                                         <td className="p-2 border-r border-b border-black text-right">{formatCurrency(item.price).replace("Rs. ","")}</td>
-                                        <td className="p-2 border-r border-b border-black text-center font-sans">Nos</td>
+                                        <td className="p-2 border-r border-b border-black text-center font-sans">{item.unit || ""}</td>
                                         <td className="p-2 border-b border-black text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity) * Number(item.price))).replace("Rs. ","")}</td>
                                     </tr>
                                 ))

@@ -14,6 +14,7 @@ export interface InvoiceDetails {
         price: number | string;
         total: number | string;
         hsn_code?: string;
+        unit?: string;
     }[];
     subtotal: number;
     discount_amount?: number;
@@ -2543,7 +2544,7 @@ export const generateInvoicePDF = async (
                 safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
                 item.quantity.toString(),
                 formatCurrencySafe(item.price),
-                "Nos",
+                safeText(item.unit || ""),
                 formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
             ]);
 
