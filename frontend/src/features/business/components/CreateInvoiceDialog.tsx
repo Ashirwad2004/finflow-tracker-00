@@ -33,6 +33,7 @@ interface InvoiceItem {
     discount: number;
     total: number;
     hsn_code?: string;
+    unit?: string;
 }
 
 interface InvoiceFormValues {
@@ -87,7 +88,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             invoice_number: "",
             date: new Date().toISOString().split("T")[0],
             due_date: "",
-            items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
+            items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "", unit: "" }],
             tax_rate: 0,
             overall_discount: 0,
             status: "paid",
@@ -127,7 +128,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 price: price,
                 discount: 0,
                 total: price,
-                hsn_code: ""
+                hsn_code: "",
+                unit: ""
             }], { shouldValidate: true, shouldDirty: true });
         }
     }, [isQuickBilling, watchQuickItemName, watchQuickTotalAmount, watchTaxRate, setValue]);
@@ -190,7 +192,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 price: item.price || 0,
                 discount: item.discount || 0,
                 total: (item.quantity || 1) * (item.price || 0) * (1 - (item.discount || 0) / 100),
-                hsn_code: ""
+                hsn_code: "",
+                unit: ""
             }));
             setValue("items", mappedItems, { shouldValidate: true, shouldDirty: true });
         }
@@ -238,7 +241,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 original_invoice_id: "",
                 invoice_number: "",
                 date: new Date().toISOString().split("T")[0],
-                items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" }],
+                items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "", unit: "" }],
                 tax_rate: salesSettings?.defaultTaxRate ?? 0,
                 overall_discount: 0,
                 status: salesSettings?.defaultStatus ?? "paid",
@@ -320,11 +323,14 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             if (product.hsn_code) {
                 setValue(`items.${index}.hsn_code`, product.hsn_code);
             }
+            if (product.unit) {
+                setValue(`items.${index}.unit`, product.unit);
+            }
         }
 
         // Automatic Next Line Creation: If typing in the last row, automatically append a new empty line
         if (productName.trim() !== "" && index === fields.length - 1) {
-            append({ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "" });
+            append({ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "", unit: "" });
         }
     };
 
@@ -1159,12 +1165,18 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                                 )}
 
                                                 <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">Quantity</div>
-                                                <div className="sm:p-0">
+                                                <div className="sm:p-0 flex items-center border-slate-200 sm:border-r bg-transparent">
                                                     <Input
                                                         type="number"
-                                                        className="h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 text-right bg-transparent focus-visible:ring-1 focus-visible:ring-inset"
+                                                        className="h-9 sm:h-auto border-0 flex-1 px-2 text-right bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                                                         {...register(`items.${index}.quantity` as const, { valueAsNumber: true, min: 1 })}
                                                         min="1"
+                                                    />
+                                                    <Input
+                                                        type="text"
+                                                        className="h-9 sm:h-auto border-0 w-12 px-1 text-center bg-transparent text-slate-500 font-sans focus-visible:ring-0 focus-visible:ring-offset-0 text-xs border-l border-slate-100"
+                                                        {...register(`items.${index}.unit` as const)}
+                                                        placeholder="Unit"
                                                     />
                                                 </div>
 
