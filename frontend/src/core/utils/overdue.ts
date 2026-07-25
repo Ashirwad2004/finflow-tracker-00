@@ -3,7 +3,7 @@
  */
 
 export const DEFAULT_OVERDUE_DAYS = 15;
-export const OVERDUE_STORAGE_KEY = "finflow_overdue_threshold_days";
+export const OVERDUE_STORAGE_KEY = "rupeebill_overdue_threshold_days";
 
 /**
  * Get system-wide overdue threshold in days (default: 15 days)
@@ -24,7 +24,7 @@ export const getOverdueDaysThreshold = (): number => {
  */
 export const setOverdueDaysThreshold = (days: number): void => {
     localStorage.setItem(OVERDUE_STORAGE_KEY, days.toString());
-    window.dispatchEvent(new Event("finflow_overdue_settings_changed"));
+    window.dispatchEvent(new Event("rupeebill_overdue_settings_changed"));
 };
 
 /**

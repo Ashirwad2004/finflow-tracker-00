@@ -136,7 +136,7 @@ const AllExpenses = () => {
     if (!expenses.length) {
       toast({
         title: "No expenses to analyze",
-        description: "Add a few expenses first, then FinFlow AI can create a useful report.",
+        description: "Add a few expenses first, then RupeeBill AI can create a useful report.",
       });
       return;
     }

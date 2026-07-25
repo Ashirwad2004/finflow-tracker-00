@@ -49,8 +49,14 @@ import {
   MailOpen,
   UserX,
   Lock,
-  Sparkles
+  Sparkles,
+  Trash2,
+  Server,
+  Plus,
+  Shield,
+  HelpCircle
 } from "lucide-react";
+import { Logo } from "@/components/shared/Logo";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -214,15 +220,11 @@ function Sidebar({
 }) {
   return (
     <aside className="w-64 min-h-screen bg-slate-900 border-r border-slate-800 flex flex-col sticky top-0 h-screen">
-      {/* Logo */}
       <div className="px-6 py-5 border-b border-slate-800/70">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-blue-500 flex items-center justify-center shadow-lg shadow-violet-900/40">
-            <Wallet className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <div className="text-white font-bold text-sm tracking-tight leading-tight">FinFlow</div>
-            <div className="text-slate-500 text-[10px] uppercase tracking-widest font-semibold">Admin Panel</div>
+        <div className="flex flex-col gap-2">
+          <Logo size={28} showText={true} theme="dark" />
+          <div className="px-2 py-0.5 bg-slate-800/50 rounded-md border border-slate-700/50 w-fit">
+            <span className="text-slate-400 text-[9px] uppercase tracking-widest font-bold">Admin Panel</span>
           </div>
         </div>
       </div>
@@ -334,7 +336,7 @@ function OverviewSection() {
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-slate-100">Overview</h2>
-        <p className="text-slate-400 text-sm mt-1">Real-time snapshot of your FinFlow application.</p>
+        <p className="text-slate-400 text-sm mt-1">Real-time snapshot of your RupeeBill application.</p>
       </div>
 
       {/* KPI Cards */}

@@ -225,13 +225,13 @@ export const generateInvoicePDF = async (
     try {
         const autoTable = runAutoTable;
         const action = options?.action || 'download';
-        const savedTheme = options?.theme || localStorage.getItem("finflow_invoice_theme") || 'corporate';
+        const savedTheme = options?.theme || localStorage.getItem("rupeebill_invoice_theme") || 'corporate';
         const theme = savedTheme === 'thermal' ? 'corporate' : savedTheme;
         const documentTitle = options?.documentTitle;
-        const pageSize = options?.pageSize || (localStorage.getItem("finflow_invoice_pagesize") as PageSize) || 'a4';
-        const customTerms = data.notes || options?.customTerms || localStorage.getItem("finflow_invoice_terms") || "";
+        const pageSize = options?.pageSize || (localStorage.getItem("rupeebill_invoice_pagesize") as PageSize) || 'a4';
+        const customTerms = data.notes || options?.customTerms || localStorage.getItem("rupeebill_invoice_terms") || "";
         
-        const savedFontSizeFactor = (options?.fontSizeFactor ?? Number(localStorage.getItem("finflow_invoice_fontsize_factor"))) || 1.0;
+        const savedFontSizeFactor = (options?.fontSizeFactor ?? Number(localStorage.getItem("rupeebill_invoice_fontsize_factor"))) || 1.0;
         const autoFitFactor = pageSize === 'a5' ? 0.75 : 1.0;
         const finalFontScale = savedFontSizeFactor * autoFitFactor;
 
@@ -249,7 +249,7 @@ export const generateInvoicePDF = async (
 
         const safeText = (txt: string | undefined | null) => sanitizeText(txt || "");
         const dateFormatted = data.date ? format(new Date(data.date), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
-        const bizName = safeText(data.business_details?.name || "FinFlow Business");
+        const bizName = safeText(data.business_details?.name || "RupeeBill Business");
         const pageHeight = doc.internal.pageSize.getHeight();
         const pageWidth = doc.internal.pageSize.getWidth();
         const scale = pageWidth / 210;
@@ -704,7 +704,7 @@ export const generateInvoicePDF = async (
             doc.setFontSize(8.5);
             doc.setTextColor(...textGray);
             doc.setFont("helvetica", "italic");
-            const termsText = customTerms || "Digital Invoice. Generated via FinFlow ledger.";
+            const termsText = customTerms || "Digital Invoice. Generated via RupeeBill ledger.";
             doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'minimal-white') {
@@ -1503,7 +1503,7 @@ export const generateInvoicePDF = async (
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            const termsText = customTerms || "Generated with love via FinFlow Ledger. Growth is a habit.";
+            const termsText = customTerms || "Generated with love via RupeeBill Ledger. Growth is a habit.";
             doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
 
         } else if (theme === 'elegant-mono') {
@@ -2616,7 +2616,7 @@ export const generateInvoicePDF = async (
             let bankIfscText = "Branch & IFSC: SBI0001609";
 
             try {
-                const savedBanks = localStorage.getItem("finflow_bank_accounts");
+                const savedBanks = localStorage.getItem("rupeebill_bank_accounts");
                 if (savedBanks) {
                     const accounts = JSON.parse(savedBanks);
                     const defaultAcc = accounts.find((a: any) => a.isDefault) || accounts[0];

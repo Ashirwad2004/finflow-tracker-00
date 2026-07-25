@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
-import { BRAND } from "@/core/constants/brand";
+import { Logo } from "@/components/shared/Logo";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -29,7 +29,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <AppSidebar onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
           </Sheet>
-          <span className="text-sm font-semibold">{BRAND.name}</span>
+          <Logo size={28} showText={true} />
         </div>
         <SyncStatusBadge />
       </header>

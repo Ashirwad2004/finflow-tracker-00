@@ -77,7 +77,7 @@ export function RequestFeatureDialog({ collapsed = false }: RequestFeatureDialog
             <Lightbulb className="w-5 h-5 text-amber-500" /> Request a Feature
           </DialogTitle>
           <DialogDescription>
-            Have an idea to make FinFlow even better? Tell us what you need, and we'll look into it!
+            Have an idea to make RupeeBill even better? Tell us what you need, and we'll look into it!
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">

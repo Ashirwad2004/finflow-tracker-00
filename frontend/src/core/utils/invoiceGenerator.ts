@@ -47,7 +47,7 @@ export function generateInvoicePDF(data: InvoiceData) {
   doc.setFont('Helvetica', 'bold');
   doc.setFontSize(24);
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text('FinFlow', 15, 22);
+  doc.text('RupeeBill', 15, 22);
 
   doc.setFontSize(8.5);
   doc.setFont('Helvetica', 'normal');

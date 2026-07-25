@@ -156,9 +156,9 @@ const BankDetailsPage = () => {
 
     const loadData = () => {
         try {
-            const savedAccounts = localStorage.getItem("finflow_bank_accounts");
-            const savedTransactions = localStorage.getItem("finflow_bank_transactions");
-            const savedStatement = localStorage.getItem("finflow_mock_statement");
+            const savedAccounts = localStorage.getItem("rupeebill_bank_accounts");
+            const savedTransactions = localStorage.getItem("rupeebill_bank_transactions");
+            const savedStatement = localStorage.getItem("rupeebill_mock_statement");
 
             if (savedAccounts) {
                 setAccounts(JSON.parse(savedAccounts));
@@ -329,26 +329,26 @@ const BankDetailsPage = () => {
         setTransactions(defaultTransactions);
         setMockStatement(defaultStatement);
 
-        localStorage.setItem("finflow_bank_accounts", JSON.stringify(defaultAccounts));
-        localStorage.setItem("finflow_bank_transactions", JSON.stringify(defaultTransactions));
-        localStorage.setItem("finflow_mock_statement", JSON.stringify(defaultStatement));
+        localStorage.setItem("rupeebill_bank_accounts", JSON.stringify(defaultAccounts));
+        localStorage.setItem("rupeebill_bank_transactions", JSON.stringify(defaultTransactions));
+        localStorage.setItem("rupeebill_mock_statement", JSON.stringify(defaultStatement));
         
         toast.success("Accountant Workspace initialized with sample bank books!");
     };
 
     const saveAccounts = (list: BankAccount[]) => {
         setAccounts(list);
-        localStorage.setItem("finflow_bank_accounts", JSON.stringify(list));
+        localStorage.setItem("rupeebill_bank_accounts", JSON.stringify(list));
     };
 
     const saveTransactions = (list: BankTransaction[]) => {
         setTransactions(list);
-        localStorage.setItem("finflow_bank_transactions", JSON.stringify(list));
+        localStorage.setItem("rupeebill_bank_transactions", JSON.stringify(list));
     };
 
     const saveStatement = (list: MockStatementRecord[]) => {
         setMockStatement(list);
-        localStorage.setItem("finflow_mock_statement", JSON.stringify(list));
+        localStorage.setItem("rupeebill_mock_statement", JSON.stringify(list));
     };
 
     // ─── Accountant Ledger Math ──────────────────────────────────────────────

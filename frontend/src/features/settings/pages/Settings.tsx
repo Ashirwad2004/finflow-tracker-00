@@ -69,7 +69,7 @@ const SettingsPage = () => {
     const [isBackingUp, setIsBackingUp] = useState(false);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
     const [autoAddParties, setAutoAddParties] = useState(() => {
-        return localStorage.getItem("finflow_auto_add_parties") === "true";
+        return localStorage.getItem("rupeebill_auto_add_parties") === "true";
     });
     const [overdueDays, setOverdueDays] = useState<number>(() => getOverdueDaysThreshold());
 
@@ -103,7 +103,7 @@ const SettingsPage = () => {
 
     const handleAutoAddPartiesToggle = (checked: boolean) => {
         setAutoAddParties(checked);
-        localStorage.setItem("finflow_auto_add_parties", checked ? "true" : "false");
+        localStorage.setItem("rupeebill_auto_add_parties", checked ? "true" : "false");
         toast({
             title: checked ? "Feature Enabled" : "Feature Disabled",
             description: checked 
@@ -168,10 +168,10 @@ const SettingsPage = () => {
                 };
                 const csvContent = convertToCSV(csvData);
                 blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                filename = `finflow-backup-${dateStr}.csv`;
+                filename = `rupeebill-backup-${dateStr}.csv`;
             } else {
                 blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                filename = `finflow-backup-${dateStr}.json`;
+                filename = `rupeebill-backup-${dateStr}.json`;
             }
 
             const url = URL.createObjectURL(blob);
@@ -412,7 +412,7 @@ const SettingsPage = () => {
                                         <div>
                                             <CardTitle className="text-lg font-black">Subscription Status</CardTitle>
                                             <CardDescription className="text-xs">
-                                                Manage your FinFlow tier and payment methods.
+                                                Manage your RupeeBill tier and payment methods.
                                             </CardDescription>
                                         </div>
                                     </div>

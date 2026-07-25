@@ -79,7 +79,7 @@ export default function LoyaltyCampaigns() {
 
   // WhatsApp Campaign Template Selection
   const [selectedTemplate, setSelectedTemplate] = useState<number>(0);
-  const [customPromoCode, setCustomPromoCode] = useState("FINFLOW10");
+  const [customPromoCode, setCustomPromoCode] = useState("RUPEEBILL10");
 
   // Load configuration from local storage or defaults
   const [config, setConfig] = useState<LoyaltyConfig>(() => {
@@ -272,7 +272,7 @@ export default function LoyaltyCampaigns() {
     {
       title: "🎁 Reward Point Balance Reminder",
       getBody: (name: string, points: number, value: number) => 
-        `Hey ${name}! You have accumulated ${points} reward points (valued at ${formatCurrency(value)}) in your FinFlow loyalty wallet at ${profile?.business_name || 'our shop'}. 🌟 Redeem them on your next visit or check our storefront: ${storeLink}`
+        `Hey ${name}! You have accumulated ${points} reward points (valued at ${formatCurrency(value)}) in your RupeeBill loyalty wallet at ${profile?.business_name || 'our shop'}. 🌟 Redeem them on your next visit or check our storefront: ${storeLink}`
     },
     {
       title: "🔥 'We Miss You' Retention Offer",
@@ -396,7 +396,7 @@ export default function LoyaltyCampaigns() {
             <div className="bg-gradient-to-r from-primary/10 to-violet-500/10 p-8 rounded-3xl border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-2">
                 <h4 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary fill-primary/20" /> How FinFlow Rewards Boost Your Business
+                  <Sparkles className="w-5 h-5 text-primary fill-primary/20" /> How RupeeBill Rewards Boost Your Business
                 </h4>
                 <p className="text-slate-600 dark:text-slate-400 max-w-2xl text-sm leading-relaxed">
                   Loyalty rewards incentive customers to select your counter over competitors. Earning 1 point per {formatCurrency(config.pointsPerUnit)} creates a gamified return habit. Combined with WhatsApp campaigns, you can proactively re-engage idle customer profiles.
@@ -621,7 +621,7 @@ export default function LoyaltyCampaigns() {
                 <div className="bg-violet-500/5 p-4 rounded-xl border border-violet-500/10 flex items-start gap-3">
                   <Info className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
                   <p className="text-[10px] text-slate-500 leading-relaxed">
-                    Messages open directly in WhatsApp web/app. FinFlow generates a secure compliant direct links to send to customers based on their recorded contact card.
+                    Messages open directly in WhatsApp web/app. RupeeBill generates a secure compliant direct links to send to customers based on their recorded contact card.
                   </p>
                 </div>
               </div>

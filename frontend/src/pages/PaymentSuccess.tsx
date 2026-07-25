@@ -81,7 +81,7 @@ export default function PaymentSuccess() {
     generateInvoicePDF({
       invoiceNumber: invoiceNumber,
       date: new Date(paymentData.created_at).toLocaleDateString(),
-      storeName: "FinFlow Storefront",
+      storeName: "RupeeBill Storefront",
       customerName: order.customer_name,
       customerPhone: order.customer_phone,
       customerAddress: order.customer_address,

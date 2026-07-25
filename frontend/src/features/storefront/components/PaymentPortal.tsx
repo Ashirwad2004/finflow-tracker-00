@@ -564,7 +564,7 @@ export function PaymentPortal({
                     {/* QR Code Container with Scanner effect */}
                     <div className="bg-white border-2 border-slate-100 p-5 rounded-2xl shadow-md flex items-center justify-center relative overflow-hidden">
                       <QRCodeSVG
-                        value={`upi://pay?pa=${encodeURIComponent(storeUpiId || "finflow@upi")}&pn=${encodeURIComponent(storeName)}&am=${Number(amount).toFixed(2)}&cu=${currency}&tn=Order-${orderId.substring(0, 8)}`}
+                        value={`upi://pay?pa=${encodeURIComponent(storeUpiId || "rupeebill@upi")}&pn=${encodeURIComponent(storeName)}&am=${Number(amount).toFixed(2)}&cu=${currency}&tn=Order-${orderId.substring(0, 8)}`}
                         size={160}
                         level="H"
                         includeMargin={false}

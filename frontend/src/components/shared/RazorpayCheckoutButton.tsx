@@ -40,7 +40,7 @@ const loadRazorpayScript = (): Promise<boolean> => {
 export const RazorpayCheckoutButton: React.FC<RazorpayCheckoutButtonProps> = ({
   amount,
   currency = "INR",
-  itemName = "FinFlow Checkout",
+  itemName = "RupeeBill Checkout",
   customerName = "Valued Customer",
   customerEmail = "customer@example.com",
   customerPhone = "9999999999",
@@ -87,7 +87,7 @@ export const RazorpayCheckoutButton: React.FC<RazorpayCheckoutButtonProps> = ({
         key: razorpayKey,
         amount: amountInPaise,
         currency,
-        name: "FinFlow Tracker",
+        name: "RupeeBill Tracker",
         description: itemName,
         order_id: order_id,
         prefill: {

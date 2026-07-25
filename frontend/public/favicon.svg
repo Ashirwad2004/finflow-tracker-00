@@ -1,14 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg width="512" height="512" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7c3aed" />
-      <stop offset="100%" stop-color="#db2777" />
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1f2e" />
+      <stop offset="100%" stop-color="#111622" />
     </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f542e9" />
+      <stop offset="100%" stop-color="#5d10c9" />
+    </linearGradient>
+    <linearGradient id="bar1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4ade9a" />
+      <stop offset="100%" stop-color="#16a96b" />
+    </linearGradient>
+    <linearGradient id="bar2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="bar3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f542da" />
+      <stop offset="100%" stop-color="#ba10c9" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
-  <g transform="translate(100, 100) scale(13)">
-    <path fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-    <path fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-    <path fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
-  </g>
+
+  {/* Rounded square tile */}
+  <rect width="280" height="280" rx="64" fill="url(#tile)" />
+
+  {/* Subtle inner ring */}
+  <rect x="1" y="1" width="278" height="278" rx="63" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.5" />
+
+  {/* Rupee symbol */}
+  <rect x="86" y="62" width="22" height="148" rx="4" fill="url(#gold)" filter="url(#glow)" />
+  <rect x="86" y="62" width="108" height="22" rx="4" fill="url(#gold)" />
+  <rect x="86" y="100" width="90" height="18" rx="4" fill="url(#gold)" />
+  <line x1="176" y1="118" x2="212" y2="210" stroke="url(#gold)" stroke-width="22" stroke-linecap="round" />
+
+  {/* Ascending chart bars */}
+  <rect x="128" y="172" width="20" height="38" rx="5" fill="url(#bar1)" opacity="0.92" />
+  <rect x="154" y="152" width="20" height="58" rx="5" fill="url(#bar2)" opacity="0.92" />
+  <rect x="180" y="128" width="20" height="82" rx="5" fill="url(#bar3)" opacity="0.92" />
+
+  {/* Baseline */}
+  <rect x="122" y="210" width="84" height="3" rx="1.5" fill="rgba(255,255,255,0.15)" />
 </svg>

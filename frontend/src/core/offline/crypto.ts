@@ -4,7 +4,7 @@ import CryptoJS from 'crypto-js';
 // While not enterprise-grade KMS, it strongly obfuscates the IndexedDB contents 
 // preventing casual inspection of financial data in DevTools.
 const getSecretKey = (userId: string) => {
-    return CryptoJS.SHA256(`finflow-secure-${userId}`).toString();
+    return CryptoJS.SHA256(`rupeebill-secure-${userId}`).toString();
 };
 
 export const encryptPayload = (payload: any, userId: string): string => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "finflow-static-v2";
+const CACHE_NAME = "rupeebill-static-v3";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

@@ -1133,7 +1133,7 @@ export default function OnlineStore() {
                                                                             generateInvoicePDF({
                                                                                 invoiceNumber: invNum,
                                                                                 date: new Date(p.created_at).toLocaleDateString(),
-                                                                                storeName: storeProfile?.business_name || "FinFlow Shop Store",
+                                                                                storeName: storeProfile?.business_name || "RupeeBill Shop Store",
                                                                                 customerName: p.online_orders?.customer_name || "Customer",
                                                                                 customerPhone: p.online_orders?.customer_phone || "",
                                                                                 customerAddress: p.online_orders?.customer_address || "",

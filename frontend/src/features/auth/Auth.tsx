@@ -59,7 +59,7 @@ const Auth = () => {
     },
     signup: {
       title: "Create an account",
-      description: "Enter your details to get started with FinFlow",
+      description: "Enter your details to get started with RupeeBill",
       content: (
         <>
           <SignupForm onSuccess={() => setView("login")} />

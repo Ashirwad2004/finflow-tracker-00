@@ -183,10 +183,10 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
                     </div>
                   </div>
                   <DialogTitle className="text-2xl font-bold text-left">
-                    See FinFlow in action
+                    See RupeeBill in action
                   </DialogTitle>
                   <DialogDescription className="text-left text-base text-muted-foreground mt-1">
-                    Book a personal demo and discover how FinFlow can transform your business finances.
+                    Book a personal demo and discover how RupeeBill can transform your business finances.
                   </DialogDescription>
                 </DialogHeader>
 

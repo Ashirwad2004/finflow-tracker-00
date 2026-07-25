@@ -257,7 +257,7 @@ export const DashboardMockup = ({ opacity, scale, mouseX, mouseY, heroMode }: Da
             
             {/* Display Simulated URL */}
             <div className="bg-slate-100 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/50 rounded-lg px-4 py-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono w-1/2 text-center truncate">
-              {heroMode === "pos" ? "finflow.app/workspace/billing-overview" : "aroma-coffee.finflow.store"}
+              {heroMode === "pos" ? "rupeebill.com/workspace/billing-overview" : "aroma-coffee.rupeebill.store"}
             </div>
 
             {/* Display Mode Indicator */}

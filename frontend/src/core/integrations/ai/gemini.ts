@@ -143,7 +143,7 @@ export async function generateFinanceInsight(input: {
         [
             {
                 role: "system",
-                content: "You are FinFlow Gemini AI, an enterprise finance analyst and store copilot for small businesses and personal users. Provide realistic, concise analysis. Budget suggestions should relate to inventory levels, collection of debts, or expense cutting.",
+                content: "You are RupeeBill Gemini AI, an enterprise finance analyst and store copilot for small businesses and personal users. Provide realistic, concise analysis. Budget suggestions should relate to inventory levels, collection of debts, or expense cutting.",
             },
             {
                 role: "user",
@@ -297,7 +297,7 @@ export async function generateBusinessInsight(input: {
         [
             {
                 role: "system",
-                content: `You are FinFlow Gemini AI, an expert enterprise chartered accountant and business auditor.
+                content: `You are RupeeBill AI, an expert enterprise chartered accountant and business auditor.
 Analyze the business metrics (sales, purchases, expenses, inventory status, payables/receivables) and provide key insights:
 - Headline summarizing core status.
 - Summary of cash flow and profit margins.
@@ -315,4 +315,3 @@ Keep descriptions concise and highly professional.`,
         { temperature: 0.15, maxOutputTokens: 1600 }
     );
 }
-

@@ -1,8 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Wallet, ArrowLeft, Shield, Lock, Eye, Server, RefreshCw } from "lucide-react";
+import { ArrowLeft, Shield, Lock, Eye, Server, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
+import { Logo } from "@/components/shared/Logo";
 
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function PrivacyPolicy() {
       icon: Lock,
       title: "2. Offline-First Storage & Security",
       content:
-        "FinFlow is designed to run 100% offline. Transactions and customer data are stored locally on your device in secure database files. We employ encryption standards to protect your local data from unauthorized local access."
+        "RupeeBill is designed to run 100% offline. Transactions and customer data are stored locally on your device in secure database files. We employ encryption standards to protect your local data from unauthorized local access."
     },
     {
       icon: RefreshCw,
@@ -50,10 +51,7 @@ export default function PrivacyPolicy() {
       <nav className="border-b border-border/40 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Wallet className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight">FinFlow</span>
+            <Logo size={32} showText={true} />
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -116,8 +114,8 @@ export default function PrivacyPolicy() {
 
         {/* Footer info inside Privacy Page */}
         <div className="mt-16 text-center text-xs text-muted-foreground pt-8 border-t border-border/40">
-          <p className="mb-2">If you have any questions regarding your data security or need to request custom backup options, reach out to support@finflow.io</p>
-          <p>© 2026 FinFlow. All rights reserved.</p>
+          <p className="mb-2">If you have any questions regarding your data security or need to request custom backup options, reach out to support@rupeebill.com</p>
+          <p>© 2026 RupeeBill. All rights reserved.</p>
         </div>
       </main>
     </div>

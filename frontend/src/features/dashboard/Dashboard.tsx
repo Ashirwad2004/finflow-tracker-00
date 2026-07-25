@@ -32,6 +32,7 @@ import {
   ShoppingCart,
   ReceiptIndianRupee
 } from "lucide-react";
+import { Logo } from "@/components/shared/Logo";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from "recharts";
 import { ExpenseList } from "@/features/expenses/components/ExpenseList";
 import { ExpenseChart } from "@/features/expenses/components/ExpenseChart";
@@ -118,16 +119,16 @@ export const Dashboard = () => {
   // Personal Mode Hooks
   const { data: expenses = [], isLoading } = useExpensesQuery(user?.id, isBusinessMode);
 
-  const { data: categories = [] } = useQuery({
+  const { data: categories = [] } = useQuery<any[]>({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("categories")
         .select("*")
         .order("name");
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
@@ -135,7 +136,7 @@ export const Dashboard = () => {
     mutationFn: async (id: string) => {
       const expenseToDelete = expenses.find(exp => exp.id === id);
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("expenses")
         .delete()
         .eq("id", id);
@@ -176,7 +177,7 @@ export const Dashboard = () => {
   const { data: lentMoney = [] } = useQuery({
     queryKey: ["lent-money", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("lent_money")
         .select("*")
         .eq("user_id", user?.id || "");
@@ -190,7 +191,7 @@ export const Dashboard = () => {
   const { data: borrowedMoney = [] } = useQuery({
     queryKey: ["borrowed-money", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("borrowed_money")
         .select("*")
         .eq("user_id", user?.id || "");
@@ -348,8 +349,7 @@ export const Dashboard = () => {
               <SheetContent side="left" className="w-[85vw] p-0 overflow-y-auto">
                 <SheetHeader className="p-4 border-b text-left">
                   <SheetTitle className="text-xl font-bold flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-primary" />
-                    FinFlow Business
+                    <Logo size={28} showText={true} />
                   </SheetTitle>
                 </SheetHeader>
                 <div className="py-2">
@@ -374,7 +374,7 @@ export const Dashboard = () => {
               </SheetContent>
             </Sheet>
 
-            <h1 className="font-bold text-lg">FinFlow Business</h1>
+            <h1 className="font-bold text-lg">RupeeBill Business</h1>
           </div>
 
           <div className="flex items-center gap-2">

@@ -107,7 +107,7 @@ export const useOfflineSync = () => {
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
         window.addEventListener('app-online-reconnect', handleOnline);
-        window.addEventListener('finflow-sync-complete', handleSyncComplete);
+        window.addEventListener('rupeebill-sync-complete', handleSyncComplete);
 
         let cleanup: (() => void) | undefined;
         if (user) {
@@ -118,7 +118,7 @@ export const useOfflineSync = () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('app-online-reconnect', handleOnline);
-            window.removeEventListener('finflow-sync-complete', handleSyncComplete);
+            window.removeEventListener('rupeebill-sync-complete', handleSyncComplete);
             if (cleanup) cleanup();
         };
     }, [user?.id, queryClient]);

@@ -91,7 +91,7 @@ export function StoreSettings() {
 
     const handleCopyLink = () => {
         const cleanUrl = window.location.hostname.includes("localhost")
-            ? `https://finflow.app/store/${storeSlug}` 
+            ? `https://rupeebill.com/store/${storeSlug}` 
             : publicUrl;
         navigator.clipboard.writeText(cleanUrl);
         setCopied(true);
@@ -194,7 +194,7 @@ export function StoreSettings() {
                             </p>
                             <div className="bg-white rounded-lg border px-3 py-2 text-xs font-mono text-muted-foreground break-all mb-3 select-all max-w-fit">
                                 {window.location.hostname.includes("localhost")
-                                    ? `https://finflow.app/store/${storeSlug}` 
+                                    ? `https://rupeebill.com/store/${storeSlug}` 
                                     : publicUrl}
                             </div>
                             <div className="flex gap-2">

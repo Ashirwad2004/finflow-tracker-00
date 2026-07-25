@@ -172,7 +172,7 @@ export const processSyncQueue = async (userId: string): Promise<void> => {
   } finally {
     isSyncingActive = false;
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('finflow-sync-complete', { detail: { userId } }));
+      window.dispatchEvent(new CustomEvent('rupeebill-sync-complete', { detail: { userId } }));
     }
   }
 };
