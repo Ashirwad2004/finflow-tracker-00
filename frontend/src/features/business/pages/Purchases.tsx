@@ -234,6 +234,14 @@ export default function PurchasesPage() {
         }
     };
 
+    // Safe Date Formatter helper
+    const formatDateSafe = (dateStr: string | null | undefined, formatTemplate: string) => {
+        if (!dateStr) return "N/A";
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return "N/A";
+        return format(date, formatTemplate);
+    };
+
     // Calculate Metrics using system-wide overdue logic
     const today = new Date();
     const overdueDaysThreshold = getOverdueDaysThreshold();
@@ -247,7 +255,11 @@ export default function PurchasesPage() {
         .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
 
     const spentThisMonth = purchases
-        .filter(p => p.status === 'paid' && isSameMonth(new Date(p.date), today))
+        .filter(p => {
+            if (!p.date) return false;
+            const d = new Date(p.date);
+            return p.status === 'paid' && !isNaN(d.getTime()) && isSameMonth(d, today);
+        })
         .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
 
     const filteredPurchases = purchases.filter((purchase) => {
@@ -422,7 +434,7 @@ export default function PurchasesPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                                {format(new Date(purchase.date), "MMM dd, yyyy")}
+                                                {formatDateSafe(purchase.date, "MMM dd, yyyy")}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 text-right">
                                                 {purchase.tax_amount ? formatCurrency(purchase.tax_amount) : formatCurrency(0)}

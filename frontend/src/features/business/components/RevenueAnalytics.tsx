@@ -128,8 +128,20 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
   const { chartData, currentRevenue, currentPurchases, currentExpenses, prevRevenue, prevPurchases, prevExpenses } = useMemo(() => {
     const getSaleAmt = (s: Sale) => Number(s.total_amount || 0);
     const getExpAmt = (e: Expense) => Number(e.amount || 0);
-    const parseSaleDate = (s: Sale) => parseISO(s.date);
-    const parseExpDate = (e: Expense) => parseISO(e.date);
+
+    const safeParseDate = (dateStr: string | null | undefined) => {
+      if (!dateStr) return new Date(0);
+      try {
+        const d = parseISO(dateStr);
+        return isNaN(d.getTime()) ? new Date(0) : d;
+      } catch {
+        return new Date(0);
+      }
+    };
+
+    const parseSaleDate = (s: Sale) => safeParseDate(s.date);
+    const parseExpDate = (e: Expense) => safeParseDate(e.date);
+    const parsePurDate = (p: any) => safeParseDate(p?.date);
 
     if (filter === "daily") {
       // Last 30 days
@@ -142,7 +154,7 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
           .filter((s) => isSameDay(parseSaleDate(s), day))
           .reduce((sum, s) => sum + getSaleAmt(s), 0);
         const pur = (purchases || [])
-          .filter((p) => isSameDay(parseISO(p.date), day))
+          .filter((p) => isSameDay(parsePurDate(p), day))
           .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
         const exp = expenses
           .filter((e) => isSameDay(parseExpDate(e), day))
@@ -158,7 +170,7 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
         return d >= start && d <= end;
       }).reduce((sum, s) => sum + getSaleAmt(s), 0);
       const curPur = (purchases || []).filter((p) => {
-        const d = parseISO(p.date);
+        const d = parsePurDate(p);
         return d >= start && d <= end;
       }).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const curExp = expenses.filter((e) => {
@@ -170,7 +182,7 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
         return d >= prevStart && d <= prevEnd;
       }).reduce((sum, s) => sum + getSaleAmt(s), 0);
       const pPur = (purchases || []).filter((p) => {
-        const d = parseISO(p.date);
+        const d = parsePurDate(p);
         return d >= prevStart && d <= prevEnd;
       }).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const pExp = expenses.filter((e) => {
@@ -193,7 +205,7 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
           .filter((s) => isSameMonth(parseSaleDate(s), month))
           .reduce((sum, s) => sum + getSaleAmt(s), 0);
         const pur = (purchases || [])
-          .filter((p) => isSameMonth(parseISO(p.date), month))
+          .filter((p) => isSameMonth(parsePurDate(p), month))
           .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
         const exp = expenses
           .filter((e) => isSameMonth(parseExpDate(e), month))
@@ -207,14 +219,14 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
       const prevWinEnd = startOfMonth(subMonths(now, 12));
 
       const curRev = sales.filter((s) => parseSaleDate(s) >= winStart).reduce((sum, s) => sum + getSaleAmt(s), 0);
-      const curPur = (purchases || []).filter((p) => parseISO(p.date) >= winStart).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+      const curPur = (purchases || []).filter((p) => parsePurDate(p) >= winStart).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const curExp = expenses.filter((e) => parseExpDate(e) >= winStart).reduce((sum, e) => sum + getExpAmt(e), 0);
       const pRev = sales.filter((s) => {
         const d = parseSaleDate(s);
         return d >= prevWinStart && d <= prevWinEnd;
       }).reduce((sum, s) => sum + getSaleAmt(s), 0);
       const pPur = (purchases || []).filter((p) => {
-        const d = parseISO(p.date);
+        const d = parsePurDate(p);
         return d >= prevWinStart && d <= prevWinEnd;
       }).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const pExp = expenses.filter((e) => {
@@ -236,7 +248,7 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
         .filter((s) => isSameYear(parseSaleDate(s), year))
         .reduce((sum, s) => sum + getSaleAmt(s), 0);
       const pur = (purchases || [])
-        .filter((p) => isSameYear(parseISO(p.date), year))
+        .filter((p) => isSameYear(parsePurDate(p), year))
         .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
       const exp = expenses
         .filter((e) => isSameYear(parseExpDate(e), year))
@@ -247,14 +259,14 @@ export function RevenueAnalytics({ sales, expenses, purchases }: Props) {
     const curYear = startOfYear(now);
     const prevYear = startOfYear(subYears(now, 1));
     const curRev = sales.filter((s) => isSameYear(parseSaleDate(s), curYear)).reduce((sum, s) => sum + getSaleAmt(s), 0);
-    const curPur = (purchases || []).filter((p) => isSameYear(parseISO(p.date), curYear)).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const curPur = (purchases || []).filter((p) => isSameYear(parsePurDate(p), curYear)).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
     const curExp = expenses.filter((e) => isSameYear(parseExpDate(e), curYear)).reduce((sum, e) => sum + getExpAmt(e), 0);
     const pRev = sales.filter((s) => isSameYear(parseSaleDate(s), prevYear)).reduce((sum, s) => sum + getSaleAmt(s), 0);
-    const pPur = (purchases || []).filter((p) => isSameYear(parseISO(p.date), prevYear)).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const pPur = (purchases || []).filter((p) => isSameYear(parsePurDate(p), prevYear)).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
     const pExp = expenses.filter((e) => isSameYear(parseExpDate(e), prevYear)).reduce((sum, e) => sum + getExpAmt(e), 0);
 
     return { chartData: data, currentRevenue: curRev, currentPurchases: curPur, currentExpenses: curExp, prevRevenue: pRev, prevPurchases: pPur, prevExpenses: pExp };
-  }, [filter, sales, expenses]);
+  }, [filter, sales, expenses, purchases]);
 
   // ── KPI Derived Values ────────────────────────────────────────────────────
   const netProfit = currentRevenue - currentPurchases - currentExpenses;

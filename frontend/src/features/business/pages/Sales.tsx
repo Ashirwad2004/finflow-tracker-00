@@ -302,6 +302,14 @@ export default function SalesPage() {
         }
     };
 
+    // Safe Date Formatter helper
+    const formatDateSafe = (dateStr: string | null | undefined, formatTemplate: string) => {
+        if (!dateStr) return "N/A";
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return "N/A";
+        return format(date, formatTemplate);
+    };
+
     // Calculate Metrics
     const today = new Date();
 
@@ -314,7 +322,11 @@ export default function SalesPage() {
         .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
 
     const paidThisMonth = invoices
-        .filter(inv => inv.status === 'paid' && isSameMonth(new Date(inv.date), today))
+        .filter(inv => {
+            if (!inv.date) return false;
+            const d = new Date(inv.date);
+            return inv.status === 'paid' && !isNaN(d.getTime()) && isSameMonth(d, today);
+        })
         .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
 
     const sortedAndFilteredInvoices = useMemo(() => {
@@ -328,10 +340,14 @@ export default function SalesPage() {
 
         return [...filtered].sort((a, b) => {
             if (sortBy === 'date-desc') {
-                return new Date(b.date).getTime() - new Date(a.date).getTime();
+                const dB = b.date ? new Date(b.date).getTime() : 0;
+                const dA = a.date ? new Date(a.date).getTime() : 0;
+                return (isNaN(dB) ? 0 : dB) - (isNaN(dA) ? 0 : dA);
             }
             if (sortBy === 'date-asc') {
-                return new Date(a.date).getTime() - new Date(b.date).getTime();
+                const dB = b.date ? new Date(b.date).getTime() : 0;
+                const dA = a.date ? new Date(a.date).getTime() : 0;
+                return (isNaN(dA) ? 0 : dA) - (isNaN(dB) ? 0 : dB);
             }
             if (sortBy === 'amount-desc') {
                 return Number(b.total_amount || 0) - Number(a.total_amount || 0);
@@ -542,9 +558,9 @@ export default function SalesPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                                <div>{format(new Date(invoice.date), "MMM dd, yyyy")}</div>
+                                                <div>{formatDateSafe(invoice.date, "MMM dd, yyyy")}</div>
                                                 {invoice.due_date && (
-                                                    <div className="text-[10px] text-slate-400 mt-0.5">Due: {format(new Date(invoice.due_date), "MMM dd")}</div>
+                                                    <div className="text-[10px] text-slate-400 mt-0.5">Due: {formatDateSafe(invoice.due_date, "MMM dd")}</div>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 text-right">

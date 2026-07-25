@@ -252,6 +252,12 @@ export const generateInvoicePDF = async (
         const pageHeight = doc.internal.pageSize.getHeight();
         const pageWidth = doc.internal.pageSize.getWidth();
         const scale = pageWidth / 210;
+
+        let taxRateVal = Number(data.tax_rate) || 0;
+        if (taxRateVal === 0 && data.tax_amount && data.tax_amount > 0) {
+            const taxableAmount = Math.max(1, Number(data.subtotal || 0) - Number(data.discount_amount || 0));
+            taxRateVal = Math.round((Number(data.tax_amount) / taxableAmount) * 100);
+        }
         const getScaledColumnStyles = (baseStyles: Record<number, any>) => {
             const scaled: any = {};
             for (const key in baseStyles) {
@@ -344,10 +350,10 @@ export const generateInvoicePDF = async (
 
         const getTaxRows = (style: "paren" | "at" = "paren"): TotalRow[] => {
             const rows: TotalRow[] = [];
-            const splitRate = data.tax_rate ? data.tax_rate / 2 : 0;
+            const splitRate = taxRateVal ? taxRateVal / 2 : 0;
             const cgstLabel = splitRate ? (style === "at" ? `CGST @ ${splitRate}%` : `CGST (${splitRate}%)`) : "CGST";
             const sgstLabel = splitRate ? (style === "at" ? `SGST @ ${splitRate}%` : `SGST (${splitRate}%)`) : "SGST";
-            const igstLabel = data.tax_rate ? (style === "at" ? `IGST @ ${data.tax_rate}%` : `IGST (${data.tax_rate}%)`) : "IGST";
+            const igstLabel = taxRateVal ? (style === "at" ? `IGST @ ${taxRateVal}%` : `IGST (${taxRateVal}%)`) : "IGST";
 
             if (isInterState && igstVal > 0) {
                 rows.push({ label: igstLabel, value: igstVal });
@@ -355,7 +361,7 @@ export const generateInvoicePDF = async (
                 if (cgstVal > 0) rows.push({ label: cgstLabel, value: cgstVal });
                 if (sgstVal > 0) rows.push({ label: sgstLabel, value: sgstVal });
             } else if (data.tax_amount && data.tax_amount > 0) {
-                rows.push({ label: data.tax_rate ? `Tax (${data.tax_rate}%)` : "Tax", value: data.tax_amount });
+                rows.push({ label: taxRateVal ? `Tax (${taxRateVal}%)` : "Tax", value: data.tax_amount });
             }
 
             return rows;
@@ -2654,7 +2660,7 @@ export const generateInvoicePDF = async (
                 rightY += 5;
             }
             if (data.tax_amount && data.tax_amount > 0) {
-                const tr = data.tax_rate || 0;
+                const tr = taxRateVal;
                 doc.text(`CGST (${tr/2}%):`, splitX + 2, rightY);
                 doc.text(formatCurrencySafe(cgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
                 rightY += 5;

@@ -213,7 +213,10 @@ export const GSTR2BReport = () => {
                                     <TableCell className="font-mono text-xs">{r.gstin}</TableCell>
                                     <TableCell className="font-medium">{r.vendor_name}</TableCell>
                                     <TableCell>{r.invoice_number}</TableCell>
-                                    <TableCell>{format(new Date(r.invoice_date), "dd MMM yyyy")}</TableCell>
+                                    <TableCell>{(() => {
+                                        const d = new Date(r.invoice_date);
+                                        return isNaN(d.getTime()) ? "N/A" : format(d, "dd MMM yyyy");
+                                    })()}</TableCell>
                                     <TableCell className="text-right">{formatINR(r.taxable_value)}</TableCell>
                                     <TableCell className="text-right font-medium text-purple-600 dark:text-purple-400">{r.igst > 0 ? formatINR(r.igst) : "-"}</TableCell>
                                     <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">{r.cgst > 0 ? formatINR(r.cgst) : "-"}</TableCell>

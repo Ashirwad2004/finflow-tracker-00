@@ -17,6 +17,13 @@ export default function PersonalReports() {
     const { formatCurrency } = useCurrency();
     const [activeTab, setActiveTab] = useState("party-wise");
 
+    const formatDateSafe = (dateStr: string | null | undefined, formatTemplate: string) => {
+        if (!dateStr) return "N/A";
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return "N/A";
+        return format(date, formatTemplate);
+    };
+
     // Fetch all lent money
     const { data: lentMoney = [], isLoading: loadingLent } = useQuery({
         queryKey: ["reports-lent-money", user?.id],
@@ -217,7 +224,7 @@ export default function PersonalReports() {
                                             <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">No money lent found.</td></tr>
                                         ) : lentMoney.map(item => (
                                             <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                                <td className="px-6 py-4 text-sm text-slate-500">{format(new Date(item.created_at), "MMM dd, yyyy")}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-500">{formatDateSafe(item.created_at, "MMM dd, yyyy")}</td>
                                                 <td className="px-6 py-4 font-bold">{item.person_name}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate">{item.purpose || '-'}</td>
                                                 <td className="px-6 py-4 text-center">
@@ -254,7 +261,7 @@ export default function PersonalReports() {
                                             <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">No money borrowed found.</td></tr>
                                         ) : borrowedMoney.map(item => (
                                             <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                                <td className="px-6 py-4 text-sm text-slate-500">{format(new Date(item.created_at), "MMM dd, yyyy")}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-500">{formatDateSafe(item.created_at, "MMM dd, yyyy")}</td>
                                                 <td className="px-6 py-4 font-bold">{item.person_name}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate">{item.purpose || '-'}</td>
                                                 <td className="px-6 py-4 text-center">
@@ -290,7 +297,7 @@ export default function PersonalReports() {
                                             <tr><td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">No expenses found.</td></tr>
                                         ) : expenses.map(item => (
                                             <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                                <td className="px-6 py-4 text-sm text-slate-500">{format(new Date(item.date), "MMM dd, yyyy")}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-500">{formatDateSafe(item.date, "MMM dd, yyyy")}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <div
