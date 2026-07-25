@@ -1127,7 +1127,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                                     <Input
                                                         className={`h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 bg-transparent focus-visible:ring-1 focus-visible:ring-inset ${errors.items?.[index]?.description ? "border-destructive sm:border-destructive sm:ring-1 sm:ring-inset sm:ring-destructive/50" : ""}`}
                                                         {...register(`items.${index}.description` as const)}
-                                                        placeholder="Enter item description"
+                                                        placeholder="Enter item Name"
                                                         list={`products-list-${index}`}
                                                         onChange={(e) => {
                                                             register(`items.${index}.description`).onChange(e);

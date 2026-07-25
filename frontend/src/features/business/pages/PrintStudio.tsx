@@ -167,14 +167,20 @@ const InvoiceMockPreview = ({
     customTerms: string;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "FinFlow Ventures";
-    const dateFormatted = sale.created_at ? format(new Date(sale.created_at), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
+    const parsedDate = sale.created_at ? new Date(sale.created_at) : new Date();
+    const dateFormatted = isNaN(parsedDate.getTime()) ? format(new Date(), "dd MMM yyyy") : format(parsedDate, "dd MMM yyyy");
     
     const items = sale.items || [];
-    const taxRate = sale.tax_rate || 0;
     const taxAmount = sale.tax_amount || 0;
     const discount = sale.discount_amount || 0;
     const subtotal = sale.subtotal || sale.total_amount;
     const totalAmount = sale.total_amount;
+
+    let taxRate = Number(sale.tax_rate) || 0;
+    if (taxRate === 0 && taxAmount > 0) {
+        const taxableAmount = Math.max(1, Number(subtotal || 0) - Number(discount || 0));
+        taxRate = Math.round((Number(taxAmount) / taxableAmount) * 100);
+    }
     
     const cgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
     const sgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
@@ -923,7 +929,10 @@ const PrintStudioPage = () => {
                                                     <div className="text-[9px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
                                                         <span>{sale.invoice_number || `INV-${sale.id.slice(0,6).toUpperCase()}`}</span>
                                                         <span>•</span>
-                                                        <span>{format(new Date(sale.created_at), "MMM d")}</span>
+                                                        <span>{(() => {
+                                                            const d = new Date(sale.created_at);
+                                                            return isNaN(d.getTime()) ? "N/A" : format(d, "MMM d");
+                                                        })()}</span>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1 flex-shrink-0">
