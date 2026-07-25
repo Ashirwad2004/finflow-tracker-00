@@ -253,6 +253,7 @@ export function CartDrawer({
                                         <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <Input
                                             id="sfx_name"
+                                            name="customer_name"
                                             value={name}
                                             onChange={e => setName(e.target.value)}
                                             placeholder="e.g. Priya Sharma"
@@ -269,6 +270,7 @@ export function CartDrawer({
                                         <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <Input
                                             id="sfx_phone"
+                                            name="customer_phone"
                                             type="tel"
                                             value={phone}
                                             onChange={e => setPhone(e.target.value)}
@@ -286,6 +288,7 @@ export function CartDrawer({
                                         <MapPin className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                                         <Textarea
                                             id="sfx_addr"
+                                            name="customer_address"
                                             value={address}
                                             onChange={e => setAddress(e.target.value)}
                                             placeholder="Flat/House no., Street, City, PIN"
