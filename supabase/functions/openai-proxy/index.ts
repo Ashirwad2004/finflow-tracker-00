@@ -1,9 +1,16 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "std/http/server";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+interface ChatCompletionPayload {
+  model: string;
+  messages: unknown;
+  temperature: number;
+  response_format?: unknown;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -25,7 +32,7 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY is not configured in the Edge Function environment');
     }
 
-    const payload: any = {
+    const payload: ChatCompletionPayload = {
       model: model || "gpt-4o-mini",
       messages,
       temperature: temperature ?? 0.1,

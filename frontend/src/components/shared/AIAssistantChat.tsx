@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 import { offlineMutate } from "@/core/offline/apiService";
 import { matchCategory } from "@/core/integrations/ai/categoryMatcher";
 import { toast } from "@/core/hooks/use-toast";
+import { Logo } from "@/components/shared/Logo";
 
 interface ChatMessage {
     id: string;
@@ -258,12 +259,11 @@ Recent (Last 5) [Format: amount|desc|date|extra]:
         return (
             <button 
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all z-50 group flex items-center justify-center animate-bounce-in"
+                className="fixed bottom-6 right-6 rounded-2xl overflow-hidden shadow-2xl hover:shadow-[0_0_20px_rgba(155,66,245,0.45)] hover:scale-110 active:scale-95 transition-all z-50 group flex items-center justify-center animate-bounce-in"
                 title="Open AI Assistant"
                 aria-label="Open AI Assistant"
             >
-                <Sparkles className="absolute inset-0 m-auto w-10 h-10 text-white opacity-0 group-hover:opacity-100 group-hover:animate-ping transition-opacity" />
-                <Bot className="w-7 h-7 relative z-10" />
+                <Logo size={48} showText={false} />
             </button>
         );
     }
