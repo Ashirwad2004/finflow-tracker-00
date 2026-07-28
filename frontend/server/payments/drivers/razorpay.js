@@ -81,7 +81,9 @@ export class RazorpayGateway {
       .update(body.toString())
       .digest('hex');
 
-    if (expectedSignature !== gatewaySignature) {
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+    const actualBuf = Buffer.from(gatewaySignature, 'utf8');
+    if (expectedBuf.length !== actualBuf.length || !crypto.timingSafeEqual(expectedBuf, actualBuf)) {
       throw new Error('Razorpay signature verification failed.');
     }
 
@@ -135,7 +137,9 @@ export class RazorpayGateway {
     shasum.update(rawBody);
     const digest = shasum.digest('hex');
 
-    if (digest !== signature) {
+    const digestBuf = Buffer.from(digest, 'utf8');
+    const signatureBuf = Buffer.from(signature, 'utf8');
+    if (digestBuf.length !== signatureBuf.length || !crypto.timingSafeEqual(digestBuf, signatureBuf)) {
       throw new Error('Razorpay webhook signature verification failed.');
     }
 

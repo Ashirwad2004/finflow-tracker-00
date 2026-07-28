@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     AI_AUTH_REQUIRED: bool = False
     SUPABASE_JWT_SECRET: str = ""
 
+    ENVIRONMENT: str = "production"
+    SHOW_DOCS: bool = False
+
     # Supabase service role settings (bypass RLS)
     VITE_SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""

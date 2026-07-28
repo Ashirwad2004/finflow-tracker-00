@@ -22,7 +22,9 @@ async def lifespan(app: FastAPI):
     yield
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
+    docs_url="/docs" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
+    redoc_url="/redoc" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
     lifespan=lifespan,
 )
 
@@ -45,7 +47,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Content-Security-Policy"] = "default-src 'self' * 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' *;"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = "default-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self' 'unsafe-inline';"
     return response
 
 
