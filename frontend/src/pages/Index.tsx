@@ -856,7 +856,7 @@ const Index = () => {
             <div className="flex gap-8 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Product</a>
               <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
-              <a href="#" className="hover:text-foreground transition-colors">Security</a>
+              {/* <a href="#" className="hover:text-foreground transition-colors">Security</a> */}
               <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             </div>

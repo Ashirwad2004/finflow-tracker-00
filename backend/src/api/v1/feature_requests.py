@@ -163,4 +163,3 @@ async def update_request(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while updating the feature request."
         ) from exc
-

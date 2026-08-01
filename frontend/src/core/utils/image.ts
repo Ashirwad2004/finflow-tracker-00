@@ -42,7 +42,7 @@ export const compressAndConvertToWebP = (file: File, maxWidth: number, quality: 
                 const canvas = document.createElement("canvas");
                 let width = img.width;
                 let height = img.height;
-
+                   
                 // Scale down if width exceeds maxWidth
                 if (width > maxWidth) {
                     height = Math.round((height * maxWidth) / width);
