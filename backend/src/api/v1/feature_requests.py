@@ -66,13 +66,8 @@ async def require_admin(
     user_info: dict = Depends(get_current_user),
 ) -> dict:
     user_id = user_info["user_id"]
-    email = user_info["email"] or ""
 
-    # 1. Fallback email whitelist
-    if "admin@" in email.lower() or "ashirwad" in email.lower():
-        return user_info
-
-    # 2. Check profiles db
+    # Check profiles database table for admin privileges
     try:
         res = supabase_client.table("profiles").select("is_admin").eq("user_id", user_id).execute()
         if res.data and len(res.data) > 0:
@@ -82,8 +77,8 @@ async def require_admin(
         logger.exception("Failed to check admin status in profiles")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Admin status verification failed: {str(exc)}",
-        )
+            detail="Admin status verification failed",
+        ) from exc
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -115,8 +110,8 @@ async def create_request(
         logger.exception("Failed to create feature request")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}"
-        )
+            detail="An error occurred while saving the feature request."
+        ) from exc
 
 @router.get("", response_model=List[FeatureRequestResponse])
 async def list_requests(
@@ -133,8 +128,8 @@ async def list_requests(
         logger.exception("Failed to retrieve feature requests")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}"
-        )
+            detail="An error occurred while retrieving feature requests."
+        ) from exc
 
 @router.patch("/{request_id}", response_model=FeatureRequestResponse)
 async def update_request(
@@ -166,5 +161,5 @@ async def update_request(
         logger.exception("Failed to update feature request")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}"
-        )
+            detail="An error occurred while updating the feature request."
+        ) from exc

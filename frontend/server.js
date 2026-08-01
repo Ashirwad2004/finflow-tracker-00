@@ -13,6 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 
 // Set Security and Content-Security-Policy headers
@@ -20,7 +21,9 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "1; mode=block");
-  res.setHeader("Content-Security-Policy", "default-src 'self' * 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' *;");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Content-Security-Policy", "default-src 'self' https://*.supabase.co https://api.razorpay.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com;");
   
   // Intercept res.setHeader to ensure charset=utf-8 is appended for text, JS, and JSON
   const originalSetHeader = res.setHeader;
@@ -89,8 +92,11 @@ app.use('/api/payments', paymentRouter);
 app.use('/api', paymentRouter);
 
 
-// Serve static files from the React app build directory
-app.use(express.static(path.join(__dirname, 'dist')));
+// Serve static files from the React app build directory with caching
+app.use(express.static(path.join(__dirname, 'dist'), {
+  maxAge: '1d',
+  etag: true
+}));
 
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.

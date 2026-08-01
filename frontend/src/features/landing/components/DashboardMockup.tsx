@@ -22,7 +22,21 @@ import {
   Globe,
   Database,
   Layers,
-  X
+  X,
+  Bell,
+  Sun,
+  Moon,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Printer,
+  Users,
+  Package,
+  Calculator,
+  MessageSquare,
+  HelpCircle,
+  Activity,
+  Settings
 } from "lucide-react";
 
 interface DashboardMockupProps {
@@ -38,6 +52,102 @@ export const DashboardMockup = ({ opacity, scale, mouseX, mouseY, heroMode }: Da
   const [isWifiOffline, setIsWifiOffline] = useState(false);
   const [syncingPOS, setSyncingPOS] = useState(false);
   const [offlineVault, setOfflineVault] = useState<Array<{ type: "sale" | "expense"; title: string; amount: number; id: string }>>([]);
+
+  // --- REAL BUSINESS DASHBOARD MOCKUP STATE ---
+  const [posFilter, setPosFilter] = useState<"daily" | "monthly" | "yearly">("monthly");
+  const [posChartType, setPosChartType] = useState<"area" | "bar">("area");
+  const [sidebarActive, setSidebarActive] = useState("Dashboard");
+
+  const posFilterData = useMemo(() => ({
+    monthly: {
+      revenue: "₹5,846,718.2",
+      expenses: "₹62,868",
+      netProfit: "₹5,760,365.2",
+      avgPeriod: "₹974,453.03",
+      revTrend: 100.0,
+      expTrend: 100.0,
+      profitTrend: 100.0,
+      avgTrend: 0,
+      periods: [
+        { name: "May 26", revenue: "₹3,136,824.81", profit: "+₹3,121,476.81", isProfit: true, pct: 100 },
+        { name: "Jul 26", revenue: "₹1,648,125.29", profit: "+₹1,647,100.29", isProfit: true, pct: 52.5 },
+        { name: "Apr 26", revenue: "₹1,049,230.1", profit: "+₹1,044,016.1", isProfit: true, pct: 33.4 },
+        { name: "Mar 26", revenue: "₹9,990.00", profit: "+₹9,990.00", isProfit: true, pct: 8.5 },
+        { name: "Jun 26", revenue: "₹2,024.01", profit: "-₹55,481.99", isProfit: false, pct: 4.2 },
+      ],
+      totalRev: "₹5,846,718.2",
+      footerProfit: "₹5,760,365.2",
+      isFooterProfitPositive: true,
+      chartPoints: [
+        { name: "Sep 25", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Oct 25", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Nov 25", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Dec 25", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Jan 26", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Feb 26", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Mar 26", revenue: 160, purchases: 163, expenses: 165 },
+        { name: "Apr 26", revenue: 140, purchases: 163, expenses: 165 },
+        { name: "May 26", revenue: 30, purchases: 161, expenses: 165 },
+        { name: "Jun 26", revenue: 158, purchases: 163, expenses: 165 },
+        { name: "Jul 26", revenue: 80, purchases: 161, expenses: 165 },
+        { name: "Aug 26", revenue: 160, purchases: 163, expenses: 165 },
+      ]
+    },
+    daily: {
+      revenue: "₹482,900.0",
+      expenses: "₹15,400",
+      netProfit: "₹467,500.0",
+      avgPeriod: "₹16,096.67",
+      revTrend: 8.4,
+      expTrend: -2.1,
+      profitTrend: 12.6,
+      avgTrend: 0,
+      periods: [
+        { name: "24 Jul", revenue: "₹45,200.00", profit: "+₹44,500.00", isProfit: true, pct: 100 },
+        { name: "18 Jul", revenue: "₹38,900.00", profit: "+₹38,100.00", isProfit: true, pct: 86.1 },
+        { name: "12 Jul", revenue: "₹35,000.00", profit: "+₹34,200.00", isProfit: true, pct: 77.4 },
+        { name: "05 Jul", revenue: "₹31,200.00", profit: "+₹30,800.00", isProfit: true, pct: 69.0 },
+        { name: "29 Jul", revenue: "₹28,400.00", profit: "+₹27,900.00", isProfit: true, pct: 62.8 },
+      ],
+      totalRev: "₹482,900.0",
+      footerProfit: "₹467,500.0",
+      isFooterProfitPositive: true,
+      chartPoints: [
+        { name: "05 Jul", revenue: 110, purchases: 158, expenses: 164 },
+        { name: "12 Jul", revenue: 80, purchases: 155, expenses: 164 },
+        { name: "18 Jul", revenue: 60, purchases: 155, expenses: 163 },
+        { name: "24 Jul", revenue: 30, purchases: 150, expenses: 163 },
+        { name: "29 Jul", revenue: 95, purchases: 158, expenses: 164 },
+      ]
+    },
+    yearly: {
+      revenue: "₹14,250,000.0",
+      expenses: "₹240,050",
+      netProfit: "₹14,009,950.0",
+      avgPeriod: "₹2,850,000.00",
+      revTrend: 24.5,
+      expTrend: 12.0,
+      profitTrend: 28.2,
+      avgTrend: 0,
+      periods: [
+        { name: "FY 2026", revenue: "₹7,850,000.00", profit: "+₹7,780,000.00", isProfit: true, pct: 100 },
+        { name: "FY 2025", revenue: "₹4,200,000.00", profit: "+₹4,110,000.00", isProfit: true, pct: 53.5 },
+        { name: "FY 2024", revenue: "₹1,800,000.00", profit: "+₹1,760,000.00", isProfit: true, pct: 22.9 },
+        { name: "FY 2023", revenue: "₹350,000.00", profit: "+₹345,000.00", isProfit: true, pct: 4.5 },
+        { name: "FY 2022", revenue: "₹50,000.00", profit: "+₹48,000.00", isProfit: true, pct: 0.6 },
+      ],
+      totalRev: "₹14,250,000.0",
+      footerProfit: "₹14,009,950.0",
+      isFooterProfitPositive: true,
+      chartPoints: [
+        { name: "FY 2022", revenue: 160, purchases: 164, expenses: 165 },
+        { name: "FY 2023", revenue: 150, purchases: 164, expenses: 165 },
+        { name: "FY 2024", revenue: 120, purchases: 162, expenses: 164 },
+        { name: "FY 2025", revenue: 70, purchases: 158, expenses: 162 },
+        { name: "FY 2026", revenue: 30, purchases: 152, expenses: 160 },
+      ]
+    }
+  }), []);
 
   // --- BILLING DASHBOARD MODE STATE ---
   const [salesList, setSalesList] = useState([
@@ -272,7 +382,7 @@ export const DashboardMockup = ({ opacity, scale, mouseX, mouseY, heroMode }: Da
             <AnimatePresence mode="wait">
               {heroMode === "pos" ? (
                 // =========================================================================
-                // 1. BILLING COUNTER OVERVIEW (MATCHES WEBSITE'S ACTUAL BUSINESS DASHBOARD)
+                // 1. REAL BUSINESS DASHBOARD MOCKUP
                 // =========================================================================
                 <motion.div
                   key="billing-dashboard"
@@ -280,316 +390,438 @@ export const DashboardMockup = ({ opacity, scale, mouseX, mouseY, heroMode }: Da
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
-                  className="p-6 md:p-8 space-y-6 flex-1 flex flex-col text-slate-900 dark:text-slate-100 text-left"
+                  className="flex-1 flex flex-row w-full min-h-[500px]"
                 >
-                  {/* Dashboard Header */}
-                  <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div className="flex flex-col gap-1">
-                      <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                        Financial Overview
-                      </h1>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Real-time financial overview and performance metrics (Simulator)</p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {/* Simulating Wi-Fi Toggle inside Mockup */}
-                      <button
-                        onClick={() => setIsWifiOffline(!isWifiOffline)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all shadow-sm ${
-                          isWifiOffline
-                            ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 animate-pulse"
-                            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                        }`}
-                      >
-                        {isWifiOffline ? <WifiOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
-                        <span>Counter Wi-Fi: {isWifiOffline ? "Offline" : "Online"}</span>
-                      </button>
-
-                      <div className="flex bg-slate-150 dark:bg-slate-800 rounded-lg p-0.5 border dark:border-slate-700">
-                        <button
-                          onClick={() => setShowAddInvoice(true)}
-                          className="px-3 py-1 text-[10px] font-semibold bg-violet-600 hover:bg-violet-750 text-white rounded-md flex items-center gap-1 transition-colors border-none"
-                        >
-                          + Invoice
-                        </button>
-                        <button
-                          onClick={() => setShowAddExpense(true)}
-                          className="px-3 py-1 text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md flex items-center gap-1 transition-colors border-none ml-1"
-                        >
-                          + Expense
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 4 Metric Cards (Identical layout to real website dashboard) */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Card 1: Total Revenue */}
-                    <div className="p-4 bg-white dark:bg-slate-900 border shadow-sm rounded-xl border-slate-200/60 dark:border-slate-800 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-1.5 rounded-lg text-primary bg-primary/10">
-                          <Wallet className="w-4 h-4" />
+                  {/* Left Sidebar */}
+                  <div className="w-60 bg-white dark:bg-slate-900 border-r border-slate-205/60 dark:border-slate-800 flex flex-col justify-between select-none py-4 px-3 flex-shrink-0 text-left font-sans">
+                    <div className="space-y-4">
+                      {/* Logo and Name */}
+                      <div className="flex items-center gap-2 px-2">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
+                          ₹
                         </div>
-                        {offlineVault.filter(i => i.type === "sale").length > 0 && (
-                          <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded font-bold animate-pulse">Offline Saved</span>
-                        )}
-                      </div>
-                      <p className="text-[10px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-455">Total Revenue</p>
-                      <h3 className="mt-1 text-lg font-extrabold text-slate-850 dark:text-white">₹{totalRevenue}</h3>
-                    </div>
-
-                    {/* Card 2: Net Profit */}
-                    <div className="p-4 bg-white dark:bg-slate-900 border shadow-sm rounded-xl border-slate-200/60 dark:border-slate-800 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-1.5 text-teal-600 bg-teal-100 dark:bg-teal-900/30 rounded-lg">
-                          <Landmark className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <p className="text-[10px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-455">Net Profit</p>
-                      <h3 className="mt-1 text-lg font-extrabold text-slate-850 dark:text-white">₹{netProfit}</h3>
-                    </div>
-
-                    {/* Card 3: Operating Expenses */}
-                    <div className="p-4 bg-white dark:bg-slate-900 border shadow-sm rounded-xl border-slate-200/60 dark:border-slate-800 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-1.5 text-rose-600 bg-rose-105 dark:bg-rose-900/30 rounded-lg">
-                          <ReceiptText className="w-4 h-4" />
-                        </div>
-                        {offlineVault.filter(i => i.type === "expense").length > 0 && (
-                          <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded font-bold animate-pulse">Offline Saved</span>
-                        )}
-                      </div>
-                      <p className="text-[10px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-455">Operating Expenses</p>
-                      <h3 className="mt-1 text-lg font-extrabold text-slate-850 dark:text-white">₹{totalExpenses}</h3>
-                    </div>
-
-                    {/* Card 4: Cash Flow */}
-                    <div className="p-4 bg-white dark:bg-slate-900 border shadow-sm rounded-xl border-slate-200/60 dark:border-slate-800 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-1.5 text-indigo-650 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                          <TrendingUp className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <p className="text-[10px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-455">Cash Flow</p>
-                      <h3 className="mt-1 text-lg font-extrabold text-slate-850 dark:text-white">₹{cashFlow}</h3>
-                    </div>
-                  </div>
-
-                  {/* Main section: SVG Chart & Recent Transactions */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    {/* SVG-based Line Chart (P&L Performance style) */}
-                    <div className="p-5 bg-white border shadow-sm lg:col-span-2 dark:bg-slate-900 rounded-xl border-slate-200/60 dark:border-slate-800">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Profit & Loss Performance</h4>
-                        <div className="flex gap-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className="rounded-full w-2 h-2 bg-violet-600"></span>
-                            <span className="text-[9px] text-slate-500">Revenue</span>
+                        <div className="text-left">
+                          <div className="font-extrabold text-[12px] leading-none text-violet-650 dark:text-violet-400">
+                            RupeeBill
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="rounded-full w-2 h-2 bg-teal-400"></span>
-                            <span className="text-[9px] text-slate-500">Expenses</span>
+                          <div className="text-[6px] text-slate-400 uppercase tracking-widest font-black mt-0.5">
+                            FINANCE & BILLING
                           </div>
                         </div>
                       </div>
 
-                      {/* SVG Line representation */}
-                      <div className="w-full h-36 relative">
-                        <svg className="w-full h-full" viewBox="0 0 300 100" preserveAspectRatio="none">
-                          {/* Grid Lines */}
-                          <line x1="0" y1="20" x2="300" y2="20" stroke="rgba(148, 163, 184, 0.1)" strokeWidth="0.5" />
-                          <line x1="0" y1="50" x2="300" y2="50" stroke="rgba(148, 163, 184, 0.1)" strokeWidth="0.5" />
-                          <line x1="0" y1="80" x2="300" y2="80" stroke="rgba(148, 163, 184, 0.1)" strokeWidth="0.5" />
-
-                          {/* Mock Revenue Line Path */}
-                          <path
-                            d={`M 10 70 L 60 50 L 120 60 L 180 40 L 240 55 L 290 ${Math.max(10, 80 - (totalRevenue / 300))}`}
-                            fill="none"
-                            stroke="#8b5cf6"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                          />
-                          {/* Mock Expenses Line Path */}
-                          <path
-                            d={`M 10 90 L 60 85 L 120 88 L 180 75 L 240 82 L 290 ${Math.max(30, 95 - (totalExpenses / 100))}`}
-                            fill="none"
-                            stroke="#2dd4bf"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        <div className="flex justify-between text-[8px] text-slate-400 mt-2 px-1">
-                          <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>
+                      {/* Business selection box */}
+                      <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl p-2 mx-0.5 relative">
+                        <div className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">RUPEEBILL BUSINESS</div>
+                        <div className="text-[9px] font-black text-slate-800 dark:text-white truncate mt-0.5">Satyam Hardware & material</div>
+                        <div className="mt-1.5 flex items-center">
+                          <span className="relative flex h-1.5 w-1.5 mr-1">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                          </span>
+                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">Online</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Recent Transactions List (Matches right side of real dashboard) */}
-                    <div className="flex flex-col bg-white border shadow-sm dark:bg-slate-900 rounded-xl border-slate-200/60 dark:border-slate-800 max-h-[190px] overflow-hidden">
-                      <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Recent Transactions</h4>
-                        {offlineVault.length > 0 && (
-                          <span className="text-[8px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded animate-pulse">Vault ({offlineVault.length})</span>
-                        )}
+                      {/* Business Mode Toggle Row */}
+                      <div className="flex items-center justify-between px-2 pt-0.5">
+                        <span className="text-[9px] font-bold text-slate-750 dark:text-slate-300">Business Mode</span>
+                        <button 
+                          onClick={() => {
+                            triggerMockToast("Toggling Business Mode is not available in the demo.", "warning");
+                          }}
+                          className="w-7 h-3.5 rounded-full bg-violet-600 relative p-0.5 transition-colors border-none"
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-white absolute right-0.5 top-0.5 shadow" />
+                        </button>
                       </div>
-                      <div className="flex-1 overflow-y-auto pr-1">
-                        <div className="divide-y divide-slate-105 dark:divide-slate-800">
-                          {/* Combine lists into unified history feed */}
-                          {[
-                            ...salesList.map(s => ({ id: s.id, type: "sale", title: `Invoice - ${s.customer}`, amt: s.total, date: s.date }), [salesList]),
-                            ...expenseList.map(e => ({ id: e.id, type: "expense", title: e.title, amt: e.amount, date: e.date }), [expenseList])
-                          ].slice(0, 5).map((tx, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                {tx.type === "sale" ? (
-                                  <div className="rounded-lg p-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600">
-                                    <PlusCircle className="w-3.5 h-3.5" />
-                                  </div>
-                                ) : (
-                                  <div className="rounded-lg p-1.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600">
-                                    <MinusCircle className="w-3.5 h-3.5" />
-                                  </div>
-                                )}
-                                <div className="text-left font-sans">
-                                  <p className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">{tx.title}</p>
-                                  <p className="text-[8px] text-slate-400">{tx.date} · {tx.id}</p>
+
+                      {/* Navigation list */}
+                      <div className="space-y-0.5 pt-2">
+                        {[
+                          { name: "Dashboard", desc: "Business Analytics", icon: Activity },
+                          { name: "Print Studio", desc: "Invoice Designs", icon: Printer },
+                          { name: "Parties", desc: "Customers & Vendors", icon: Users },
+                          { name: "Bank Details", desc: "Manage Bank Accounts", icon: Landmark },
+                          { name: "Inventory", desc: "Manage Products", icon: Package },
+                          { name: "Sales & Invoices", desc: "Manage Sales", icon: TrendingUp },
+                          { name: "Purchases", desc: "Manage Bills", icon: ShoppingBag },
+                        ].map((item) => {
+                          const Icon = item.icon;
+                          const isActive = sidebarActive === item.name;
+                          return (
+                            <button
+                              key={item.name}
+                              onClick={() => {
+                                if (item.name === "Dashboard") {
+                                  setSidebarActive("Dashboard");
+                                } else {
+                                  triggerMockToast(`${item.name} is available in the full product.`, "warning");
+                                }
+                              }}
+                              className={`w-full flex items-center justify-between p-1.5 rounded-lg transition-all border-none ${
+                                isActive
+                                  ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm font-bold"
+                                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/50 dark:hover:bg-slate-800/40"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-slate-400"}`} />
+                                <div className="text-left leading-tight">
+                                  <div className="text-[9px] font-bold">{item.name}</div>
+                                  <div className={`text-[7px] ${isActive ? "text-white/80" : "text-slate-400"}`}>{item.desc}</div>
                                 </div>
                               </div>
-                              <span className={`text-[10px] font-black ${tx.type === "sale" ? "text-emerald-600" : "text-rose-600"}`}>
-                                {tx.type === "sale" ? "+" : "-"}₹{tx.amt}
-                              </span>
-                            </div>
-                          ))}
+                              {isActive && <ChevronRight className="w-3 h-3" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sidebar Footer Controls */}
+                    <div className="space-y-2 pt-3 border-t border-slate-150 dark:border-slate-800">
+                      <button 
+                        onClick={() => triggerMockToast("Feature Request Form is available in the full product.", "success")}
+                        className="w-full py-1.5 px-2.5 text-[9px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 text-left flex items-center gap-1.5"
+                      >
+                        <MessageSquare className="w-3 h-3 text-amber-500" />
+                        Request a Feature
+                      </button>
+                      
+                      <button 
+                        onClick={() => triggerMockToast("Interactive Calculator tool is available in the full product.", "success")}
+                        className="w-full py-1.5 px-2.5 text-[9px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 text-left flex items-center gap-1.5"
+                      >
+                        <Calculator className="w-3 h-3 text-violet-500" />
+                        Calculator
+                      </button>
+                      
+                      <div className="flex items-center justify-between pt-1 px-1">
+                        <div className="relative cursor-pointer" onClick={() => triggerMockToast("No new notifications.", "success")}>
+                          <Bell className="w-3.5 h-3.5 text-slate-500 hover:text-slate-900 dark:hover:text-white" />
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 text-[6px] font-bold text-white flex items-center justify-center">
+                            1
+                          </span>
                         </div>
+                        
+                        <Sun className="w-3.5 h-3.5 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer" onClick={() => triggerMockToast("Theme settings can be toggled in the header bar above.", "success")} />
+                        
+                        <LogOut className="w-3.5 h-3.5 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer" onClick={() => triggerMockToast("Sign out simulation.", "success")} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Overlays / Modals for recording Invoice / Expense inside mockup */}
-                  <AnimatePresence>
-                    {showAddInvoice && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm z-30 flex items-center justify-center rounded-2xl p-4"
-                      >
-                        <motion.div
-                          initial={{ scale: 0.95 }}
-                          animate={{ scale: 1 }}
-                          exit={{ scale: 0.95 }}
-                          className="bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative"
-                        >
+                  {/* Main Content Dashboard */}
+                  <div className="flex-1 bg-slate-50/50 dark:bg-slate-950/40 p-4 md:p-6 space-y-4 overflow-y-auto max-h-[580px] text-left relative font-sans">
+                    {/* Dashboard Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span className="w-1.5 h-5 rounded-full bg-gradient-to-b from-primary to-violet-500 inline-block" />
+                          Revenue Analytics
+                        </h2>
+                        <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {posFilter === "daily" ? "Last 30 Days" : posFilter === "monthly" ? "Last 12 Months" : "Last 5 Years"} — revenue, expenses & profitability at a glance
+                        </p>
+                      </div>
+
+                      {/* Filter Period Selector + Chart Mode Selector */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-805/85 rounded-lg gap-0.5 border dark:border-slate-700/50">
+                          {(["daily", "monthly", "yearly"] as const).map((f) => (
+                            <button
+                              key={f}
+                              onClick={() => setPosFilter(f)}
+                              className={`px-2.5 py-1 text-[8px] font-bold rounded transition-all duration-200 border-none ${
+                                posFilter === f
+                                  ? "bg-white dark:bg-slate-750 text-violet-650 dark:text-violet-300 shadow-sm"
+                                  : "text-slate-500 dark:text-slate-450 hover:text-slate-800 dark:hover:text-slate-200 bg-transparent"
+                              }`}
+                            >
+                              {f.charAt(0).toUpperCase() + f.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-805/85 rounded-lg gap-0.5 border dark:border-slate-700/50">
                           <button
-                            onClick={() => setShowAddInvoice(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 border-none bg-transparent"
+                            onClick={() => setPosChartType("area")}
+                            className={`p-1 rounded transition-all duration-200 border-none ${
+                              posChartType === "area"
+                                ? "bg-white dark:bg-slate-750 text-violet-650 dark:text-violet-300 shadow-sm"
+                                : "text-slate-400 hover:text-slate-650 bg-transparent"
+                            }`}
                           >
-                            <X className="w-4 h-4" />
+                            <Activity className="w-3 h-3" />
                           </button>
-                          
-                          <h3 className="font-extrabold text-sm mb-4 text-slate-800 dark:text-white flex items-center gap-1.5">
-                            <PlusCircle className="w-5 h-5 text-violet-500" /> Create Sale Invoice
-                          </h3>
-
-                          <form onSubmit={handleAddInvoiceSubmit} className="space-y-4">
-                            <div className="space-y-1.5 text-left">
-                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Name</Label>
-                              <Input
-                                value={inputCustomer}
-                                onChange={e => setInputCustomer(e.target.value)}
-                                placeholder="e.g. Aarav Sharma"
-                                className="h-9 text-xs rounded-lg border-slate-200 text-slate-900 placeholder:text-slate-400"
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5 text-left">
-                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount (₹)</Label>
-                              <Input
-                                type="number"
-                                value={inputAmount}
-                                onChange={e => setInputAmount(e.target.value)}
-                                placeholder="e.g. 1500"
-                                className="h-9 text-xs rounded-lg border-slate-200 text-slate-900 placeholder:text-slate-400"
-                                required
-                              />
-                            </div>
-
-                            <Button type="submit" className="w-full h-10 rounded-xl bg-violet-600 hover:bg-violet-750 text-white font-bold text-xs border-none mt-2">
-                              {isWifiOffline ? "⚡ Save Invoice Offline" : "✅ Create Invoice"}
-                            </Button>
-                          </form>
-                        </motion.div>
-                      </motion.div>
-                    )}
-
-                    {showAddExpense && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-slate-955/60 backdrop-blur-sm z-30 flex items-center justify-center rounded-2xl p-4"
-                      >
-                        <motion.div
-                          initial={{ scale: 0.95 }}
-                          animate={{ scale: 1 }}
-                          exit={{ scale: 0.95 }}
-                          className="bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative"
-                        >
                           <button
-                            onClick={() => setShowAddExpense(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 border-none bg-transparent"
+                            onClick={() => setPosChartType("bar")}
+                            className={`p-1 rounded transition-all duration-200 border-none ${
+                              posChartType === "bar"
+                                ? "bg-white dark:bg-slate-750 text-violet-650 dark:text-violet-300 shadow-sm"
+                                : "text-slate-400 hover:text-slate-650 bg-transparent"
+                            }`}
                           >
-                            <X className="w-4 h-4" />
+                            <Layers className="w-3 h-3" />
                           </button>
-                          
-                          <h3 className="font-extrabold text-sm mb-4 text-slate-800 dark:text-white flex items-center gap-1.5">
-                            <MinusCircle className="w-5 h-5 text-rose-500" /> Record Business Expense
-                          </h3>
-
-                          <form onSubmit={handleAddExpenseSubmit} className="space-y-4">
-                            <div className="space-y-1.5 text-left">
-                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Expense Item / Title</Label>
-                              <Input
-                                value={inputExpenseTitle}
-                                onChange={e => setInputExpenseTitle(e.target.value)}
-                                placeholder="e.g. Office Stationery"
-                                className="h-9 text-xs rounded-lg border-slate-200 text-slate-900 placeholder:text-slate-400"
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5 text-left">
-                              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Amount Spent (₹)</Label>
-                              <Input
-                                type="number"
-                                value={inputExpenseAmount}
-                                onChange={e => setInputExpenseAmount(e.target.value)}
-                                placeholder="e.g. 450"
-                                className="h-9 text-xs rounded-lg border-slate-200 text-slate-900 placeholder:text-slate-400"
-                                required
-                              />
-                            </div>
-
-                            <Button type="submit" className="w-full h-10 rounded-xl bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 font-bold text-xs border-none mt-2">
-                              {isWifiOffline ? "⚡ Save Expense Offline" : "✅ Record Expense"}
-                            </Button>
-                          </form>
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Sync POS spinner */}
-                  {syncingPOS && (
-                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm z-30 flex items-center justify-center rounded-2xl">
-                      <div className="bg-white dark:bg-slate-900 border p-5 rounded-2xl shadow-2xl max-w-xs text-center flex flex-col items-center border-slate-250 dark:border-slate-800">
-                        <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
-                        <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">Syncing Stored Sales...</h4>
-                        <p className="text-[10px] text-slate-400 mt-1">Connecting to secure cloud backup vault.</p>
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  {/* Mockup Mini Toast notification */}
+                    {/* Metrics grid */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {[
+                        { label: "REVENUE", value: posFilterData[posFilter].revenue, trend: posFilterData[posFilter].revTrend, icon: Wallet, color: "text-violet-600 bg-violet-100 dark:bg-violet-950/40 dark:text-violet-400" },
+                        { label: "EXPENSES", value: posFilterData[posFilter].expenses, trend: posFilterData[posFilter].expTrend, icon: Layers, color: "text-rose-600 bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400" },
+                        { label: "NET PROFIT", value: posFilterData[posFilter].netProfit, trend: posFilterData[posFilter].profitTrend, icon: TrendingUp, color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400" },
+                        { label: "AVG PER PERIOD", value: posFilterData[posFilter].avgPeriod, trend: posFilterData[posFilter].avgTrend, icon: TrendingUp, color: "text-indigo-650 bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400" },
+                      ].map((card, idx) => {
+                        const CardIcon = card.icon;
+                        const isTrendZero = card.trend === 0;
+                        const isTrendPositive = card.trend >= 0;
+                        return (
+                          <div key={idx} className="p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-sm rounded-xl hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between mb-1.5">
+                              <div className={`p-1.5 rounded-lg ${card.color}`}>
+                                <CardIcon className="w-3.5 h-3.5" />
+                              </div>
+                              <div className={`flex items-center gap-0.5 text-[9px] font-black ${
+                                isTrendZero ? "text-slate-400" : isTrendPositive ? "text-emerald-500" : "text-rose-500"
+                              }`}>
+                                {!isTrendZero && (isTrendPositive ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />)}
+                                <span>{isTrendZero ? "--" : `${Math.abs(card.trend).toFixed(1)}%`}</span>
+                              </div>
+                            </div>
+                            <p className="text-[8px] font-bold tracking-wider uppercase text-slate-450 dark:text-slate-500">{card.label}</p>
+                            <h3 className="mt-0.5 text-xs font-black text-slate-850 dark:text-white leading-tight">{card.value}</h3>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Chart & Breakdowns */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {/* Revenue vs Costs Chart */}
+                      <div className="lg:col-span-2 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-sm rounded-2xl">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="text-[10px] font-bold text-slate-900 dark:text-white">Revenue vs Costs</h4>
+                            <p className="text-[8px] text-slate-400 mt-0.5">
+                              {posFilter === "daily" ? "Last 30 Days" : posFilter === "monthly" ? "Last 12 Months" : "Last 5 Years"}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="flex items-center gap-1">
+                              <span className="rounded-full w-1.5 h-1.5 bg-violet-600"></span>
+                              <span className="text-[8px] text-slate-500 dark:text-slate-400">Revenue</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="rounded-full w-1.5 h-1.5 bg-rose-500"></span>
+                              <span className="text-[8px] text-slate-500 dark:text-slate-400">Purchases</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="rounded-full w-1.5 h-1.5 bg-teal-400"></span>
+                              <span className="text-[8px] text-slate-500 dark:text-slate-400">Expenses</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Custom SVG chart representation */}
+                        <div className="w-full h-36 relative mt-1 select-none">
+                          {posChartType === "area" ? (
+                            <svg className="w-full h-full" viewBox="0 0 520 200" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="mockRevGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="mockPurGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2} />
+                                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="mockExpGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.2} />
+                                  <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              
+                              {/* Grid lines */}
+                              <line x1="30" y1="40" x2="500" y2="40" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+                              <line x1="30" y1="90" x2="500" y2="90" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+                              <line x1="30" y1="140" x2="500" y2="140" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+                              <line x1="30" y1="165" x2="500" y2="165" stroke="rgba(148,163,184,0.12)" strokeWidth="1" />
+
+                              {/* Revenue Line & Area */}
+                              <path
+                                d={posFilter === "monthly" 
+                                  ? "M 35,162 L 77,162 L 119,162 L 161,162 L 203,162 L 245,162 L 287,162 C 305,162 315,150 329,140 C 350,120 360,30 371,30 C 382,30 395,158 413,158 C 430,158 445,80 455,80 C 470,80 485,162 497,162"
+                                  : posFilter === "daily"
+                                    ? "M 35,155 C 70,140 90,120 112,120 C 140,120 160,140 189,140 C 220,140 240,90 266,90 C 290,90 320,70 343,70 C 380,70 400,50 420,50 C 450,50 470,110 497,110"
+                                    : "M 35,160 C 90,155 110,150 150,150 C 200,150 220,120 266,120 C 320,120 340,70 381,70 C 430,70 450,30 497,30"
+                                }
+                                fill="none"
+                                stroke="#8b5cf6"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d={posFilter === "monthly"
+                                  ? "M 35,162 L 77,162 L 119,162 L 161,162 L 203,162 L 245,162 L 287,162 C 305,162 315,150 329,140 C 350,120 360,30 371,30 C 382,30 395,158 413,158 C 430,158 445,80 455,80 C 470,80 485,162 497,162 L 497,165 L 35,165 Z"
+                                  : posFilter === "daily"
+                                    ? "M 35,155 C 70,140 90,120 112,120 C 140,120 160,140 189,140 C 220,140 240,90 266,90 C 290,90 320,70 343,70 C 380,70 400,50 420,50 C 450,50 470,110 497,110 L 497,165 L 35,165 Z"
+                                    : "M 35,160 C 90,155 110,150 150,150 C 200,150 220,120 266,120 C 320,120 340,70 381,70 C 430,70 450,30 497,30 L 497,165 L 35,165 Z"
+                                }
+                                fill="url(#mockRevGrad)"
+                                strokeWidth="0"
+                              />
+
+                              {/* Purchases Line */}
+                              <path
+                                d={posFilter === "monthly"
+                                  ? "M 35,164 L 329,164 C 350,164 360,163 371,163 C 382,163 395,164 413,164 C 430,164 445,163 455,163 L 497,164"
+                                  : posFilter === "daily"
+                                    ? "M 35,158 L 112,155 L 189,155 L 266,150 L 343,158 L 497,158"
+                                    : "M 35,164 C 150,164 266,162 381,158 L 497,152"
+                                }
+                                fill="none"
+                                stroke="#f43f5e"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                              />
+
+                              {/* Expenses Line */}
+                              <path
+                                d={posFilter === "monthly"
+                                  ? "M 35,165 L 497,165"
+                                  : posFilter === "daily"
+                                    ? "M 35,164 L 112,164 L 189,163 L 266,163 L 343,164 L 497,164"
+                                    : "M 35,165 L 150,165 L 266,164 L 381,162 L 497,160"
+                                }
+                                fill="none"
+                                stroke="#2dd4bf"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          ) : (
+                            <svg className="w-full h-full" viewBox="0 0 520 200" preserveAspectRatio="none">
+                              {/* Grid lines */}
+                              <line x1="30" y1="40" x2="500" y2="40" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+                              <line x1="30" y1="90" x2="500" y2="90" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+                              <line x1="30" y1="140" x2="500" y2="140" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+                              <line x1="30" y1="165" x2="500" y2="165" stroke="rgba(148,163,184,0.12)" strokeWidth="1" />
+                              
+                              {posFilterData[posFilter].chartPoints.map((pt, i) => {
+                                const len = posFilterData[posFilter].chartPoints.length;
+                                const interval = 470 / (len - 1);
+                                const cx = 35 + i * interval;
+                                const rh = Math.max(2, 165 - pt.revenue);
+                                const ph = Math.max(2, 165 - pt.purchases);
+                                const eh = Math.max(2, 165 - pt.expenses);
+                                return (
+                                  <g key={i}>
+                                    <rect x={cx - 6} y={165 - rh} width="3.5" height={rh} fill="#8b5cf6" rx="1" />
+                                    <rect x={cx - 1.5} y={165 - ph} width="3.5" height={ph} fill="#f43f5e" rx="1" />
+                                    <rect x={cx + 3} y={165 - eh} width="3.5" height={eh} fill="#2dd4bf" rx="1" />
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          )}
+                          <div className="flex justify-between text-[7px] text-slate-400 dark:text-slate-500 mt-1 px-3 font-mono">
+                            {posFilter === "monthly" ? (
+                              <>
+                                <span>Sep 25</span><span>Oct 25</span><span>Nov 25</span><span>Dec 25</span><span>Jan 26</span>
+                                <span>Feb 26</span><span>Mar 26</span><span>Apr 26</span><span>May 26</span><span>Jun 26</span>
+                                <span>Jul 26</span><span>Aug 26</span>
+                              </>
+                            ) : posFilter === "daily" ? (
+                              <>
+                                <span>05 Jul</span><span>12 Jul</span><span>18 Jul</span><span>24 Jul</span><span>29 Jul</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>FY 2022</span><span>FY 2023</span><span>FY 2024</span><span>FY 2025</span><span>FY 2026</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top Periods */}
+                      <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between">
+                        <div>
+                          <h4 className="text-[10px] font-bold text-slate-900 dark:text-white">Top Periods</h4>
+                          <p className="text-[8px] text-slate-400 mt-0.5">Ranked by revenue</p>
+                          
+                          <div className="space-y-2 mt-2.5">
+                            {posFilterData[posFilter].periods.map((period, i) => (
+                              <div key={period.name} className="group">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black text-white ${
+                                      i === 0
+                                        ? "bg-amber-400"
+                                        : i === 1
+                                          ? "bg-slate-400"
+                                          : i === 2
+                                            ? "bg-orange-400"
+                                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                    }`}>
+                                      {i + 1}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-700 dark:text-slate-350">{period.name}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-[9px] font-black text-slate-805 dark:text-white">{period.revenue}</div>
+                                    <div className={`text-[7px] font-bold ${
+                                      period.isProfit ? "text-emerald-500" : "text-rose-500"
+                                    }`}>
+                                      {period.profit}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-violet-600 to-indigo-600 rounded-full"
+                                    style={{ width: `${period.pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Top Periods Footer stats */}
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-1.5 text-center">
+                          <div>
+                            <p className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">TOTAL REV.</p>
+                            <p className="text-[9px] font-black text-slate-850 dark:text-white mt-0.5">
+                              {posFilterData[posFilter].totalRev}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">NET PROFIT</p>
+                            <p className={`text-[9px] font-black mt-0.5 ${
+                              posFilterData[posFilter].isFooterProfitPositive ? "text-emerald-600" : "text-rose-600"
+                            }`}>
+                              {posFilterData[posFilter].footerProfit}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Floating RupeeBill App Button */}
+                    <div className="absolute bottom-3 right-3">
+                      <div className="w-8 h-8 rounded-lg bg-violet-600 text-white flex items-center justify-center font-extrabold text-sm shadow-lg hover:scale-105 transition-transform duration-300 border border-white/20 select-none pointer-events-none">
+                        ₹
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Toast/Notification layer */}
                   <AnimatePresence>
                     {toastMessage && (
                       <motion.div

@@ -32,7 +32,9 @@ export interface SystemTableCount {
 export interface SystemHealth {
   supabaseStatus: "ok" | "error";
   latencyMs: number;
+  dbExecutionMs: number;
   checkedAt: string;
+  tableCounts?: SystemTableCount[];
 }
 
 // ---------- Users ----------
@@ -47,10 +49,6 @@ export async function getAppUsers(): Promise<AppUser[]> {
     console.warn("[adminApi] getAppUsers RPC error:", error.message);
     if (typeof window !== "undefined" && (window as any).toast) {
       (window as any).toast.error("Failed to load users: " + error.message + ". Did you run the SQL script?");
-    } else {
-      console.error("Please run the admin_get_users_rpc.sql script in your Supabase SQL editor!");
-      // Optionally use alert so the user really sees it
-      // alert("Error loading users: " + error.message + "\n\nPlease run the admin_get_users_rpc.sql script in your Supabase Dashboard!");
     }
     return [];
   }
@@ -59,55 +57,88 @@ export async function getAppUsers(): Promise<AppUser[]> {
 
 // ---------- Table Counts ----------
 
+function formatTableLabel(tableName: string): string {
+  if (tableName === "profiles") return "Users";
+  return tableName
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+// ---------- Table Counts ----------
+
 /**
- * Fetches row counts for key tables so the backend team
- * can see traffic at a glance.
+ * Fetches row counts dynamically using server-side RPC or fallback queries.
  */
 export async function getTableCounts(): Promise<SystemTableCount[]> {
-  const tables: { key: string; label: string }[] = [
-    { key: "expenses", label: "Expenses" },
-    { key: "groups", label: "Groups" },
-    { key: "profiles", label: "Users" },
-    { key: "invoices", label: "Invoices" },
-    { key: "demo_requests", label: "Demo Requests" },
-  ];
+  const health = await getSystemHealth();
+  if (health.tableCounts && health.tableCounts.length > 0) {
+    return health.tableCounts;
+  }
 
+  const defaultKeys = ["expenses", "groups", "profiles", "invoices", "demo_requests"];
   const results = await Promise.allSettled(
-    tables.map(async ({ key, label }) => {
+    defaultKeys.map(async (key) => {
       const { count, error } = await db
         .from(key)
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "planned", head: true });
 
-      if (error) return { table: key, label, count: 0 };
-      return { table: key, label, count: count ?? 0 };
+      if (error) return { table: key, label: formatTableLabel(key), count: 0 };
+      return { table: key, label: formatTableLabel(key), count: count ?? 0 };
     })
   );
 
   return results.map((r, i) =>
     r.status === "fulfilled"
       ? r.value
-      : { table: tables[i].key, label: tables[i].label, count: 0 }
+      : { table: defaultKeys[i], label: formatTableLabel(defaultKeys[i]), count: 0 }
   );
 }
 
 // ---------- System Health ----------
 
 /**
- * Pings Supabase by running a lightweight query and measures latency.
+ * Pings Supabase via single RPC call to fetch server DB engine execution time, RTT, and stats.
  */
 export async function getSystemHealth(): Promise<SystemHealth> {
   const start = Date.now();
   try {
-    await db.from("demo_requests").select("id", { head: true, count: "exact" });
+    const { data, error } = await db.rpc("get_system_health_metrics");
+    const networkRtt = Date.now() - start;
+
+    if (error || !data) {
+      // Fallback ping if RPC is initializing
+      const fallbackStart = Date.now();
+      await db.from("demo_requests").select("id").limit(1);
+      const measuredPing = Date.now() - fallbackStart;
+      return {
+        supabaseStatus: "ok",
+        latencyMs: measuredPing,
+        dbExecutionMs: measuredPing,
+        checkedAt: new Date().toISOString(),
+      };
+    }
+
+    const countsMap = data.table_counts || {};
+    const tableCounts: SystemTableCount[] = Object.keys(countsMap).map((key) => ({
+      table: key,
+      label: formatTableLabel(key),
+      count: Number(countsMap[key] || 0),
+    }));
+
     return {
       supabaseStatus: "ok",
-      latencyMs: Date.now() - start,
+      latencyMs: networkRtt,
+      dbExecutionMs: Number(data.db_execution_ms || 0),
       checkedAt: new Date().toISOString(),
+      tableCounts,
     };
   } catch {
+    const totalTime = Date.now() - start;
     return {
       supabaseStatus: "error",
-      latencyMs: Date.now() - start,
+      latencyMs: totalTime,
+      dbExecutionMs: totalTime,
       checkedAt: new Date().toISOString(),
     };
   }

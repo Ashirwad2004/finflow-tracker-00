@@ -31,6 +31,13 @@ import { useForm, Controller } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { Badge } from "@/components/ui/badge";
 import { TableLoadingRows } from "@/components/shared/PageStates";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 import {
     AlertDialog,
@@ -176,6 +183,7 @@ export default function Inventory() {
     }, [userId]);
 
     const [searchTerm, setSearchTerm] = useState("");
+    const [stockFilter, setStockFilter] = useState<"all" | "stock" | "non-stock">("all");
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -214,10 +222,18 @@ export default function Inventory() {
         enabled: !!user
     });
 
-    // Filter products based on search
-    const filteredProducts = products.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Filter products based on search and stock status
+    const filteredProducts = products.filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
+        if (!matchesSearch) return false;
+
+        if (stockFilter === "stock") {
+            return product.stock_quantity > 0;
+        } else if (stockFilter === "non-stock") {
+            return product.stock_quantity <= 0;
+        }
+        return true;
+    });
 
     // Add product mutation
     const addProductMutation = useMutation({
@@ -518,16 +534,33 @@ export default function Inventory() {
                     </div>
                 )}
 
-                {/* Search Bar */}
-                <div className="mb-6 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        type="text"
-                        placeholder="Search products..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                    />
+                {/* Search Bar & Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            type="text"
+                            placeholder="Search products..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 w-full"
+                        />
+                    </div>
+                    <div className="w-full sm:w-[220px]">
+                        <Select
+                            value={stockFilter}
+                            onValueChange={(value: "all" | "stock" | "non-stock") => setStockFilter(value)}
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Filter by stock" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Items</SelectItem>
+                                <SelectItem value="stock">Stock Items (Available)</SelectItem>
+                                <SelectItem value="non-stock">Non-Stock Items (Zero/Negative)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Products Table */}

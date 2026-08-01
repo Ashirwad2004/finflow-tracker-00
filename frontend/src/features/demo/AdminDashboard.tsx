@@ -1620,7 +1620,7 @@ function SystemSection() {
   });
 
   const latencyColor = !health ? "text-slate-500"
-    : health.latencyMs < 200 ? "text-emerald-400"
+    : health.latencyMs < 350 ? "text-emerald-400"
     : health.latencyMs < 600 ? "text-amber-400"
     : "text-red-400";
 
@@ -1675,14 +1675,19 @@ function SystemSection() {
             {/* Latency */}
             <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl">
               <div className="flex items-center gap-2.5 text-sm text-slate-300">
-                <Activity className="w-4 h-4 text-slate-500" />DB Latency
+                <Activity className="w-4 h-4 text-slate-500" />DB Engine Latency
               </div>
               {healthLoading ? (
                 <div className="h-4 w-12 bg-slate-700 rounded animate-pulse" />
               ) : (
-                <span className={`text-xs font-bold tabular-nums ${latencyColor}`}>
-                  {health ? `${health.latencyMs}ms` : "—"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono font-semibold">
+                    PostgreSQL Exec: {health?.dbExecutionMs}ms ⚡
+                  </span>
+                  <span className={`text-xs font-bold tabular-nums ${latencyColor}`} title="Cloud Network Round-Trip Time">
+                    {health ? `${health.latencyMs}ms RTT` : "—"}
+                  </span>
+                </div>
               )}
             </div>
 
