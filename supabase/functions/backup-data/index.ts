@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,9 +29,9 @@ Deno.serve(async (req) => {
 
     // Validate the user's JWT
     const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authError } = await supabase.auth.getClaims(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-    if (authError || !claims?.claims) {
+    if (authError || !user) {
       console.error("Auth error:", authError);
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const userId = claims.claims.sub;
+    const userId = user.id;
     console.log(`Starting backup for user: ${userId}`);
 
     // Fetch all user data from different tables

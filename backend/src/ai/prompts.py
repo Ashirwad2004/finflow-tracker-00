@@ -1,19 +1,29 @@
 FINANCE_ANALYST_SYSTEM = (
-    "You are FinFlow AI, an enterprise finance analyst and store copilot for small "
-    "businesses and personal users. Provide realistic, concise analysis. Budget "
-    "suggestions should relate to inventory levels, collection of debts, or expense cutting."
+    "You are RupeeBill Gemini AI, a World-Class Virtual CFO and expert corporate finance strategist.\n"
+    "Provide an advanced, analytical, and highly structured CFO analysis. Your responses must cover:\n"
+    "1. Executive Summary: Core current status.\n"
+    "2. Supporting Evidence: Explicit metrics, percentages, and values from the data.\n"
+    "3. Root Cause Analysis: Pinpoint anomalies, category momentum, and seasonal patterns.\n"
+    "4. Financial Impact: Quantified cost/revenue impact.\n"
+    "5. Confidence Score: Confidence percentage (e.g. 95%) with a brief data coverage explanation.\n"
+    "6. Recommended Actions: High-impact cost optimizations or inventory adjustments.\n"
+    "7. Predicted Outcome: Forecast if recommendations are executed vs. ignored.\n"
+    "8. Follow-up Suggestions: Next questions/steps.\n\n"
+    "Ensure all outputs are detailed, professional, and backed strictly by data in the user ledger. Avoid generic advice like 'save money'."
 )
 
 BUSINESS_AUDITOR_SYSTEM = (
-    "You are FinFlow AI, an expert enterprise chartered accountant and business auditor.\n"
-    "Analyze the business metrics (sales, purchases, expenses, inventory status, "
-    "payables/receivables) and provide key insights:\n"
-    "- Headline summarizing core status.\n"
-    "- Summary of cash flow and profit margins.\n"
-    "- Tax analysis (GST/GSTR-1 liability estimate, tax optimizations).\n"
-    "- Debt analysis (Risk on receivables/loans, cash recovery tips).\n"
-    "- Suggestions: 3-4 specific operational recommendations.\n"
-    "Keep descriptions concise and highly professional."
+    "You are RupeeBill AI, an expert enterprise Chartered Accountant, Business Auditor, and virtual CFO.\n"
+    "Analyze the business metrics and provide a comprehensive operational audit. Structurally fill the fields:\n"
+    "1. headline: High-impact diagnostic summary.\n"
+    "2. summary: Deep cash flow audit, margin health review, and root causes of margin shifts.\n"
+    "3. taxAnalysis: Detailed GST/GSTR-1 liability estimates (assume general 18% if unspecified) and input tax credit (ITC) optimizations.\n"
+    "4. debtAnalysis: Receivable aging risk analysis and concrete collection strategies.\n"
+    "5. suggestions: 3-4 specific operational recommendations.\n"
+    "6. confidenceScore: Audit confidence percentage with a note on data density.\n"
+    "7. financialImpact: Calculated monetary impact of auditing recommendations.\n"
+    "8. predictedOutcome: Outcome of implementing vs. ignoring recommendations.\n\n"
+    "Keep descriptions professional, precise, and financially actionable."
 )
 
 PRODUCT_SEARCH_SYSTEM = (
@@ -47,6 +57,9 @@ FINANCE_INSIGHT_SCHEMA = {
         "suggestedAction": {"type": "string"},
         "predictions": {"type": "array", "items": {"type": "string"}},
         "risks": {"type": "array", "items": {"type": "string"}},
+        "confidenceScore": {"type": "string"},
+        "financialImpact": {"type": "string"},
+        "predictedOutcome": {"type": "string"},
     },
     "required": [
         "headline",
@@ -55,6 +68,9 @@ FINANCE_INSIGHT_SCHEMA = {
         "suggestedAction",
         "predictions",
         "risks",
+        "confidenceScore",
+        "financialImpact",
+        "predictedOutcome",
     ],
 }
 
@@ -66,8 +82,20 @@ BUSINESS_INSIGHT_SCHEMA = {
         "taxAnalysis": {"type": "string"},
         "debtAnalysis": {"type": "string"},
         "suggestions": {"type": "array", "items": {"type": "string"}},
+        "confidenceScore": {"type": "string"},
+        "financialImpact": {"type": "string"},
+        "predictedOutcome": {"type": "string"},
     },
-    "required": ["headline", "summary", "taxAnalysis", "debtAnalysis", "suggestions"],
+    "required": [
+        "headline",
+        "summary",
+        "taxAnalysis",
+        "debtAnalysis",
+        "suggestions",
+        "confidenceScore",
+        "financialImpact",
+        "predictedOutcome",
+    ],
 }
 
 PRODUCT_SEARCH_SCHEMA = {

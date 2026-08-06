@@ -45,6 +45,37 @@ export async function callGemini(messages: AiMessage[], options: GeminiOptions =
     return data?.text || data?.choices?.[0]?.message?.content || "";
 }
 
+export async function callGeminiStream(messages: AiMessage[], options: GeminiOptions = {}) {
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const response = await fetch(`${supabaseUrl}/functions/v1/gemini-proxy`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify({
+            messages,
+            model: options.model || "gemini-2.5-flash",
+            temperature: options.temperature ?? 0.25,
+            response_format: options.responseFormat,
+            maxOutputTokens: options.maxOutputTokens,
+            stream: true
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Gemini stream connection error:", errorText);
+        throw new Error(errorText || "Failed to connect to Gemini stream");
+    }
+
+    return response;
+}
+
 export async function callGeminiJson<T>(messages: AiMessage[], schema: any, options: GeminiOptions = {}): Promise<T> {
     const response = await callGemini(messages, {
         ...options,
@@ -87,8 +118,11 @@ const expenseSummarySchema = {
             type: "array",
             items: { type: "string" },
         },
+        confidenceScore: { type: "string" },
+        financialImpact: { type: "string" },
+        predictedOutcome: { type: "string" }
     },
-    required: ["headline", "summary", "topCategories", "suggestedAction", "predictions", "risks"],
+    required: ["headline", "summary", "topCategories", "suggestedAction", "predictions", "risks", "confidenceScore", "financialImpact", "predictedOutcome"],
 };
 
 export type FinanceInsight = {
@@ -98,6 +132,9 @@ export type FinanceInsight = {
     suggestedAction: string;
     predictions: string[];
     risks: string[];
+    confidenceScore?: string;
+    financialImpact?: string;
+    predictedOutcome?: string;
 };
 
 export async function generateFinanceInsight(input: {
@@ -110,7 +147,6 @@ export async function generateFinanceInsight(input: {
     borrowed?: any[];
     lowStockCount?: number;
 }) {
-    // Slice at 30 items instead of 120 to save context tokens significantly
     const compactExpenses = input.expenses.slice(0, 30).map((expense) => ({
         amount: Number(expense.amount),
         description: expense.description,
@@ -143,7 +179,18 @@ export async function generateFinanceInsight(input: {
         [
             {
                 role: "system",
-                content: "You are RupeeBill Gemini AI, an enterprise finance analyst and store copilot for small businesses and personal users. Provide realistic, concise analysis. Budget suggestions should relate to inventory levels, collection of debts, or expense cutting.",
+                content: `You are RupeeBill Gemini AI, a World-Class Virtual CFO and expert corporate finance strategist.
+Provide an advanced, analytical, and highly structured CFO analysis. Your responses must cover:
+1. Executive Summary: Core current status.
+2. Supporting Evidence: Explicit metrics, percentages, and values from the data.
+3. Root Cause Analysis: Pinpoint anomalies, category momentum, and seasonal patterns.
+4. Financial Impact: Quantified cost/revenue impact.
+5. Confidence Score: Confidence percentage (e.g. 95%) with a brief data coverage explanation.
+6. Recommended Actions: High-impact cost optimizations or inventory adjustments.
+7. Predicted Outcome: Forecast if recommendations are executed vs. ignored.
+8. Follow-up Suggestions: Next questions/steps.
+
+Ensure all outputs are detailed, professional, and backed strictly by data in the user ledger. Avoid generic advice like 'save money'.`,
             },
             {
                 role: "user",
@@ -151,7 +198,7 @@ export async function generateFinanceInsight(input: {
             },
         ],
         expenseSummarySchema,
-        { temperature: 0.15, maxOutputTokens: 1600 },
+        { temperature: 0.15, maxOutputTokens: 2048 },
     );
 }
 
@@ -246,6 +293,9 @@ export type BusinessInsight = {
     taxAnalysis: string;
     debtAnalysis: string;
     suggestions: string[];
+    confidenceScore?: string;
+    financialImpact?: string;
+    predictedOutcome?: string;
 };
 
 const businessInsightSchema = {
@@ -258,9 +308,12 @@ const businessInsightSchema = {
         suggestions: {
             type: "array",
             items: { type: "string" }
-        }
+        },
+        confidenceScore: { type: "string" },
+        financialImpact: { type: "string" },
+        predictedOutcome: { type: "string" }
     },
-    required: ["headline", "summary", "taxAnalysis", "debtAnalysis", "suggestions"]
+    required: ["headline", "summary", "taxAnalysis", "debtAnalysis", "suggestions", "confidenceScore", "financialImpact", "predictedOutcome"]
 };
 
 export async function generateBusinessInsight(input: {
@@ -297,14 +350,18 @@ export async function generateBusinessInsight(input: {
         [
             {
                 role: "system",
-                content: `You are RupeeBill AI, an expert enterprise chartered accountant and business auditor.
-Analyze the business metrics (sales, purchases, expenses, inventory status, payables/receivables) and provide key insights:
-- Headline summarizing core status.
-- Summary of cash flow and profit margins.
-- Tax analysis (GST/GSTR-1 liability estimate, tax optimizations).
-- Debt analysis (Risk on receivables/loans, cash recovery tips).
-- Suggestions: 3-4 specific operational recommendations.
-Keep descriptions concise and highly professional.`,
+                content: `You are RupeeBill AI, an expert enterprise Chartered Accountant, Business Auditor, and virtual CFO.
+Analyze the business metrics and provide a comprehensive operational audit. Structurally fill the fields:
+1. headline: High-impact diagnostic summary.
+2. summary: Deep cash flow audit, margin health review, and root causes of margin shifts.
+3. taxAnalysis: Detailed GST/GSTR-1 liability estimates (assume general 18% if unspecified) and input tax credit (ITC) optimizations.
+4. debtAnalysis: Receivable aging risk analysis and concrete collection strategies.
+5. suggestions: 3-4 specific operational recommendations.
+6. confidenceScore: Audit confidence percentage with a note on data density.
+7. financialImpact: Calculated monetary impact of auditing recommendations.
+8. predictedOutcome: Outcome of implementing vs. ignoring recommendations.
+
+Keep descriptions professional, precise, and financially actionable.`,
             },
             {
                 role: "user",
@@ -312,6 +369,6 @@ Keep descriptions concise and highly professional.`,
             },
         ],
         businessInsightSchema,
-        { temperature: 0.15, maxOutputTokens: 1600 }
+        { temperature: 0.15, maxOutputTokens: 2048 }
     );
 }

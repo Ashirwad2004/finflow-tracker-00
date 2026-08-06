@@ -778,7 +778,7 @@ export default function Storefront() {
                                 type="text"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                placeholder="Ask AI: phones under ₹20000"
+                                placeholder="Search items"
                                 className="w-full h-9 pl-9 pr-3 rounded-lg text-xs text-white placeholder:text-white/35 focus:outline-none transition-all"
                                 style={{
                                     background: "rgba(255,255,255,0.1)",

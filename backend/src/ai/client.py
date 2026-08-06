@@ -166,6 +166,43 @@ class GeminiClient:
             raise GeminiServiceError("Gemini returned an empty response")
         return text
 
+    async def generate_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+        response_format: dict[str, Any] | None = None,
+    ):
+        system_instruction, contents = self._build_request(messages)
+        if not contents:
+            raise GeminiServiceError("No user or assistant messages provided")
+
+        schema = self._extract_json_schema(response_format)
+        config_kwargs: dict[str, Any] = {
+            "temperature": temperature if temperature is not None else settings.GEMINI_TEMPERATURE,
+            "max_output_tokens": max_output_tokens or settings.GEMINI_MAX_OUTPUT_TOKENS,
+            "safety_settings": SAFETY_SETTINGS,
+        }
+        if system_instruction:
+            config_kwargs["system_instruction"] = system_instruction
+        if schema:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_json_schema"] = schema
+
+        try:
+            stream = await self.client.aio.models.generate_content_stream(
+                model=model or self.default_model,
+                contents=contents,
+                config=types.GenerateContentConfig(**config_kwargs),
+            )
+            async for chunk in stream:
+                yield chunk.text or ""
+        except Exception as exc:
+            logger.exception("Gemini API stream request failed")
+            raise GeminiServiceError(str(exc)) from exc
+
 
 @lru_cache
 def get_gemini_client() -> GeminiClient:

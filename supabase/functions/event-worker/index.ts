@@ -55,8 +55,15 @@ Deno.serve(async (req) => {
         let failedCount = 0;
         const errors: string[] = [];
 
+        interface InvoiceRecord {
+          customer_email?: string;
+          customer_name?: string;
+          invoice_number?: string;
+          total_amount?: number | string;
+        }
+
         // Loop and send emails in parallel (capped at a reasonable batch size)
-        const emailPromises = invoices.map(async (inv: any) => {
+        const emailPromises = invoices.map(async (inv: InvoiceRecord) => {
            if (!inv.customer_email) return;
            try {
              const res = await fetch('https://api.resend.com/emails', {
@@ -78,9 +85,10 @@ Deno.serve(async (req) => {
                throw new Error(`Resend API Error: ${errText}`);
              }
              sentCount++;
-           } catch (err: any) {
+           } catch (err: unknown) {
+             const errMsg = err instanceof Error ? err.message : String(err);
              console.error(`Failed to email ${inv.customer_email}:`, err);
-             errors.push(`${inv.customer_email}: ${err.message || err}`);
+             errors.push(`${inv.customer_email}: ${errMsg}`);
              failedCount++;
            }
         });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Lightbulb, TrendingUp, Target, Sparkles, Loader2 } from "lucide-react";
+import { Lightbulb, TrendingUp, Target, Sparkles, Loader2, AlertTriangle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -45,6 +45,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
 
     const generateInsights = () => {
         if (geminiInsight) {
+            // Unused when rendering the dedicated CFO view, but kept for full backward-compatibility
             return [
                 {
                     title: geminiInsight.headline,
@@ -52,14 +53,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
                     icon: Sparkles,
                     color: "text-violet-500",
                     bg: "bg-violet-500/10"
-                },
-                ...(geminiInsight.topCategories?.slice(0, 1).map((category) => ({
-                    title: `Top Spending: ${category.name}`,
-                    desc: `${formatCurrency(category.amount)}. ${category.reason}`,
-                    icon: Lightbulb,
-                    color: "text-amber-500",
-                    bg: "bg-amber-500/10"
-                })) || []),
+                }
             ];
         }
 
@@ -74,7 +68,6 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
         });
         const thisMonthTotal = thisMonthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
-        // Insight 1: Spending Trend
         if (thisMonthTotal > 10000) {
             insights.push({
                 title: "High Spending Alert",
@@ -93,7 +86,6 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
             });
         }
 
-        // Insight 2: Top Category
         const categoryTotals: Record<string, number> = {};
         thisMonthExpenses.forEach(e => {
             categoryTotals[e.category_id] = (categoryTotals[e.category_id] || 0) + Number(e.amount);
@@ -127,7 +119,7 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
 
     return (
         <div className="space-y-4 w-full">
-            {/* AI Call-to-action Card: display when not loading and AI insight is not fetched yet */}
+            {/* AI Call-to-action Card */}
             {!geminiInsight && !isFetching && expenses.length > 0 && (
                 <Card className="shadow-sm border-l-4 border-l-violet-500 bg-violet-50/50 dark:bg-violet-950/10 animate-fade-in">
                     <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -167,8 +159,128 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
                 </Card>
             )}
 
-            {/* Insight cards display */}
-            {insights.length > 0 && (
+            {/* Custom CFO Insights Display */}
+            {geminiInsight && (
+                <div className="space-y-6 w-full animate-in fade-in duration-500">
+                    <div className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-5 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex gap-3 items-center">
+                            <Sparkles className="w-7 h-7 bg-white/20 p-1.5 rounded-lg backdrop-blur-sm shrink-0" />
+                            <div>
+                                <span className="text-[9px] uppercase tracking-widest text-violet-200 font-bold block mb-0.5">CFO Audit Summary</span>
+                                <h3 className="text-sm sm:text-base font-extrabold leading-snug">{geminiInsight.headline}</h3>
+                            </div>
+                        </div>
+                        {geminiInsight.confidenceScore && (
+                            <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm border border-white/10 shrink-0">
+                                Confidence: {geminiInsight.confidenceScore}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="shadow-sm border border-muted">
+                            <CardContent className="p-4 space-y-2">
+                                <span className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wide flex items-center gap-1.5">
+                                    <Lightbulb className="w-4 h-4" /> CFO Executive Summary
+                                </span>
+                                <p className="text-xs text-muted-foreground leading-relaxed">{geminiInsight.summary}</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border border-muted">
+                            <CardContent className="p-4 space-y-2">
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
+                                    <TrendingUp className="w-4 h-4" /> Financial Impact
+                                </span>
+                                <p className="text-xs text-muted-foreground leading-relaxed">{geminiInsight.financialImpact || "Calculated based on spending rules."}</p>
+                                {geminiInsight.predictedOutcome && (
+                                    <div className="pt-2 border-t text-[10px] text-muted-foreground leading-snug">
+                                        <strong className="text-foreground">Forecast Outcome:</strong> {geminiInsight.predictedOutcome}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border border-muted">
+                            <CardContent className="p-4 space-y-2">
+                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide flex items-center gap-1.5">
+                                    <Target className="w-4 h-4" /> Recommended Action
+                                </span>
+                                <p className="text-xs text-muted-foreground leading-relaxed">{geminiInsight.suggestedAction}</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <Card className="shadow-sm border border-muted">
+                        <CardContent className="p-4 space-y-3">
+                            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                                <Target className="w-4 h-4 text-violet-500" /> Expense Velocity Breakdown
+                            </h4>
+                            <div className="overflow-x-auto border rounded-xl bg-muted/10">
+                                <table className="min-w-full divide-y divide-border text-[11px]">
+                                    <thead className="bg-muted/40 font-semibold text-muted-foreground">
+                                        <tr>
+                                            <th className="px-3.5 py-2 text-left">Category</th>
+                                            <th className="px-3.5 py-2 text-left">Amount</th>
+                                            <th className="px-3.5 py-2 text-left">CFO Diagnostic Rationale</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border bg-background">
+                                        {geminiInsight.topCategories?.map((category, idx) => (
+                                            <tr key={idx} className="hover:bg-muted/30">
+                                                <td className="px-3.5 py-2 font-medium text-foreground">{category.name}</td>
+                                                <td className="px-3.5 py-2 font-bold text-violet-600">{formatCurrency(category.amount)}</td>
+                                                <td className="px-3.5 py-2 text-muted-foreground leading-normal">{category.reason}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {geminiInsight.risks && geminiInsight.risks.length > 0 && (
+                            <Card className="border-rose-100 bg-rose-500/5 shadow-sm">
+                                <CardContent className="p-4 space-y-2">
+                                    <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide flex items-center gap-1.5">
+                                        <AlertTriangle className="w-4 h-4" /> Spending Risk Audit
+                                    </span>
+                                    <ul className="space-y-1.5">
+                                        {geminiInsight.risks.map((risk, idx) => (
+                                            <li key={idx} className="text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2 leading-relaxed">
+                                                <span className="mt-0.5 font-bold text-[9px] bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">!</span>
+                                                <span>{risk}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {geminiInsight.predictions && geminiInsight.predictions.length > 0 && (
+                            <Card className="border-indigo-100 bg-indigo-500/5 shadow-sm">
+                                <CardContent className="p-4 space-y-2">
+                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide flex items-center gap-1.5">
+                                        <TrendingUp className="w-4 h-4" /> 6-Month Cash Projections
+                                    </span>
+                                    <ul className="space-y-1.5">
+                                        {geminiInsight.predictions.map((pred, idx) => (
+                                            <li key={idx} className="text-xs text-indigo-700 dark:text-indigo-300 flex items-start gap-2 leading-relaxed">
+                                                <span className="mt-0.5 font-semibold text-[9px] bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">→</span>
+                                                <span>{pred}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Basic Local Heuristic Insights Display */}
+            {!geminiInsight && insights.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
                     {insights.map((insight, idx) => (
                         <Card key={idx} className="shadow-sm border-l-4" style={{ borderLeftColor: 'currentColor' }}>

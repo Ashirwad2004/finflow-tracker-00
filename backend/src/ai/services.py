@@ -82,7 +82,7 @@ class InsightService:
                 {"role": "user", "content": json.dumps(summary_data)},
             ],
             temperature=0.15,
-            max_output_tokens=1600,
+            max_output_tokens=2048,
             response_format={"json_schema": {"schema": FINANCE_INSIGHT_SCHEMA}},
         )
         return FinanceInsightResponse.model_validate(json.loads(raw))
@@ -128,7 +128,7 @@ class InsightService:
                 {"role": "user", "content": json.dumps(business_metrics)},
             ],
             temperature=0.15,
-            max_output_tokens=1600,
+            max_output_tokens=2048,
             response_format={"json_schema": {"schema": BUSINESS_INSIGHT_SCHEMA}},
         )
         return BusinessInsightResponse.model_validate(json.loads(raw))

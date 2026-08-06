@@ -1,6 +1,8 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 
 from src.ai.client import GeminiServiceError, get_gemini_client
 from src.ai.schemas import (
@@ -32,17 +34,45 @@ def _ensure_ai_configured() -> None:
         )
 
 
-@router.post("/completions", response_model=CompletionResponse)
+@router.post("/completions")
 @limiter.limit(settings.AI_RATE_LIMIT)
 async def create_completion(
     request: Request,
     payload: CompletionRequest,
     _: str | None = Depends(require_ai_user),
-) -> CompletionResponse:
+):
     _ensure_ai_configured()
 
+    client = get_gemini_client()
+
+    if payload.stream:
+        async def event_generator():
+            try:
+                async for chunk in client.generate_stream(
+                    [message.model_dump() for message in payload.messages],
+                    model=payload.model,
+                    temperature=payload.temperature,
+                    max_output_tokens=payload.maxOutputTokens,
+                    response_format=payload.response_format,
+                ):
+                    chunk_data = {
+                        "candidates": [{
+                            "content": {
+                                "parts": [{
+                                    "text": chunk
+                                }]
+                            }
+                        }]
+                    }
+                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as exc:
+                logger.exception("Gemini stream completion failed")
+                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
     try:
-        client = get_gemini_client()
         text = await client.generate(
             [message.model_dump() for message in payload.messages],
             model=payload.model,

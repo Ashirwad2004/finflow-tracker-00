@@ -14,6 +14,7 @@ class CompletionRequest(BaseModel):
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     maxOutputTokens: int | None = Field(default=None, ge=64, le=8192)
     response_format: dict[str, Any] | None = None
+    stream: bool | None = False
 
 
 class CompletionResponse(BaseModel):
@@ -58,6 +59,9 @@ class FinanceInsightResponse(BaseModel):
     suggestedAction: str
     predictions: list[str]
     risks: list[str]
+    confidenceScore: str
+    financialImpact: str
+    predictedOutcome: str
 
 
 class BusinessInsightRequest(BaseModel):
@@ -77,6 +81,9 @@ class BusinessInsightResponse(BaseModel):
     taxAnalysis: str
     debtAnalysis: str
     suggestions: list[str]
+    confidenceScore: str
+    financialImpact: str
+    predictedOutcome: str
 
 
 class ProductSearchRequest(BaseModel):
