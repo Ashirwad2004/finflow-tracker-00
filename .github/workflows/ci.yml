@@ -66,7 +66,7 @@ jobs:
 
       - name: Verify Python Syntax & Compilation
         working-directory: backend
-        run: python -m py_compile main.py $(find src -name "*.py")
+        run: python -m py_compile src/main.py $(find src -name "*.py")
 
   docker-build-checks:
     name: Docker Build Validation
