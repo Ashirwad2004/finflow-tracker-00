@@ -15,10 +15,6 @@
   ],
   "routes": [
     {
-      "src": "/api/payments(.*)",
-      "dest": "frontend/server.js"
-    },
-    {
       "handle": "filesystem"
     },
     {

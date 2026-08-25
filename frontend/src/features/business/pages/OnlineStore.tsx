@@ -343,7 +343,7 @@ export default function OnlineStore() {
     const { data: paymentsHistory = { payments: [], total: 0 }, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
         queryKey: ["paymentsHistory", currentStoreId, searchQuery, statusFilter],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/payments/admin/history?storeId=${currentStoreId}&search=${searchQuery}&status=${statusFilter}`);
+            const res = await fetchWithAuth(`/api/v1/payments/admin/history?storeId=${currentStoreId}&search=${searchQuery}&status=${statusFilter}`);
             return res.data;
         },
         enabled: !!currentStoreId && !isSalesman,
@@ -353,7 +353,7 @@ export default function OnlineStore() {
     const { data: analyticsData = { stats: null }, isLoading: isLoadingStats } = useQuery({
         queryKey: ["paymentStats", currentStoreId],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/payments/admin/stats?storeId=${currentStoreId}`);
+            const res = await fetchWithAuth(`/api/v1/payments/admin/stats?storeId=${currentStoreId}`);
             return res.data;
         },
         enabled: !!currentStoreId && !isSalesman,
@@ -363,7 +363,7 @@ export default function OnlineStore() {
     const { data: auditLogs = { logs: [] }, isLoading: isLoadingLogs } = useQuery({
         queryKey: ["paymentLogs", currentStoreId],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/payments/admin/logs?storeId=${currentStoreId}`);
+            const res = await fetchWithAuth(`/api/v1/payments/admin/logs?storeId=${currentStoreId}`);
             return res.data;
         },
         enabled: !!currentStoreId && !isSalesman,
@@ -372,7 +372,7 @@ export default function OnlineStore() {
     // React Mutation: Initiate payment refund
     const refundPayment = useMutation({
         mutationFn: async ({ paymentId, amount, reason }: { paymentId: string; amount?: number; reason: string }) => {
-            const res = await fetchWithAuth("/api/payments/refund", {
+            const res = await fetchWithAuth("/api/v1/payments/refund", {
                 method: "POST",
                 data: { paymentId, amount, reason }
             });

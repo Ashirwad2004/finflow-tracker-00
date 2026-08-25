@@ -31,6 +31,7 @@ interface InvoiceItem {
     quantity: number;
     price: number;
     discount: number;
+    tax_rate?: number;
     total: number;
     hsn_code?: string;
     unit?: string;
@@ -88,7 +89,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             invoice_number: "",
             date: new Date().toISOString().split("T")[0],
             due_date: "",
-            items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "", unit: "" }],
+            items: [{ description: "", quantity: 1, price: 0, discount: 0, tax_rate: salesSettings?.defaultTaxRate || 0, total: 0, hsn_code: "", unit: "" }],
             tax_rate: 0,
             overall_discount: 0,
             status: "paid",
@@ -191,6 +192,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 quantity: item.quantity || 1,
                 price: item.price || 0,
                 discount: item.discount || 0,
+                tax_rate: data.taxRate !== undefined ? data.taxRate : (salesSettings?.defaultTaxRate ?? 0),
                 total: (item.quantity || 1) * (item.price || 0) * (1 - (item.discount || 0) / 100),
                 hsn_code: "",
                 unit: ""
@@ -207,7 +209,10 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     // Pre-fill form when editing
     useEffect(() => {
         if (open && invoiceToEdit) {
-            const items = invoiceToEdit.items || [];
+            const items = (invoiceToEdit.items || []).map((it: any) => ({
+                ...it,
+                tax_rate: it.tax_rate !== undefined ? Number(it.tax_rate) : (invoiceToEdit.tax_rate ?? salesSettings?.defaultTaxRate ?? 0)
+            }));
             reset({
                 customer_name: invoiceToEdit.customer_name,
                 customer_phone: invoiceToEdit.customer_phone,
@@ -241,7 +246,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 original_invoice_id: "",
                 invoice_number: "",
                 date: new Date().toISOString().split("T")[0],
-                items: [{ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "", unit: "" }],
+                items: [{ description: "", quantity: 1, price: 0, discount: 0, tax_rate: salesSettings?.defaultTaxRate ?? 0, total: 0, hsn_code: "", unit: "" }],
                 tax_rate: salesSettings?.defaultTaxRate ?? 0,
                 overall_discount: 0,
                 status: salesSettings?.defaultStatus ?? "paid",
@@ -252,7 +257,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 notes: salesSettings?.defaultTermsAndConditions || ""
             });
         }
-    }, [open, invoiceToEdit, reset]);
+    }, [open, invoiceToEdit, reset, salesSettings]);
 
     // Fetch Last Invoice Number (Only if NOT editing)
     const { data: lastInvoiceNumber } = useQuery({
@@ -326,11 +331,14 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
             if (product.unit) {
                 setValue(`items.${index}.unit`, product.unit);
             }
+            if (product.tax_rate !== undefined || product.tax !== undefined) {
+                setValue(`items.${index}.tax_rate`, Number(product.tax_rate ?? product.tax ?? salesSettings?.defaultTaxRate ?? 0));
+            }
         }
 
         // Automatic Next Line Creation: If typing in the last row, automatically append a new empty line
         if (productName.trim() !== "" && index === fields.length - 1) {
-            append({ description: "", quantity: 1, price: 0, discount: 0, total: 0, hsn_code: "", unit: "" });
+            append({ description: "", quantity: 1, price: 0, discount: 0, tax_rate: salesSettings?.defaultTaxRate || 0, total: 0, hsn_code: "", unit: "" });
         }
     };
 
@@ -373,6 +381,8 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     };
 
     // Real-time calc
+    const isItemWiseTax = !!salesSettings?.enableItemWiseTax;
+
     const subtotal = watchItems.reduce((sum, item) => {
         const qty = Number(item.quantity) || 0;
         const price = Number(item.price) || 0;
@@ -384,8 +394,25 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
     const overallDiscountPercent = Number(watchOverallDiscount) || 0;
     const overallDiscountAmount = (subtotal * overallDiscountPercent) / 100;
     const taxableAmount = Math.max(0, subtotal - overallDiscountAmount);
-    const taxRate = Number(watchTaxRate) || 0;
-    const taxAmount = (taxableAmount * taxRate) / 100;
+
+    let taxAmount = 0;
+    let taxRate = Number(watchTaxRate) || 0;
+
+    if (isItemWiseTax) {
+        const discountFactor = subtotal > 0 ? (taxableAmount / subtotal) : 1;
+        taxAmount = watchItems.reduce((sum, item) => {
+            const qty = Number(item.quantity) || 0;
+            const price = Number(item.price) || 0;
+            const discPercent = Number(item.discount) || 0;
+            const lineTaxable = (qty * price) * (1 - (discPercent / 100)) * discountFactor;
+            const itemTaxRate = Number(item.tax_rate ?? salesSettings?.defaultTaxRate ?? 0);
+            return sum + (lineTaxable * itemTaxRate / 100);
+        }, 0);
+        taxRate = taxableAmount > 0 ? (taxAmount / taxableAmount) * 100 : 0;
+    } else {
+        taxAmount = (taxableAmount * taxRate) / 100;
+    }
+
     const rawTotal = taxableAmount + taxAmount;
     // Round off: if enabled, round to nearest integer and compute the rounding difference
     const roundedTotal = salesSettings?.roundOffTotal ? Math.round(rawTotal) : rawTotal;
@@ -428,6 +455,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                     quantity: 1,
                     price: priceVal,
                     discount: 0,
+                    tax_rate: calcTaxRate,
                     total: priceVal,
                     hsn_code: ""
                 }];
@@ -445,6 +473,7 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                     const disc = Number(item.discount) || 0;
                     return {
                         ...item,
+                        tax_rate: item.tax_rate !== undefined ? Number(item.tax_rate) : (salesSettings?.defaultTaxRate ?? 0),
                         total: (qty * price) * (1 - (disc / 100))
                     };
                 });
@@ -453,7 +482,19 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                 const calcOverallDiscountPercent = Number(values.overall_discount) || 0;
                 calcOverallDiscountAmount = (calcSubtotal * calcOverallDiscountPercent) / 100;
                 const calcTaxableAmount = Math.max(0, calcSubtotal - calcOverallDiscountAmount);
-                const calcTaxAmountVal = (calcTaxableAmount * calcTaxRate) / 100;
+                
+                let calcTaxAmountVal = 0;
+                if (isItemWiseTax) {
+                    const discountFactor = calcSubtotal > 0 ? (calcTaxableAmount / calcSubtotal) : 1;
+                    calcTaxAmountVal = processedItems.reduce((sum, item) => {
+                        const lineTaxable = item.total * discountFactor;
+                        const itemTaxRate = Number(item.tax_rate ?? calcTaxRate);
+                        return sum + (lineTaxable * itemTaxRate / 100);
+                    }, 0);
+                } else {
+                    calcTaxAmountVal = (calcTaxableAmount * calcTaxRate) / 100;
+                }
+
                 const calcRawTotal = calcTaxableAmount + calcTaxAmountVal;
                 calcTotalAmount = salesSettings?.roundOffTotal ? Math.round(calcRawTotal) : calcRawTotal;
                 calcTaxAmount = calcTaxAmountVal;
@@ -1105,12 +1146,21 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
 
                             <div className="border border-slate-200 rounded-sm bg-white overflow-hidden">
                                 {/* Table Header */}
-                                <div className={`hidden sm:grid ${salesSettings?.enableHsnCode ? "grid-cols-[1fr_100px_100px_100px_100px_120px_40px]" : "grid-cols-[1fr_100px_120px_100px_120px_40px]"} gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider`}>
+                                <div className={`hidden sm:grid ${
+                                    salesSettings?.enableHsnCode && salesSettings?.enableItemWiseTax
+                                        ? "grid-cols-[1fr_90px_80px_90px_80px_80px_100px_40px]"
+                                        : salesSettings?.enableHsnCode
+                                        ? "grid-cols-[1fr_100px_100px_100px_100px_120px_40px]"
+                                        : salesSettings?.enableItemWiseTax
+                                        ? "grid-cols-[1fr_80px_100px_80px_80px_100px_40px]"
+                                        : "grid-cols-[1fr_100px_120px_100px_120px_40px]"
+                                } gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider`}>
                                     <div className="py-2.5 px-3">Item Description</div>
                                     {salesSettings?.enableHsnCode && <div className="py-2.5 px-3 border-l border-slate-200 text-left">HSN</div>}
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Qty</div>
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Rate</div>
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Disc %</div>
+                                    {salesSettings?.enableItemWiseTax && <div className="py-2.5 px-3 border-l border-slate-200 text-right">Tax %</div>}
                                     <div className="py-2.5 px-3 border-l border-slate-200 text-right">Amount</div>
                                     <div className="py-2.5 px-0 border-l border-slate-200 text-center"></div>
                                 </div>
@@ -1123,9 +1173,18 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                         const disc = watch(`items.${index}.discount`) || 0;
                                         const lineTotal = (qty * price) * (1 - disc / 100);
                                         const hsnEnabled = !!salesSettings?.enableHsnCode;
+                                        const itemTaxEnabled = !!salesSettings?.enableItemWiseTax;
 
                                         return (
-                                            <div key={field.id} className={`grid grid-cols-1 ${hsnEnabled ? "sm:grid-cols-[1fr_100px_100px_100px_100px_120px_40px]" : "sm:grid-cols-[1fr_100px_120px_100px_120px_40px]"} gap-1 sm:gap-0 p-3 sm:p-0 items-start sm:items-stretch bg-white`}>
+                                            <div key={field.id} className={`grid grid-cols-1 ${
+                                                hsnEnabled && itemTaxEnabled
+                                                    ? "sm:grid-cols-[1fr_90px_80px_90px_80px_80px_100px_40px]"
+                                                    : hsnEnabled
+                                                    ? "sm:grid-cols-[1fr_100px_100px_100px_100px_120px_40px]"
+                                                    : itemTaxEnabled
+                                                    ? "sm:grid-cols-[1fr_80px_100px_80px_80px_100px_40px]"
+                                                    : "sm:grid-cols-[1fr_100px_120px_100px_120px_40px]"
+                                            } gap-1 sm:gap-0 p-3 sm:p-0 items-start sm:items-stretch bg-white`}>
 
                                                 {/* Mobile Labels */}
                                                 <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">Item Description</div>
@@ -1203,6 +1262,24 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                                     <Percent className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none hidden sm:block" />
                                                 </div>
 
+                                                {itemTaxEnabled && (
+                                                    <>
+                                                        <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">Tax %</div>
+                                                        <div className="sm:p-0 relative">
+                                                            <Input
+                                                                type="number"
+                                                                className="h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 text-right pr-6 bg-transparent focus-visible:ring-1 focus-visible:ring-inset font-medium text-slate-800"
+                                                                {...register(`items.${index}.tax_rate` as const, { valueAsNumber: true, min: 0, max: 100 })}
+                                                                placeholder="0"
+                                                                min="0"
+                                                                max="100"
+                                                                step="0.1"
+                                                            />
+                                                            <Percent className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none hidden sm:block" />
+                                                        </div>
+                                                    </>
+                                                )}
+
                                                 <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">Amount</div>
                                                 <div className="flex items-center justify-end px-3 sm:border-r border-slate-200 font-medium text-slate-800 text-sm h-9 sm:h-auto bg-slate-50/50">
                                                     {formatCurrency(lineTotal)}
@@ -1270,24 +1347,35 @@ export const CreateInvoiceDialog = ({ open, onOpenChange, invoiceToEdit, salesSe
                                         </div>
                                     )}
 
-                                    {/* GST-aware tax label */}
+                                    {/* GST-aware tax label / Item-wise indicator */}
                                     <div className="flex justify-between items-center text-sm px-2 pt-1 border-b border-slate-100 pb-3">
                                         <span className="text-slate-600">
-                                            {salesSettings?.gstMode === "igst" ? "IGST" :
-                                             salesSettings?.gstMode === "cgst_sgst" ? "Tax (CGST+SGST)" : "Tax"}
+                                            {isItemWiseTax
+                                                ? "Item-wise Tax"
+                                                : salesSettings?.gstMode === "igst"
+                                                ? "IGST"
+                                                : salesSettings?.gstMode === "cgst_sgst"
+                                                ? "Tax (CGST+SGST)"
+                                                : "Tax"}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                            <div className="relative w-24">
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 rounded-sm text-right pr-6 border-slate-300"
-                                                    {...register("tax_rate")}
-                                                    min="0"
-                                                    max="100"
-                                                    placeholder="0"
-                                                />
-                                                <Percent className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                                            </div>
+                                            {isItemWiseTax ? (
+                                                <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                                                    {taxAmount > 0 ? `Avg ~${taxRate.toFixed(1)}%` : "0%"}
+                                                </span>
+                                            ) : (
+                                                <div className="relative w-24">
+                                                    <Input
+                                                        type="number"
+                                                        className="h-8 rounded-sm text-right pr-6 border-slate-300"
+                                                        {...register("tax_rate")}
+                                                        min="0"
+                                                        max="100"
+                                                        placeholder="0"
+                                                    />
+                                                    <Percent className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     {taxAmount > 0 && (

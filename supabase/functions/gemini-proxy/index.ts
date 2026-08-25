@@ -50,7 +50,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, model, response_format, temperature, maxOutputTokens } = await req.json();
+    const { messages, model, response_format, temperature, maxOutputTokens, stream } = await req.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -97,6 +97,33 @@ serve(async (req) => {
     if (schema) {
       payload.generationConfig.responseMimeType = "application/json";
       payload.generationConfig.responseSchema = schema;
+    }
+
+    if (stream) {
+      const response = await fetch(
+        `${GEMINI_API_URL}/${model || "gemini-2.5-flash"}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Gemini API error (stream):", response.status, errorText);
+        return new Response(
+          JSON.stringify({ error: "Failed to communicate with Gemini stream", details: errorText }),
+          { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const headers = new Headers(corsHeaders);
+      headers.set("Content-Type", "text/event-stream");
+      headers.set("Cache-Control", "no-cache");
+      headers.set("Connection", "keep-alive");
+
+      return new Response(response.body, { headers });
     }
 
     const response = await fetch(

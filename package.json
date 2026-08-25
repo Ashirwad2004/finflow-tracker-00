@@ -2,26 +2,24 @@
   "name": "finflow-tracker-monorepo",
   "private": true,
   "version": "1.0.0",
-  "description": "FinFlow Tracker - Monorepo housing FastAPI backend and React frontend",
+  "description": "FinFlow Tracker - Full-stack application with FastAPI backend and React Vite frontend",
   "workspaces": [
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npx kill-port 3000 && node frontend/server.js\" \"npm run backend:dev\"",
-    "clean-dev": "concurrently \"npm run clean-dev --workspace=frontend\" \"npx kill-port 3000 && node frontend/server.js\" \"npm run backend:dev\"",
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"python run-backend.py\"",
+    "frontend:dev": "npm run dev --workspace=frontend",
+    "backend:dev": "python run-backend.py",
+    "test:backend": "pytest backend/tests -v",
     "build": "npm run build --workspace=frontend",
     "lint": "npm run lint --workspace=frontend",
     "preview": "npm run preview --workspace=frontend",
-    "backend:dev": "python run-backend.py",
-    "ai:dev": "python run-backend.py",
+    "server": "node frontend/server.js",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
-  },
-  "dependencies": {
-    "browser-image-compression": "^2.0.2"
   }
 }

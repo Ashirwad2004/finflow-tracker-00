@@ -7,7 +7,6 @@ import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { generateBusinessInsight } from "@/core/integrations/ai/gemini";
 import { 
     Sparkles, 
-    Percent, 
     ShieldCheck, 
     AlertTriangle, 
     TrendingUp, 
@@ -98,12 +97,44 @@ export function BusinessAiInsights() {
             {insight && (
                 <div className="space-y-6 animate-in fade-in duration-500">
                     {/* Core Headline */}
-                    <div className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-6 rounded-2xl shadow-xl flex items-center gap-4">
-                        <Bot className="w-10 h-10 shrink-0 bg-white/20 p-2 rounded-xl backdrop-blur-sm" />
-                        <div>
-                            <h3 className="text-xs uppercase tracking-widest text-violet-200 font-bold mb-1">Audit Headline</h3>
-                            <h2 className="text-lg sm:text-xl font-extrabold leading-snug">{insight.headline}</h2>
+                    <div className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-4">
+                            <Bot className="w-10 h-10 shrink-0 bg-white/20 p-2 rounded-xl backdrop-blur-sm" />
+                            <div>
+                                <h3 className="text-xs uppercase tracking-widest text-violet-200 font-bold mb-1">Audit Headline</h3>
+                                <h2 className="text-lg sm:text-xl font-extrabold leading-snug">{insight.headline}</h2>
+                            </div>
                         </div>
+                        {insight.confidenceScore && (
+                            <span className="text-xs font-semibold bg-white/20 px-3 py-1.5 rounded-full border border-white/10 shrink-0">
+                                Confidence: {insight.confidenceScore}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Quantified Financial Impact & Predictions */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="border border-muted bg-emerald-500/5 dark:bg-emerald-950/5 shadow-sm">
+                            <CardContent className="p-4 space-y-2">
+                                <h4 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <DollarSign className="w-4 h-4" /> Quantified CFO Financial Impact
+                                </h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    {insight.financialImpact || "Optimizations based on cash flow audit suggestions."}
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border border-muted bg-indigo-500/5 dark:bg-indigo-950/5 shadow-sm">
+                            <CardContent className="p-4 space-y-2">
+                                <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <TrendingUp className="w-4 h-4" /> Predicted Outcome (Action vs Inaction)
+                                </h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    {insight.predictedOutcome || "Expected cash velocity outcome of audits."}
+                                </p>
+                            </CardContent>
+                        </Card>
                     </div>
 
                     {/* Detailed Cards Grid */}
@@ -117,7 +148,7 @@ export function BusinessAiInsights() {
                                 <CardDescription className="text-xs">Ledger Profitability Analysis</CardDescription>
                             </CardHeader>
                             <CardContent className="p-4 flex-1 flex flex-col justify-between gap-4">
-                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                <p className="text-xs text-muted-foreground leading-relaxed">
                                     {insight.summary}
                                 </p>
                                 <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl space-y-1 text-xs">
@@ -140,7 +171,7 @@ export function BusinessAiInsights() {
                                 <CardDescription className="text-xs">Estimated Tax Liability Audit</CardDescription>
                             </CardHeader>
                             <CardContent className="p-4 flex-1 flex flex-col justify-between gap-4">
-                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                <p className="text-xs text-muted-foreground leading-relaxed">
                                     {insight.taxAnalysis}
                                 </p>
                                 <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl space-y-1 text-xs">
@@ -159,7 +190,7 @@ export function BusinessAiInsights() {
                                 <CardDescription className="text-xs">Outstanding Peer Debts & Payables</CardDescription>
                             </CardHeader>
                             <CardContent className="p-4 flex-1 flex flex-col justify-between gap-4">
-                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                <p className="text-xs text-muted-foreground leading-relaxed">
                                     {insight.debtAnalysis}
                                 </p>
                                 <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-1 text-xs">
@@ -181,8 +212,8 @@ export function BusinessAiInsights() {
                         <CardContent className="p-5">
                             <ul className="space-y-3">
                                 {insight.suggestions.map((suggestion, idx) => (
-                                    <li key={idx} className="flex items-start gap-3 text-sm leading-relaxed text-muted-foreground">
-                                        <CheckCircle2 className="w-5 h-5 text-violet-600 shrink-0 mt-0.5" />
+                                    <li key={idx} className="flex items-start gap-3 text-xs leading-relaxed text-muted-foreground">
+                                        <CheckCircle2 className="w-4 h-4 text-violet-600 shrink-0 mt-0.5" />
                                         <span>{suggestion}</span>
                                     </li>
                                 ))}

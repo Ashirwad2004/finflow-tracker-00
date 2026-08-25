@@ -171,22 +171,11 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/auth" replace />;
   }
 
-  // Determine admin status.
-  // Whitelist fallback: any email containing "admin@" or "ashirwad" is automatically allowed.
-  const isEmailAdmin = user.email?.toLowerCase().includes("admin@") || user.email?.toLowerCase().includes("ashirwad");
-  const isAdmin = profile?.is_admin === true || isEmailAdmin;
-
-  console.log("Admin check summary:", { 
-    userId: user.id, 
-    email: user.email, 
-    dbIsAdmin: profile?.is_admin, 
-    isEmailAdmin, 
-    isAdmin 
-  });
-
-  if (profileLoading && !isEmailAdmin) {
+  if (profileLoading) {
     return <PageLoader />;
   }
+
+  const isAdmin = profile?.is_admin === true;
 
   if (!isAdmin) {
     return (

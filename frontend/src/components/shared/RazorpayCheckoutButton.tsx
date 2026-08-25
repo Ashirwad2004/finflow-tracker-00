@@ -67,7 +67,7 @@ export const RazorpayCheckoutButton: React.FC<RazorpayCheckoutButtonProps> = ({
       const amountInPaise = Math.max(100, Math.round(amount * 100));
 
       // 2. Call backend order creation endpoint
-      const orderRes = await axios.post("/api/create-order", {
+      const orderRes = await axios.post("/api/v1/payments/create-order", {
         amount: amountInPaise,
         currency,
         receipt: `rcpt_${Date.now()}`,
@@ -101,7 +101,7 @@ export const RazorpayCheckoutButton: React.FC<RazorpayCheckoutButtonProps> = ({
         handler: async (response: any) => {
           try {
             // 4. Verify payment signature on backend
-            const verifyRes = await axios.post("/api/verify-payment", {
+            const verifyRes = await axios.post("/api/v1/payments/verify-payment", {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature

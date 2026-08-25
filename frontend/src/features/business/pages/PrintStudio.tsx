@@ -36,94 +36,22 @@ import { cn } from "@/core/lib/utils";
 export type InvoiceTheme = InvoicePdfTheme | 'thermal';
 
 const themeMeta: Record<InvoiceTheme, { name: string; desc: string; color: string; class: string }> = {
-    corporate: { 
-        name: "Corporate Blue", 
-        desc: "Classic professional look with clean navy header.", 
-        color: "bg-blue-600",
-        class: "border-blue-200 hover:border-blue-400"
-    },
-    "modern-dark": { 
-        name: "Modern Dark", 
-        desc: "Techy high-contrast design for modern services.", 
-        color: "bg-slate-900 border border-slate-700",
-        class: "border-slate-800 hover:border-slate-650"
-    },
-    "minimal-white": { 
-        name: "Minimalist White", 
-        desc: "Ultra clean design with thin borders and spacing.", 
-        color: "bg-white border border-slate-200 text-slate-800",
-        class: "border-slate-200 hover:border-slate-400"
-    },
-    "professional-green": { 
-        name: "Forest Green", 
-        desc: "Trustworthy professional layout with green accents.", 
-        color: "bg-emerald-700",
-        class: "border-emerald-200 hover:border-emerald-400"
-    },
-    "premium-gold": { 
-        name: "Premium Gold", 
-        desc: "Luxury styling with cream papers and gold trims.", 
-        color: "bg-amber-600",
-        class: "border-amber-200 hover:border-amber-400"
-    },
-    "creative-purple": { 
-        name: "Creative Purple", 
-        desc: "Modern violet theme for agencies and designers.", 
-        color: "bg-violet-700",
-        class: "border-violet-200 hover:border-violet-400"
-    },
     "startup-gradient": { 
         name: "Startup Gradient", 
-        desc: "Trendy tech layout with indigo-pink gradients.", 
-        color: "bg-gradient-to-r from-indigo-500 to-pink-500",
+        desc: "Trendy tech layout with vibrant indigo-pink gradients and modern typography.", 
+        color: "bg-gradient-to-r from-indigo-500 to-pink-500 text-white",
         class: "border-indigo-200 hover:border-indigo-400"
     },
-    "elegant-mono": { 
-        name: "Elegant Typewriter", 
-        desc: "Classic double borders and serif fonts.", 
-        color: "bg-stone-100 text-stone-800 border border-stone-300",
-        class: "border-stone-200 hover:border-stone-400"
-    },
-    retail: { 
-        name: "Retail Split", 
-        desc: "Double column layout with meta sidebar.", 
-        color: "bg-sky-500",
-        class: "border-sky-200 hover:border-sky-400"
-    },
-    construction: { 
-        name: "Industrial Orange", 
-        desc: "Heavy industrial look with safety-orange accents.", 
-        color: "bg-orange-600",
-        class: "border-orange-200 hover:border-orange-400"
-    },
-    "bold-crimson": {
-        name: "Bold Crimson",
-        desc: "High-contrast corporate design with crimson blocks.",
-        color: "bg-rose-700",
-        class: "border-rose-200 hover:border-rose-400"
-    },
-    "navy-compact": {
-        name: "Navy Compact",
-        desc: "Sleek compact layout with clean slate accents.",
-        color: "bg-slate-900 border-t-2 border-slate-900",
-        class: "border-slate-300 hover:border-slate-400"
-    },
-    "retro-amber": {
-        name: "Retro Amber",
-        desc: "Warm vintage feel with serif fonts and amber trims.",
-        color: "bg-amber-500",
-        class: "border-amber-200 hover:border-amber-450"
-    },
-    "tally-accounting": {
-        name: "Tally ERP Standard",
-        desc: "Classic Indian GST Tax invoice with dual quadrants and bank details.",
-        color: "bg-zinc-805 text-white border border-black",
+    "tally-accounting": { 
+        name: "Tally ERP Standard", 
+        desc: "Classic Indian GST Tax invoice with dual quadrants, HSN summary, and bank details.", 
+        color: "bg-zinc-800 text-white border border-black",
         class: "border-slate-300 hover:border-slate-500"
     },
     thermal: { 
         name: "Thermal POS Receipt", 
-        desc: "Compact receipt format with barcode styling.", 
-        color: "bg-stone-300 text-stone-850 font-mono",
+        desc: "Compact receipt format with barcode styling for 58mm/80mm thermal rolls.", 
+        color: "bg-stone-300 text-stone-800 font-mono",
         class: "border-stone-300 hover:border-stone-400"
     }
 };
@@ -180,6 +108,10 @@ const InvoiceMockPreview = ({
     if (taxRate === 0 && taxAmount > 0) {
         const taxableAmount = Math.max(1, Number(subtotal || 0) - Number(discount || 0));
         taxRate = Math.round((Number(taxAmount) / taxableAmount) * 100);
+    }
+    // Fallback: read tax_rate from first item if still 0
+    if (taxRate === 0 && items.length > 0 && items[0].tax_rate) {
+        taxRate = Number(items[0].tax_rate) || 0;
     }
     
     const cgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
@@ -268,6 +200,7 @@ const InvoiceMockPreview = ({
                                 <th className="p-2 border-r border-black text-center w-10">S.No</th>
                                 <th className="p-2 border-r border-black">Description of Goods</th>
                                 <th className="p-2 border-r border-black text-center w-12">Qty</th>
+                                <th className="p-2 border-r border-black text-center w-12">Tax%</th>
                                 <th className="p-2 border-r border-black text-right w-24">Rate</th>
                                 <th className="p-2 border-r border-black text-center w-12">per</th>
                                 <th className="p-2 text-right w-28">Amount</th>
@@ -286,10 +219,11 @@ const InvoiceMockPreview = ({
                                             <div className="font-bold text-slate-800">{item.description}</div>
                                             {item.hsn_code && <span className="text-[8px] text-slate-500 font-mono">HSN: {item.hsn_code}</span>}
                                         </td>
-                                        <td className="p-2 border-r border-b border-black text-center">{item.quantity}</td>
+                                        <td className="p-2 border-r border-b border-black text-center">{item.quantity ?? 1}</td>
+                                        <td className="p-2 border-r border-b border-black text-center text-[9px]">{item.tax_rate !== undefined ? `${item.tax_rate}%` : taxRate > 0 ? `${taxRate}%` : '—'}</td>
                                         <td className="p-2 border-r border-b border-black text-right">{formatCurrency(item.price).replace("Rs. ","")}</td>
                                         <td className="p-2 border-r border-b border-black text-center font-sans">{item.unit || ""}</td>
-                                        <td className="p-2 border-b border-black text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity) * Number(item.price))).replace("Rs. ","")}</td>
+                                        <td className="p-2 border-b border-black text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity ?? 1) * Number(item.price))).replace("Rs. ","")}</td>
                                     </tr>
                                 ))
                             )}
@@ -456,55 +390,14 @@ const InvoiceMockPreview = ({
     }
 
     // Dynamic Style Mappings for PDF mockup representation
-    const styles = {
-        corporate: {
-            header: "bg-blue-600 text-white",
-            accentText: "text-blue-600",
-            accentBg: "bg-blue-600/10",
-            tableHead: "bg-blue-600 text-white",
-            totalBox: "border-blue-500 bg-blue-50/30",
-            font: "font-sans"
-        },
-        "modern-dark": {
-            header: "bg-slate-950 text-white border-b border-cyan-500/20",
-            accentText: "text-cyan-500",
-            accentBg: "bg-cyan-500/10",
-            tableHead: "bg-slate-950 text-cyan-400",
-            totalBox: "border-cyan-500/30 bg-slate-900 text-white",
-            font: "font-sans dark:text-slate-100"
-        },
-        "minimal-white": {
-            header: "bg-white text-slate-900 border-b-2 border-slate-900",
-            accentText: "text-slate-900 font-bold",
-            accentBg: "bg-slate-100",
-            tableHead: "border-b border-slate-900 text-slate-900 font-bold",
-            totalBox: "border-slate-900 bg-white",
-            font: "font-sans"
-        },
-        "professional-green": {
-            header: "bg-emerald-800 text-white",
-            accentText: "text-emerald-700",
-            accentBg: "bg-emerald-50",
-            tableHead: "bg-emerald-800 text-white",
-            totalBox: "border-emerald-600 bg-emerald-50/40",
-            font: "font-sans"
-        },
-        "premium-gold": {
-            header: "bg-[#fafaf6] text-amber-900 border-t-4 border-amber-600",
-            accentText: "text-amber-800",
-            accentBg: "bg-amber-50/50",
-            tableHead: "bg-amber-800 text-white",
-            totalBox: "border-amber-600 bg-amber-50/30",
-            font: "font-serif"
-        },
-        "creative-purple": {
-            header: "bg-violet-700 text-white",
-            accentText: "text-violet-700",
-            accentBg: "bg-violet-50",
-            tableHead: "bg-violet-700 text-white",
-            totalBox: "border-violet-600 bg-violet-50/40",
-            font: "font-sans"
-        },
+    const styles: {
+        header: string;
+        accentText: string;
+        accentBg: string;
+        tableHead: string;
+        totalBox: string;
+        font: string;
+    } = {
         "startup-gradient": {
             header: "bg-gradient-to-r from-indigo-500 to-pink-500 text-white",
             accentText: "text-pink-600",
@@ -513,54 +406,6 @@ const InvoiceMockPreview = ({
             totalBox: "border-pink-500 bg-pink-50/30",
             font: "font-sans"
         },
-        "elegant-mono": {
-            header: "bg-white text-black border-b-2 border-double border-black",
-            accentText: "text-black font-bold",
-            accentBg: "bg-stone-50",
-            tableHead: "border-b-2 border-black text-black font-bold",
-            totalBox: "border-black bg-stone-50",
-            font: "font-serif"
-        },
-        retail: {
-            header: "bg-sky-500 text-white",
-            accentText: "text-sky-600",
-            accentBg: "bg-sky-50",
-            tableHead: "bg-sky-500 text-white",
-            totalBox: "border-sky-500 bg-sky-50/50",
-            font: "font-sans"
-        },
-        construction: {
-            header: "bg-orange-600 text-white",
-            accentText: "text-orange-600",
-            accentBg: "bg-orange-50",
-            tableHead: "bg-slate-800 text-white",
-            totalBox: "border-orange-600 bg-orange-50/30",
-            font: "font-sans"
-        },
-        "bold-crimson": {
-            header: "bg-rose-700 text-white",
-            accentText: "text-rose-700",
-            accentBg: "bg-rose-50",
-            tableHead: "bg-rose-700 text-white",
-            totalBox: "border-rose-600 bg-rose-50/40",
-            font: "font-sans"
-        },
-        "navy-compact": {
-            header: "bg-slate-900 text-white border-b-4 border-slate-900",
-            accentText: "text-slate-800",
-            accentBg: "bg-slate-50",
-            tableHead: "bg-slate-900 text-white",
-            totalBox: "border-slate-800 bg-slate-100",
-            font: "font-sans"
-        },
-        "retro-amber": {
-            header: "bg-amber-600 text-white",
-            accentText: "text-amber-700",
-            accentBg: "bg-amber-50",
-            tableHead: "bg-amber-600 text-white",
-            totalBox: "border-amber-500 bg-amber-50/30",
-            font: "font-serif"
-        },
         "tally-accounting": {
             header: "bg-zinc-800 text-white border border-black",
             accentText: "text-slate-900",
@@ -568,13 +413,21 @@ const InvoiceMockPreview = ({
             tableHead: "bg-zinc-800 text-white",
             totalBox: "border-black bg-white",
             font: "font-sans"
+        },
+        thermal: {
+            header: "bg-stone-200 text-stone-900",
+            accentText: "text-stone-800",
+            accentBg: "bg-stone-100",
+            tableHead: "bg-stone-300 text-stone-900",
+            totalBox: "border-stone-400 bg-white",
+            font: "font-mono"
         }
-    }[theme as Exclude<InvoiceTheme, 'thermal'>] || {
-        header: "bg-blue-600 text-white",
-        accentText: "text-blue-600",
-        accentBg: "bg-blue-600/10",
-        tableHead: "bg-blue-600 text-white",
-        totalBox: "border-blue-500 bg-blue-50/30",
+    }[theme] || {
+        header: "bg-gradient-to-r from-indigo-500 to-pink-500 text-white",
+        accentText: "text-pink-600",
+        accentBg: "bg-indigo-50",
+        tableHead: "bg-indigo-600 text-white",
+        totalBox: "border-pink-500 bg-pink-50/30",
         font: "font-sans"
     };
 
@@ -631,6 +484,7 @@ const InvoiceMockPreview = ({
                             <tr className={cn("text-[10px] uppercase font-bold tracking-wider", styles.tableHead)}>
                                 <th className="p-3">Item Description</th>
                                 <th className="p-3 text-center">Qty</th>
+                                <th className="p-3 text-center">Tax %</th>
                                 <th className="p-3 text-right">Unit Price</th>
                                 <th className="p-3 text-right">Amount</th>
                             </tr>
@@ -638,7 +492,7 @@ const InvoiceMockPreview = ({
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="p-6 text-center text-muted-foreground italic">No items listed in this invoice.</td>
+                                    <td colSpan={5} className="p-6 text-center text-muted-foreground italic">No items listed in this invoice.</td>
                                 </tr>
                             ) : (
                                 items.map((item: any, idx: number) => (
@@ -647,9 +501,10 @@ const InvoiceMockPreview = ({
                                             <div className="font-semibold text-slate-800">{item.description}</div>
                                             {item.hsn_code && <div className="text-[9px] text-muted-foreground mt-0.5">HSN: {item.hsn_code}</div>}
                                         </td>
-                                        <td className="p-3 text-center font-medium">{item.quantity}</td>
+                                        <td className="p-3 text-center font-medium">{item.quantity ?? 1}</td>
+                                        <td className="p-3 text-center font-medium text-slate-600">{item.tax_rate !== undefined ? `${item.tax_rate}%` : taxRate > 0 ? `${taxRate}%` : '—'}</td>
                                         <td className="p-3 text-right font-medium">{formatCurrency(item.price)}</td>
-                                        <td className="p-3 text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity) * Number(item.price)))}</td>
+                                        <td className="p-3 text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity ?? 1) * Number(item.price)))}</td>
                                     </tr>
                                 ))
                             )}
@@ -714,7 +569,7 @@ const InvoiceMockPreview = ({
 
 const PrintStudioPage = () => {
     const { user } = useAuth();
-    const [selectedTheme, setSelectedTheme] = useState<InvoiceTheme>("corporate");
+    const [selectedTheme, setSelectedTheme] = useState<InvoiceTheme>("startup-gradient");
     const [selectedSale, setSelectedSale] = useState<any>(null);
     const [pageSize, setPageSize] = useState<PageSize>(() => {
         return (localStorage.getItem("rupeebill_invoice_pagesize") as PageSize) || "a4";

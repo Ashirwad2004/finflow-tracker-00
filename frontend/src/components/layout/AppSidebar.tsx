@@ -256,8 +256,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "relative h-full flex flex-col border-r bg-card transition-all duration-300 shrink-0",
-        collapsed ? "w-16" : "w-64"
+        "relative h-full flex flex-col border-r bg-card transition-all duration-300 shrink-0 w-full md:w-auto",
+        collapsed ? "md:w-16" : "md:w-64"
       )}
     >
       {/* Logo & Brand */}
@@ -296,7 +296,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         variant="ghost"
         size="icon"
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-6 z-50 h-6 w-6 rounded-full border bg-background shadow-md"
+        className="hidden md:flex absolute -right-3 top-6 z-50 h-6 w-6 rounded-full border bg-background shadow-md"
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
@@ -449,4 +449,4 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       />
     </aside>
   );
-}
+}

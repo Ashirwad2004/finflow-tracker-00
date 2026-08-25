@@ -57,6 +57,8 @@ export interface SalesSettings {
   defaultTermsAndConditions?: string;
   /** Default to Quick Invoicing mode in the Create Invoice Dialog. */
   enableQuickBilling: boolean;
+  /** Enable item-wise tax allowing individual GST tax rates per line item. */
+  enableItemWiseTax: boolean;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -73,6 +75,7 @@ const DEFAULTS: SalesSettings = {
   enableHsnCode: false,
   defaultTermsAndConditions: "Thank you for your business. For any inquiries, please contact us.",
   enableQuickBilling: false,
+  enableItemWiseTax: false,
 };
 
 function getStorageKey(userId: string | undefined) {

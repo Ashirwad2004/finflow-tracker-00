@@ -6,7 +6,6 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { paymentRouter } from './server/payments/routes.js';
 import http from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,16 +15,18 @@ const app = express();
 app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 
-// Set Security and Content-Security-Policy headers
+// Security & Header configurations
 app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  res.setHeader("Content-Security-Policy", "default-src 'self' https://*.supabase.co https://api.razorpay.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com;");
-  
-  // Intercept res.setHeader to ensure charset=utf-8 is appended for text, JS, and JSON
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self' https://*.supabase.co https://api.razorpay.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com;"
+  );
+
   const originalSetHeader = res.setHeader;
   res.setHeader = function (name, value) {
     if (name.toLowerCase() === 'content-type' && typeof value === 'string') {
@@ -38,25 +39,25 @@ app.use((req, res, next) => {
     }
     return originalSetHeader.call(this, name, value);
   };
-  
+
   next();
 });
 
-// Proxy /api/v1 requests to the FastAPI backend (http://backend:8000 or http://localhost:8000 depending on environment)
-app.use('/api/v1', (req, res) => {
-  const isDocker = fs.existsSync('/.dockerenv');
-  const backendHost = process.env.BACKEND_HOST || (isDocker ? 'backend' : 'localhost');
-  const backendPort = process.env.BACKEND_PORT || '8000';
-  
+// Proxy API requests to FastAPI backend
+const isDocker = fs.existsSync('/.dockerenv');
+const backendHost = process.env.BACKEND_HOST || (isDocker ? 'backend' : 'localhost');
+const backendPort = process.env.BACKEND_PORT || '8000';
+
+const forwardToBackend = (targetPrefix) => (req, res) => {
+  const targetPath = targetPrefix ? `${targetPrefix}${req.url}` : req.originalUrl;
   const options = {
     hostname: backendHost,
     port: backendPort,
-    path: `/api/v1${req.url}`,
+    path: targetPath,
     method: req.method,
-    headers: req.headers
+    headers: req.headers,
   };
 
-  // Remove the host header so Node uses the target hostname
   if (options.headers && options.headers.host) {
     delete options.headers.host;
   }
@@ -66,48 +67,36 @@ app.use('/api/v1', (req, res) => {
     proxyRes.pipe(res, { end: true });
   });
 
-  // If the request has a body (POST/PUT/PATCH), pipe it; otherwise end the request immediately
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
     req.pipe(proxyReq, { end: true });
   } else {
     proxyReq.end();
   }
 
   proxyReq.on('error', (err) => {
-    console.error(`Proxy error for /api/v1 (${backendHost}:${backendPort}):`, err.message);
-    res.status(502).send('Bad Gateway');
+    console.error(`Proxy error for ${req.originalUrl} -> ${backendHost}:${backendPort}:`, err.message);
+    res.status(502).json({ error: 'Backend Service Unavailable', details: err.message });
   });
-});
+};
 
-// Body parser configuration with raw body capture for signature validation
-app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
-}));
-app.use(express.urlencoded({ extended: true }));
+app.use('/api/v1', forwardToBackend('/api/v1'));
+app.use('/health', forwardToBackend(''));
 
-// Register Payments API Router
-app.use('/api/payments', paymentRouter);
-app.use('/api', paymentRouter);
-
-
-// Serve static files from the React app build directory with caching
+// Serve static files from React production build directory
 app.use(express.static(path.join(__dirname, 'dist'), {
   maxAge: '1d',
-  etag: true
+  etag: true,
 }));
 
-// The "catchall" handler: for any request that doesn't
-// match one above, send back React's index.html file.
+// SPA catchall handler
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.log(`Web App: http://localhost:${PORT}`);
-    console.log(`Payments API: http://localhost:${PORT}/api/payments`);
+  console.log(`[Frontend Production Host] Listening on port ${PORT}`);
+  console.log(`[Frontend SPA] http://localhost:${PORT}`);
+  console.log(`[Backend Proxy Target] http://${backendHost}:${backendPort}/api/v1`);
 });
 
 export default app;

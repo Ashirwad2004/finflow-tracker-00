@@ -311,7 +311,7 @@ export function RealSubscriptionCheckout({
       let gatewayKey = "";
       
       try {
-        const orderRes = await axios.post("/api/payments/create-subscription-order", {
+        const orderRes = await axios.post("/api/v1/payments/create-subscription-order", {
           planId: selectedPlanId,
           billingCycle,
           userId: user.id,
@@ -360,7 +360,7 @@ export function RealSubscriptionCheckout({
           try {
             // Verify payment signature on backend after customer completes payment in Razorpay modal
             try {
-              await axios.post("/api/payments/verify-payment", {
+              await axios.post("/api/v1/payments/verify-payment", {
                 razorpay_order_id: response.razorpay_order_id || gatewayOrderId,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
