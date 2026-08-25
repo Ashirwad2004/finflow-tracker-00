@@ -19,9 +19,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from src.api.v1.router import api_router
-from src.core.config import settings
-from src.core.limiter import limiter
+from api.v1.router import api_router
+from core.config import settings
+from core.limiter import limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
