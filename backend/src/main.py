@@ -26,6 +26,7 @@ from src.core.limiter import limiter
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
