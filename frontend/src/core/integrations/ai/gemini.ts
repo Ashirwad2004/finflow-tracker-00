@@ -13,6 +13,40 @@ type GeminiOptions = {
 };
 
 export async function callGemini(messages: AiMessage[], options: GeminiOptions = {}) {
+    // 1. Try FastAPI Backend Microservice first
+    try {
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+        const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+        };
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const res = await fetch("/api/v1/ai/completions", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+                messages,
+                model: options.model || "gemini-2.5-flash",
+                temperature: options.temperature ?? 0.2,
+                maxOutputTokens: options.maxOutputTokens,
+                response_format: options.responseFormat,
+                stream: false,
+            }),
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            return data?.text || data?.choices?.[0]?.message?.content || "";
+        }
+    } catch (err) {
+        // Backend not reached or offline; gracefully fallback to Edge function
+        console.warn("FastAPI backend AI unreachable, falling back to edge proxy:", err);
+    }
+
+    // 2. Fallback to Supabase Edge Function
     const { data, error } = await supabase.functions.invoke("gemini-proxy", {
         body: {
             messages,
@@ -48,7 +82,37 @@ export async function callGemini(messages: AiMessage[], options: GeminiOptions =
 export async function callGeminiStream(messages: AiMessage[], options: GeminiOptions = {}) {
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
-    
+
+    // 1. Try FastAPI Backend Microservice first
+    try {
+        const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+        };
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const res = await fetch("/api/v1/ai/completions", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+                messages,
+                model: options.model || "gemini-2.5-flash",
+                temperature: options.temperature ?? 0.25,
+                maxOutputTokens: options.maxOutputTokens,
+                response_format: options.responseFormat,
+                stream: true,
+            }),
+        });
+
+        if (res.ok) {
+            return res;
+        }
+    } catch (err) {
+        console.warn("FastAPI stream unreachable, falling back to edge proxy:", err);
+    }
+
+    // 2. Fallback to Supabase Edge Function
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const response = await fetch(`${supabaseUrl}/functions/v1/gemini-proxy`, {
         method: "POST",

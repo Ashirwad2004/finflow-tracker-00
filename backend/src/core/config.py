@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     VITE_SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
+    # Payments Gateway Settings
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    PAYMENT_GATEWAY_PROVIDER: str = "mock"
+
 
     @property
     def SUPABASE_URL(self) -> str:
@@ -37,7 +46,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
-        env_file=".env",
+        env_file=(".env", "../.env", ".env.local", "../.env.local"),
         extra="ignore",
     )
 

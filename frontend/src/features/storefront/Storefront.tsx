@@ -962,7 +962,7 @@ export default function Storefront() {
                         setSelectedOrderForPayment(null);
                         
                         try {
-                            await axios.post("/api/payments/cancel-order", { orderId });
+                            await axios.post("/api/v1/payments/cancel-order", { orderId });
                             toast({
                                 title: "Payment Cancelled / Aborted",
                                 description: "Your online payment was cancelled. Your items are still in your cart.",

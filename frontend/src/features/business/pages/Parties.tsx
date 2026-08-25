@@ -398,7 +398,7 @@ const PartiesPage = () => {
                                                 {party.gst_number || <span className="text-slate-400 italic">N/A</span>}
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-end space-x-1 opacity-100 transition-opacity">
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleEditClick(party); }}
                                                         className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded"

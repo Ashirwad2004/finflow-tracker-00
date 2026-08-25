@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
         secure: false,
       },
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       },
@@ -52,11 +52,11 @@ export default defineConfig(({ mode }) => ({
       name: 'payments-dev-fallback',
       configureServer(server: ViteDevServer) {
         server.middlewares.use(async (req: any, res: any, next: any) => {
-          if (req.url && req.url.startsWith('/api/payments')) {
+          if (req.url && req.url.startsWith('/api/v1/payments')) {
             try {
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 600);
-              const testPing = await fetch("http://localhost:3000/api/payments", {
+              const testPing = await fetch("http://localhost:8000/api/v1/payments", {
                 signal: controller.signal,
               }).catch(() => null);
               clearTimeout(timeoutId);
@@ -65,7 +65,7 @@ export default defineConfig(({ mode }) => ({
                 return next();
               }
             } catch (err) {
-              // Express server on port 3000 is not active
+              // FastAPI server on port 8000 is not active
             }
 
             res.statusCode = 200;

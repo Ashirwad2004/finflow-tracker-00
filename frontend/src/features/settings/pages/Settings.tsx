@@ -145,10 +145,32 @@ const SettingsPage = () => {
 
         setIsBackingUp(true);
         try {
-            const { data, error } = await supabase.functions.invoke("backup-data");
+            let data: any = null;
+            
+            // Try FastAPI backend backup endpoint first
+            try {
+                const session = await supabase.auth.getSession();
+                const token = session.data.session?.access_token;
+                const res = await fetch("/api/v1/backup/export", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                    }
+                });
+                if (res.ok) {
+                    data = await res.json();
+                }
+            } catch (err) {
+                console.warn("Backend backup endpoint unreachable, falling back to edge function:", err);
+            }
 
-            if (error) {
-                throw new Error(error.message);
+            if (!data) {
+                const { data: edgeData, error } = await supabase.functions.invoke("backup-data");
+                if (error) {
+                    throw new Error(error.message);
+                }
+                data = edgeData;
             }
 
             const dateStr = new Date().toISOString().split('T')[0];

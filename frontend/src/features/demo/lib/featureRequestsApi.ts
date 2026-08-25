@@ -54,8 +54,8 @@ export async function submitFeatureRequest({
   try {
     const { data: { user } } = await supabase.auth.getUser();
     const { error: dbError } = await supabase.from("feature_requests").insert({
-      title: title.strip ? title.strip() : title.trim(),
-      description: description.strip ? description.strip() : description.trim(),
+      title: title.trim(),
+      description: description.trim(),
       user_id: user?.id || null,
       user_email: user?.email || null,
       status: "pending",

@@ -206,10 +206,7 @@ const Index = () => {
                 {heroMode === "pos" ? (
                   <>
                     <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 leading-[1.1]">
-                      Run your counter <br />
-                      <span className="bg-gradient-to-r from-violet-650 via-primary to-indigo-600 bg-clip-text text-transparent pb-2">
-                        100% offline.
-                      </span>
+                      Run your counter
                     </h1>
                     <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed font-light">
                       Keep billing customers, updating inventory, and printing receipts even when your store's Wi-Fi is completely down. Zero lag, zero downtime.

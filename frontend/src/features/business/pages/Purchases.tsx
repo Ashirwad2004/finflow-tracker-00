@@ -467,7 +467,7 @@ export default function PurchasesPage() {
                                                  })()}
                                              </td>
                                             <td className="px-6 py-4 text-right">
-                                                <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                <div className="flex justify-end gap-1 opacity-100 transition-opacity">
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handlePreview(purchase); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"

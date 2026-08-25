@@ -657,12 +657,12 @@ Recent ledger items:
                     }
 
                     // Interactive Suggestions Chip Parser
-                    const matchSuggestions = cleanText.match(/(?:Follow-up Suggestions:|Suggestions for next steps:)\s*\n((?:\s*[\-\*]\s+.*\n?)+)/i);
+                    const matchSuggestions = cleanText.match(/(?:Follow-up Suggestions:|Suggestions for next steps:)\s*\n((?:\s*[-*]\s+.*\n?)+)/i);
                     let localSuggestions: string[] = [];
                     if (matchSuggestions) {
                         localSuggestions = matchSuggestions[1]
                             .split("\n")
-                            .map(s => s.replace(/^\s*[\-\*]\s+/, "").trim())
+                            .map(s => s.replace(/^\s*[-*]\s+/, "").trim())
                             .filter(Boolean);
                         cleanText = cleanText.replace(matchSuggestions[0], "").trim();
                     }

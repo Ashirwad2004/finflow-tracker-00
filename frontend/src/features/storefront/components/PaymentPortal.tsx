@@ -110,7 +110,7 @@ export function PaymentPortal({
 
     async function initPayment() {
       try {
-        const response = await axios.post("/api/payments/create-order", {
+        const response = await axios.post("/api/v1/payments/create-order", {
           orderId,
           idempotencyKey
         });
@@ -196,7 +196,7 @@ export function PaymentPortal({
     setTimeout(async () => {
       try {
         try {
-          const response = await axios.post("/api/payments/verify-payment", {
+          const response = await axios.post("/api/v1/payments/verify-payment", {
             gatewayOrderId,
             gatewayPaymentId: mockPaymentId,
             gatewaySignature: "mock_signature_hash"
@@ -248,7 +248,7 @@ export function PaymentPortal({
         
         setTimeout(async () => {
           try {
-            const response = await axios.post("/api/payments/verify-payment", {
+            const response = await axios.post("/api/v1/payments/verify-payment", {
               gatewayOrderId,
               gatewayPaymentId: mockPaymentId,
               gatewaySignature: "mock_signature_hash"
