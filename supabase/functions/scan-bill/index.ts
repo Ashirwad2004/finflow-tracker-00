@@ -20,10 +20,9 @@ serve(async (req) => {
       );
     }
 
-    // Try to get GEMINI_API_KEY first, fallback to LOVABLE_API_KEY
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")   
     if (!GEMINI_API_KEY) {
-      throw new Error('Neither GEMINI_API_KEY nor LOVABLE_API_KEY is configured in the Edge Function environment');
+      throw new Error('GEMINI_API_KEY is not configured in the Edge Function environment');
     }
 
     console.log('Processing bill image for OCR...');
