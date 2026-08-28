@@ -576,7 +576,6 @@ export default function LoyaltyCampaigns() {
             </div>
           </div>
         )}
-
         {/* --- CAMPAIGNS TAB --- */}
         {activeTab === "campaigns" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -584,7 +583,7 @@ export default function LoyaltyCampaigns() {
             <div className="space-y-6 lg:col-span-1">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
                 <h3 className="text-lg font-bold">1. Select Campaign</h3>
-                
+
                 <div className="space-y-3">
                   {campaignTemplates.map((tpl, i) => (
                     <button
@@ -596,8 +595,11 @@ export default function LoyaltyCampaigns() {
                           : "border-slate-200 hover:border-slate-400 bg-card"
                       }`}
                     >
-                      <div className="font-bold text-sm text-foreground mb-1">{tpl.title}</div>
-                      <p className="text-[11px] text-slate-500 line-clamp-2">
+                      <div className="font-bold text-sm text-foreground mb-1">
+                        {tpl.title}
+                      </div>
+
+                      <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
                         {tpl.getBody("Customer Name", 150, 150)}
                       </p>
                     </button>
@@ -605,13 +607,21 @@ export default function LoyaltyCampaigns() {
                 </div>
 
                 <div className="pt-4 border-t space-y-4">
-                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Campaign Variables</h3>
+                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                    Campaign Variables
+                  </h3>
+
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-slate-500 font-semibold mb-1 block">Custom Promo Code (Optional)</label>
+                      <label className="text-sm text-slate-500 font-semibold mb-1.5 block">
+                        Custom Promo Code (Optional)
+                      </label>
+
                       <Input
                         value={customPromoCode}
-                        onChange={(e) => setCustomPromoCode(e.target.value)}
+                        onChange={(e) =>
+                          setCustomPromoCode(e.target.value)
+                        }
                         className="rounded-lg"
                       />
                     </div>
@@ -620,8 +630,11 @@ export default function LoyaltyCampaigns() {
 
                 <div className="bg-violet-500/5 p-4 rounded-xl border border-violet-500/10 flex items-start gap-3">
                   <Info className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    Messages open directly in WhatsApp web/app. RupeeBill generates a secure compliant direct links to send to customers based on their recorded contact card.
+
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    Messages open directly in WhatsApp web/app. RupeeBill
+                    generates secure, compliant direct links to send to
+                    customers based on their recorded contact card.
                   </p>
                 </div>
               </div>
@@ -631,23 +644,27 @@ export default function LoyaltyCampaigns() {
             <div className="space-y-6 lg:col-span-2">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                  <h3 className="text-lg font-bold">2. Target Audience</h3>
-                  
+                  <h3 className="text-lg font-bold">
+                    2. Target Audience
+                  </h3>
+
                   {/* Segment Buttons */}
-                  <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border">
+                  <div className="flex flex-wrap p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border gap-1">
                     {[
                       { id: "all", label: "All Customers" },
                       { id: "vip", label: "VIP Gold" },
                       { id: "slipping", label: "Inactive (30d+)" },
-                      { id: "new", label: "New (7d)" }
-                    ].map(seg => (
+                      { id: "new", label: "New (7d)" },
+                    ].map((seg) => (
                       <button
                         key={seg.id}
-                        onClick={() => setSelectedSegment(seg.id as any)}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                        onClick={() =>
+                          setSelectedSegment(seg.id as any)
+                        }
+                        className={`px-3 py-2 text-sm font-semibold rounded-md transition-all ${
                           selectedSegment === seg.id
                             ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow"
-                            : "text-slate-500 hover:text-slate-800"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                         }`}
                       >
                         {seg.label}
@@ -657,10 +674,19 @@ export default function LoyaltyCampaigns() {
                 </div>
 
                 {/* Live Preview Card */}
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 rounded-2xl">
-                  <span className="text-[9px] uppercase font-black text-emerald-600 dark:text-emerald-400 tracking-wider">Live Template Message Preview</span>
-                  <p className="mt-2 text-xs md:text-sm text-slate-700 dark:text-slate-300 font-sans italic whitespace-pre-line leading-relaxed">
-                    "{campaignTemplates[selectedTemplate].getBody("Amit Kumar", 350, 350 * config.pointValue)}"
+                <div className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 rounded-2xl">
+                  <span className="text-xs uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                    Live Template Message Preview
+                  </span>
+
+                  <p className="mt-3 text-sm md:text-base text-slate-700 dark:text-slate-300 font-sans italic whitespace-pre-line leading-relaxed">
+                    "
+                    {campaignTemplates[selectedTemplate].getBody(
+                      "Amit Kumar",
+                      350,
+                      350 * config.pointValue
+                    )}
+                    "
                   </p>
                 </div>
 
@@ -668,32 +694,56 @@ export default function LoyaltyCampaigns() {
                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
                   <div className="overflow-x-auto max-h-[300px] overscroll-contain">
                     <table className="w-full text-left">
-                      <thead className="text-xs font-bold uppercase bg-slate-50 dark:bg-slate-800/50 text-slate-500 tracking-wider sticky top-0">
+                      <thead className="text-sm font-bold uppercase bg-slate-50 dark:bg-slate-800/50 text-slate-500 tracking-wider sticky top-0">
                         <tr>
                           <th className="px-6 py-3">Recipient</th>
                           <th className="px-6 py-3">Phone</th>
                           <th className="px-6 py-3">Wallet</th>
-                          <th className="px-6 py-3 text-right">Dispatch</th>
+                          <th className="px-6 py-3 text-right">
+                            Dispatch
+                          </th>
                         </tr>
                       </thead>
+
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {filteredCustomers.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="px-6 py-12 text-center text-slate-450">No customers match this target segment.</td>
+                            <td
+                              colSpan={4}
+                              className="px-6 py-12 text-center text-sm text-slate-500"
+                            >
+                              No customers match this target segment.
+                            </td>
                           </tr>
                         ) : (
-                          filteredCustomers.map(c => (
+                          filteredCustomers.map((c) => (
                             <tr key={c.id}>
-                              <td className="px-6 py-3 font-semibold text-sm">{c.name}</td>
-                              <td className="px-6 py-3 text-xs text-slate-500">{c.phone || "No Phone"}</td>
-                              <td className="px-6 py-3 font-bold text-violet-600 dark:text-violet-400 text-xs">{c.points} pts</td>
+                              <td className="px-6 py-3 font-semibold text-sm">
+                                {c.name}
+                              </td>
+
+                              <td className="px-6 py-3 text-sm text-slate-500">
+                                {c.phone || "No Phone"}
+                              </td>
+
+                              <td className="px-6 py-3 font-bold text-violet-600 dark:text-violet-400 text-sm">
+                                {c.points} pts
+                              </td>
+
                               <td className="px-6 py-3 text-right">
                                 <Button
                                   size="sm"
-                                  onClick={() => handleSendWhatsApp(c.name, c.phone || "", c.points)}
-                                  className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                  onClick={() =>
+                                    handleSendWhatsApp(
+                                      c.name,
+                                      c.phone || "",
+                                      c.points
+                                    )
+                                  }
+                                  className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm"
                                 >
-                                  <Send className="w-3.5 h-3.5 mr-1" /> Send
+                                  <Send className="w-4 h-4 mr-1.5" />
+                                  Send
                                 </Button>
                               </td>
                             </tr>
@@ -715,33 +765,57 @@ export default function LoyaltyCampaigns() {
               <div className="p-3 bg-primary/10 text-primary rounded-2xl">
                 <Settings2 className="w-6 h-6" />
               </div>
+
               <div>
-                <h3 className="text-xl font-bold">Reward Program Configuration</h3>
-                <p className="text-xs text-slate-500">Define how customers earn and redeem points in your store.</p>
+                <h3 className="text-xl font-bold">
+                  Reward Program Configuration
+                </h3>
+
+                <p className="text-sm text-slate-500">
+                  Define how customers earn and redeem points in your store.
+                </p>
               </div>
             </div>
 
             <div className="space-y-6">
               {/* Program Switch */}
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border">
-                <div className="space-y-0.5">
-                  <label className="font-bold text-sm text-foreground">Enable Loyalty Points</label>
-                  <p className="text-xs text-slate-500">Allow customers to accumulate reward points on transactions.</p>
+                <div className="space-y-1">
+                  <label className="font-bold text-sm text-foreground">
+                    Enable Loyalty Points
+                  </label>
+
+                  <p className="text-sm text-slate-500">
+                    Allow customers to accumulate reward points on
+                    transactions.
+                  </p>
                 </div>
+
                 <input
                   type="checkbox"
                   checked={config.enabled}
-                  onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      enabled: e.target.checked,
+                    })
+                  }
                   className="w-10 h-6 bg-slate-200 rounded-full appearance-none cursor-pointer checked:bg-primary relative before:content-[''] before:absolute before:w-5 before:h-5 before:bg-white before:rounded-full before:top-0.5 before:left-0.5 before:transition-all checked:before:translate-x-4"
                 />
               </div>
 
               {/* Point Earning Multiplier */}
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Point Earning Multiplier</label>
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  Point Earning Multiplier
+                </label>
+
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
-                    <p className="text-xs text-slate-500 mb-2">Award 1 point for every spent currency unit:</p>
+                    <p className="text-sm text-slate-500 mb-2">
+                      Award 1 point for every spent currency unit:
+                    </p>
+
                     <input
                       type="range"
                       min="10"
@@ -749,10 +823,16 @@ export default function LoyaltyCampaigns() {
                       step="10"
                       value={config.pointsPerUnit}
                       disabled={!config.enabled}
-                      onChange={(e) => setConfig({ ...config, pointsPerUnit: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          pointsPerUnit: Number(e.target.value),
+                        })
+                      }
                       className="w-full accent-primary disabled:opacity-50"
                     />
                   </div>
+
                   <div className="w-28 text-center p-3 bg-slate-100 dark:bg-slate-800 border rounded-xl font-bold">
                     {formatCurrency(config.pointsPerUnit)}
                   </div>
@@ -761,10 +841,16 @@ export default function LoyaltyCampaigns() {
 
               {/* Point Monetary Value */}
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Point Value (Exchange Rate)</label>
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  Point Value (Exchange Rate)
+                </label>
+
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
-                    <p className="text-xs text-slate-500 mb-2">Monetary value of 1 Reward Point when redeeming:</p>
+                    <p className="text-sm text-slate-500 mb-2">
+                      Monetary value of 1 Reward Point when redeeming:
+                    </p>
+
                     <input
                       type="range"
                       min="0.1"
@@ -772,10 +858,16 @@ export default function LoyaltyCampaigns() {
                       step="0.1"
                       value={config.pointValue}
                       disabled={!config.enabled}
-                      onChange={(e) => setConfig({ ...config, pointValue: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          pointValue: Number(e.target.value),
+                        })
+                      }
                       className="w-full accent-primary disabled:opacity-50"
                     />
                   </div>
+
                   <div className="w-28 text-center p-3 bg-slate-100 dark:bg-slate-800 border rounded-xl font-bold">
                     {formatCurrency(config.pointValue)}/pt
                   </div>
@@ -784,10 +876,16 @@ export default function LoyaltyCampaigns() {
 
               {/* VIP Gold Threshold */}
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">VIP Gold Spend Threshold</label>
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  VIP Gold Spend Threshold
+                </label>
+
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
-                    <p className="text-xs text-slate-500 mb-2">Total spend requirement for VIP membership perks:</p>
+                    <p className="text-sm text-slate-500 mb-2">
+                      Total spend requirement for VIP membership perks:
+                    </p>
+
                     <input
                       type="range"
                       min="1000"
@@ -795,10 +893,16 @@ export default function LoyaltyCampaigns() {
                       step="1000"
                       value={config.vipThreshold}
                       disabled={!config.enabled}
-                      onChange={(e) => setConfig({ ...config, vipThreshold: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          vipThreshold: Number(e.target.value),
+                        })
+                      }
                       className="w-full accent-primary disabled:opacity-50"
                     />
                   </div>
+
                   <div className="w-28 text-center p-3 bg-slate-100 dark:bg-slate-800 border rounded-xl font-bold">
                     {formatCurrency(config.vipThreshold)}
                   </div>
@@ -807,88 +911,129 @@ export default function LoyaltyCampaigns() {
             </div>
 
             <div className="pt-6 border-t flex justify-end">
-              <Button onClick={() => toast.success("Loyalty settings updated successfully!")} className="rounded-xl shadow-lg">
+              <Button
+                onClick={() =>
+                  toast.success(
+                    "Loyalty settings updated successfully!"
+                  )
+                }
+                className="rounded-xl shadow-lg"
+              >
                 Save Rule Configurations
               </Button>
             </div>
           </div>
         )}
+
+        {/* Manual Adjustment Dialog */}
+        <Dialog
+          open={adjustmentDialogOpen}
+          onOpenChange={setAdjustmentDialogOpen}
+        >
+          <DialogContent className="sm:max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Adjust Reward Points</DialogTitle>
+
+              <DialogDescription>
+                Adjust points balance manually for{" "}
+                <strong>{selectedCustomer?.name}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setAdjustType("add")}
+                  className={`flex-1 p-3 rounded-xl border text-center font-bold text-sm flex items-center justify-center gap-1.5 ${
+                    adjustType === "add"
+                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600"
+                      : "border-slate-200 hover:border-slate-400 bg-card"
+                  }`}
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  Add Points
+                </button>
+
+                <button
+                  onClick={() => setAdjustType("deduct")}
+                  className={`flex-1 p-3 rounded-xl border text-center font-bold text-sm flex items-center justify-center gap-1.5 ${
+                    adjustType === "deduct"
+                      ? "border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-600"
+                      : "border-slate-200 hover:border-slate-400 bg-card"
+                  }`}
+                >
+                  <MinusCircle className="w-5 h-5" />
+                  Deduct Points
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-slate-500 font-semibold">
+                  Current Wallet Balance
+                </label>
+
+                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold font-mono">
+                  {selectedCustomer?.currentPoints || 0} pts
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-slate-500 font-semibold">
+                  Adjustment Value (points)
+                </label>
+
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Enter points value..."
+                  value={adjustAmount || ""}
+                  onChange={(e) =>
+                    setAdjustAmount(
+                      Math.max(0, Number(e.target.value))
+                    )
+                  }
+                  className="rounded-xl"
+                />
+              </div>
+
+              {adjustType === "deduct" && (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
+                  <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Redeeming {adjustAmount || 0} points will grant a
+                    checkout discount of{" "}
+                    <strong>
+                      {formatCurrency(
+                        (adjustAmount || 0) * config.pointValue
+                      )}
+                    </strong>{" "}
+                    on their invoice billing.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="sm:justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => setAdjustmentDialogOpen(false)}
+                className="rounded-xl"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                onClick={handleApplyAdjustment}
+                className="rounded-xl"
+              >
+                Apply Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Manual Adjustment Dialog */}
-      <Dialog open={adjustmentDialogOpen} onOpenChange={setAdjustmentDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Adjust Reward Points</DialogTitle>
-            <DialogDescription>
-              Adjust points balance manually for <strong>{selectedCustomer?.name}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="flex gap-4">
-              <button
-                onClick={() => setAdjustType("add")}
-                className={`flex-1 p-3 rounded-xl border text-center font-bold text-sm flex items-center justify-center gap-1.5 ${
-                  adjustType === "add"
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600"
-                    : "border-slate-200 hover:border-slate-400 bg-card"
-                }`}
-              >
-                <PlusCircle className="w-5 h-5" /> Add Points
-              </button>
-              <button
-                onClick={() => setAdjustType("deduct")}
-                className={`flex-1 p-3 rounded-xl border text-center font-bold text-sm flex items-center justify-center gap-1.5 ${
-                  adjustType === "deduct"
-                    ? "border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-600"
-                    : "border-slate-200 hover:border-slate-400 bg-card"
-                }`}
-              >
-                <MinusCircle className="w-5 h-5" /> Deduct Points
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-slate-500 font-semibold">Current Wallet Balance</label>
-              <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold font-mono">
-                {selectedCustomer?.currentPoints || 0} pts
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-slate-500 font-semibold">Adjustment Value (points)</label>
-              <Input
-                type="number"
-                min="1"
-                placeholder="Enter points value..."
-                value={adjustAmount || ""}
-                onChange={(e) => setAdjustAmount(Math.max(0, Number(e.target.value)))}
-                className="rounded-xl"
-              />
-            </div>
-
-            {adjustType === "deduct" && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
-                <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-normal">
-                  Redeeming {adjustAmount || 0} points will grant a checkout discount of{" "}
-                  <strong>{formatCurrency((adjustAmount || 0) * config.pointValue)}</strong> on their invoice billing.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="sm:justify-end gap-2">
-            <Button variant="ghost" onClick={() => setAdjustmentDialogOpen(false)} className="rounded-xl">
-              Cancel
-            </Button>
-            <Button onClick={handleApplyAdjustment} className="rounded-xl">
-              Apply Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AppLayout>
   );
 }
