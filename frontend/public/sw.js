@@ -1,101 +1,189 @@
-const CACHE_NAME = "rupeebill-static-v3";
-const STATIC_ASSETS = [
+const CACHE_NAME = "rupeebill-v4";
+
+const STATIC_FILES = [
   "/",
   "/index.html",
   "/favicon.svg",
   "/placeholder.svg",
-  "/robots.txt"
+  "/robots.txt",
 ];
 
-// Install Event: pre-caches the static shell resources
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log("[Service Worker] Pre-caching static shell");
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(STATIC_FILES))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// Activate Event: cleans up older cache instances
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log("[Service Worker] Clearing stale cache:", cache);
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames.map((cacheName) => {
+            if (
+              cacheName.startsWith("rupeebill-") &&
+              cacheName !== CACHE_NAME
+            ) {
+              return caches.delete(cacheName);
+            }
+
+            return Promise.resolve(false);
+          })
+        )
+      )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch Event: intercepts network calls
-self.addEventListener("fetch", (event) => {
-  const requestUrl = new URL(event.request.url);
+function shouldBypass(request) {
+  const url = new URL(request.url);
 
-  // We only intercept GET requests
-  if (event.request.method !== "GET") {
-    return;
+  // Never cache non-GET requests.
+  if (request.method !== "GET") {
+    return true;
   }
 
-  // Handle client-side routing Navigation requests
-  const isNavigationRequest = event.request.mode === "navigate";
-  if (isNavigationRequest) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // If response is valid, clone and save the latest HTML shell
-          if (response && response.status === 200) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          console.log("[Service Worker] Serving index.html shell offline");
-          return caches.match("/index.html") || caches.match("/");
-        })
-    );
-    return;
+  // Never cache API or authentication requests.
+  if (
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/auth/") ||
+    url.pathname.startsWith("/graphql")
+  ) {
+    return true;
   }
 
-  const isSameOrigin = requestUrl.origin === self.location.origin;
-  const isGoogleFont = requestUrl.hostname.includes("fonts.gstatic.com") || requestUrl.hostname.includes("fonts.googleapis.com");
+  // Never cache Supabase requests.
+  if (
+    url.hostname.includes("supabase.co") ||
+    url.hostname.includes("supabase.in")
+  ) {
+    return true;
+  }
 
-  // Intercept Same Origin resources (like main.tsx, styles, and vite bundles) & Google Fonts
-  if (isSameOrigin || isGoogleFont) {
-    // Exclude development HMR hot-updates and hot-reload requests to prevent breaking local dev server
-    if (requestUrl.pathname.includes("hot-update.json") || requestUrl.pathname.includes("vite")) {
-      return;
+  // Never interfere with Vite development.
+  if (
+    url.pathname.includes("@vite") ||
+    url.pathname.includes("__vite") ||
+    url.pathname.includes("hot-update")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isStaticAsset(request) {
+  const url = new URL(request.url);
+
+  if (url.origin !== self.location.origin) {
+    return false;
+  }
+
+  return /\.(js|mjs|css|png|jpg|jpeg|webp|svg|ico|woff|woff2|ttf|otf)$/i.test(
+    url.pathname
+  );
+}
+
+async function handleNavigation(request) {
+  try {
+    const response = await fetch(request);
+
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("text/html")) {
+        await cache.put(request, response.clone());
+      }
     }
 
-    event.respondWith(
-      caches.open(CACHE_NAME).then((cache) => {
-        return cache.match(event.request).then((cachedResponse) => {
-          // Fetch from network to revalidate in background
-          const fetchPromise = fetch(event.request)
-            .then((networkResponse) => {
-              if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 304)) {
-                cache.put(event.request, networkResponse.clone());
-              }
-              return networkResponse;
-            })
-            .catch((err) => {
-              console.warn("[Service Worker] Background fetch failed:", err);
-            });
+    return response;
+  } catch (error) {
+    const cachedPage = await caches.match(request);
 
-          // Return cached response immediately if exists, otherwise wait for network response
-          return cachedResponse || fetchPromise;
-        });
-      })
-    );
+    if (cachedPage) {
+      return cachedPage;
+    }
+
+    const indexPage = await caches.match("/index.html");
+
+    if (indexPage) {
+      return indexPage;
+    }
+
+    return new Response("RupeeBill is currently offline.", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain",
+      },
+    });
   }
+}
+
+async function handleStaticAsset(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  const cachedResponse = await cache.match(request);
+
+  if (cachedResponse) {
+    // Update the cache in the background.
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          cache.put(request, response);
+        }
+      })
+      .catch(() => {
+        // Ignore background update errors.
+      });
+
+    return cachedResponse;
+  }
+
+  try {
+    const response = await fetch(request);
+
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch (error) {
+    return new Response("Asset unavailable.", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain",
+      },
+    });
+  }
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+
+  // Let the browser handle API/auth/non-GET requests normally.
+  if (shouldBypass(request)) {
+    return;
+  }
+
+  // React/Vite page navigation.
+  if (request.mode === "navigate") {
+    event.respondWith(handleNavigation(request));
+    return;
+  }
+
+  // JS/CSS/images/fonts.
+  if (isStaticAsset(request)) {
+    event.respondWith(handleStaticAsset(request));
+    return;
+  }
+
+  // Everything else goes directly to the network.
 });
+

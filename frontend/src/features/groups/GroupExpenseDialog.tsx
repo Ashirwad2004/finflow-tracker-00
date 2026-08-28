@@ -125,7 +125,7 @@ export const GroupExpenseDialog = ({
                     description: description.trim(),
                     date,
                     category_id: categoryId || null,
-                    split_data: splitData ? JSON.stringify(splitData) : null,
+                    split_data: splitData ?? null,
                 },
                 userId
             });

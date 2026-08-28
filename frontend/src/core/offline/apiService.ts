@@ -2,7 +2,10 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { sqliteService } from "./sqliteService";
 import { queueService } from "./queueService";
 
-const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants']);
+const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants', 'group_expenses', 'groups', 'group_members']);
+
+// Tables whose schema does NOT have a top-level `user_id` column
+const TABLES_WITHOUT_USER_ID = new Set(['groups']);
 
 export const sanitizePayload = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;
@@ -32,7 +35,8 @@ interface OfflineMutateParams {
 export const offlineMutate = async ({ table, action, recordId, payload, userId }: OfflineMutateParams) => {
   const basePayload = {
     id: recordId,
-    user_id: userId,
+    // Only inject user_id for tables that actually have the column
+    ...(!TABLES_WITHOUT_USER_ID.has(table) ? { user_id: userId } : {}),
     ...(payload || {})
   };
 
