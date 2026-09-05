@@ -77,9 +77,9 @@ async def create_completion(
                     }
                     yield f"data: {json.dumps(chunk_data)}\n\n"
                 yield "data: [DONE]\n\n"
-            except Exception as exc:
+            except Exception:
                 logger.exception("Gemini stream completion failed")
-                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+                yield f"data: {json.dumps({'error': 'AI provider request failed'})}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -95,7 +95,7 @@ async def create_completion(
         logger.exception("Gemini completion failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
     return CompletionResponse(
@@ -119,7 +119,7 @@ async def finance_insights(
         logger.exception("Finance insight generation failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
 
@@ -138,7 +138,7 @@ async def business_insights(
         logger.exception("Business insight generation failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
 
@@ -157,7 +157,7 @@ async def product_search(
         logger.exception("Product search parsing failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
 
@@ -176,7 +176,7 @@ async def product_content(
         logger.exception("Product content generation failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
 
@@ -195,7 +195,7 @@ async def parse_expense(
         logger.exception("Smart expense parsing failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
 
@@ -214,7 +214,7 @@ async def magic_add(
         logger.exception("Magic add parsing failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc
 
 
@@ -233,5 +233,5 @@ async def scan_bill(
         logger.exception("Bill OCR scanning failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="AI provider request failed",
         ) from exc

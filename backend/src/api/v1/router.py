@@ -12,4 +12,3 @@ api_router.include_router(feature_requests_router)
 api_router.include_router(payments_router)
 api_router.include_router(reports_router)
 api_router.include_router(backup_router)
-

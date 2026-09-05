@@ -25,7 +25,6 @@
       "@/*": ["./src/*"],
       "*": ["./*"]
     },
-    "baseUrl": ".",
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src", "test-supabase.ts"]

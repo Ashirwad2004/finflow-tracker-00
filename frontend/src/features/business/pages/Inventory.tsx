@@ -200,7 +200,7 @@ export default function Inventory() {
             stock_quantity: 0,
             unit: "pc",
             hsn_code: "",
-            is_listed_online: false,
+            is_listed_online: true,
             online_description: "",
             image_url: "",
             rack_location: ""

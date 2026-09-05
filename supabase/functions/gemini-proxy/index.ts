@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "http://localhost:5173",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Vary": "Origin",
 };
 
 type ChatMessage = {
@@ -113,7 +115,7 @@ serve(async (req) => {
         const errorText = await response.text();
         console.error("Gemini API error (stream):", response.status, errorText);
         return new Response(
-          JSON.stringify({ error: "Failed to communicate with Gemini stream", details: errorText }),
+          JSON.stringify({ error: "Failed to communicate with Gemini stream" }),
           { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -139,7 +141,7 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error("Gemini API error:", response.status, errorText);
       return new Response(
-        JSON.stringify({ error: "Failed to communicate with Gemini", details: errorText }),
+        JSON.stringify({ error: "Failed to communicate with Gemini" }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

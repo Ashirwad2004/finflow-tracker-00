@@ -1,26 +1,26 @@
-from typing import Optional
-from pydantic import BaseModel
+from typing import Literal, Optional
+from pydantic import BaseModel, Field
 
 class OrderCreate(BaseModel):
-    amount: Optional[float] = None
-    currency: Optional[str] = "INR"
-    receipt: Optional[str] = None
-    customerName: Optional[str] = "Valued Customer"
-    customerPhone: Optional[str] = "9999999999"
-    orderId: Optional[str] = None
-    idempotencyKey: Optional[str] = None
+    amount: Optional[float] = Field(default=None, gt=0, le=10_000_000)
+    currency: Literal["INR"] = "INR"
+    receipt: Optional[str] = Field(default=None, max_length=100)
+    customerName: Optional[str] = Field(default="Valued Customer", max_length=200)
+    customerPhone: Optional[str] = Field(default="9999999999", max_length=30)
+    orderId: Optional[str] = Field(default=None, max_length=100)
+    idempotencyKey: Optional[str] = Field(default=None, max_length=100)
 
 class OrderCancel(BaseModel):
-    orderId: str
+    orderId: str = Field(min_length=1, max_length=100)
+    customerPhone: Optional[str] = Field(default=None, max_length=30)
 
 class SubscriptionOrderCreate(BaseModel):
-    planId: str
-    billingCycle: str
-    userId: str
-    couponCode: Optional[str] = None
-    idempotencyKey: Optional[str] = None
-    customerName: Optional[str] = "FinFlow User"
-    customerPhone: Optional[str] = "9999999999"
+    planId: Literal["starter", "pro", "business", "premium"]
+    billingCycle: Literal["monthly", "annual"]
+    couponCode: Optional[str] = Field(default=None, max_length=40)
+    idempotencyKey: Optional[str] = Field(default=None, max_length=100)
+    customerName: Optional[str] = Field(default="FinFlow User", max_length=200)
+    customerPhone: Optional[str] = Field(default="9999999999", max_length=30)
 
 class PaymentVerify(BaseModel):
     razorpay_order_id: Optional[str] = None
@@ -39,6 +39,6 @@ class PaymentVerify(BaseModel):
     billingCycle: Optional[str] = None
 
 class PaymentRefund(BaseModel):
-    paymentId: str
-    amount: Optional[float] = None
-    reason: Optional[str] = None
+    paymentId: str = Field(min_length=1, max_length=100)
+    amount: Optional[float] = Field(default=None, gt=0, le=10_000_000)
+    reason: Optional[str] = Field(default=None, max_length=500)

@@ -112,7 +112,8 @@ export function PaymentPortal({
       try {
         const response = await axios.post("/api/v1/payments/create-order", {
           orderId,
-          idempotencyKey
+          idempotencyKey,
+          customerPhone,
         });
 
         if (isMounted && response.data.success) {
@@ -210,13 +211,11 @@ export function PaymentPortal({
             onPaymentSuccess(response.data.paymentId, response.data.invoiceNumber);
           }
         } catch (err: any) {
-          console.warn("Backend payment verification API not reachable, completing payment locally:", err.message);
-          const fallbackInvoice = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-          toast({
-            title: "🎉 Payment Successful",
-            description: "Your transaction has been verified securely.",
-          });
-          onPaymentSuccess(mockPaymentId, fallbackInvoice);
+          console.error("Backend payment verification failed:", err);
+          setErrorMessage(
+            err.response?.data?.detail ??
+            "Payment verification failed. Please try again.",
+          );
         } finally {
           setIsProcessing(false);
         }

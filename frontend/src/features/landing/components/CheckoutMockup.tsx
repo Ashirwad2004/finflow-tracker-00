@@ -91,7 +91,7 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
               onClick={() => onPayClick("pro")}
               className="w-full h-14 rounded-2xl text-base font-bold shadow-xl shadow-primary/30 bg-gradient-to-r from-primary to-violet-600 text-white border-0 hover:opacity-95 transition-all hover:scale-[1.01]"
             >
-              <Lock className="mr-2 w-4 h-4" /> Proceed to Subscribe (₹639/mo)
+              <Lock className="mr-2 w-4 h-4" /> Proceed to Subscribe (₹299/mo)
             </Button>
             <p className="text-center text-[11px] text-muted-foreground mt-3 flex items-center justify-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-500" /> 256-Bit SSL Encrypted · Cancel Anytime
@@ -104,22 +104,22 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-bold text-white">Subscription Summary</h3>
-              <Badge className="bg-primary text-white text-xs font-bold">Annual Savings</Badge>
+              <Badge className="bg-primary text-white text-xs font-bold">One Simple Price</Badge>
             </div>
-            <p className="text-xs text-white/60 mb-6">RupeeBill Pro Tier · Billed annually</p>
+            <p className="text-xs text-white/60 mb-6">RupeeBill subscription · Billed annually</p>
 
             <div className="space-y-3.5 text-xs">
               <div className="flex justify-between text-white/70">
-                <span>Pro Plan Annual (₹639/mo x 12)</span>
-                <span className="font-semibold text-white">₹7,668</span>
+                <span>Subscription Annual (₹299/mo x 12)</span>
+                <span className="font-semibold text-white">₹3,588</span>
               </div>
               <div className="flex justify-between text-emerald-400 font-semibold">
-                <span>Annual Coupon Discount (20%)</span>
-                <span>–₹1,533</span>
+                <span>Discount</span>
+                <span>₹0</span>
               </div>
               <div className="flex justify-between text-white/70">
                 <span>GST (18%)</span>
-                <span className="font-semibold text-white">₹1,104</span>
+                <span className="font-semibold text-white">₹646</span>
               </div>
 
               <div className="border-t border-white/10 pt-4 flex justify-between items-baseline">
@@ -127,7 +127,7 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
                   <span className="text-sm font-bold text-white block">Total Today</span>
                   <span className="text-[10px] text-white/50">Taxes included</span>
                 </div>
-                <span className="text-3xl font-black text-primary">₹7,239</span>
+                <span className="text-3xl font-black text-primary">₹4,234</span>
               </div>
             </div>
 

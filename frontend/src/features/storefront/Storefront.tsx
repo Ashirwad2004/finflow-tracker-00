@@ -228,7 +228,10 @@ export default function Storefront() {
                 ];
             }
             const { data, error } = await (supabase as any).rpc("get_public_store_products", { p_store_id: storeId });
-            if (error) return [];
+            if (error) {
+                console.error("Failed to load online products:", error);
+                throw new Error(`Could not load online products: ${error.message}`);
+            }
             return (Array.isArray(data) ? data : []) as StoreProduct[];
         },
         enabled: !!storeId,
@@ -371,6 +374,10 @@ export default function Storefront() {
                 }
                 setIsSubmitting(false);
                 return;
+            }
+
+            if (!storeId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storeId)) {
+                throw new Error("This store is not configured correctly. Please contact the store owner.");
             }
 
             const { data: orderId, error } = await (supabase as any).rpc("place_online_order", {
@@ -962,7 +969,10 @@ export default function Storefront() {
                         setSelectedOrderForPayment(null);
                         
                         try {
-                            await axios.post("/api/v1/payments/cancel-order", { orderId });
+                            await axios.post("/api/v1/payments/cancel-order", {
+                                orderId,
+                                customerPhone: selectedOrderForPayment.customer_phone,
+                            });
                             toast({
                                 title: "Payment Cancelled / Aborted",
                                 description: "Your online payment was cancelled. Your items are still in your cart.",

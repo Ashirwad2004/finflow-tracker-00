@@ -632,6 +632,7 @@ const Index = () => {
         </div>
       </section>
 
+
       {/* --- PRICING SECTION (id="pricing" for footer link) --- */}
       <section id="pricing" className="py-32 bg-slate-50 dark:bg-slate-950/50 overflow-hidden">
         <div className="container mx-auto px-4">
@@ -650,32 +651,21 @@ const Index = () => {
               Start free. Upgrade when you're ready. No hidden fees, ever.
             </p>
 
-            {/* Interactive Billing Cycle Toggle */}
             <div className="inline-flex items-center gap-2 bg-background border p-1.5 rounded-full shadow-sm">
               <button
                 type="button"
                 onClick={() => setBillingCycle("monthly")}
-                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${
-                  billingCycle === "monthly"
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${billingCycle === "monthly" ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Monthly Billing
               </button>
               <button
                 type="button"
                 onClick={() => setBillingCycle("annual")}
-                className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${
-                  billingCycle === "annual"
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${billingCycle === "annual" ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Annual Billing
-                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">
-                  Save 20%
-                </span>
+                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">Save 20%</span>
               </button>
             </div>
           </motion.div>
@@ -691,31 +681,24 @@ const Index = () => {
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className={`relative rounded-3xl p-8 flex flex-col ${isHighlight
-                    ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-2xl shadow-primary/40 scale-105"
-                    : "bg-background border border-border/60 shadow-lg"
-                  }`}
+                  className={`relative rounded-3xl p-8 flex flex-col ${isHighlight ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-2xl shadow-primary/40 scale-105" : "bg-background border border-border/60 shadow-lg"}`}
                 >
                   {isHighlight && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md tracking-wide uppercase">
-                      Most Popular
-                    </div>
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md tracking-wide uppercase">Most Popular</div>
                   )}
                   <div className={`text-sm font-semibold uppercase tracking-widest mb-3 ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.name}</div>
                   <div className="flex items-baseline gap-1 mb-2">
                     <span className={`text-5xl font-extrabold ${isHighlight ? "text-white" : "text-foreground"}`}>
                       {price === 0 ? "Free" : `₹${price}`}
                     </span>
-                    {price > 0 && (
-                      <span className={`text-sm font-medium ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>/month</span>
-                    )}
+                    {price > 0 && <span className={`text-sm font-medium ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>/month</span>}
                   </div>
                   <p className={`text-xs mb-6 ${isHighlight ? "text-white/80" : "text-muted-foreground"}`}>{plan.description}</p>
                   <ul className="space-y-3 mb-8 flex-1">
-                    {plan.features.map((f, j) => (
+                    {plan.features.map((feature, j) => (
                       <li key={j} className="flex items-center gap-2 text-xs">
                         <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isHighlight ? "text-white/90" : "text-emerald-500"}`} />
-                        <span className={isHighlight ? "text-white/90" : "text-foreground"}>{f}</span>
+                        <span className={isHighlight ? "text-white/90" : "text-foreground"}>{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -724,10 +707,7 @@ const Index = () => {
                       setSelectedPlanId(plan.id);
                       setSubscriptionOpen(true);
                     }}
-                    className={`w-full h-12 rounded-full font-semibold transition-all hover:scale-105 ${isHighlight
-                      ? "bg-white text-primary hover:bg-white/90 shadow-lg"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
-                    }`}
+                    className={`w-full h-12 rounded-full font-semibold transition-all hover:scale-105 ${isHighlight ? "bg-white text-primary hover:bg-white/90 shadow-lg" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}
                   >
                     {plan.id === "starter" ? "Get Started Free" : plan.id === "pro" ? "Upgrade to Pro" : "Subscribe to Business"}
                   </Button>
@@ -736,12 +716,11 @@ const Index = () => {
             })}
           </div>
 
-          {/* Interactive Live Subscription Preview & Payment Options Card */}
-          <CheckoutMockup 
+          <CheckoutMockup
             onPayClick={(planId) => {
               setSelectedPlanId(planId || "pro");
               setSubscriptionOpen(true);
-            }} 
+            }}
           />
         </div>
       </section>
@@ -852,7 +831,7 @@ const Index = () => {
             <Logo size={32} showText={true} />
             <div className="flex gap-8 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Product</a>
-              <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
+              <Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
               {/* <a href="#" className="hover:text-foreground transition-colors">Security</a> */}
               <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
