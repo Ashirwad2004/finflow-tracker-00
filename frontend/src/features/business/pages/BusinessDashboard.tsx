@@ -22,6 +22,12 @@ import {
     Settings
 } from "lucide-react";
 
+const parseValidDate = (value: string | null | undefined): Date | null => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
 export default function BusinessDashboard() {
     const { formatCurrency } = useCurrency();
     const { user } = useAuth();
@@ -96,9 +102,18 @@ export default function BusinessDashboard() {
     });
 
     const chartData = last6Months.map(month => {
-        const monthSales = sales.filter(s => isSameMonth(new Date(s.date), month));
-        const monthPurchases = purchases.filter(p => isSameMonth(new Date(p.date), month));
-        const monthExpenses = expenses.filter(e => isSameMonth(new Date(e.date), month));
+        const monthSales = sales.filter(s => {
+            const date = parseValidDate(s.date);
+            return date ? isSameMonth(date, month) : false;
+        });
+        const monthPurchases = purchases.filter(p => {
+            const date = parseValidDate(p.date);
+            return date ? isSameMonth(date, month) : false;
+        });
+        const monthExpenses = expenses.filter(e => {
+            const date = parseValidDate(e.date);
+            return date ? isSameMonth(date, month) : false;
+        });
         const rev = monthSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
         const pur = monthPurchases.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
         const exp = monthExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
@@ -137,30 +152,39 @@ export default function BusinessDashboard() {
     const COLORS = ['#137fec', '#2dd4bf', '#64748b', '#cbd5e1'];
 
     const combinedHistory = [
-        ...sales.map(s => ({
-            id: s.id,
-            type: 'sale',
-            title: `Invoice - ${s.customer_name}`,
-            ref: s.invoice_number,
-            amount: Number(s.total_amount),
-            date: new Date(s.date)
-        })),
-        ...purchases.map(p => ({
-            id: p.id,
-            type: 'purchase',
-            title: `Purchase - ${p.vendor_name || 'Vendor'}`,
-            ref: p.bill_number || 'Bill',
-            amount: Number(p.total_amount),
-            date: new Date(p.date)
-        })),
-        ...expenses.map(e => ({
-            id: e.id,
-            type: 'expense',
-            title: e.description || 'Expense',
-            ref: 'Receipt',
-            amount: Number(e.amount),
-            date: new Date(e.date)
-        }))
+        ...sales.flatMap(s => {
+            const date = parseValidDate(s.date);
+            return date ? [{
+                id: s.id,
+                type: 'sale',
+                title: `Invoice - ${s.customer_name}`,
+                ref: s.invoice_number,
+                amount: Number(s.total_amount),
+                date
+            }] : [];
+        }),
+        ...purchases.flatMap(p => {
+            const date = parseValidDate(p.date);
+            return date ? [{
+                id: p.id,
+                type: 'purchase',
+                title: `Purchase - ${p.vendor_name || 'Vendor'}`,
+                ref: p.bill_number || 'Bill',
+                amount: Number(p.total_amount),
+                date
+            }] : [];
+        }),
+        ...expenses.flatMap(e => {
+            const date = parseValidDate(e.date);
+            return date ? [{
+                id: e.id,
+                type: 'expense',
+                title: e.description || 'Expense',
+                ref: 'Receipt',
+                amount: Number(e.amount),
+                date
+            }] : [];
+        })
     ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10);
 
     return (

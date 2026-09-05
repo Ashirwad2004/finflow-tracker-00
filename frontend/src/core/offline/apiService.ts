@@ -2,10 +2,10 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { sqliteService } from "./sqliteService";
 import { queueService } from "./queueService";
 
-const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants', 'group_expenses', 'groups', 'group_members']);
+const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants', 'group_expenses', 'groups', 'group_members', 'online_orders']);
 
 // Tables whose schema does NOT have a top-level `user_id` column
-const TABLES_WITHOUT_USER_ID = new Set(['groups']);
+const TABLES_WITHOUT_USER_ID = new Set(['groups', 'online_orders']);
 
 export const sanitizePayload = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;
