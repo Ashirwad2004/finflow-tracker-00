@@ -11,10 +11,29 @@ BEGIN
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
       AND p.proname = 'place_online_order'
-      AND pg_get_function_identity_arguments(p.oid) ILIKE '%, p_status text'
+      -- Keep only the exact canonical storefront signature. Older migrations
+      -- created variants with extra parameters such as p_status.
+      AND pg_get_function_identity_arguments(p.oid)
+        <> 'uuid, text, text, text, numeric, numeric, jsonb'
   LOOP
     EXECUTE format('DROP FUNCTION IF EXISTS %s', function_identity);
   END LOOP;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'place_online_order'
+      AND pg_get_function_identity_arguments(p.oid)
+        = 'uuid, text, text, text, numeric, numeric, jsonb'
+  ) THEN
+    RAISE EXCEPTION 'Canonical place_online_order(uuid,text,text,text,numeric,numeric,jsonb) is missing';
+  END IF;
 END;
 $$;
 

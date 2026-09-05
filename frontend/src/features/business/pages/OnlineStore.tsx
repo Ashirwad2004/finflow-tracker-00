@@ -559,6 +559,13 @@ export default function OnlineStore() {
             }
             toast({ title: "Status Updated", description: "Order status has been updated." });
         },
+        onError: (error: Error) => {
+            toast({
+                title: "Status update failed",
+                description: error.message,
+                variant: "destructive",
+            });
+        },
     });
 
     // React Query: Returns list states (using 30s as a slow fallback since we have real-time postgres changes subscription)
