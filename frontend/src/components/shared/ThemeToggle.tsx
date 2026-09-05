@@ -13,15 +13,12 @@ type ThemeToggleProps = {
 /* ---------------- LOGIC ---------------- */
 
 export const getPreferredTheme = (): Theme => {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
 
   const stored = localStorage.getItem("theme") as Theme | null;
   if (stored === "light" || stored === "dark") return stored;
 
-  // Production best practice: Check system preference if no storage found
-  // If you strictly want default dark: return "dark";
-  const systemPreference = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  return "dark"; // Or return systemPreference;
+  return "light";
 };
 
 export const applyThemeClass = (theme: Theme) => {
@@ -47,7 +44,7 @@ export const applyThemeClass = (theme: Theme) => {
 /* ---------------- COMPONENTS ---------------- */
 
 export const ThemeToggle = ({ className, variant = "secondary" }: ThemeToggleProps) => {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
   // 1. Initial Load & Hydration Handling

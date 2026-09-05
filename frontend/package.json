@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npx kill-port 8080 && vite",
-    "clean-dev": "npx kill-port 8080 && vite",
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "clean-dev": "vite --host 0.0.0.0 --port 5173 --force",
     "build": "vite build && node inject-sw-assets.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

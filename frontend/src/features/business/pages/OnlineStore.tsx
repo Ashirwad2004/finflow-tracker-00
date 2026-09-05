@@ -636,7 +636,6 @@ export default function OnlineStore() {
             name: string; 
             email: string; 
             phone?: string; 
-            password?: string;
             can_manage_orders?: boolean;
             can_manage_returns?: boolean;
         }) => {
@@ -647,7 +646,6 @@ export default function OnlineStore() {
                     salesman_email: newSalesman.email.trim().toLowerCase(),
                     salesman_name: newSalesman.name.trim(),
                     salesman_phone: newSalesman.phone?.trim() || null,
-                    salesman_password: newSalesman.password?.trim(),
                     can_manage_orders: newSalesman.can_manage_orders ?? true,
                     can_manage_returns: newSalesman.can_manage_returns ?? true,
                     is_active: true
@@ -1440,12 +1438,10 @@ export default function OnlineStore() {
                                              const name = formData.get("name") as string;
                                              const email = formData.get("email") as string;
                                              const phone = formData.get("phone") as string;
-                                             const password = formData.get("password") as string;
                                              addSalesman.mutate({ 
                                                  name, 
                                                  email, 
                                                  phone, 
-                                                 password,
                                                  can_manage_orders: newSalesmanOrders,
                                                  can_manage_returns: newSalesmanReturns
                                              }, {
@@ -1464,10 +1460,6 @@ export default function OnlineStore() {
                                                 <Label htmlFor="salesman-email">Email Address <span className="text-red-400">*</span></Label>
                                                 <Input id="salesman-email" name="email" type="email" placeholder="john@example.com" required className="h-10 rounded-xl" />
                                                 <p className="text-[10px] text-muted-foreground">The salesman will use this email address to log in.</p>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label htmlFor="salesman-password">Password <span className="text-red-400">*</span></Label>
-                                                <Input id="salesman-password" name="password" type="text" placeholder="Create a password" required className="h-10 rounded-xl" />
                                             </div>
                                             <div className="space-y-1.5">
                                                 <Label htmlFor="salesman-phone">Phone Number</Label>
@@ -1554,7 +1546,6 @@ export default function OnlineStore() {
                                                                     </>
                                                                 )}
                                                                 <span className="text-border">·</span>
-                                                                <span className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-slate-700 dark:text-slate-300">Pwd: {slm.salesman_password}</span>
                                                             </div>
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-4 md:gap-6 bg-slate-50/50 dark:bg-slate-900/30 p-2 px-3 rounded-xl border border-slate-100 dark:border-slate-800/80">

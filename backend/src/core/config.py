@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     GEMINI_TEMPERATURE: float = 0.2
     GEMINI_MAX_OUTPUT_TOKENS: int = 2048
     AI_RATE_LIMIT: str = "30/minute"
-    AI_AUTH_REQUIRED: bool = False
+    AI_AUTH_REQUIRED: bool = True
     SUPABASE_JWT_SECRET: str = ""
 
     ENVIRONMENT: str = "production"
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
-    PAYMENT_GATEWAY_PROVIDER: str = "mock"
+    PAYMENT_GATEWAY_PROVIDER: str = "razorpay"
 
 
     @property

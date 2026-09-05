@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { useAuth } from "@/core/lib/auth";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calculator as CalculatorComponent } from "@/components/shared/calculator";
 import { Settings } from "lucide-react";
@@ -189,6 +189,22 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const navigationRef = useRef<HTMLElement>(null);
+  const navigationScrollKey = `sidebar-scroll:${user?.id || "anonymous"}:${isBusinessMode ? "business" : "personal"}`;
+
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+
+    const savedScrollTop = Number(sessionStorage.getItem(navigationScrollKey) || 0);
+    requestAnimationFrame(() => {
+      navigation.scrollTop = Number.isFinite(savedScrollTop) ? savedScrollTop : 0;
+    });
+  }, [navigationScrollKey]);
+
+  const rememberNavigationScroll = (event: React.UIEvent<HTMLElement>) => {
+    sessionStorage.setItem(navigationScrollKey, String(event.currentTarget.scrollTop));
+  };
 
   const handleModeToggle = async (checked: boolean) => {
     if (isSalesman) return;
@@ -247,7 +263,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
     enabled: !!user?.id,
   });
 
-  const isUpgraded = subStatus?.plan === "pro" || subStatus?.plan === "business";
+  const isUpgraded = subStatus?.plan === "pro" || subStatus?.plan === "business" || subStatus?.plan === "premium";
 
   const currentMenuItems = isSalesman
     ? businessMenuItems.filter(item => item.path === "/online-store" || item.path === "/settings")
@@ -330,7 +346,11 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      <nav
+        ref={navigationRef}
+        onScroll={rememberNavigationScroll}
+        className="flex-1 p-3 space-y-1 overflow-y-auto"
+      >
         {currentMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
           const showPendingBadge =
@@ -383,7 +403,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         {!isSalesman && !isUpgraded && (
           <Button
             variant="outline"
-            onClick={() => setIsCheckoutOpen(true)}
+            onClick={() => navigate("/pricing")}
             className={cn(
               "w-full justify-start gap-3 bg-gradient-to-r from-primary/10 to-violet-500/10 border-primary/20 text-primary font-bold hover:bg-primary/20 transition-all",
               collapsed && "justify-center px-0"
@@ -441,12 +461,6 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
         </div>
       </div>
 
-      <RealSubscriptionCheckout
-        open={isCheckoutOpen}
-        onOpenChange={setIsCheckoutOpen}
-        initialPlanId="pro"
-        initialBillingCycle="annual"
-      />
     </aside>
   );
 }

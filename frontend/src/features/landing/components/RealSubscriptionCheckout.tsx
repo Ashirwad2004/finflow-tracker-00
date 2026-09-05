@@ -51,9 +51,9 @@ export const PLAN_CONFIGS: PlanConfig[] = [
   {
     id: "starter",
     name: "Starter",
-    monthlyPrice: 0,
-    annualPricePerMonth: 0,
-    description: "Perfect for individuals and solo freelancers starting out.",
+    monthlyPrice: 299,
+    annualPricePerMonth: 299,
+    description: "Everything you need to manage your finances.",
     features: [
       "Up to 50 expenses & bills/month",
       "Personal & Business Dashboard",
@@ -66,8 +66,8 @@ export const PLAN_CONFIGS: PlanConfig[] = [
   {
     id: "pro",
     name: "Pro",
-    monthlyPrice: 799,
-    annualPricePerMonth: 639, // 20% discount on annual
+    monthlyPrice: 299,
+    annualPricePerMonth: 299,
     description: "For growing businesses needing AI analytics & parties ledger.",
     features: [
       "Unlimited Expenses, Sales & Bills",
@@ -82,8 +82,8 @@ export const PLAN_CONFIGS: PlanConfig[] = [
   {
     id: "business",
     name: "Business",
-    monthlyPrice: 2499,
-    annualPricePerMonth: 1999, // 20% discount on annual
+    monthlyPrice: 299,
+    annualPricePerMonth: 299,
     description: "For teams, storefronts, and full commercial operations.",
     features: [
       "Everything in Pro Tier",
@@ -190,8 +190,8 @@ export function RealSubscriptionCheckout({
   const billingMonths = billingCycle === "annual" ? 12 : 1;
   const rawSubtotal = basePricePerMonth * billingMonths;
   
-  const couponDiscountAmount = Math.round(rawSubtotal * (appliedDiscountPercent / 100));
-  const subtotalAfterCoupon = rawSubtotal - couponDiscountAmount;
+  const couponDiscountAmount = 0;
+  const subtotalAfterCoupon = rawSubtotal;
   const gstAmount = Math.round(subtotalAfterCoupon * 0.18); // 18% GST
   const grandTotal = subtotalAfterCoupon + gstAmount;
 
@@ -199,23 +199,8 @@ export function RealSubscriptionCheckout({
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
 
-    if (code === "RUPEEBILL20" || code === "WELCOME20") {
-      setAppliedDiscountPercent(20);
-      setCouponError("");
-      toast({
-        title: "Coupon Applied!",
-        description: "20% additional discount has been applied to your checkout.",
-      });
-    } else if (code === "SPECIAL10") {
-      setAppliedDiscountPercent(10);
-      setCouponError("");
-      toast({
-        title: "Coupon Applied!",
-        description: "10% additional discount applied.",
-      });
-    } else {
-      setCouponError("Invalid coupon code. Try RUPEEBILL20 for 20% off.");
-    }
+    setAppliedDiscountPercent(0);
+    setCouponError("One simple subscription price: ₹299/month. Coupons are not available.");
   };
 
   const handleRemoveCoupon = () => {
@@ -278,22 +263,7 @@ export function RealSubscriptionCheckout({
   const handleSubscribe = async () => {
     setPaymentError(null);
 
-    // STARTER FREE PLAN FLOW
-    if (currentPlan.id === "starter") {
-      if (!user) {
-        toast({
-          title: "🔒 Account Required",
-          description: "Please log in or sign up to activate your free Starter account.",
-          variant: "destructive"
-        });
-        return;
-      }
-      onOpenChange(false);
-      toast({ title: "Starter Plan Active", description: "You are currently on the free Starter plan." });
-      return;
-    }
-
-    // STRICT AUTH GUARD FOR PAID PLANS
+    // All plans use the same paid subscription flow.
     if (!user) {
       toast({
         title: "🔒 Authentication Required Before Payment",
@@ -514,11 +484,6 @@ export function RealSubscriptionCheckout({
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase font-bold tracking-wider">
                       Official Upgrade
                     </Badge>
-                    {billingCycle === "annual" && (
-                      <Badge className="bg-emerald-500 text-white text-[10px] font-bold">
-                        Save 20%
-                      </Badge>
-                    )}
                   </div>
                 </div>
                 <DialogTitle className="text-2xl font-black tracking-tight">Choose Subscription Plan</DialogTitle>
@@ -550,9 +515,6 @@ export function RealSubscriptionCheckout({
                   }`}
                 >
                   Annual Billing
-                  <span className="text-[9px] bg-emerald-400 text-slate-950 font-extrabold px-1.5 py-0.5 rounded-full uppercase">
-                    –20%
-                  </span>
                 </button>
               </div>
 
@@ -885,9 +847,7 @@ export function RealSubscriptionCheckout({
                       <Lock className="w-4 h-4 mr-2" />
                       {!user 
                         ? "Log In to Subscribe" 
-                        : selectedPlanId === "starter" 
-                          ? "Get Started Free" 
-                          : `Subscribe & Pay ₹${grandTotal.toLocaleString("en-IN")}`
+                        : `Subscribe & Pay ₹${grandTotal.toLocaleString("en-IN")}`
                       }
                     </>
                   )}

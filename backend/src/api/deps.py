@@ -35,6 +35,14 @@ async def get_current_user(
         ) from exc
 
 
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict | None:
+    if credentials is None:
+        return None
+    return await get_current_user(credentials)
+
+
 async def require_admin(
     user_info: dict = Depends(get_current_user),
 ) -> dict:

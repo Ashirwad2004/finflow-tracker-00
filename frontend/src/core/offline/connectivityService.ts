@@ -101,8 +101,8 @@ class ConnectivityService {
     }
 
     try {
-      const response = await fetch('/favicon.ico', { method: 'HEAD', cache: 'no-store' });
-      if (response.ok || response.status === 304 || response.status === 200 || response.status === 404) {
+      const response = await fetch('/favicon.svg?v=3', { method: 'HEAD', cache: 'no-store' });
+      if (response.ok || response.status === 304) {
         this.setStatus('online');
       } else {
         if (!navigator.onLine) this.setStatus('offline');

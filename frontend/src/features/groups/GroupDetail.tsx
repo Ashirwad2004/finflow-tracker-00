@@ -36,7 +36,8 @@ import {
   Receipt,
   Users,
   PieChart,
-  MessageSquare
+  MessageSquare,
+  CheckCircle2
 } from "lucide-react";
 import { toast } from "@/core/hooks/use-toast";
 import {
@@ -72,6 +73,17 @@ interface Member {
   user_id: string;
   username: string;
   joined_at: string;
+}
+
+interface SettlementRecord {
+  id: string;
+  group_id: string;
+  from_user_id: string;
+  to_user_id: string;
+  amount: number;
+  status: "paid" | "cancelled";
+  paid_by: string;
+  created_at: string;
 }
 
 const GroupDetailSkeleton = () => (
@@ -147,6 +159,22 @@ const GroupDetail = () => {
     refetchInterval: 30000,
   });
 
+  const { data: settlementRecords = [], isLoading: settlementsLoading } = useQuery({
+    queryKey: ["group-settlements", groupId],
+    enabled: !!groupId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("group_settlements")
+        .select("*")
+        .eq("group_id", groupId || "")
+        .eq("status", "paid")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as SettlementRecord[];
+    },
+    refetchInterval: 30000,
+  });
+
   // Real-time Postgres Changes subscription for specific group updates
   useEffect(() => {
     if (!groupId) return;
@@ -188,6 +216,18 @@ const GroupDetail = () => {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["group-expenses", groupId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_settlements",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["group-settlements", groupId] });
         }
       )
       .subscribe();
@@ -249,6 +289,13 @@ const GroupDetail = () => {
       }
     });
 
+    // Apply recorded payments so settled transfers no longer affect balances.
+    settlementRecords.forEach(settlement => {
+      if (settlement.status !== "paid") return;
+      balances[settlement.from_user_id] = (balances[settlement.from_user_id] || 0) + Number(settlement.amount);
+      balances[settlement.to_user_id] = (balances[settlement.to_user_id] || 0) - Number(settlement.amount);
+    });
+
     return members.map(m => ({
       ...m,
       balance: balances[m.user_id] || 0
@@ -258,7 +305,7 @@ const GroupDetail = () => {
   const memberBalances = calculateBalances();
 
   const calculateSettlements = () => {
-    const settlements: { from: string; to: string; amount: number }[] = [];
+    const settlements: { from: string; to: string; from_user_id: string; to_user_id: string; amount: number }[] = [];
 
     // Deep copy to avoid mutating state ref
     const balances = memberBalances.map(m => ({ ...m }));
@@ -279,6 +326,8 @@ const GroupDetail = () => {
       settlements.push({
         from: debtor.username,
         to: creditor.username,
+        from_user_id: debtor.user_id,
+        to_user_id: creditor.user_id,
         amount: amount,
       });
 
@@ -294,6 +343,31 @@ const GroupDetail = () => {
 
   const settlements = calculateSettlements();
   const myBalance = memberBalances.find(m => m.user_id === user?.id)?.balance || 0;
+
+  const recordSettlement = useMutation({
+    mutationFn: async (settlement: typeof settlements[number]) => {
+      if (!groupId || !user?.id) throw new Error("You must be signed in to record a settlement.");
+
+      const { error } = await (supabase as any)
+        .from("group_settlements")
+        .insert({
+          group_id: groupId,
+          from_user_id: settlement.from_user_id,
+          to_user_id: settlement.to_user_id,
+          amount: Number(settlement.amount.toFixed(2)),
+          status: "paid",
+          paid_by: user.id,
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Settlement recorded", description: "Group balances have been updated." });
+      queryClient.invalidateQueries({ queryKey: ["group-settlements", groupId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not record settlement", description: error.message, variant: "destructive" });
+    },
+  });
 
   // --- ACTIONS ---
 
@@ -413,7 +487,7 @@ const GroupDetail = () => {
 
   // --- RENDER ---
 
-  if (groupLoading || membersLoading || expensesLoading) {
+  if (groupLoading || membersLoading || expensesLoading || settlementsLoading) {
     return (
       <AppLayout>
         <GroupDetailSkeleton />
@@ -523,8 +597,8 @@ const GroupDetail = () => {
                 </Card>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {settlements.map((s, i) => (
-                    <Card key={i} className="flex items-center justify-between p-4 hover:shadow-md transition-shadow">
+                  {settlements.map((s) => (
+                    <Card key={`${s.from_user_id}-${s.to_user_id}`} className="flex items-center justify-between p-4 hover:shadow-md transition-shadow">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 border-2 border-background">
                           <AvatarFallback className={getAvatarColor(s.from)}></AvatarFallback>
@@ -537,6 +611,15 @@ const GroupDetail = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="font-bold text-red-500 mr-1">₹{s.amount.toFixed(0)}</div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => recordSettlement.mutate(s)}
+                          disabled={recordSettlement.isPending}
+                        >
+                          {recordSettlement.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                          Paid
+                        </Button>
                       </div>
                     </Card>
                   ))}

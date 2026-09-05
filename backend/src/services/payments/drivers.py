@@ -23,7 +23,9 @@ class MockGateway:
             }
         }
 
-    async def verify_payment(self, gateway_order_id: str, gateway_payment_id: str, gateway_signature: Optional[str] = None) -> Dict[str, Any]:
+    async def verify_payment(self, gateway_order_id: str, gateway_payment_id: str, gateway_signature: Optional[str] = None, expected_amount: Optional[float] = None, expected_currency: Optional[str] = None) -> Dict[str, Any]:
+        if gateway_signature != "mock_signature_hash":
+            raise ValueError("Invalid mock payment signature")
         if gateway_payment_id and gateway_payment_id.startswith("mock_pay"):
             parts = gateway_payment_id.split("_")
             payment_method = parts[2] if len(parts) > 2 else "card"
@@ -94,10 +96,14 @@ class StripeGateway:
             }
         }
 
-    async def verify_payment(self, gateway_order_id: str, gateway_payment_id: Optional[str] = None, gateway_signature: Optional[str] = None) -> Dict[str, Any]:
+    async def verify_payment(self, gateway_order_id: str, gateway_payment_id: Optional[str] = None, gateway_signature: Optional[str] = None, expected_amount: Optional[float] = None, expected_currency: Optional[str] = None) -> Dict[str, Any]:
         import stripe
         self.ensure_client()
         payment_intent = stripe.PaymentIntent.retrieve(gateway_order_id)
+        if expected_amount is not None and payment_intent.amount != int(round(expected_amount * 100)):
+            raise ValueError("Payment amount does not match the order")
+        if expected_currency and payment_intent.currency.lower() != expected_currency.lower():
+            raise ValueError("Payment currency does not match the order")
         if payment_intent.status == "succeeded":
             latest_charge = payment_intent.latest_charge
             charge = None
@@ -194,7 +200,7 @@ class RazorpayGateway:
             }
         }
 
-    async def verify_payment(self, gateway_order_id: str, gateway_payment_id: str, gateway_signature: Optional[str] = None) -> Dict[str, Any]:
+    async def verify_payment(self, gateway_order_id: str, gateway_payment_id: str, gateway_signature: Optional[str] = None, expected_amount: Optional[float] = None, expected_currency: Optional[str] = None) -> Dict[str, Any]:
         self.ensure_client()
         if not gateway_signature:
             raise ValueError("Razorpay payment requires gatewaySignature for verification.")
@@ -209,7 +215,16 @@ class RazorpayGateway:
         if not hmac.compare_digest(expected_signature, gateway_signature):
             raise ValueError("Razorpay signature verification failed.")
             
+        order_details = self.client.order.fetch(gateway_order_id)
         payment_details = self.client.payment.fetch(gateway_payment_id)
+        if payment_details.get("order_id") != gateway_order_id:
+            raise ValueError("Payment is not linked to the gateway order")
+        if payment_details.get("status") != "captured":
+            raise ValueError("Payment has not been captured")
+        if expected_amount is not None and payment_details.get("amount") != int(round(expected_amount * 100)):
+            raise ValueError("Payment amount does not match the order")
+        if expected_currency and order_details.get("currency") != expected_currency.upper():
+            raise ValueError("Payment currency does not match the order")
         return {
             "success": True,
             "paymentMethod": payment_details.get("method"),

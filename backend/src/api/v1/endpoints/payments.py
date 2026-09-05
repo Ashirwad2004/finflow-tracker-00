@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 
 from src.core.config import settings
 from src.core.supabase import supabase_client
-from src.api.deps import get_current_user
+from src.api.deps import get_current_user, get_optional_user
 from src.services.payments import get_gateway_driver
 from src.schemas.payments import (
     OrderCreate,
@@ -40,7 +40,10 @@ async def health_check():
 
 
 @router.post("/create-order")
-async def create_order(payload: OrderCreate):
+async def create_order(
+    payload: OrderCreate,
+    current_user: dict | None = Depends(get_optional_user),
+):
     try:
         # Standard Razorpay configuration check
         key_id = settings.RAZORPAY_KEY_ID
@@ -56,6 +59,8 @@ async def create_order(payload: OrderCreate):
 
         # Handle Direct Standard Web Checkout Request
         if payload.amount is not None:
+            if current_user is None:
+                raise HTTPException(status_code=401, detail="Authentication required")
             amount_in_paise = float(payload.amount)
             if amount_in_paise < 100:
                 raise HTTPException(
@@ -75,6 +80,16 @@ async def create_order(payload: OrderCreate):
                     "phone": payload.customerPhone
                 }
             )
+
+            supabase_client.table("payments").insert({
+                "user_id": current_user["user_id"],
+                "amount": amount_in_paise / 100.0,
+                "currency": currency,
+                "status": "pending",
+                "gateway": driver.name,
+                "gateway_order_id": gateway_response["gatewayOrderId"],
+                "idempotency_key": payload.idempotencyKey or receipt,
+            }).execute()
 
             return {
                 "success": True,
@@ -102,7 +117,12 @@ async def create_order(payload: OrderCreate):
             )
 
         # Fetch order from DB
-        order_res = supabase_client.table("online_orders").select("*, store_id").eq("id", order_id).execute()
+        order_res = (
+            supabase_client.table("online_orders")
+            .select("*, store_id")
+            .eq("id", order_id)
+            .execute()
+        )
         if not order_res.data or len(order_res.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -110,6 +130,11 @@ async def create_order(payload: OrderCreate):
             )
 
         order = order_res.data[0]
+
+        if current_user and order["store_id"] != current_user["user_id"]:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        if not current_user and payload.customerPhone != order.get("customer_phone"):
+            raise HTTPException(status_code=403, detail="Customer verification failed")
 
         gateway_response = await driver.create_order(
             order_id=order["id"],
@@ -127,6 +152,17 @@ async def create_order(payload: OrderCreate):
                 detail="Failed to create payment in gateway."
             )
 
+        supabase_client.table("payments").insert({
+            "user_id": order["store_id"],
+            "order_id": order["id"],
+            "amount": float(order["total_amount"]),
+            "currency": order.get("currency") or "INR",
+            "status": "pending",
+            "gateway": driver.name,
+            "gateway_order_id": gateway_response["gatewayOrderId"],
+            "idempotency_key": payload.idempotencyKey or order["id"],
+        }).execute()
+
         return {
             "success": True,
             "order_id": gateway_response["gatewayOrderId"],
@@ -143,21 +179,38 @@ async def create_order(payload: OrderCreate):
         logger.exception("Failed to create order")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc) or "Failed to create payment order."
+            detail="Failed to create payment order."
         )
 
 
 @router.post("/cancel-order")
-async def cancel_order(payload: OrderCancel):
+async def cancel_order(
+    payload: OrderCancel,
+    current_user: dict | None = Depends(get_optional_user),
+):
     try:
         order_id = payload.orderId
 
         # Fetch order
-        order_res = supabase_client.table("online_orders").select("*").eq("id", order_id).execute()
+        order_query = supabase_client.table("online_orders").select("*").eq("id", order_id)
+        if current_user:
+            order_query = order_query.eq("store_id", current_user["user_id"])
+        elif payload.customerPhone:
+            order_query = order_query.eq("customer_phone", payload.customerPhone)
+        else:
+            raise HTTPException(status_code=401, detail="Authentication or customer verification required")
+        order_res = order_query.execute()
         if not order_res.data or len(order_res.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Order not found."
+            )
+
+        order = order_res.data[0]
+        if order.get("status") not in {"pending", "processing"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Order cannot be cancelled in its current state",
             )
 
         # Check if successful payment exists
@@ -185,17 +238,21 @@ async def cancel_order(payload: OrderCancel):
         logger.exception("Failed to cancel order")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc) or "Failed to cancel order."
+            detail="Failed to cancel order."
         )
 
 
 @router.post("/create-subscription-order")
-async def create_subscription_order(payload: SubscriptionOrderCreate):
+async def create_subscription_order(
+    payload: SubscriptionOrderCreate,
+    current_user: dict = Depends(get_current_user),
+):
     try:
         plan_prices = {
-            "starter": {"monthly": 0, "annual": 0},
-            "pro": {"monthly": 799, "annual": 639},
-            "business": {"monthly": 2499, "annual": 1999}
+            "starter": {"monthly": 299, "annual": 299},
+            "pro": {"monthly": 299, "annual": 299},
+            "business": {"monthly": 299, "annual": 299},
+            "premium": {"monthly": 299, "annual": 299},
         }
 
         selected_plan = plan_prices.get(payload.planId, plan_prices["pro"])
@@ -203,16 +260,10 @@ async def create_subscription_order(payload: SubscriptionOrderCreate):
         months = 12 if payload.billingCycle == "annual" else 1
         raw_subtotal = base_monthly * months
 
+        # Keep one authoritative subscription price. Coupons cannot change it.
         discount_percent = 0
-        if payload.couponCode:
-            code = payload.couponCode.strip().upper()
-            if code in ["FINFLOW20", "WELCOME20"]:
-                discount_percent = 20
-            elif code == "SPECIAL10":
-                discount_percent = 10
-
-        discount_amt = int(round(raw_subtotal * (discount_percent / 100.0)))
-        subtotal = raw_subtotal - discount_amt
+        discount_amt = 0
+        subtotal = raw_subtotal
         gst_amount = int(round(subtotal * 0.18))
         grand_total = subtotal + gst_amount
 
@@ -237,7 +288,7 @@ async def create_subscription_order(payload: SubscriptionOrderCreate):
 
         # Record pending payment
         insert_data = {
-            "user_id": payload.userId,
+            "user_id": current_user["user_id"],
             "amount": grand_total,
             "currency": "INR",
             "status": "pending",
@@ -271,12 +322,16 @@ async def create_subscription_order(payload: SubscriptionOrderCreate):
         logger.exception("Failed to create subscription order")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc) or "Failed to create subscription order."
+            detail="Failed to create subscription order."
         )
 
 
 @router.post("/verify-payment")
-async def verify_payment(payload: PaymentVerify, request: Request):
+async def verify_payment(
+    payload: PaymentVerify,
+    request: Request,
+    current_user: dict | None = Depends(get_optional_user),
+):
     try:
         gateway_order_id = payload.razorpay_order_id or payload.gatewayOrderId or payload.order_id
         gateway_payment_id = payload.razorpay_payment_id or payload.gatewayPaymentId or payload.payment_id
@@ -294,33 +349,38 @@ async def verify_payment(payload: PaymentVerify, request: Request):
                 detail="Missing required field: razorpay_signature is required."
             )
 
-        driver = get_gateway_driver("razorpay")
-        
-        # Verify payment signature
-        try:
-            verification = await driver.verify_payment(
-                gateway_order_id=gateway_order_id,
-                gateway_payment_id=gateway_payment_id,
-                gateway_signature=gateway_signature
-            )
-        except Exception as verify_err:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(verify_err) or "Signature mismatch: Invalid payment signature."
-            )
-
         # Retrieve payment from DB
         pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
         payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
 
         if not payment:
-            return {
-                "success": True,
-                "message": "Payment verified successfully.",
-                "payment_id": gateway_payment_id,
-                "order_id": gateway_order_id,
-                "status": "success"
-            }
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Payment order not found",
+            )
+
+        if current_user and payment.get("user_id") != current_user["user_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden",
+            )
+
+        driver = get_gateway_driver(payment.get("gateway") or settings.PAYMENT_GATEWAY_PROVIDER)
+
+        try:
+            verification = await driver.verify_payment(
+                gateway_order_id=gateway_order_id,
+                gateway_payment_id=gateway_payment_id,
+                gateway_signature=gateway_signature,
+                expected_amount=float(payment["amount"]),
+                expected_currency=payment.get("currency") or "INR",
+            )
+        except Exception as verify_err:
+            logger.warning("Payment verification rejected: %s", verify_err)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid payment verification.",
+            ) from verify_err
 
         if payment["status"] == "success":
             return {
@@ -404,7 +464,7 @@ async def verify_payment(payload: PaymentVerify, request: Request):
         logger.exception("Verify Payment Error")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc) or "Payment verification failed."
+            detail="Payment verification failed."
         )
 
 
@@ -507,7 +567,7 @@ async def webhook(request: Request):
 
     except Exception as exc:
         logger.exception("Webhook processing error")
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail="Invalid webhook request")
 
 
 @router.post("/refund")
@@ -528,11 +588,41 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
             raise HTTPException(status_code=400, detail="Only successful payments can be refunded.")
 
         driver = get_gateway_driver()
-        refund_amount = payload.amount or float(payment["amount"])
+        from decimal import Decimal
+
+        payment_amount = Decimal(str(payment["amount"]))
+        refund_amount = (
+            payment_amount
+            if payload.amount is None
+            else Decimal(str(payload.amount))
+        )
+
+        if refund_amount <= 0 or refund_amount > payment_amount:
+            raise HTTPException(
+                status_code=400,
+                detail="Refund amount is outside the refundable balance",
+            )
+
+        existing_refunds = (
+            supabase_client.table("refunds")
+            .select("amount")
+            .eq("payment_id", payment["id"])
+            .eq("status", "success")
+            .execute()
+        )
+        already_refunded = sum(
+            (Decimal(str(row["amount"])) for row in (existing_refunds.data or [])),
+            Decimal("0"),
+        )
+        if already_refunded + refund_amount > payment_amount:
+            raise HTTPException(
+                status_code=409,
+                detail="Refund exceeds the remaining refundable balance",
+            )
         
         refund_result = await driver.refund(
             gateway_payment_id=payment.get("gateway_payment_id"),
-            amount=refund_amount,
+            amount=float(refund_amount),
             reason=payload.reason or "Merchant initiated refund"
         )
 
@@ -542,7 +632,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
         # Record Refund
         ref_res = supabase_client.table("refunds").insert({
             "payment_id": payment["id"],
-            "amount": refund_amount,
+            "amount": float(refund_amount),
             "status": "success",
             "gateway_refund_id": refund_result["refundId"],
             "reason": payload.reason or "Merchant initiated"
@@ -579,7 +669,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
         raise
     except Exception as exc:
         logger.exception("Refund processing error")
-        raise HTTPException(status_code=500, detail=str(exc) or "Failed to process refund.")
+        raise HTTPException(status_code=500, detail="Failed to process refund.")
 
 
 @router.get("/admin/stats")
@@ -641,7 +731,7 @@ async def get_stats(storeId: str, current_user: dict = Depends(get_current_user)
 
     except Exception as exc:
         logger.exception("Failed to get stats")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to load payment statistics")
 
 
 @router.get("/admin/history")
@@ -655,6 +745,9 @@ async def get_history(
 ):
     if storeId != current_user["user_id"]:
         raise HTTPException(status_code=403, detail="Forbidden: You do not own this store")
+
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
 
     try:
         # Build query
@@ -695,7 +788,7 @@ async def get_history(
 
     except Exception as exc:
         logger.exception("Failed to get history")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to load payment history")
 
 
 @router.get("/admin/logs")
@@ -708,4 +801,4 @@ async def get_logs(storeId: str, current_user: dict = Depends(get_current_user))
         return {"logs": res.data or []}
     except Exception as exc:
         logger.exception("Failed to get audit logs")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to load audit logs")

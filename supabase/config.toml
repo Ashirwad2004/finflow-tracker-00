@@ -1,10 +1,13 @@
 project_id = "uxezrpjctgovqhbbpyrl"
 
 [functions.scan-bill]
-verify_jwt = false
+verify_jwt = true
 
 [functions.backup-data]
-verify_jwt = false
+verify_jwt = true
 
 [functions.gemini-proxy]
-verify_jwt = false
+verify_jwt = true
+
+[functions.event-worker]
+verify_jwt = true

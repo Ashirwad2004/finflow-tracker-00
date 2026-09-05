@@ -96,8 +96,6 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
   }
 
   body {
@@ -351,4 +349,5 @@
 /* Safari support override for sonner toast user-select */
 [data-sonner-toast][data-swiped="true"] {
   -webkit-user-select: none;
+  user-select: none;
 }
