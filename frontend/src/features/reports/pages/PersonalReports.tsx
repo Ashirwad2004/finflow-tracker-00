@@ -57,7 +57,70 @@ export default function PersonalReports() {
     // Fetch all expenses (Now realtime)
     const { data: expenses = [], isLoading: loadingExpenses } = useExpensesQuery(user?.id);
 
-    const isLoading = loadingLent || loadingBorrowed || loadingExpenses;
+    // Fetch joined groups and their expenses for group report section
+    const { data: userGroups = [], isLoading: loadingGroups } = useQuery({
+        queryKey: ["reports-user-groups", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [] as any[];
+
+            const { data: memberships, error: membershipsError } = await (supabase as any)
+                .from("group_members")
+                .select("group_id")
+                .eq("user_id", user.id);
+
+            if (membershipsError) throw membershipsError;
+
+            const groupIds = (memberships || []).map((m: any) => m.group_id).filter(Boolean);
+            if (!groupIds.length) return [] as any[];
+
+            const { data, error } = await (supabase as any)
+                .from("groups")
+                .select("*")
+                .in("id", groupIds)
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            return (data || []) as any[];
+        },
+        enabled: !!user?.id,
+    });
+
+    const groupIds = userGroups.map((group: any) => group.id).filter(Boolean);
+
+    const { data: groupMembers = [], isLoading: loadingGroupMembers } = useQuery({
+        queryKey: ["reports-group-members", groupIds],
+        queryFn: async () => {
+            if (!groupIds.length) return [] as any[];
+
+            const { data, error } = await (supabase as any)
+                .from("group_members")
+                .select("*")
+                .in("group_id", groupIds);
+
+            if (error) throw error;
+            return (data || []) as any[];
+        },
+        enabled: groupIds.length > 0,
+    });
+
+    const { data: groupExpenses = [], isLoading: loadingGroupExpenses } = useQuery({
+        queryKey: ["reports-group-expenses", groupIds],
+        queryFn: async () => {
+            if (!groupIds.length) return [] as any[];
+
+            const { data, error } = await (supabase as any)
+                .from("group_expenses")
+                .select("*, categories(name, color, icon)")
+                .in("group_id", groupIds)
+                .order("date", { ascending: false });
+
+            if (error) throw error;
+            return (data || []) as any[];
+        },
+        enabled: groupIds.length > 0,
+    });
+
+    const isLoading = loadingLent || loadingBorrowed || loadingExpenses || loadingGroups || loadingGroupMembers || loadingGroupExpenses;
 
     // Party-wise Aggregation
     const partyMap = new Map<string, { lent: number, borrowed: number, net: number, hasPending: boolean }>();
@@ -94,6 +157,46 @@ export default function PersonalReports() {
     const totalLent = lentMoney.reduce((sum, item) => sum + Number(item.amount), 0);
     const totalBorrowed = borrowedMoney.reduce((sum, item) => sum + Number(item.amount), 0);
     const totalExpenses = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
+
+    const groupReports = userGroups
+        .map((group: any) => {
+            const members = groupMembers.filter((member: any) => member.group_id === group.id);
+            const expensesForGroup = groupExpenses.filter((expense: any) => expense.group_id === group.id);
+            const memberIds = members.map((member: any) => member.user_id).filter(Boolean);
+
+            let balance = 0;
+
+            expensesForGroup.forEach((expense: any) => {
+                const amount = Number(expense.amount || 0);
+                const involvedUsers = expense.split_data && Array.isArray(expense.split_data) && expense.split_data.length > 0
+                    ? expense.split_data
+                    : memberIds.length > 0
+                        ? memberIds
+                        : [];
+
+                const validUsers = involvedUsers.filter((id: string) => memberIds.includes(id));
+
+                if (expense.user_id === user?.id) {
+                    balance += amount;
+                }
+
+                if (validUsers.includes(user?.id)) {
+                    const share = amount / Math.max(validUsers.length, 1);
+                    balance -= share;
+                }
+            });
+
+            return {
+                id: group.id,
+                name: group.name,
+                members: members.length,
+                totalSpent: expensesForGroup.reduce((sum: number, expense: any) => sum + Number(expense.amount || 0), 0),
+                balance: Number(balance.toFixed(2)),
+                status: balance > 0 ? "You are owed" : balance < 0 ? "You owe" : "Settled",
+            };
+        })
+        .filter((group) => group.members > 0 || group.totalSpent > 0)
+        .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
 
     return (
         <AppLayout>
@@ -158,11 +261,12 @@ export default function PersonalReports() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full lg:w-fit grid-cols-2 lg:grid-cols-4 bg-muted/50 p-1 rounded-xl mb-8">
+                    <TabsList className="grid w-full lg:w-fit grid-cols-2 lg:grid-cols-5 bg-muted/50 p-1 rounded-xl mb-8">
                         <TabsTrigger value="party-wise" className="rounded-lg gap-2 text-sm"><Users className="w-4 h-4" /> Party-wise Net</TabsTrigger>
                         <TabsTrigger value="lent" className="rounded-lg gap-2 text-sm"><HandCoins className="w-4 h-4" /> Lent Ledger</TabsTrigger>
                         <TabsTrigger value="borrowed" className="rounded-lg gap-2 text-sm"><RefreshCcw className="w-4 h-4" /> Borrowed Ledger</TabsTrigger>
                         <TabsTrigger value="expenses" className="rounded-lg gap-2 text-sm"><Receipt className="w-4 h-4" /> Expenses Recap</TabsTrigger>
+                        <TabsTrigger value="group-report" className="rounded-lg gap-2 text-sm"><Users className="w-4 h-4" /> Group Report</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="party-wise" className="m-0 mt-4 outline-none">
@@ -315,6 +419,45 @@ export default function PersonalReports() {
                                                 </td>
                                                 <td className="px-6 py-4 text-sm font-medium">{item.description}</td>
                                                 <td className="px-6 py-4 text-right font-extrabold">{formatCurrency(item.amount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="group-report" className="m-0 mt-4 outline-none">
+                        <Card className="overflow-hidden border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[800px]">
+                                    <thead>
+                                        <tr className="bg-violet-50 dark:bg-violet-950/30 border-b border-violet-100 dark:border-violet-900/50 text-[11px] font-extrabold text-violet-700 dark:text-violet-400 uppercase tracking-wider">
+                                            <th className="px-6 py-4">Group</th>
+                                            <th className="px-6 py-4 text-center">Members</th>
+                                            <th className="px-6 py-4 text-right">Total Spent</th>
+                                            <th className="px-6 py-4 text-right">Your Balance</th>
+                                            <th className="px-6 py-4 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {isLoading ? (
+                                            <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">Loading group report...</td></tr>
+                                        ) : groupReports.length === 0 ? (
+                                            <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">No group activity found.</td></tr>
+                                        ) : groupReports.map(group => (
+                                            <tr key={group.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="px-6 py-4 font-bold">{group.name}</td>
+                                                <td className="px-6 py-4 text-center">{group.members}</td>
+                                                <td className="px-6 py-4 text-right font-medium text-slate-700 dark:text-slate-200">{formatCurrency(group.totalSpent)}</td>
+                                                <td className={`px-6 py-4 text-right font-extrabold ${group.balance > 0 ? "text-emerald-600 dark:text-emerald-400" : group.balance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-500"}`}>
+                                                    {group.balance > 0 ? '+' : ''}{formatCurrency(group.balance)}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {group.balance > 0 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none">You are owed</Badge>}
+                                                    {group.balance < 0 && <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-200 border-none">You owe</Badge>}
+                                                    {group.balance === 0 && <Badge variant="outline" className="text-slate-500">Settled</Badge>}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
