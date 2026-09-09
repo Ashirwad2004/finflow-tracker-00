@@ -203,12 +203,18 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 import { useQueryCacheOffline } from "@/core/hooks/useQueryCacheOffline";
+import { OPFSStorageManager } from "@/core/offline/opfsStorage";
 
 const AppRoutes = () => {
   useQueryCacheOffline();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Initialize OPFS and request persistent storage eviction-immunity on boot
+    OPFSStorageManager.init().catch((err) => {
+      console.warn("[App] OPFS initialization skipped or failed:", err);
+    });
+
     // 1. Check if the URL hash contains recovery type on initial load or path change
     const checkRecoveryHash = () => {
       const hash = window.location.hash;

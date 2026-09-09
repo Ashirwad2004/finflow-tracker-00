@@ -92,10 +92,10 @@ Merchants enter a unique slug (e.g., `organic-bites`). Their store becomes publi
 
 ### 2. Customer Portal Experience
 *   **Browse Catalog**: View products uploaded by the merchant, complete with pricing, availability, and unit descriptions.
-*   **AI Recommendations**: The storefront analyzes popular products and recommends related items to customers during checkout to increase order values.
+*   **AI-assisted Search and Recommendations**: Shoppers can describe what they need in natural language. FinFlow converts that request into catalog filters and can suggest related products; a local fallback keeps search usable when AI is unavailable.
 *   **Interactive Shopping Cart**: Add/remove items and calculate discounts instantly.
 
 ### 3. Order Management
 *   **Checkout Verification**: Customers submit order requests with their phone numbers.
-*   **Real-time Merchant Notifications**: When an order is placed, the merchant's screen updates in real time using Postgres replication, flashing sound notifications and alerts.
+*   **Real-time Merchant Notifications**: When an order is placed, the merchant's screen can update through Supabase Realtime subscriptions, with status badges and alerts in the dashboard.
 *   **Delivery Logistics**: Automatic calculations of delivery fees and free delivery thresholds (configured by the merchant).

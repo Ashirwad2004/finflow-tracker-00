@@ -1,14 +1,15 @@
 # Developer Setup & Deployment Guide
 
-This guide will walk you through setting up the frontend application, the Supabase PostgreSQL database, and the optional FastAPI Python backend on your local machine.
+This guide covers the FinFlow monorepo: the React/Vite frontend in `frontend/`, the optional FastAPI service in `backend/`, and the Supabase project in `supabase/`.
 
 ---
 
 ## 📋 Prerequisites
 Before you start, make sure you have the following installed:
-*   [Node.js](https://nodejs.org/) (v18.x or later) and `npm` (v9.x or later).
-*   [Python](https://www.python.org/) (v3.9 or later, with `pip` and `venv` enabled).
-*   [Supabase CLI](https://supabase.com/docs/guides/cli) (Optional, but recommended for local database emulation).
+*   [Node.js](https://nodejs.org/) (v18.x or later) and `npm`.
+*   [Python](https://www.python.org/) (3.11 or later recommended) with `pip` and `venv`.
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) for the compose workflow.
+*   [Supabase CLI](https://supabase.com/docs/guides/cli) for local Supabase development and migrations.
 
 ---
 
@@ -19,7 +20,7 @@ The client dashboard and storefront are built using Vite + React. Follow these s
 1.  **Clone the Repository**:
     ```sh
     git clone <your-repo-url>
-    cd finflow-tracker
+    cd finflow-tracker-00-1
     ```
 
 2.  **Install Frontend Dependencies**:
@@ -27,8 +28,8 @@ The client dashboard and storefront are built using Vite + React. Follow these s
     npm install
     ```
 
-3.  **Configure Environment Variables**:
-    Create a `.env` file at the root of the project:
+3.  **Configure Frontend Environment Variables**:
+    Create `frontend/.env`:
     ```env
     VITE_SUPABASE_URL=https://your-supabase-project-id.supabase.co
     VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key-string
@@ -39,7 +40,9 @@ The client dashboard and storefront are built using Vite + React. Follow these s
     ```sh
     npm run dev
     ```
-    *The client will start running locally at [http://localhost:5173](http://localhost:5173).*
+    *The Vite client runs at [http://localhost:8080](http://localhost:8080). The root command also starts FastAPI on port 8000.*
+
+    To run either service separately, use `npm run frontend:dev` or `npm run backend:dev` from the repository root.
 
 ---
 
@@ -47,10 +50,10 @@ The client dashboard and storefront are built using Vite + React. Follow these s
 
 You can set up the database using two paths: **Supabase Dashboard** or **Supabase Local CLI**.
 
-### Option A: Via Supabase Dashboard (Easiest)
+### Option A: Via Supabase Dashboard
 1.  Create a new project on [Supabase](https://supabase.com/).
 2.  Go to the **SQL Editor** in the sidebar.
-3.  Execute the migration scripts located in the `supabase/migrations/` directory in chronological order, or simply copy the latest schema definitions.
+3.  Apply the SQL files in `supabase/migrations/` in filename order. They are the source of truth; `docs/sql-archive/` contains historical/reference scripts and should not be replayed blindly.
 4.  Navigate to **Settings -> API** and copy your `URL` and `Anon key` to your frontend `.env` file.
 
 ### Option B: Via Local Supabase CLI
@@ -72,7 +75,7 @@ If you want to run the database locally inside Docker containers:
 
 ## 🐍 3. FastAPI Python Backend Setup
 
-FinFlow features an optional FastAPI backend service for background computation, rates limiter, and utility APIs.
+The FastAPI service provides health checks, AI parsing/insights, payment endpoints, and other API routes. It uses Supabase rather than a repo-managed Alembic migration directory.
 
 1.  **Navigate to backend folder**:
     ```sh
@@ -81,17 +84,17 @@ FinFlow features an optional FastAPI backend service for background computation,
 
 2.  **Create a Virtual Environment**:
     ```sh
-    python -m venv venv
+    python -m venv .venv
     ```
 
 3.  **Activate Virtual Environment**:
     *   **Windows**:
         ```powershell
-        .\venv\Scripts\Activate.ps1
+        .\.venv\Scripts\Activate.ps1
         ```
     *   **macOS / Linux**:
         ```sh
-        source venv/bin/activate
+        source .venv/bin/activate
         ```
 
 4.  **Install Required Dependencies**:
@@ -100,21 +103,20 @@ FinFlow features an optional FastAPI backend service for background computation,
     ```
 
 5.  **Configure Backend Environment Variables**:
-    Create a `.env` file inside the `backend/` directory:
+    Create `backend/.env`:
     ```env
-    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/finflow
+    VITE_SUPABASE_URL=https://your-supabase-project-id.supabase.co
+    SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+    GEMINI_API_KEY=your-gemini-api-key
+    ENVIRONMENT=development
+    SHOW_DOCS=true
     ```
 
-6.  **Run Alembic DB Migrations**:
+6.  **Start FastAPI Server** from the repository root (open a new terminal or run `cd ..` first):
     ```sh
-    alembic upgrade head
+    python run-backend.py
     ```
-
-7.  **Start FastAPI Server**:
-    ```sh
-    uvicorn main:app --reload --port 8000
-    ```
-    *The API docs will be available at [http://localhost:8000/docs](http://localhost:8000/docs).*
+    *The health check is available at [http://localhost:8000/health](http://localhost:8000/health). OpenAPI is available at [http://localhost:8000/docs](http://localhost:8000/docs) when `ENVIRONMENT=development` or `SHOW_DOCS=true`.*
 
 ---
 
@@ -133,7 +135,7 @@ FinFlow is ready to deploy directly to Vercel:
 
 ### Storefront Custom Routing (SPA Wildcard Support)
 Because customer storefronts use dynamic path patterns like `/store/:storeSlug`, verify your Hosting provider supports URL rewrite rules to prevent `404 Not Found` errors when refreshing.
-For Vercel, this is handled automatically via our [vercel.json](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/vercel.json):
+For Vercel, this is handled automatically via [vercel.json](../vercel.json):
 ```json
 {
   "rewrites": [
@@ -141,3 +143,7 @@ For Vercel, this is handled automatically via our [vercel.json](file:///c:/Users
   ]
 }
 ```
+
+### Backend and Docker
+
+The backend has its own [Vercel configuration](../backend/vercel.json). For a single-host deployment, build the frontend and serve it with `npm run server`; the server proxies `/api/v1` and `/health` to FastAPI. The provided `docker-compose.yml` starts both services, publishes frontend port 3000 and backend port 8000, and passes the two `VITE_SUPABASE_*` build arguments to the frontend.

@@ -15,40 +15,47 @@ FinFlow is fully integrated with Google's **Gemini 2.5 Flash** models, designed 
 
 ---
 
-## 📖 Documentation Hub
+## Documentation Hub
 
 We have prepared structured developer guides inside the `/docs` directory:
 
-*   **[Product Overview & Architecture](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/product-overview.md)**: System vision, client-server models, and directory architectures.
-*   **[Feature Manual & User Guide](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/features-guide.md)**: In-depth usage guide for Personal, Groups, Loans, Business Mode, and storefront checkouts.
-*   **[Database Schema & Security](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/database-schema.md)**: Database tables, triggers, and Row-Level Security (RLS) policies.
-*   **[Developer Setup & Deployment](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**: Step-by-step instructions for database migrations and edge deployment.
+*   **[Product Overview & Architecture](docs/product-overview.md)**: System vision, service boundaries, and repository layout.
+*   **[Feature Manual & User Guide](docs/features-guide.md)**: Personal finance, groups, loans, business mode, and storefront workflows.
+*   **[Database Schema & Security](docs/database-schema.md)**: Supabase tables, migrations, storage, and Row-Level Security (RLS).
+*   **[Developer Setup & Deployment](docs/developer-setup.md)**: Local development, environment variables, migrations, and deployment.
 
 ---
 
 ## 🛠️ Technology Stack
 
-*   **Frontend**: React (Vite, TypeScript, Tailwind CSS, Shadcn UI, Recharts)
-*   **Backend & DB**: Supabase (PostgreSQL, Storage buckets, Row-Level Security)
-*   **Serverless Logic**: Supabase Deno Edge Functions
-*   **AI Integration**: Google Gemini API via secure Edge Function Proxy
+*   **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Radix/shadcn UI, Recharts
+*   **Backend**: Optional FastAPI service under `backend/`, proxied at `/api/v1`
+*   **Data platform**: Supabase PostgreSQL, Auth, Storage, Realtime, and RLS
+*   **Serverless logic**: Supabase Deno Edge Functions
+*   **AI integration**: Google Gemini 2.5 Flash through the backend or `gemini-proxy` Edge Function
 
 ---
 
 ## ⚙️ Environment Configuration
 
-Create a `.env` file in the root directory:
+Create `frontend/.env` for browser-exposed Supabase settings:
 
 ```env
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-pub-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-To configure the AI proxy, add your Gemini API Key to your Supabase Edge Function environment:
-```sh
-supabase secrets set GEMINI_API_KEY=your-gemini-api-key
+`SUPABASE_SERVICE_ROLE_KEY` must never be exposed to the browser. Put server-only values in `backend/.env` instead:
+
+```env
+VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GEMINI_API_KEY=your-gemini-api-key
+ENVIRONMENT=development
+SHOW_DOCS=true
 ```
+
+For the Supabase Edge Function fallback, configure the key separately with `supabase secrets set GEMINI_API_KEY=your-gemini-api-key`.
 
 ---
 
@@ -70,18 +77,28 @@ This isolates Deno intelligence exclusively to the `supabase/functions/` directo
 
 ---
 
-## ⚡ Developer Scripts
+## Developer Scripts
 
 ```sh
 # Clone repository
 git clone <YOUR_GIT_URL>
-cd finflow-tracker
+cd finflow-tracker-00-1
 
-# Install client packages
+# Install workspace packages
 npm install
 
-# Start Vite React server (Hot reload)
+# Start Vite and FastAPI together
 npm run dev
 ```
 
-The app will start at `http://localhost:5173`. Make sure to configure your `.env` file with Supabase credentials as described in the **[Developer Setup](file:///c:/Users/ashir/Downloads/finflow-tracker-00-1/docs/developer-setup.md)**.
+The Vite development server runs at `http://localhost:8080` and proxies API calls to FastAPI at `http://localhost:8000`. Useful commands:
+
+```sh
+npm run frontend:dev   # frontend only
+npm run backend:dev    # FastAPI only
+npm run build          # production frontend build
+npm run lint           # frontend ESLint
+npm run test:backend   # backend pytest suite
+```
+
+For the production-style containers, copy the frontend variables into a root `.env` file and run `docker compose up -d --build`. The frontend is available at `http://localhost:3000`; see the [Developer Setup](docs/developer-setup.md) for the full workflow.

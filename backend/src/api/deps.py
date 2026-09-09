@@ -18,6 +18,30 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization token",
         )
+    if supabase_client is None:
+        # Fallback to local JWT decode if secret is provided
+        if settings.SUPABASE_JWT_SECRET:
+            try:
+                payload = jwt.decode(
+                    credentials.credentials,
+                    settings.SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                )
+                user_id = payload.get("sub")
+                if user_id:
+                    return {"user_id": user_id, "email": payload.get("email")}
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authorization token",
+                ) from exc
+        logger.error("Supabase client is not configured on the backend.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable",
+        )
+
     try:
         # Verify token and fetch user details directly from Supabase API
         res = supabase_client.auth.get_user(credentials.credentials)
@@ -28,6 +52,8 @@ async def get_current_user(
                 detail="Invalid authorization token",
             )
         return {"user_id": user.id, "email": user.email}
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,6 +73,13 @@ async def require_admin(
     user_info: dict = Depends(get_current_user),
 ) -> dict:
     user_id = user_info["user_id"]
+
+    if supabase_client is None:
+        logger.error("Supabase client is not configured on the backend.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin verification service is temporarily unavailable",
+        )
 
     # Check profiles database table for admin privileges
     try:
@@ -79,29 +112,35 @@ async def require_ai_user(
             detail="Missing authorization token",
         )
 
-    if not settings.SUPABASE_JWT_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI authentication is not configured on the server",
-        )
+    # 1. Primary: Verify token via Supabase client auth API
+    if supabase_client is not None:
+        try:
+            res = supabase_client.auth.get_user(credentials.credentials)
+            if res.user and res.user.id:
+                return res.user.id
+        except Exception:
+            logger.debug("Supabase auth verification failed, checking local JWT fallback")
 
-    try:
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-    except jwt.PyJWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization token",
-        ) from exc
+    # 2. Secondary fallback: Decode JWT locally if SUPABASE_JWT_SECRET is configured
+    if settings.SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            user_id = payload.get("sub")
+            if user_id:
+                return user_id
+        except jwt.PyJWTError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authorization token",
+            ) from exc
 
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization token",
-        )
-    return user_id
+    # If neither Supabase client nor JWT secret worked, reject
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid authorization token or session expired",
+    )

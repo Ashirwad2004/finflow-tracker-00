@@ -70,30 +70,13 @@ interface VerifyPaymentResponse {
   message?: string;
 }
 
+import { useRazorpayPayment } from "@/core/hooks/useRazorpayPayment";
+
 interface SubscriptionStatus {
   plan: string;
   status: string;
   current_period_end?: string | null;
 }
-
-const loadRazorpayScript = (): Promise<boolean> => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-
-    const script = document.createElement("script");
-
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-
-    document.body.appendChild(script);
-  });
-};
 
 export default function Pricing() {
   const { user } = useAuth();
@@ -225,43 +208,80 @@ export default function Pricing() {
     setAuthLoading(true);
     setAuthError("");
 
+    const cleanEmail = authEmail.trim().toLowerCase();
+
     try {
       if (authMode === "signup") {
-        const { error } =
+        const { error: signUpError } =
           await supabase.auth.signUp({
-            email: authEmail.trim(),
+            email: cleanEmail,
             password: authPassword,
             options: {
+              emailRedirectTo: `${window.location.origin}/pricing`,
               data: {
-                full_name: authName.trim(),
+                display_name: authName.trim() || cleanEmail.split("@")[0],
+                full_name: authName.trim() || cleanEmail.split("@")[0],
               },
             },
           });
 
-        if (error) {
-          throw error;
+        if (signUpError) {
+          const errMsg = signUpError.message || String(signUpError);
+          // If the user already exists, Supabase often throws "Database error updating user" or "User already registered"
+          if (
+            errMsg.includes("Database error updating user") ||
+            errMsg.toLowerCase().includes("already registered") ||
+            errMsg.toLowerCase().includes("already exists") ||
+            (signUpError as any).status === 500
+          ) {
+            // Attempt automatic sign-in with the provided credentials
+            const { error: fallbackSignInError } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: authPassword,
+            });
+
+            if (!fallbackSignInError) {
+              toast({
+                title: "Welcome Back",
+                description: "Signed in to your existing account successfully.",
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["subscription_status"],
+              });
+              return;
+            }
+
+            // If credentials don't match, gracefully switch to login mode with clear explanation
+            setAuthMode("login");
+            throw new Error(
+              "An account with this email already exists. Please sign in with your password, or click 'Forgot password'."
+            );
+          }
+
+          throw signUpError;
         }
 
         toast({
           title: "Account Created",
-          description:
-            "Your account has been created successfully.",
+          description: "Your account has been created successfully.",
         });
       } else {
         const { error } =
           await supabase.auth.signInWithPassword({
-            email: authEmail.trim(),
+            email: cleanEmail,
             password: authPassword,
           });
 
         if (error) {
+          if (error.message === "Invalid login credentials") {
+            throw new Error("Incorrect email or password. Please try again.");
+          }
           throw error;
         }
 
         toast({
           title: "Welcome Back",
-          description:
-            "Logged in successfully.",
+          description: "Logged in successfully.",
         });
       }
 
@@ -269,18 +289,23 @@ export default function Pricing() {
         queryKey: ["subscription_status"],
       });
     } catch (error: unknown) {
-      console.error("Authentication error:", error);
+      console.warn("[Pricing Auth] Handled auth warning:", error);
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Authentication failed.";
+      let message = "Authentication failed. Please check your credentials.";
+      if (error instanceof Error) {
+        message = error.message;
+        if (message.includes("Database error updating user")) {
+          message = "An account with this email already exists. Please switch to Sign In.";
+          setAuthMode("login");
+        }
+      }
 
       setAuthError(message);
     } finally {
       setAuthLoading(false);
     }
   };
+
 
   /*
    * Secure payment flow

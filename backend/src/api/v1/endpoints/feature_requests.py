@@ -21,6 +21,11 @@ async def create_request(
     payload: FeatureRequestCreate,
     user_info: dict = Depends(get_current_user),
 ):
+    if supabase_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is temporarily unavailable",
+        )
     try:
         data = {
             "user_id": user_info["user_id"],
@@ -36,6 +41,8 @@ async def create_request(
                 detail="Failed to save feature request."
             )
         return res.data[0]
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to create feature request")
         raise HTTPException(
@@ -49,12 +56,19 @@ async def list_requests(
     status: Optional[str] = None,
     _: dict = Depends(require_admin),
 ):
+    if supabase_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is temporarily unavailable",
+        )
     try:
         query = supabase_client.table("feature_requests").select("*").order("submitted_at", desc=True)
         if status and status != "all":
             query = query.eq("status", status)
         res = query.execute()
         return res.data or []
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to retrieve feature requests")
         raise HTTPException(
@@ -77,6 +91,12 @@ async def update_request(
             detail=f"Invalid status. Must be one of {allowed_statuses}"
         )
 
+    if supabase_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is temporarily unavailable",
+        )
+
     try:
         update_data = {"status": payload.status}
         if payload.notes is not None:
@@ -89,6 +109,8 @@ async def update_request(
                 detail="Feature request not found"
             )
         return res.data[0]
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to update feature request")
         raise HTTPException(

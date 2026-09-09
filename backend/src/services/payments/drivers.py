@@ -270,5 +270,7 @@ class RazorpayGateway:
         return {
             "isValid": True,
             "type": event.get("event"),
-            "data": event.get("payload")
+            "data": event.get("payload", {}),
+            "eventId": event.get("id") or headers.get("x-razorpay-event-id"),
+            "rawEvent": event,
         }

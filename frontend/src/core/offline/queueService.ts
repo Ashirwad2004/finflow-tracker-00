@@ -54,7 +54,24 @@ export class QueueService {
 
     await db.syncQueue.add(newSyncRecord);
     await this.updatePendingCount(userId);
+    this.requestBackgroundSync();
     return newSyncRecord;
+  }
+
+  /**
+   * Triggers Service Worker Background Sync registration if supported by the browser.
+   */
+  private async requestBackgroundSync(): Promise<void> {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if ('sync' in registration) {
+          await (registration as any).sync.register('finflow-sync-queue');
+        }
+      } catch (err) {
+        // Fallback: regular online event or interval will pick it up
+      }
+    }
   }
 
   /**

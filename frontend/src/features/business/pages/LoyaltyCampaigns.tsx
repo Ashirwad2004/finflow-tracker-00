@@ -307,24 +307,24 @@ export default function LoyaltyCampaigns() {
 
   return (
     <AppLayout>
-      <div className="px-4 lg:px-8 py-8 space-y-8 max-w-7xl mx-auto animate-fade-in font-display">
+      <div className="px-4 lg:px-8 py-6 space-y-6 max-w-7xl mx-auto animate-fade-in font-display">
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-violet-500 fill-violet-500/20" /> Loyalty & Retention Hub
+            <div className="flex items-center gap-1.5 text-primary font-semibold text-xs uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-violet-500 fill-violet-500/20" /> Loyalty & Retention Hub
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Customer Campaigns</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Increase customer repeat visits with loyalty reward points and WhatsApp marketing.</p>
+            <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">Customer Campaigns</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Increase customer repeat visits with loyalty reward points and WhatsApp marketing.</p>
           </div>
           
           {/* Tabs Navigation */}
-          <div className="flex items-center p-1 bg-white border rounded-xl dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center p-1 bg-white border rounded-lg dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
             {(["overview", "ledger", "campaigns", "settings"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all capitalize ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all capitalize ${
                   activeTab === tab
                     ? "bg-primary text-white shadow"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200"
@@ -338,95 +338,95 @@ export default function LoyaltyCampaigns() {
 
         {/* --- OVERVIEW TAB --- */}
         {activeTab === "overview" && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Metric Indicator Cards */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-              <div className="p-6 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-violet-100 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 rounded-xl">
-                    <Coins className="w-6 h-6" />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="p-5 bg-white dark:bg-slate-900 border rounded-xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2.5 bg-violet-100 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 rounded-lg">
+                    <Coins className="w-5 h-5" />
                   </div>
-                  <Badge variant="secondary" className="bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300">Point Pool</Badge>
+                  <Badge variant="secondary" className="text-xs bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300">Point Pool</Badge>
                 </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Points Issued</p>
-                <h3 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">{totalPointsIssued.toLocaleString()} pts</h3>
-                <p className="text-xs text-slate-400 mt-2">Active currency circulating in rewards wallet</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Points Issued</p>
+                <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{totalPointsIssued.toLocaleString()} pts</h3>
+                <p className="text-xs text-slate-400 mt-1.5">Active currency circulating in rewards wallet</p>
               </div>
 
-              <div className="p-6 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                    <Gift className="w-6 h-6" />
+              <div className="p-5 bg-white dark:bg-slate-900 border rounded-xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                    <Gift className="w-5 h-5" />
                   </div>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">Liability</Badge>
+                  <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">Liability</Badge>
                 </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Redeemable Discount</p>
-                <h3 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Redeemable Discount</p>
+                <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
                   {formatCurrency(totalPointsIssued * config.pointValue)}
                 </h3>
-                <p className="text-xs text-slate-400 mt-2">Based on point value rate of {formatCurrency(config.pointValue)}/pt</p>
+                <p className="text-xs text-slate-400 mt-1.5">Based on point value rate of {formatCurrency(config.pointValue)}/pt</p>
               </div>
 
-              <div className="p-6 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-xl">
-                    <Users className="w-6 h-6" />
+              <div className="p-5 bg-white dark:bg-slate-900 border rounded-xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2.5 bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-lg">
+                    <Users className="w-5 h-5" />
                   </div>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Retention</Badge>
+                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Retention</Badge>
                 </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Returning Customer Rate</p>
-                <h3 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">{returningCustomerRate}%</h3>
-                <p className="text-xs text-slate-400 mt-2">Customers with more than 1 transaction</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Returning Customer Rate</p>
+                <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{returningCustomerRate}%</h3>
+                <p className="text-xs text-slate-400 mt-1.5">Customers with more than 1 transaction</p>
               </div>
 
-              <div className="p-6 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl">
-                    <Award className="w-6 h-6" />
+              <div className="p-5 bg-white dark:bg-slate-900 border rounded-xl shadow-sm border-slate-200 dark:border-slate-800 hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2.5 bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg">
+                    <Award className="w-5 h-5" />
                   </div>
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Tiers</Badge>
+                  <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Tiers</Badge>
                 </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">VIP Gold Customers</p>
-                <h3 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">{vipCount}</h3>
-                <p className="text-xs text-slate-400 mt-2">Spent more than {formatCurrency(config.vipThreshold)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">VIP Gold Customers</p>
+                <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{vipCount}</h3>
+                <p className="text-xs text-slate-400 mt-1.5">Spent more than {formatCurrency(config.vipThreshold)}</p>
               </div>
             </div>
 
             {/* Loyalty Quick Walkthrough */}
-            <div className="bg-gradient-to-r from-primary/10 to-violet-500/10 p-8 rounded-3xl border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="space-y-2">
-                <h4 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary fill-primary/20" /> How RupeeBill Rewards Boost Your Business
+            <div className="bg-gradient-to-r from-primary/10 to-violet-500/10 p-6 rounded-2xl border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <h4 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-primary fill-primary/20" /> How RupeeBill Rewards Boost Your Business
                 </h4>
-                <p className="text-slate-600 dark:text-slate-400 max-w-2xl text-sm leading-relaxed">
+                <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
                   Loyalty rewards incentive customers to select your counter over competitors. Earning 1 point per {formatCurrency(config.pointsPerUnit)} creates a gamified return habit. Combined with WhatsApp campaigns, you can proactively re-engage idle customer profiles.
                 </p>
               </div>
-              <Button onClick={() => setActiveTab("campaigns")} className="rounded-full shadow-lg h-12 px-6 hover:scale-105 transition-all">
-                Launch WhatsApp Campaign <ChevronRight className="ml-1 w-4 h-4" />
+              <Button onClick={() => setActiveTab("campaigns")} className="rounded-full shadow-lg h-9 px-4 text-sm hover:scale-105 transition-all">
+                Launch WhatsApp Campaign <ChevronRight className="ml-1 w-3.5 h-3.5" />
               </Button>
             </div>
 
             {/* Top Customer Loyalty Standings */}
-            <div className="bg-white dark:bg-slate-900 border rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                <h4 className="text-lg font-bold">Top Customer Loyalty Wallets</h4>
-                <Button variant="ghost" size="sm" onClick={() => setActiveTab("ledger")}>Manage All</Button>
+            <div className="bg-white dark:bg-slate-900 border rounded-xl border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                <h4 className="text-sm font-semibold">Top Customer Loyalty Wallets</h4>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab("ledger")}>Manage All</Button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead className="text-xs font-bold uppercase tracking-wider bg-slate-50 dark:bg-slate-800/50 text-slate-500">
+                  <thead className="text-xs font-semibold uppercase tracking-wide bg-slate-50 dark:bg-slate-800/50 text-slate-500">
                     <tr>
-                      <th className="px-6 py-4">Customer</th>
-                      <th className="px-6 py-4">Reward Tier</th>
-                      <th className="px-6 py-4">Points Balance</th>
-                      <th className="px-6 py-4 text-right">Total Business Spent</th>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Reward Tier</th>
+                      <th className="px-4 py-3">Points Balance</th>
+                      <th className="px-4 py-3 text-right">Total Business Spent</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {customerLoyaltyData.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Add customers in "Parties" to track loyalty!</td>
+                        <td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">Add customers in "Parties" to track loyalty!</td>
                       </tr>
                     ) : (
                       customerLoyaltyData
@@ -434,20 +434,20 @@ export default function LoyaltyCampaigns() {
                         .slice(0, 5)
                         .map(c => (
                           <tr key={c.id}>
-                            <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">{c.name}</td>
+                            <td className="px-4 py-3">
                               <Badge className={
-                                c.tier === "Gold" 
+                                "text-xs " + (c.tier === "Gold" 
                                   ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 border-amber-300"
                                   : c.tier === "Silver"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-700 border-slate-350"
-                                    : "bg-orange-100 dark:bg-orange-950/20 text-orange-700 border-orange-200"
+                                    : "bg-orange-100 dark:bg-orange-950/20 text-orange-700 border-orange-200")
                               } variant="outline">
                                 {c.tier}
                               </Badge>
                             </td>
-                            <td className="px-6 py-4 font-bold text-violet-600 dark:text-violet-400">{c.points} pts</td>
-                            <td className="px-6 py-4 font-black text-right">{formatCurrency(c.totalSpent)}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-violet-600 dark:text-violet-400">{c.points} pts</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-right">{formatCurrency(c.totalSpent)}</td>
                           </tr>
                         ))
                     )}
@@ -460,27 +460,28 @@ export default function LoyaltyCampaigns() {
 
         {/* --- REWARDS LEDGER TAB --- */}
         {activeTab === "ledger" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Search & Actions Bar */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-3 justify-between items-center bg-white dark:bg-slate-900 p-3 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
               <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Search customers..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 rounded-xl"
+                  className="pl-9 h-9 text-sm rounded-lg"
                 />
               </div>
 
               <div className="flex gap-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => {
                     setSelectedSegment("all");
                     setSearchTerm("");
                   }}
-                  className="rounded-xl flex-1 sm:flex-initial"
+                  className="rounded-lg text-xs flex-1 sm:flex-initial"
                 >
                   Clear Filters
                 </Button>
@@ -488,58 +489,58 @@ export default function LoyaltyCampaigns() {
             </div>
 
             {/* Main Ledger Table */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead className="text-xs font-bold uppercase bg-slate-50 dark:bg-slate-800/50 text-slate-500 tracking-wider">
+                  <thead className="text-xs font-semibold uppercase bg-slate-50 dark:bg-slate-800/50 text-slate-500 tracking-wide">
                     <tr>
-                      <th className="px-6 py-4">Customer</th>
-                      <th className="px-6 py-4">Phone</th>
-                      <th className="px-6 py-4">Tier</th>
-                      <th className="px-6 py-4">Points</th>
-                      <th className="px-6 py-4">Value</th>
-                      <th className="px-6 py-4">Last Visit</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Phone</th>
+                      <th className="px-4 py-3">Tier</th>
+                      <th className="px-4 py-3">Points</th>
+                      <th className="px-4 py-3">Value</th>
+                      <th className="px-4 py-3">Last Visit</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {loadingParties || loadingSales ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-slate-400">Loading ledger data...</td>
+                        <td colSpan={7} className="px-4 py-8 text-center text-xs text-slate-400">Loading ledger data...</td>
                       </tr>
                     ) : filteredCustomers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-slate-400">No matching customers found.</td>
+                        <td colSpan={7} className="px-4 py-8 text-center text-xs text-slate-400">No matching customers found.</td>
                       </tr>
                     ) : (
                       filteredCustomers.map(c => (
                         <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                          <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">{c.name}</td>
-                          <td className="px-6 py-4 text-xs font-mono text-slate-500">{c.phone || "No Phone"}</td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
+                          <td className="px-4 py-3 text-xs font-mono text-slate-500">{c.phone || "No Phone"}</td>
+                          <td className="px-4 py-3">
                             <Badge className={
-                              c.tier === "Gold" 
+                              "text-xs " + (c.tier === "Gold" 
                                 ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 border-amber-300"
                                 : c.tier === "Silver"
                                   ? "bg-slate-100 dark:bg-slate-800 text-slate-700 border-slate-350"
-                                  : "bg-orange-100 dark:bg-orange-950/20 text-orange-700 border-orange-200"
+                                  : "bg-orange-100 dark:bg-orange-950/20 text-orange-700 border-orange-200")
                             } variant="outline">
                               {c.tier}
                             </Badge>
                           </td>
-                          <td className="px-6 py-4 font-bold text-violet-600 dark:text-violet-400">{c.points} pts</td>
-                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">
+                          <td className="px-4 py-3 text-sm font-semibold text-violet-600 dark:text-violet-400">{c.points} pts</td>
+                          <td className="px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300">
                             {formatCurrency(c.points * config.pointValue)}
                           </td>
-                          <td className="px-6 py-4 text-xs text-slate-500">
+                          <td className="px-4 py-3 text-xs text-slate-500">
                             {c.lastPurchaseDate ? c.lastPurchaseDate.toLocaleDateString() : "Never"}
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-1.5">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 px-2.5 rounded-lg border-primary/30 text-primary hover:bg-primary/5 text-xs"
+                                className="h-7 px-2 rounded-md border-primary/30 text-primary hover:bg-primary/5 text-xs"
                                 onClick={() => {
                                   setSelectedCustomer({ id: c.id, name: c.name, currentPoints: c.points });
                                   setAdjustType("add");
@@ -551,7 +552,7 @@ export default function LoyaltyCampaigns() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 px-2.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-xs font-semibold"
+                                className="h-7 px-2 rounded-md text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-xs font-semibold"
                                 onClick={() => {
                                   if (c.points <= 0) {
                                     toast.error("Customer has 0 points to redeem!");
@@ -578,42 +579,42 @@ export default function LoyaltyCampaigns() {
         )}
         {/* --- CAMPAIGNS TAB --- */}
         {activeTab === "campaigns" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Campaign Template Builder Panel */}
-            <div className="space-y-6 lg:col-span-1">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
-                <h3 className="text-lg font-bold">1. Select Campaign</h3>
+            <div className="space-y-4 lg:col-span-1">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm space-y-5">
+                <h3 className="text-sm font-semibold">1. Select Campaign</h3>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {campaignTemplates.map((tpl, i) => (
                     <button
                       key={i}
                       onClick={() => setSelectedTemplate(i)}
-                      className={`w-full p-4 rounded-xl border text-left transition-all ${
+                      className={`w-full p-3 rounded-lg border text-left transition-all ${
                         selectedTemplate === i
                           ? "border-primary bg-primary/5 ring-1 ring-primary"
                           : "border-slate-200 hover:border-slate-400 bg-card"
                       }`}
                     >
-                      <div className="font-bold text-sm text-foreground mb-1">
+                      <div className="font-semibold text-xs text-foreground mb-1">
                         {tpl.title}
                       </div>
 
-                      <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                         {tpl.getBody("Customer Name", 150, 150)}
                       </p>
                     </button>
                   ))}
                 </div>
 
-                <div className="pt-4 border-t space-y-4">
-                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                <div className="pt-3 border-t space-y-3">
+                  <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Campaign Variables
                   </h3>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <div>
-                      <label className="text-sm text-slate-500 font-semibold mb-1.5 block">
+                      <label className="text-xs text-slate-500 font-medium mb-1 block">
                         Custom Promo Code (Optional)
                       </label>
 
@@ -622,16 +623,16 @@ export default function LoyaltyCampaigns() {
                         onChange={(e) =>
                           setCustomPromoCode(e.target.value)
                         }
-                        className="rounded-lg"
+                        className="h-9 text-sm rounded-lg"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-violet-500/5 p-4 rounded-xl border border-violet-500/10 flex items-start gap-3">
-                  <Info className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
+                <div className="bg-violet-500/5 p-3 rounded-lg border border-violet-500/10 flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />
 
-                  <p className="text-sm text-slate-500 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Messages open directly in WhatsApp web/app. RupeeBill
                     generates secure, compliant direct links to send to
                     customers based on their recorded contact card.
@@ -641,10 +642,10 @@ export default function LoyaltyCampaigns() {
             </div>
 
             {/* Campaign Target Segment & Send Panel */}
-            <div className="space-y-6 lg:col-span-2">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <h3 className="text-lg font-bold">
+            <div className="space-y-4 lg:col-span-2">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold">
                     2. Target Audience
                   </h3>
 
@@ -661,7 +662,7 @@ export default function LoyaltyCampaigns() {
                         onClick={() =>
                           setSelectedSegment(seg.id as any)
                         }
-                        className={`px-3 py-2 text-sm font-semibold rounded-md transition-all ${
+                        className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
                           selectedSegment === seg.id
                             ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow"
                             : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -674,12 +675,12 @@ export default function LoyaltyCampaigns() {
                 </div>
 
                 {/* Live Preview Card */}
-                <div className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 rounded-2xl">
-                  <span className="text-xs uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 rounded-xl">
+                  <span className="text-xs uppercase font-semibold text-emerald-600 dark:text-emerald-400 tracking-wide">
                     Live Template Message Preview
                   </span>
 
-                  <p className="mt-3 text-sm md:text-base text-slate-700 dark:text-slate-300 font-sans italic whitespace-pre-line leading-relaxed">
+                  <p className="mt-2 text-xs md:text-sm text-slate-700 dark:text-slate-300 font-sans italic whitespace-pre-line leading-relaxed">
                     "
                     {campaignTemplates[selectedTemplate].getBody(
                       "Amit Kumar",
@@ -691,15 +692,15 @@ export default function LoyaltyCampaigns() {
                 </div>
 
                 {/* Segment Target List */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
                   <div className="overflow-x-auto max-h-[300px] overscroll-contain">
                     <table className="w-full text-left">
-                      <thead className="text-sm font-bold uppercase bg-slate-50 dark:bg-slate-800/50 text-slate-500 tracking-wider sticky top-0">
+                      <thead className="text-xs font-semibold uppercase bg-slate-50 dark:bg-slate-800/50 text-slate-500 tracking-wide sticky top-0">
                         <tr>
-                          <th className="px-6 py-3">Recipient</th>
-                          <th className="px-6 py-3">Phone</th>
-                          <th className="px-6 py-3">Wallet</th>
-                          <th className="px-6 py-3 text-right">
+                          <th className="px-4 py-2.5">Recipient</th>
+                          <th className="px-4 py-2.5">Phone</th>
+                          <th className="px-4 py-2.5">Wallet</th>
+                          <th className="px-4 py-2.5 text-right">
                             Dispatch
                           </th>
                         </tr>
@@ -710,7 +711,7 @@ export default function LoyaltyCampaigns() {
                           <tr>
                             <td
                               colSpan={4}
-                              className="px-6 py-12 text-center text-sm text-slate-500"
+                              className="px-4 py-8 text-center text-xs text-slate-500"
                             >
                               No customers match this target segment.
                             </td>
@@ -718,19 +719,19 @@ export default function LoyaltyCampaigns() {
                         ) : (
                           filteredCustomers.map((c) => (
                             <tr key={c.id}>
-                              <td className="px-6 py-3 font-semibold text-sm">
+                              <td className="px-4 py-2.5 font-medium text-xs">
                                 {c.name}
                               </td>
 
-                              <td className="px-6 py-3 text-sm text-slate-500">
+                              <td className="px-4 py-2.5 text-xs text-slate-500">
                                 {c.phone || "No Phone"}
                               </td>
 
-                              <td className="px-6 py-3 font-bold text-violet-600 dark:text-violet-400 text-sm">
+                              <td className="px-4 py-2.5 font-semibold text-violet-600 dark:text-violet-400 text-xs">
                                 {c.points} pts
                               </td>
 
-                              <td className="px-6 py-3 text-right">
+                              <td className="px-4 py-2.5 text-right">
                                 <Button
                                   size="sm"
                                   onClick={() =>
@@ -740,9 +741,9 @@ export default function LoyaltyCampaigns() {
                                       c.points
                                     )
                                   }
-                                  className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm"
+                                  className="h-7 px-2.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
                                 >
-                                  <Send className="w-4 h-4 mr-1.5" />
+                                  <Send className="w-3.5 h-3.5 mr-1" />
                                   Send
                                 </Button>
                               </td>
@@ -760,32 +761,32 @@ export default function LoyaltyCampaigns() {
 
         {/* --- SETTINGS TAB --- */}
         {activeTab === "settings" && (
-          <div className="max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm space-y-8">
-            <div className="flex items-center gap-3 pb-6 border-b">
-              <div className="p-3 bg-primary/10 text-primary rounded-2xl">
-                <Settings2 className="w-6 h-6" />
+          <div className="max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
+            <div className="flex items-center gap-3 pb-4 border-b">
+              <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+                <Settings2 className="w-5 h-5" />
               </div>
 
               <div>
-                <h3 className="text-xl font-bold">
+                <h3 className="text-base font-semibold">
                   Reward Program Configuration
                 </h3>
 
-                <p className="text-sm text-slate-500">
+                <p className="text-xs text-slate-500">
                   Define how customers earn and redeem points in your store.
                 </p>
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Program Switch */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border">
-                <div className="space-y-1">
-                  <label className="font-bold text-sm text-foreground">
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/30 rounded-xl border">
+                <div className="space-y-0.5">
+                  <label className="font-semibold text-sm text-foreground">
                     Enable Loyalty Points
                   </label>
 
-                  <p className="text-sm text-slate-500">
+                  <p className="text-xs text-slate-500">
                     Allow customers to accumulate reward points on
                     transactions.
                   </p>
@@ -805,14 +806,14 @@ export default function LoyaltyCampaigns() {
               </div>
 
               {/* Point Earning Multiplier */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Point Earning Multiplier
                 </label>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div className="flex-1">
-                    <p className="text-sm text-slate-500 mb-2">
+                    <p className="text-xs text-slate-500 mb-1.5">
                       Award 1 point for every spent currency unit:
                     </p>
 
@@ -833,21 +834,21 @@ export default function LoyaltyCampaigns() {
                     />
                   </div>
 
-                  <div className="w-28 text-center p-3 bg-slate-100 dark:bg-slate-800 border rounded-xl font-bold">
+                  <div className="w-24 text-center p-2 bg-slate-100 dark:bg-slate-800 border rounded-lg text-sm font-semibold">
                     {formatCurrency(config.pointsPerUnit)}
                   </div>
                 </div>
               </div>
 
               {/* Point Monetary Value */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Point Value (Exchange Rate)
                 </label>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div className="flex-1">
-                    <p className="text-sm text-slate-500 mb-2">
+                    <p className="text-xs text-slate-500 mb-1.5">
                       Monetary value of 1 Reward Point when redeeming:
                     </p>
 
@@ -868,21 +869,21 @@ export default function LoyaltyCampaigns() {
                     />
                   </div>
 
-                  <div className="w-28 text-center p-3 bg-slate-100 dark:bg-slate-800 border rounded-xl font-bold">
+                  <div className="w-24 text-center p-2 bg-slate-100 dark:bg-slate-800 border rounded-lg text-sm font-semibold">
                     {formatCurrency(config.pointValue)}/pt
                   </div>
                 </div>
               </div>
 
               {/* VIP Gold Threshold */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   VIP Gold Spend Threshold
                 </label>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div className="flex-1">
-                    <p className="text-sm text-slate-500 mb-2">
+                    <p className="text-xs text-slate-500 mb-1.5">
                       Total spend requirement for VIP membership perks:
                     </p>
 
@@ -903,21 +904,22 @@ export default function LoyaltyCampaigns() {
                     />
                   </div>
 
-                  <div className="w-28 text-center p-3 bg-slate-100 dark:bg-slate-800 border rounded-xl font-bold">
+                  <div className="w-24 text-center p-2 bg-slate-100 dark:bg-slate-800 border rounded-lg text-sm font-semibold">
                     {formatCurrency(config.vipThreshold)}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-6 border-t flex justify-end">
+            <div className="pt-4 border-t flex justify-end">
               <Button
+                size="sm"
                 onClick={() =>
                   toast.success(
                     "Loyalty settings updated successfully!"
                   )
                 }
-                className="rounded-xl shadow-lg"
+                className="rounded-lg shadow-sm text-sm"
               >
                 Save Rule Configurations
               </Button>
@@ -932,53 +934,53 @@ export default function LoyaltyCampaigns() {
         >
           <DialogContent className="sm:max-w-md rounded-2xl">
             <DialogHeader>
-              <DialogTitle>Adjust Reward Points</DialogTitle>
+              <DialogTitle className="text-base">Adjust Reward Points</DialogTitle>
 
-              <DialogDescription>
+              <DialogDescription className="text-xs">
                 Adjust points balance manually for{" "}
                 <strong>{selectedCustomer?.name}</strong>.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="flex gap-4">
+            <div className="space-y-3 py-3">
+              <div className="flex gap-3">
                 <button
                   onClick={() => setAdjustType("add")}
-                  className={`flex-1 p-3 rounded-xl border text-center font-bold text-sm flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 p-2.5 rounded-lg border text-center font-semibold text-xs flex items-center justify-center gap-1.5 ${
                     adjustType === "add"
                       ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600"
                       : "border-slate-200 hover:border-slate-400 bg-card"
                   }`}
                 >
-                  <PlusCircle className="w-5 h-5" />
+                  <PlusCircle className="w-4 h-4" />
                   Add Points
                 </button>
 
                 <button
                   onClick={() => setAdjustType("deduct")}
-                  className={`flex-1 p-3 rounded-xl border text-center font-bold text-sm flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 p-2.5 rounded-lg border text-center font-semibold text-xs flex items-center justify-center gap-1.5 ${
                     adjustType === "deduct"
                       ? "border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-600"
                       : "border-slate-200 hover:border-slate-400 bg-card"
                   }`}
                 >
-                  <MinusCircle className="w-5 h-5" />
+                  <MinusCircle className="w-4 h-4" />
                   Deduct Points
                 </button>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm text-slate-500 font-semibold">
+              <div className="space-y-1.5">
+                <label className="text-xs text-slate-500 font-medium">
                   Current Wallet Balance
                 </label>
 
-                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold font-mono">
+                <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm font-semibold font-mono">
                   {selectedCustomer?.currentPoints || 0} pts
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm text-slate-500 font-semibold">
+              <div className="space-y-1.5">
+                <label className="text-xs text-slate-500 font-medium">
                   Adjustment Value (points)
                 </label>
 
@@ -992,15 +994,15 @@ export default function LoyaltyCampaigns() {
                       Math.max(0, Number(e.target.value))
                     )
                   }
-                  className="rounded-xl"
+                  className="h-9 text-sm rounded-lg"
                 />
               </div>
 
               {adjustType === "deduct" && (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
-                  <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
 
-                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                     Redeeming {adjustAmount || 0} points will grant a
                     checkout discount of{" "}
                     <strong>
@@ -1017,15 +1019,17 @@ export default function LoyaltyCampaigns() {
             <DialogFooter className="sm:justify-end gap-2">
               <Button
                 variant="ghost"
+                size="sm"
                 onClick={() => setAdjustmentDialogOpen(false)}
-                className="rounded-xl"
+                className="rounded-lg text-xs"
               >
                 Cancel
               </Button>
 
               <Button
+                size="sm"
                 onClick={handleApplyAdjustment}
-                className="rounded-xl"
+                className="rounded-lg text-xs"
               >
                 Apply Changes
               </Button>

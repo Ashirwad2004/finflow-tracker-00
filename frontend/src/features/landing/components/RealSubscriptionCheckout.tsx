@@ -27,15 +27,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
 import { supabase } from "@/core/integrations/supabase/client";
 import { toast } from "@/core/hooks/use-toast";
-import axios from "axios";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRazorpayPayment } from "@/core/hooks/useRazorpayPayment";
 
-import { useQuery } from "@tanstack/react-query";
-
-declare global {
-  interface Window {
-    Razorpay?: any;
-  }
-}
 
 export interface PlanConfig {
   id: "starter" | "pro" | "business";
@@ -49,67 +43,24 @@ export interface PlanConfig {
 
 export const PLAN_CONFIGS: PlanConfig[] = [
   {
-    id: "starter",
-    name: "Starter",
-    monthlyPrice: 299,
-    annualPricePerMonth: 299,
-    description: "Everything you need to manage your finances.",
-    features: [
-      "Up to 50 expenses & bills/month",
-      "Personal & Business Dashboard",
-      "Standard PDF Invoice Printing",
-      "Offline SQLite Storage",
-      "Community & Email Support"
-    ],
-    recommended: false,
-  },
-  {
     id: "pro",
-    name: "Pro",
+    name: "RupeeBill Pro (All-in-One)",
     monthlyPrice: 299,
     annualPricePerMonth: 299,
-    description: "For growing businesses needing AI analytics & parties ledger.",
+    description: "Complete, unlimited access to all billing, storefront, offline sync, and financial tools.",
     features: [
-      "Unlimited Expenses, Sales & Bills",
-      "AI Receipt OCR & Smart Match",
-      "Vendor & Customer Parties Ledger",
-      "GSTR-1 & Financial Reports",
-      "Multi-Currency & Tax Engine",
-      "Priority Offline Background Sync"
+      "Unlimited Expenses, Sales & Purchases",
+      "Digital Storefront & Real-time Order Sync",
+      "Offline Host-Disk Persistence (OPFS)",
+      "AI Receipt OCR & Smart Categorization",
+      "Customer & Vendor Parties Ledgers",
+      "GSTR-1 & Financial Reports Export",
+      "Print Studio for Thermal & A4 Invoices",
+      "Multi-device & Priority Cloud Sync"
     ],
     recommended: true,
-  },
-  {
-    id: "business",
-    name: "Business",
-    monthlyPrice: 299,
-    annualPricePerMonth: 299,
-    description: "For teams, storefronts, and full commercial operations.",
-    features: [
-      "Everything in Pro Tier",
-      "Online Storefront & Digital Catalog",
-      "Salesman & Staff Access Delegation",
-      "Loyalty Points & Marketing Hub",
-      "Custom Store Branding & Subdomain",
-      "24/7 Dedicated Account Manager"
-    ],
-    recommended: false,
   }
 ];
-
-const loadRazorpayScript = (): Promise<boolean> => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
 
 interface RealSubscriptionCheckoutProps {
   open: boolean;
@@ -183,17 +134,20 @@ export function RealSubscriptionCheckout({
     }
   }, [open, initialPlanId, initialBillingCycle, user]);
 
-  const currentPlan = PLAN_CONFIGS.find(p => p.id === selectedPlanId) || PLAN_CONFIGS[1];
+  const queryClient = useQueryClient();
+  const { initiateSubscriptionPayment } = useRazorpayPayment();
 
-  // Pricing calculations
-  const basePricePerMonth = billingCycle === "annual" ? currentPlan.annualPricePerMonth : currentPlan.monthlyPrice;
-  const billingMonths = billingCycle === "annual" ? 12 : 1;
-  const rawSubtotal = basePricePerMonth * billingMonths;
+  const currentPlan = PLAN_CONFIGS.find(p => p.id === selectedPlanId) || PLAN_CONFIGS[0];
+
+  // Pricing calculations: Canonical flat ₹299 subscription (all-inclusive)
+  const basePricePerMonth = 299;
+  const billingMonths = 1;
+  const rawSubtotal = 299;
   
   const couponDiscountAmount = 0;
-  const subtotalAfterCoupon = rawSubtotal;
-  const gstAmount = Math.round(subtotalAfterCoupon * 0.18); // 18% GST
-  const grandTotal = subtotalAfterCoupon + gstAmount;
+  const subtotalAfterCoupon = 299;
+  const gstAmount = 0; // Inclusive of all taxes
+  const grandTotal = 299;
 
   const handleApplyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -215,38 +169,86 @@ export function RealSubscriptionCheckout({
     setAuthLoading(true);
     setAuthError("");
 
+    const cleanEmail = authEmail.trim().toLowerCase();
+
     try {
       if (authMode === "signup") {
         const { error: signUpError } = await supabase.auth.signUp({
-          email: authEmail,
+          email: cleanEmail,
           password: authPassword,
           options: {
-            data: { full_name: authName }
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              display_name: authName.trim() || cleanEmail.split("@")[0],
+              full_name: authName.trim() || cleanEmail.split("@")[0]
+            }
           }
         });
-        if (signUpError) throw signUpError;
+
+        if (signUpError) {
+          const errMsg = signUpError.message || String(signUpError);
+          if (
+            errMsg.includes("Database error updating user") ||
+            errMsg.toLowerCase().includes("already registered") ||
+            errMsg.toLowerCase().includes("already exists") ||
+            (signUpError as any).status === 500
+          ) {
+            // Attempt automatic sign in if credentials match
+            const { error: fallbackSignInError } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: authPassword,
+            });
+
+            if (!fallbackSignInError) {
+              toast({
+                title: "Welcome Back",
+                description: "Signed in to your existing account successfully.",
+              });
+              return;
+            }
+
+            setAuthMode("login");
+            throw new Error(
+              "An account with this email already exists. Please sign in with your password, or click 'Forgot password'."
+            );
+          }
+
+          throw signUpError;
+        }
+
         toast({
           title: "Account Created Successfully!",
           description: "You are now logged in. Proceeding to complete your payment.",
         });
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: authEmail,
+          email: cleanEmail,
           password: authPassword,
         });
-        if (signInError) throw signInError;
+        if (signInError) {
+          if (signInError.message === "Invalid login credentials") {
+            throw new Error("Incorrect email or password. Please try again.");
+          }
+          throw signInError;
+        }
         toast({
           title: "Logged In Successfully!",
           description: "Ready to proceed with payment.",
         });
       }
     } catch (err: any) {
-      console.error("Inline auth error:", err);
-      setAuthError(err.message || "Authentication failed. Please check your details.");
+      console.warn("[Checkout Auth] Handled auth warning:", err);
+      let message = err.message || "Authentication failed. Please check your details.";
+      if (message.includes("Database error updating user")) {
+        message = "An account with this email already exists. Please switch to Sign In.";
+        setAuthMode("login");
+      }
+      setAuthError(message);
     } finally {
       setAuthLoading(false);
     }
   };
+
 
   // Save intent & redirect to full auth page
   const handleFullAuthRedirect = () => {
@@ -263,7 +265,6 @@ export function RealSubscriptionCheckout({
   const handleSubscribe = async () => {
     setPaymentError(null);
 
-    // All plans use the same paid subscription flow.
     if (!user) {
       toast({
         title: "🔒 Authentication Required Before Payment",
@@ -276,171 +277,36 @@ export function RealSubscriptionCheckout({
     setIsProcessing(true);
 
     try {
-      // 1. Call Backend Payment API to create order
-      let gatewayOrderId = `SUB-${selectedPlanId.toUpperCase()}-${Date.now()}`;
-      let gatewayKey = "";
-      
-      try {
-        const orderRes = await axios.post("/api/v1/payments/create-subscription-order", {
-          planId: selectedPlanId,
-          billingCycle,
-          userId: user.id,
-          couponCode: appliedDiscountPercent > 0 ? couponCode : "",
-          customerName: name || user.email?.split("@")[0] || "Valued Merchant",
-          customerPhone: upiId || "9999999999",
-          idempotencyKey: `sub_${user.id}_${selectedPlanId}_${Date.now()}`
-        });
-
-        if (orderRes.data?.success) {
-          gatewayOrderId = orderRes.data.gatewayOrderId || gatewayOrderId;
-          gatewayKey = orderRes.data.key_id || orderRes.data.details?.keyId || "";
-        }
-      } catch (err: any) {
-        console.warn("Backend order creation warning:", err.message);
-      }
-
-      const razorpayKey = gatewayKey || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TG7U7E97coCG1G";
-
-      // 2. Ensure Razorpay JS SDK script is loaded
-      const isRazorpayLoaded = await loadRazorpayScript();
-      if (!isRazorpayLoaded || !window.Razorpay) {
-        setIsProcessing(false);
-        toast({
-          title: "Payment SDK Error",
-          description: "Could not load Razorpay payment SDK. Please check your internet connection.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // 3. Open Razorpay Standard Checkout Popup Modal
-      const options = {
-        key: razorpayKey,
-        amount: grandTotal * 100, // in paise
-        currency: "INR",
-        name: "RupeeBill Tracker",
-        description: `${currentPlan.name} (${billingCycle === "annual" ? "Annual" : "Monthly"}) Subscription`,
-        order_id: gatewayOrderId.startsWith("SUB-") ? undefined : gatewayOrderId,
-        prefill: {
-          name: name || user.user_metadata?.full_name || user.email?.split("@")[0] || "",
-          email: user.email || ""
+      await initiateSubscriptionPayment({
+        planId: selectedPlanId,
+        billingCycle,
+        customerName: name || user.user_metadata?.full_name || user.email?.split("@")[0] || "Valued Merchant",
+        customerEmail: user.email || "",
+        customerPhone: upiId || "9999999999",
+        onSuccess: async () => {
+          setIsProcessing(false);
+          setIsSuccess(true);
+          await queryClient.invalidateQueries({ queryKey: ["subscription_status"] });
+          toast({
+            title: "🎉 Payment Successful & Subscription Active!",
+            description: `Welcome to FinFlow ${currentPlan.name}! All premium features are unlocked.`,
+          });
+          setTimeout(() => {
+            onOpenChange(false);
+            navigate("/");
+          }, 2500);
         },
-        theme: { color: "#6366f1" },
-        handler: async (response: any) => {
-          try {
-            // Verify payment signature on backend after customer completes payment in Razorpay modal
-            try {
-              await axios.post("/api/v1/payments/verify-payment", {
-                razorpay_order_id: response.razorpay_order_id || gatewayOrderId,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                planId: selectedPlanId,
-                billingCycle
-              });
-            } catch (vErr: any) {
-              console.warn("Backend signature verification note:", vErr.message);
-            }
-            
-            // Mark subscription active ONLY after customer actually completes payment
-            await updateSupabaseSubscription();
-            setIsProcessing(false);
-            setIsSuccess(true);
-            toast({
-              title: "🎉 Payment Successful & Subscription Active!",
-              description: `Welcome to RupeeBill ${currentPlan.name}! All premium features are unlocked.`,
-            });
-
-            setTimeout(() => {
-              onOpenChange(false);
-              navigate("/");
-            }, 2500);
-
-          } catch (err: any) {
-            console.error("Post-payment activation error:", err);
-            setPaymentError(err.message || "Payment verification failed.");
-            setIsProcessing(false);
-          }
+        onError: (err) => {
+          setIsProcessing(false);
+          setPaymentError(err.message || "Payment verification failed.");
         },
-        modal: {
-          ondismiss: () => {
-            setIsProcessing(false);
-            toast({
-              title: "Payment Cancelled",
-              description: "You closed the payment popup. No charge was made.",
-            });
-          }
+        onDismiss: () => {
+          setIsProcessing(false);
         }
-      };
-
-      const rzp = new window.Razorpay(options);
-
-      rzp.on("payment.failed", (response: any) => {
-        setIsProcessing(false);
-        const errorMsg = response.error?.description || "Payment failed at gateway.";
-        setPaymentError(errorMsg);
-        toast({
-          title: "Payment Failed",
-          description: errorMsg,
-          variant: "destructive"
-        });
       });
-
-      rzp.open();
-
     } catch (err: any) {
-      console.error("Subscription payment error:", err);
       setIsProcessing(false);
-      setPaymentError(err.response?.data?.error || err.message || "Failed to process payment. Please try again.");
-      toast({
-        title: "Payment Error",
-        description: err.message || "Failed to complete subscription payment.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Helper to sync Supabase subscription_status table
-  const updateSupabaseSubscription = async () => {
-    if (!user) return;
-    const now = new Date();
-    const periodEnd = new Date();
-    if (billingCycle === "annual") {
-      periodEnd.setFullYear(now.getFullYear() + 1);
-    } else {
-      periodEnd.setMonth(now.getMonth() + 1);
-    }
-
-    try {
-      await (supabase as any)
-        .from("subscription_status")
-        .upsert({
-          user_id: user.id,
-          plan: selectedPlanId,
-          status: "active",
-          current_period_start: now.toISOString(),
-          current_period_end: periodEnd.toISOString(),
-          cancel_at_period_end: false,
-          updated_at: now.toISOString(),
-        });
-    } catch (e) {
-      console.warn("[Subscription] Handled subscription status fallback:", e);
-    }
-
-    try {
-      await (supabase as any)
-        .from("payments")
-        .insert({
-          user_id: user.id,
-          amount: grandTotal,
-          currency: "INR",
-          status: "success",
-          payment_method: paymentMethod,
-          gateway_order_id: `SUB-${selectedPlanId.toUpperCase()}-${Date.now()}`,
-          gateway_payment_id: `PAY-${Date.now()}`,
-          created_at: now.toISOString()
-        });
-    } catch (e) {
-      console.warn("[Subscription] Handled payments table fallback:", e);
+      setPaymentError(err.message || "Payment initiation failed.");
     }
   };
 

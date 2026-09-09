@@ -2,6 +2,8 @@
 
 FinFlow Tracker utilizes a highly relational and secured schema on PostgreSQL (powered by Supabase). Below is a detailed map of the database tables, relations, security architecture (RLS), and custom database RPC (Remote Procedure Call) functions.
 
+> This document is a conceptual reference, not a replacement for the database definition. Apply the SQL files in `supabase/migrations/` in filename order; the files in `docs/sql-archive/` are historical scripts and may assume an older schema.
+
 ---
 
 ## 📊 Entity Relationship Diagram (ERD)
@@ -143,7 +145,7 @@ The storefront is unique because public customers need to view products and plac
     *   Write/Update access remains restricted strictly to the product owner: `auth.uid() = user_id`.
 2.  **Online Orders Public Write**:
     *   Allows **public insert** access to `online_orders` & `online_order_items` (so customers can submit a cart checkout).
-    *   Merchant is notified immediately, and only the merchant has `SELECT` or `UPDATE` access to fulfill orders.
+    *   Merchant access is controlled by the policies in the active migrations. The frontend listens for order changes through Supabase Realtime where enabled.
 
 ---
 

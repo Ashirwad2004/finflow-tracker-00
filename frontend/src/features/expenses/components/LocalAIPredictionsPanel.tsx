@@ -95,12 +95,12 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
   if (expenses.length < 5) {
     return (
       <Card className="border-dashed border-violet-300 bg-violet-50/20 dark:bg-violet-950/5">
-        <CardContent className="flex flex-col items-center justify-center text-center p-8 sm:p-12 space-y-4">
-          <div className="p-4 rounded-full bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400 animate-pulse">
-            <BrainCircuit className="w-8 h-8" />
+        <CardContent className="flex flex-col items-center justify-center text-center p-6 sm:p-10 space-y-3">
+          <div className="p-3 rounded-full bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400 animate-pulse">
+            <BrainCircuit className="w-6 h-6" />
           </div>
-          <h3 className="font-bold text-xl text-foreground">Local AI Model is Training</h3>
-          <p className="text-sm text-muted-foreground max-w-md">
+          <h3 className="font-semibold text-base text-foreground">Local AI Model is Training</h3>
+          <p className="text-xs text-muted-foreground max-w-md">
             To generate reliable predictions, the local AI requires at least **5 transactions** across your history. Please record a few more expenses to unlock budget forecasts and automated category learning.
           </p>
         </CardContent>
@@ -109,24 +109,24 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Overview Dashboard Header */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-3">
         {/* Forecast Card */}
         <Card className="relative overflow-hidden border-violet-200 shadow-sm bg-gradient-to-br from-violet-500/10 to-indigo-500/5 dark:from-violet-950/20 dark:to-indigo-950/10">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Cpu className="w-24 h-24 text-violet-500" />
+            <Cpu className="w-20 h-20 text-violet-500" />
           </div>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wide flex items-center gap-1.5">
                 <BrainCircuit className="w-3.5 h-3.5" /> Next Month Forecast
               </span>
               <Badge variant="outline" className="text-[10px] bg-background border-violet-200 text-violet-700 dark:text-violet-300">
                 Confidence: {predictionReport.confidence}
               </Badge>
             </div>
-            <CardTitle className="text-3xl font-extrabold pt-2">
+            <CardTitle className="text-2xl font-bold pt-1.5">
               ₹{predictionReport.predictedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </CardTitle>
           </CardHeader>
@@ -140,10 +140,10 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
         {/* Current Month Standing */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Current Month Total
             </span>
-            <CardTitle className="text-3xl font-extrabold pt-2">
+            <CardTitle className="text-2xl font-bold pt-1.5">
               ₹{currentMonthSpent.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </CardTitle>
           </CardHeader>
@@ -165,21 +165,21 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
         {/* AI Model Architecture Status */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               AI Engine Diagnostics
             </span>
-            <CardTitle className="text-lg font-bold pt-2 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-emerald-500" /> Model: 100% Offline
+            <CardTitle className="text-sm font-semibold pt-1.5 flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-emerald-500" /> Model: 100% Offline
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-1.5">
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Local Dataset Size:</span>
-              <span className="font-semibold">{expenses.length} records</span>
+              <span className="font-medium">{expenses.length} records</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Learned Concepts:</span>
-              <span className="font-semibold">{learnedConcepts.length} associations</span>
+              <span className="font-medium">{learnedConcepts.length} associations</span>
             </div>
           </CardContent>
         </Card>
@@ -188,10 +188,10 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
       {/* Future Trend Chart */}
       <Card className="border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-violet-500" /> AI Cash Flow Projection Chart
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-violet-500" /> AI Cash Flow Projection Chart
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Historical spending trends plotted alongside the AI prediction line.
           </CardDescription>
         </CardHeader>
@@ -214,7 +214,7 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
                       const data = payload[0].payload;
                       return (
                         <div className="rounded-lg border bg-background p-2.5 shadow-sm text-xs space-y-1">
-                          <p className="font-bold text-muted-foreground">{data.name}</p>
+                          <p className="font-semibold text-muted-foreground">{data.name}</p>
                           <p className="font-semibold text-violet-600 dark:text-violet-400">
                             Amount: ₹{data.Amount.toFixed(2)}
                           </p>
@@ -242,26 +242,26 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
       </Card>
 
       {/* Main Grid: Category Budgets and Anomalies/Learning */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2">
         {/* Category Budget Forecast */}
         <Card className="border-border shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Percent className="w-4 h-4 text-violet-500" /> Category-wise Budget Forecast
+            <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+              <Percent className="w-3.5 h-3.5 text-violet-500" /> Category-wise Budget Forecast
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               Predicted category allocations calculated from monthly momentum.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3.5">
             {predictionReport.categoryPredictions.map(pred => {
               const maxAmount = Math.max(...predictionReport.categoryPredictions.map(p => p.predictedAmount), 1);
               const percentageOfMax = (pred.predictedAmount / maxAmount) * 100;
 
               return (
                 <div key={pred.categoryId} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
                       <span className="font-medium">{pred.categoryName}</span>
                       {pred.trendDirection === "up" && (
                         <Badge className="bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 gap-0.5 border-0 font-medium text-[10px] py-0 h-4 shrink-0">
@@ -279,7 +279,7 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
                         </Badge>
                       )}
                     </div>
-                    <span className="font-bold text-foreground">₹{pred.predictedAmount.toFixed(0)}</span>
+                    <span className="font-semibold text-foreground">₹{pred.predictedAmount.toFixed(0)}</span>
                   </div>
                   <Progress value={percentageOfMax} className="h-1.5 bg-muted" />
                 </div>
@@ -289,19 +289,19 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
         </Card>
 
         {/* AI Recommendations and Machine Learning concepts */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Anomalies & Alerts */}
           {predictionReport.anomalies.length > 0 && (
             <Card className="border-rose-200 bg-rose-50/10 dark:bg-rose-950/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> AI Overspend Alerts
+              <CardHeader className="pb-2.5">
+                <CardTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" /> AI Overspend Alerts
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2.5">
                 {predictionReport.anomalies.map((anomaly, idx) => (
                   <Alert key={idx} variant="destructive" className="bg-background border-rose-100">
-                    <AlertTriangle className="w-4 h-4 text-rose-500" />
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
                     <AlertTitle className="text-xs font-semibold text-rose-700 dark:text-rose-400">
                       High spending velocity in {anomaly.categoryName}
                     </AlertTitle>
@@ -316,15 +316,15 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
 
           {/* AI Recommendations */}
           <Card className="border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-amber-500" /> AI Insights & Recommendations
+            <CardHeader className="pb-2.5">
+              <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> AI Insights & Recommendations
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3.5">
+            <CardContent className="space-y-3">
               {predictionReport.recommendations.map((rec, idx) => (
-                <div key={idx} className="flex gap-2.5 text-xs text-muted-foreground leading-relaxed">
-                  <span className="p-1 rounded-md bg-amber-500/10 text-amber-600 h-6 w-6 flex items-center justify-center shrink-0">
+                <div key={idx} className="flex gap-2 text-xs text-muted-foreground leading-relaxed">
+                  <span className="p-1 rounded-md bg-amber-500/10 text-amber-600 h-5 w-5 flex items-center justify-center shrink-0 text-xs">
                     💡
                   </span>
                   <span>{rec}</span>
@@ -335,9 +335,9 @@ export function LocalAIPredictionsPanel({ expenses, categories }: LocalAIPredict
 
           {/* Local Learned Concepts */}
           <Card className="border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <BrainCircuit className="w-4 h-4 text-violet-500" /> Trained Vocabulary Associations
+            <CardHeader className="pb-2.5">
+              <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                <BrainCircuit className="w-3.5 h-3.5 text-violet-500" /> Trained Vocabulary Associations
               </CardTitle>
               <CardDescription className="text-xs">
                 Keywords the local AI has trained on based on your daily data.

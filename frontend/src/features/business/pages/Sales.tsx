@@ -24,6 +24,39 @@ import { Button } from "@/components/ui/button";
 import { useSalesSettings } from "@/core/hooks/use-sales-settings";
 import { TableLoadingRows } from "@/components/shared/PageStates";
 
+// Line item on an invoice — typed instead of `any` so a bad field name
+// (e.g. "qty" vs "quantity") fails at compile time, not in production billing.
+interface SaleItem {
+    id?: string;
+    name: string;
+    description?: string;
+    quantity: number;
+    price: number;
+    amount?: number;
+    total?: number;
+    hsn_code?: string;
+    unit?: string;
+}
+
+interface Sale {
+    id: string;
+    user_id: string;
+    customer_name: string;
+    customer_phone?: string;
+    customer_email?: string;
+    customer_gstin?: string;
+    invoice_number: string;
+    status: 'paid' | 'pending' | 'overdue' | 'draft';
+    total_amount: number;
+    subtotal?: number;
+    tax_amount?: number;
+    tax_rate?: number;
+    discount_amount?: number;
+    date: string;
+    due_date?: string | null;
+    items: SaleItem[];
+}
+
 export default function SalesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -52,25 +85,6 @@ export default function SalesPage() {
         },
         enabled: !!user
     });
-
-    interface Sale {
-        id: string;
-        user_id: string;
-        customer_name: string;
-        customer_phone?: string;
-        customer_email?: string;
-        customer_gstin?: string;
-        invoice_number: string;
-        status: 'paid' | 'pending' | 'overdue' | 'draft';
-        total_amount: number;
-        subtotal?: number;
-        tax_amount?: number;
-        tax_rate?: number;
-        discount_amount?: number;
-        date: string;
-        due_date?: string | null;
-        items: any[];
-    }
 
     const { data: invoices = [], isLoading } = useQuery({
         queryKey: ["sales", user?.id],
@@ -106,7 +120,14 @@ export default function SalesPage() {
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
             customer_gstin: invoice.customer_gstin,
-            items: invoice.items || [],
+            items: (invoice.items || []).map(item => ({
+                description: item.description || item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.total ?? item.amount ?? (item.quantity * item.price),
+                hsn_code: item.hsn_code,
+                unit: item.unit,
+            })),
             subtotal: invoice.subtotal || invoice.total_amount,
             discount_amount: invoice.discount_amount || 0,
             tax_amount: invoice.tax_amount || 0,
@@ -138,7 +159,14 @@ export default function SalesPage() {
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
             customer_gstin: invoice.customer_gstin,
-            items: invoice.items || [],
+            items: (invoice.items || []).map(item => ({
+                description: item.description || item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.total ?? item.amount ?? (item.quantity * item.price),
+                hsn_code: item.hsn_code,
+                unit: item.unit,
+            })),
             subtotal: invoice.subtotal || invoice.total_amount,
             discount_amount: invoice.discount_amount || 0,
             tax_amount: invoice.tax_amount || 0,
@@ -156,6 +184,7 @@ export default function SalesPage() {
                 signature_url: (profile as any).signature_url
             } : undefined
         }, { action: 'download' });
+        toast.success(`Invoice ${invoice.invoice_number} downloaded.`);
     };
 
     const handleShare = async (invoice: Sale) => {
@@ -167,7 +196,14 @@ export default function SalesPage() {
                 customer_phone: invoice.customer_phone,
                 customer_email: invoice.customer_email,
                 customer_gstin: invoice.customer_gstin,
-                items: invoice.items || [],
+                items: (invoice.items || []).map(item => ({
+                description: item.description || item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.total ?? item.amount ?? (item.quantity * item.price),
+                hsn_code: item.hsn_code,
+                unit: item.unit,
+            })),
                 subtotal: invoice.subtotal || invoice.total_amount,
                 discount_amount: invoice.discount_amount || 0,
                 tax_amount: invoice.tax_amount || 0,
@@ -200,12 +236,12 @@ export default function SalesPage() {
                 } else {
                     const shareText = `Invoice ${invoice.invoice_number} for ${invoice.customer_name}. Total: ${formatCurrency(invoice.total_amount)}`;
                     await navigator.clipboard.writeText(shareText);
-                    alert("Invoice details copied to clipboard (Sharing PDF files directly is not supported on this device/browser).");
+                    toast.success("Invoice details copied to clipboard — direct PDF sharing isn't supported on this device/browser.");
                 }
             }
         } catch (error) {
             console.error("Error sharing invoice:", error);
-            alert("Failed to share invoice.");
+            toast.error("Failed to share invoice. Please try again.");
         }
     };
 
@@ -296,9 +332,11 @@ export default function SalesPage() {
             if (navigator.onLine) {
                 queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
             }
+
+            toast.success(`Invoice ${invoice.invoice_number} moved to Recycle Bin.`);
         } catch (err: any) {
             console.error("Error deleting invoice:", err);
-            alert("Failed to delete invoice.");
+            toast.error("Failed to delete invoice. Please try again.");
         }
     };
 
@@ -328,6 +366,21 @@ export default function SalesPage() {
             return inv.status === 'paid' && !isNaN(d.getTime()) && isSameMonth(d, today);
         })
         .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+
+    // Accountant-facing stats: how much of billed revenue has actually been
+    // collected, and what a "typical" invoice looks like — useful for a
+    // stat-card row or a lightweight cash-flow health indicator.
+    const totalRevenue = invoices
+        .filter(inv => inv.status === 'paid')
+        .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+
+    const collectionRate = invoices.length > 0
+        ? Math.round((invoices.filter(inv => inv.status === 'paid').length / invoices.length) * 100)
+        : 0;
+
+    const avgInvoiceValue = invoices.length > 0
+        ? invoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0) / invoices.length
+        : 0;
 
     const sortedAndFilteredInvoices = useMemo(() => {
         const filtered = invoices.filter((invoice) => {
@@ -365,7 +418,6 @@ export default function SalesPage() {
         estimateSize: () => 80, // Approximate height of table row
         overscan: 10,
     });
-
     return (
         <AppLayout>
             <div className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-4 animate-fade-in text-slate-900 dark:text-slate-100 font-display flex flex-col h-full">

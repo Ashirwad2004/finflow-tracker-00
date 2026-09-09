@@ -205,9 +205,36 @@ export const startSyncInterval = (userId: string): (() => void) => {
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
 
+  // Listen to BroadcastChannel from Service Worker Background Sync
+  let syncChannel: BroadcastChannel | null = null;
+  if (typeof BroadcastChannel !== 'undefined') {
+    syncChannel = new BroadcastChannel('finflow-sync-channel');
+    syncChannel.onmessage = (event) => {
+      if (event.data?.type === 'TRIGGER_SYNC_DRAIN' && userId && navigator.onLine) {
+        processSyncQueue(userId);
+      }
+    };
+  }
+
+  // Also listen to postMessage from active Service Worker
+  const handleSwMessage = (event: MessageEvent) => {
+    if (event.data?.type === 'TRIGGER_SYNC_DRAIN' && userId && navigator.onLine) {
+      processSyncQueue(userId);
+    }
+  };
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+  }
+
   return () => {
     clearInterval(intervalId);
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
+    if (syncChannel) {
+      syncChannel.close();
+    }
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    }
   };
-};
+};

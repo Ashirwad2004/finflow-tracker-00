@@ -1,7 +1,7 @@
 import logging
 import random
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 
 from src.core.config import settings
@@ -18,9 +18,38 @@ from src.schemas.payments import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", tags=["Payments"])
+PROCESSED_WEBHOOK_EVENTS: set[str] = set()
+
+
+def extract_webhook_entity(event_type: str, data: Any) -> Tuple[Dict[str, Any], Optional[str], Optional[str]]:
+    """
+    Normalizes webhook payload entities across Razorpay and Stripe.
+    Returns: (entity_dict, gateway_order_id, gateway_payment_id)
+    """
+    if not isinstance(data, dict):
+        return {}, None, None
+
+    # Razorpay payload structure: payload.payment.entity or payload.refund.entity
+    if "payment" in data and isinstance(data["payment"], dict) and "entity" in data["payment"]:
+        entity = data["payment"]["entity"]
+        order_id = entity.get("order_id") or (data.get("order", {}).get("entity", {}).get("id") if isinstance(data.get("order"), dict) else None)
+        payment_id = entity.get("id")
+        return entity, order_id, payment_id
+
+    if "refund" in data and isinstance(data["refund"], dict) and "entity" in data["refund"]:
+        entity = data["refund"]["entity"]
+        order_id = None
+        payment_id = entity.get("payment_id")
+        return entity, order_id, payment_id
+
+    # Stripe or flat payload structure
+    order_id = data.get("order_id") or data.get("id")
+    payment_id = data.get("payment_id") or data.get("latest_charge") or data.get("id")
+    return data, order_id, payment_id
+
 
 def generate_invoice_number() -> str:
-    year = datetime.utcnow().year
+    year = datetime.now(timezone.utc).year
     rand = random.randint(1000, 9999)
     return f"INV-{year}-{rand}"
 
@@ -69,7 +98,7 @@ async def create_order(
                 )
 
             currency = (payload.currency or "INR").upper()
-            receipt = payload.receipt or f"receipt_{int(datetime.utcnow().timestamp())}"
+            receipt = payload.receipt or f"receipt_{int(datetime.now(timezone.utc).timestamp())}"
 
             gateway_response = await driver.create_order(
                 order_id=receipt,
@@ -227,7 +256,7 @@ async def cancel_order(
         # Update pending payment statuses to failed
         supabase_client.table("payments").update({
             "status": "failed",
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("order_id", order_id).eq("status", "pending").execute()
 
         return {"success": True, "message": "Order payment cancelled. Stock restored."}
@@ -260,14 +289,12 @@ async def create_subscription_order(
         months = 12 if payload.billingCycle == "annual" else 1
         raw_subtotal = base_monthly * months
 
-        # Keep one authoritative subscription price. Coupons cannot change it.
+        # Keep one authoritative subscription price: flat ₹299
+        grand_total = 299
+        gst_amount = 0
         discount_percent = 0
-        discount_amt = 0
-        subtotal = raw_subtotal
-        gst_amount = int(round(subtotal * 0.18))
-        grand_total = subtotal + gst_amount
 
-        order_ref = f"SUB-{payload.planId.upper()}-{int(datetime.utcnow().timestamp())}"
+        order_ref = f"SUB-{payload.planId.upper()}-{int(datetime.now(timezone.utc).timestamp())}"
         driver = get_gateway_driver()
 
         gateway_response = await driver.create_order(
@@ -311,8 +338,10 @@ async def create_subscription_order(
             "success": True,
             "paymentId": payment_record.get("id") if payment_record else order_ref,
             "gatewayOrderId": gateway_response["gatewayOrderId"],
-            "amount": grand_total,
+            "order_id": gateway_response["gatewayOrderId"],
+            "amount": grand_total * 100,  # in paise for Razorpay
             "currency": "INR",
+            "key_id": settings.RAZORPAY_KEY_ID,
             "details": gateway_response.get("details")
         }
 
@@ -397,7 +426,7 @@ async def verify_payment(
             "gateway_payment_id": gateway_payment_id,
             "payment_method": verification.get("paymentMethod") or "card",
             "payment_method_details": verification.get("paymentMethodDetails") or {},
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", payment["id"]).execute()
 
         # Update store order status if order_id is present
@@ -409,7 +438,7 @@ async def verify_payment(
         plan_id = notes.get("planId") or payload.planId
         if plan_id:
             billing_cycle = notes.get("billingCycle") or payload.billingCycle or "annual"
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             period_end = now + timedelta(days=365) if billing_cycle == "annual" else now + timedelta(days=30)
             
             try:
@@ -480,91 +509,144 @@ async def webhook(request: Request):
         if not webhook_event.get("isValid"):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
+        event_id = webhook_event.get("eventId")
+        if event_id:
+            if event_id in PROCESSED_WEBHOOK_EVENTS:
+                logger.info("Duplicate webhook event ignored: %s", event_id)
+                return {"received": True, "duplicate": True}
+            PROCESSED_WEBHOOK_EVENTS.add(event_id)
+            if len(PROCESSED_WEBHOOK_EVENTS) > 10000:
+                PROCESSED_WEBHOOK_EVENTS.pop()
+
         event_type = webhook_event.get("type")
         data = webhook_event.get("data")
 
+        entity, gateway_order_id, gateway_payment_id = extract_webhook_entity(event_type, data)
+
         if event_type in ["payment.captured", "payment_intent.succeeded"]:
-            gateway_order_id = data.get("order_id") or data.get("id")
-            gateway_payment_id = data.get("payment_id") or data.get("latest_charge") or data.get("id")
+            if not gateway_order_id:
+                logger.warning("No order_id resolved from webhook event: %s", event_type)
+                return {"received": True, "warning": "Unresolved order ID"}
 
             pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
             payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
 
             if payment and payment["status"] != "success":
-                # Update payment
+                now_iso = datetime.now(timezone.utc).isoformat()
+
+                # Update payment status
                 supabase_client.table("payments").update({
                     "status": "success",
-                    "gateway_payment_id": gateway_payment_id,
-                    "payment_method": data.get("method") or "card",
-                    "payment_method_details": data.get("payment_method_details") or {},
-                    "updated_at": datetime.utcnow().isoformat()
+                    "gateway_payment_id": gateway_payment_id or payment.get("gateway_payment_id"),
+                    "payment_method": entity.get("method") or "card",
+                    "payment_method_details": entity.get("payment_method_details") or {},
+                    "updated_at": now_iso
                 }).eq("id", payment["id"]).execute()
 
-                # Update Store Order
+                # Update Store Order if linked
                 if payment.get("order_id"):
                     supabase_client.table("online_orders").update({"status": "accepted"}).eq("id", payment["order_id"]).execute()
 
-                # Invoice
+                # Fulfill Subscription if planId is present in payment notes
+                notes = payment.get("notes") or {}
+                plan_id = notes.get("planId") or notes.get("plan_id")
+                if plan_id:
+                    billing_cycle = notes.get("billingCycle") or "annual"
+                    now = datetime.now(timezone.utc)
+                    period_end = now + timedelta(days=365) if billing_cycle == "annual" else now + timedelta(days=30)
+                    try:
+                        supabase_client.table("subscription_status").upsert({
+                            "user_id": payment["user_id"],
+                            "plan": plan_id,
+                            "status": "active",
+                            "current_period_start": now.isoformat(),
+                            "current_period_end": period_end.isoformat(),
+                            "cancel_at_period_end": False,
+                            "updated_at": now.isoformat()
+                        }).execute()
+                        logger.info("Successfully fulfilled subscription for user %s via webhook", payment["user_id"])
+                    except Exception as sub_err:
+                        logger.warning("Webhook subscription status upsert warning: %s", sub_err)
+
+                # Invoice creation
                 inv_num = generate_invoice_number()
-                supabase_client.table("invoices").insert({
-                    "payment_id": payment["id"],
-                    "invoice_number": inv_num
-                }).execute()
+                try:
+                    supabase_client.table("invoices").insert({
+                        "payment_id": payment["id"],
+                        "invoice_number": inv_num
+                    }).execute()
+                except Exception as inv_err:
+                    logger.warning("Webhook invoice generation warning: %s", inv_err)
 
                 # Audit log
-                supabase_client.table("payment_audit_logs").insert({
-                    "payment_id": payment["id"],
-                    "user_id": payment["user_id"],
-                    "action": "payment_success",
-                    "details": {"webhookEvent": event_type, "gatewayPaymentId": gateway_payment_id}
-                }).execute()
+                try:
+                    supabase_client.table("payment_audit_logs").insert({
+                        "payment_id": payment["id"],
+                        "user_id": payment["user_id"],
+                        "action": "payment_success",
+                        "details": {"webhookEvent": event_type, "gatewayPaymentId": gateway_payment_id}
+                    }).execute()
+                except Exception as aud_err:
+                    logger.warning("Webhook audit log warning: %s", aud_err)
 
         elif event_type in ["payment.failed", "payment_intent.payment_failed"]:
-            gateway_order_id = data.get("order_id") or data.get("id")
-            pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
-            payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
+            if gateway_order_id:
+                pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
+                payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
 
-            if payment and payment["status"] != "success":
-                supabase_client.table("payments").update({
-                    "status": "failed",
-                    "updated_at": datetime.utcnow().isoformat()
-                }).eq("id", payment["id"]).execute()
+                if payment and payment["status"] != "success":
+                    supabase_client.table("payments").update({
+                        "status": "failed",
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }).eq("id", payment["id"]).execute()
 
-                supabase_client.table("payment_audit_logs").insert({
-                    "payment_id": payment["id"],
-                    "user_id": payment["user_id"],
-                    "action": "payment_failed",
-                    "details": {"webhookEvent": event_type, "error": data.get("error")}
-                }).execute()
+                    try:
+                        supabase_client.table("payment_audit_logs").insert({
+                            "payment_id": payment["id"],
+                            "user_id": payment["user_id"],
+                            "action": "payment_failed",
+                            "details": {"webhookEvent": event_type, "error": entity.get("error")}
+                        }).execute()
+                    except Exception as aud_err:
+                        logger.warning("Webhook audit log warning: %s", aud_err)
 
         elif event_type in ["refund.processed", "charge.refunded"]:
-            gateway_payment_id = data.get("payment_id") or data.get("payment_intent")
-            pay_res = supabase_client.table("payments").select("*").eq("gateway_payment_id", gateway_payment_id).execute()
-            payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
+            pay_identifier = gateway_payment_id or entity.get("payment_id")
+            if pay_identifier:
+                pay_res = supabase_client.table("payments").select("*").eq("gateway_payment_id", pay_identifier).execute()
+                payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
 
-            if payment and payment["status"] != "refunded":
-                supabase_client.table("payments").update({
-                    "status": "refunded",
-                    "updated_at": datetime.utcnow().isoformat()
-                }).eq("id", payment["id"]).execute()
+                if payment and payment["status"] != "refunded":
+                    supabase_client.table("payments").update({
+                        "status": "refunded",
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }).eq("id", payment["id"]).execute()
 
-                supabase_client.table("refunds").insert({
-                    "payment_id": payment["id"],
-                    "amount": payment["amount"],
-                    "status": "success",
-                    "gateway_refund_id": data.get("refund_id") or data.get("id"),
-                    "reason": "Webhook refund"
-                }).execute()
+                    try:
+                        supabase_client.table("refunds").insert({
+                            "payment_id": payment["id"],
+                            "amount": payment["amount"],
+                            "status": "success",
+                            "gateway_refund_id": entity.get("id") or entity.get("refund_id"),
+                            "reason": "Webhook refund"
+                        }).execute()
+                    except Exception as ref_err:
+                        logger.warning("Webhook refund record warning: %s", ref_err)
 
-                supabase_client.table("payment_audit_logs").insert({
-                    "payment_id": payment["id"],
-                    "user_id": payment["user_id"],
-                    "action": "refund_success",
-                    "details": {"webhookEvent": event_type}
-                }).execute()
+                    try:
+                        supabase_client.table("payment_audit_logs").insert({
+                            "payment_id": payment["id"],
+                            "user_id": payment["user_id"],
+                            "action": "refund_success",
+                            "details": {"webhookEvent": event_type}
+                        }).execute()
+                    except Exception as aud_err:
+                        logger.warning("Webhook audit log warning: %s", aud_err)
 
         return {"received": True}
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Webhook processing error")
         raise HTTPException(status_code=400, detail="Invalid webhook request")
@@ -642,7 +724,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
         # Update payment status
         supabase_client.table("payments").update({
             "status": "refunded",
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", payment["id"]).execute()
 
         # Audit Log

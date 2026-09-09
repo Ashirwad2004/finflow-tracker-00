@@ -224,7 +224,7 @@ class ReportsService:
         net_profit = gross_profit - total_expenses
         net_margin = (net_profit / total_sales * 100) if total_sales > 0 else 0.0
         net_debt = total_borrowed - total_lent
-        operating_cash_flow = total_sales - total_purchases - total_expenses + (total_lent * 0.1)
+        operating_cash_flow = total_sales - total_purchases - total_expenses
 
         return FinancialSummaryResponse(
             currency=payload.currency,

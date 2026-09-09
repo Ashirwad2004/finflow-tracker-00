@@ -187,3 +187,40 @@ self.addEventListener("fetch", (event) => {
   // Everything else goes directly to the network.
 });
 
+// ==========================================
+// BACKGROUND SYNC ENGINE
+// ==========================================
+const syncChannel = new BroadcastChannel("finflow-sync-channel");
+
+async function notifySyncClients() {
+  try {
+    syncChannel.postMessage({
+      type: "TRIGGER_SYNC_DRAIN",
+      timestamp: Date.now()
+    });
+
+    const clients = await self.clients.matchAll({ type: "window" });
+    for (const client of clients) {
+      client.postMessage({
+        type: "TRIGGER_SYNC_DRAIN",
+        timestamp: Date.now()
+      });
+    }
+  } catch (err) {
+    console.warn("[SW] Background sync notification warning:", err);
+  }
+}
+
+// Background Sync API (Chrome Desktop / PWA)
+self.addEventListener("sync", (event) => {
+  if (event.tag === "finflow-sync-queue" || event.tag === "rupeebill-sync") {
+    event.waitUntil(notifySyncClients());
+  }
+});
+
+// Periodic Background Sync (Desktop PWA installed)
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === "finflow-periodic-sync" || event.tag === "rupeebill-periodic-sync") {
+    event.waitUntil(notifySyncClients());
+  }
+});

@@ -10,6 +10,7 @@ import {
   Wallet,
   TrendingUp,
   Shield,
+  ShieldCheck,
   Zap,
   ArrowRight,
   CheckCircle2,
@@ -634,96 +635,110 @@ const Index = () => {
 
 
       {/* --- PRICING SECTION (id="pricing" for footer link) --- */}
-      <section id="pricing" className="py-32 bg-slate-50 dark:bg-slate-950/50 overflow-hidden">
+      <section id="pricing" className="py-24 sm:py-32 bg-slate-50 dark:bg-slate-950/50 overflow-hidden">
         <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             className="text-center mb-12"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-6">
-              <Zap className="w-3.5 h-3.5" /> Simple, Transparent Pricing
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold mb-4">
+              <Zap className="w-3.5 h-3.5" /> One Simple Subscription
             </div>
-            <h2 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
-              Invest in your <span className="bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent">financial clarity</span>
+            <h2 className="text-3xl sm:text-5xl font-extrabold mb-4 tracking-tight">
+              One price. <span className="bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent">Every single feature.</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-xl mx-auto mb-8">
-              Start free. Upgrade when you're ready. No hidden fees, ever.
+            <p className="text-base sm:text-xl text-muted-foreground max-w-xl mx-auto mb-6">
+              No tier limits. No hidden transaction fees. Get complete access for your business.
             </p>
-
-            <div className="inline-flex items-center gap-2 bg-background border p-1.5 rounded-full shadow-sm">
-              <button
-                type="button"
-                onClick={() => setBillingCycle("monthly")}
-                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${billingCycle === "monthly" ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Monthly Billing
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingCycle("annual")}
-                className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${billingCycle === "annual" ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Annual Billing
-                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">Save 20%</span>
-              </button>
-            </div>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20 max-w-5xl mx-auto">
-            {PLAN_CONFIGS.map((plan, i) => {
-              const price = billingCycle === "annual" ? plan.annualPricePerMonth : plan.monthlyPrice;
-              const isHighlight = plan.recommended;
+          {/* Single Authoritative ₹299 Plan Showcase */}
+          <div className="max-w-2xl mx-auto mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="relative rounded-3xl p-6 sm:p-10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white shadow-2xl shadow-primary/25 border border-white/10 overflow-hidden"
+            >
+              {/* Background ambient glow */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -z-0 pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-violet-500/20 rounded-full blur-3xl -z-0 pointer-events-none" />
 
-              return (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className={`relative rounded-3xl p-8 flex flex-col ${isHighlight ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-2xl shadow-primary/40 scale-105" : "bg-background border border-border/60 shadow-lg"}`}
-                >
-                  {isHighlight && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md tracking-wide uppercase">Most Popular</div>
-                  )}
-                  <div className={`text-sm font-semibold uppercase tracking-widest mb-3 ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>{plan.name}</div>
-                  <div className="flex items-baseline gap-1 mb-2">
-                    <span className={`text-5xl font-extrabold ${isHighlight ? "text-white" : "text-foreground"}`}>
-                      {price === 0 ? "Free" : `₹${price}`}
+              <div className="relative z-10">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-widest text-primary block">
+                      RUPEEBILL ALL-IN-ONE
                     </span>
-                    {price > 0 && <span className={`text-sm font-medium ${isHighlight ? "text-white/70" : "text-muted-foreground"}`}>/month</span>}
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
+                      Pro Merchant Tier
+                    </h3>
                   </div>
-                  <p className={`text-xs mb-6 ${isHighlight ? "text-white/80" : "text-muted-foreground"}`}>{plan.description}</p>
-                  <ul className="space-y-3 mb-8 flex-1">
-                    {plan.features.map((feature, j) => (
-                      <li key={j} className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isHighlight ? "text-white/90" : "text-emerald-500"}`} />
-                        <span className={isHighlight ? "text-white/90" : "text-foreground"}>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    onClick={() => {
-                      setSelectedPlanId(plan.id);
-                      setSubscriptionOpen(true);
-                    }}
-                    className={`w-full h-12 rounded-full font-semibold transition-all hover:scale-105 ${isHighlight ? "bg-white text-primary hover:bg-white/90 shadow-lg" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}
-                  >
-                    {plan.id === "starter" ? "Get Started Free" : plan.id === "pro" ? "Upgrade to Pro" : "Subscribe to Business"}
-                  </Button>
-                </motion.div>
-              );
-            })}
+                  <span className="bg-gradient-to-r from-primary to-violet-600 text-white text-[11px] font-black px-3.5 py-1 rounded-full uppercase shadow-md tracking-wider">
+                    Full Access Unlocked
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2 mb-4 pb-6 border-b border-white/10">
+                  <span className="text-5xl sm:text-6xl font-black text-white">₹299</span>
+                  <span className="text-sm sm:text-base font-semibold text-white/70">/month</span>
+                  <span className="ml-auto text-xs bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                    Cancel Anytime
+                  </span>
+                </div>
+
+                <p className="text-xs sm:text-sm text-white/80 mb-8">
+                  Everything you need to run your business with zero limits — POS billing, storefront, offline hard-drive sync, and AI analytics.
+                </p>
+
+                {/* Features 2-column list */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-10 text-xs sm:text-sm">
+                  {[
+                    "Unlimited Invoices, Sales & Purchases",
+                    "E-Commerce Storefront with Live Sync",
+                    "Offline OPFS Local Disk Persistence",
+                    "AI Receipt Scanner & Auto-Categorization",
+                    "Customer & Vendor Parties Ledgers",
+                    "A4 & Thermal Invoice Print Studio",
+                    "GSTR-1 & Financial Reports Export",
+                    "Multi-Device Cloud Background Sync"
+                  ].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2.5 text-white/90">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      </div>
+                      <span className="font-medium text-xs sm:text-[13px]">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  onClick={() => {
+                    setSelectedPlanId("pro");
+                    setSubscriptionOpen(true);
+                  }}
+                  className="w-full h-14 rounded-2xl text-base font-black shadow-xl shadow-primary/40 bg-gradient-to-r from-primary to-violet-600 text-white hover:opacity-95 transition-all hover:scale-[1.01]"
+                >
+                  <Lock className="mr-2 w-4 h-4" /> Subscribe to All-in-One Pro (₹299)
+                </Button>
+
+                <p className="text-center text-[11px] text-white/50 mt-3.5 flex items-center justify-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" /> 256-Bit Encrypted · Instant Activation · GST Invoice Provided
+                </p>
+              </div>
+            </motion.div>
           </div>
 
           <CheckoutMockup
             onPayClick={(planId) => {
-              setSelectedPlanId(planId || "pro");
+              setSelectedPlanId("pro");
               setSubscriptionOpen(true);
             }}
           />
         </div>
       </section>
+
 
 
       <section className="py-32 relative overflow-hidden">
