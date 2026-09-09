@@ -160,15 +160,15 @@ const AllExpenses = () => {
   return (
     <AppLayout>
       <PullToRefresh onRefresh={handleRefresh}>
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">All Expenses</h1>
-              <p className="text-muted-foreground">View and manage all your transactions</p>
+              <h1 className="text-xl font-semibold text-foreground">All Expenses</h1>
+              <p className="text-xs text-muted-foreground">View and manage all your transactions</p>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="bg-gradient-primary">
-              <Plus className="w-4 h-4 mr-2" />
+            <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="bg-gradient-primary text-sm">
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
               Add Expense
             </Button>
           </div>
@@ -176,15 +176,15 @@ const AllExpenses = () => {
           <MagicAddExpense userId={user?.id || ""} categories={categories} />
 
           <Card className="border-violet-200/70 bg-violet-50/40 dark:bg-violet-950/10">
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-violet-600 text-white">
-                    <Sparkles className="w-4 h-4" />
+            <CardContent className="pt-5 space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-violet-600 text-white">
+                    <Sparkles className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-base">Gemini Finance Tracker AI</h2>
-                    <p className="text-sm text-muted-foreground">Analyze expenses, detect leaks, prepare summaries, and predict next month from your real transactions.</p>
+                    <h2 className="font-semibold text-sm">Gemini Finance Tracker AI</h2>
+                    <p className="text-xs text-muted-foreground">Analyze expenses, detect leaks, prepare summaries, and predict next month from your real transactions.</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -200,9 +200,9 @@ const AllExpenses = () => {
                       size="sm"
                       onClick={() => runFinanceAi(mode as any, label)}
                       disabled={!!activeAiAction}
-                      className="bg-background/80"
+                      className="bg-background/80 text-xs h-8"
                     >
-                      {activeAiAction === mode ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-2" />}
+                      {activeAiAction === mode ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1.5" />}
                       {label}
                     </Button>
                   ))}
@@ -210,29 +210,29 @@ const AllExpenses = () => {
               </div>
 
               {aiReport && (
-                <div className="rounded-xl border bg-background p-4 space-y-3">
+                <div className="rounded-lg border bg-background p-3 space-y-2.5">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">{aiReportTitle}</p>
-                    <h3 className="font-bold text-lg">{aiReport.headline}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{aiReport.summary}</p>
+                    <h3 className="font-semibold text-sm">{aiReport.headline}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{aiReport.summary}</p>
                   </div>
                   {aiReport.topCategories.length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold mb-2">Top spending categories</p>
+                      <p className="text-xs font-semibold mb-1.5">Top spending categories</p>
                       <div className="grid gap-2 sm:grid-cols-3">
                         {aiReport.topCategories.slice(0, 3).map((category) => (
-                          <div key={category.name} className="rounded-lg border p-3">
-                            <p className="font-semibold text-sm">{category.name}</p>
-                            <p className="text-sm">₹{category.amount.toFixed(2)}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{category.reason}</p>
+                          <div key={category.name} className="rounded-lg border p-2.5">
+                            <p className="font-semibold text-xs">{category.name}</p>
+                            <p className="text-xs">₹{category.amount.toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{category.reason}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 p-3">
-                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Suggested Action</p>
-                    <p className="text-sm text-emerald-900 dark:text-emerald-100">{aiReport.suggestedAction}</p>
+                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 p-2.5">
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Suggested Action</p>
+                    <p className="text-xs text-emerald-900 dark:text-emerald-100">{aiReport.suggestedAction}</p>
                   </div>
                 </div>
               )}
@@ -241,48 +241,48 @@ const AllExpenses = () => {
 
           {/* Stats Card */}
           <Card className="bg-gradient-card shadow-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-full bg-primary/10">
-                  <TrendingDown className="w-6 h-6 text-primary" />
+            <CardContent className="pt-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-full bg-primary/10">
+                  <TrendingDown className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {filteredExpenses.length} expense{filteredExpenses.length !== 1 ? 's' : ''} found
                   </p>
-                  <p className="text-2xl font-bold">₹{totalFiltered.toFixed(2)}</p>
+                  <p className="text-xl font-bold">₹{totalFiltered.toFixed(2)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Tabs Container */}
-          <Tabs defaultValue="transactions" className="space-y-6">
+          <Tabs defaultValue="transactions" className="space-y-5">
             <div className="flex items-center justify-between">
               <TabsList className="grid w-full grid-cols-3 md:w-[500px]">
-                <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                <TabsTrigger value="monthly-report">Monthly Report</TabsTrigger>
-                <TabsTrigger value="ai-predictions">AI Predictions</TabsTrigger>
+                <TabsTrigger value="transactions" className="text-xs">Transactions</TabsTrigger>
+                <TabsTrigger value="monthly-report" className="text-xs">Monthly Report</TabsTrigger>
+                <TabsTrigger value="ai-predictions" className="text-xs">AI Predictions</TabsTrigger>
               </TabsList>
             </div>
 
-            <TabsContent value="transactions" className="space-y-6 mt-0">
+            <TabsContent value="transactions" className="space-y-5 mt-0">
               {/* Filters */}
               <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col sm:flex-row gap-4">
+                <CardContent className="pt-5">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                       <Input
                         placeholder="Search expenses..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
+                        className="pl-9 h-9 text-sm"
                       />
                     </div>
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                      <SelectTrigger className="w-full sm:w-48">
-                        <Filter className="w-4 h-4 mr-2" />
+                      <SelectTrigger className="w-full sm:w-44 h-9 text-sm">
+                        <Filter className="w-3.5 h-3.5 mr-1.5" />
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -295,7 +295,7 @@ const AllExpenses = () => {
                       </SelectContent>
                     </Select>
                     <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-full sm:w-48">
+                      <SelectTrigger className="w-full sm:w-44 h-9 text-sm">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
                       <SelectContent>
@@ -311,36 +311,36 @@ const AllExpenses = () => {
 
               {/* Expenses List */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Transactions</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">Transactions</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {[...Array(5)].map((_, i) => (
-                        <div key={i} className="flex items-center gap-4 p-4 rounded-lg border">
-                          <Skeleton className="w-12 h-12 rounded-full" />
-                          <div className="flex-1 space-y-2">
-                            <Skeleton className="h-4 w-1/3" />
-                            <Skeleton className="h-3 w-1/4" />
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-lg border">
+                          <Skeleton className="w-10 h-10 rounded-full" />
+                          <div className="flex-1 space-y-1.5">
+                            <Skeleton className="h-3.5 w-1/3" />
+                            <Skeleton className="h-2.5 w-1/4" />
                           </div>
-                          <Skeleton className="h-6 w-20" />
+                          <Skeleton className="h-5 w-16" />
                         </div>
                       ))}
                     </div>
                   ) : filteredExpenses.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                        <TrendingDown className="w-8 h-8 text-muted-foreground" />
+                    <div className="text-center py-10">
+                      <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                        <TrendingDown className="w-6 h-6 text-muted-foreground" />
                       </div>
-                      <h3 className="font-semibold text-lg mb-2">No expenses found</h3>
-                      <p className="text-muted-foreground mb-4">
+                      <h3 className="font-semibold text-sm mb-1.5">No expenses found</h3>
+                      <p className="text-xs text-muted-foreground mb-3">
                         {searchQuery || categoryFilter !== "all"
                           ? "Try adjusting your filters"
                           : "Add your first expense to get started"}
                       </p>
-                      <Button onClick={() => setIsAddDialogOpen(true)} variant="outline">
-                        <Plus className="w-4 h-4 mr-2" />
+                      <Button size="sm" onClick={() => setIsAddDialogOpen(true)} variant="outline" className="text-xs">
+                        <Plus className="w-3.5 h-3.5 mr-1.5" />
                         Add Expense
                       </Button>
                     </div>
@@ -369,22 +369,22 @@ const AllExpenses = () => {
                                 height: `${virtualRow.size}px`,
                                 transform: `translateY(${virtualRow.start}px)`,
                               }}
-                              className="pb-3" // Adds spacing between virtualized rows
+                              className="pb-2.5" // Adds spacing between virtualized rows
                             >
-                              <div className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors group h-full">
+                              <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group h-full">
                                 <div
-                                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                                  className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
                                   style={{ backgroundColor: `${expense.categories?.color}20` }}
                                 >
                                   <CategoryIcon
                                     name={expense.categories?.icon}
-                                    className="w-5 h-5"
+                                    className="w-4 h-4"
                                     color={expense.categories?.color}
                                   />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium truncate">{expense.description}</p>
-                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <p className="font-medium text-sm truncate">{expense.description}</p>
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <Calendar className="w-3 h-3" />
                                     {format(new Date(expense.date), "MMM d, yyyy")}
                                     <Badge variant="secondary" className="text-xs shrink-0">
@@ -393,15 +393,15 @@ const AllExpenses = () => {
                                   </div>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <p className="font-bold text-lg">₹{expense.amount.toFixed(2)}</p>
+                                  <p className="font-semibold text-sm">₹{expense.amount.toFixed(2)}</p>
                                 </div>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => deleteExpense.mutate(expense.id)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive shrink-0"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive shrink-0 h-8 w-8"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </div>
                             </div>

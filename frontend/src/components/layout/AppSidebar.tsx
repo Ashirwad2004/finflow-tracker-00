@@ -17,7 +17,8 @@ import {
   Printer,
   Globe,
   Sparkles,
-  Landmark
+  Landmark,
+  Trash2
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/core/lib/utils";
@@ -100,22 +101,10 @@ export const businessMenuItems = [
     description: "Business Analytics"
   },
   {
-    title: "Print Studio",
-    path: "/print-studio",
-    icon: Printer,
-    description: "Invoice Designs"
-  },
-  {
-    title: "Parties",
-    path: "/parties",
-    icon: Users,
-    description: "Customers & Vendors"
-  },
-  {
-    title: "Bank Details",
-    path: "/bank-details",
-    icon: Landmark,
-    description: "Manage Bank Accounts"
+    title: "Sales & Invoices",
+    path: "/sales",
+    icon: TrendingUp,
+    description: "Manage Sales"
   },
   {
     title: "Inventory",
@@ -124,28 +113,22 @@ export const businessMenuItems = [
     description: "Manage Products"
   },
   {
-    title: "Sales & Invoices",
-    path: "/sales",
-    icon: TrendingUp,
-    description: "Manage Sales"
-  },
-  {
     title: "Purchases",
     path: "/purchases",
     icon: ShoppingCart,
     description: "Manage Bills"
   },
   {
-    title: "Online Store",
-    path: "/online-store",
-    icon: Globe,
-    description: "Manage storefront"
+    title: "Parties",
+    path: "/parties",
+    icon: Users,
+    description: "Customers & Vendors"
   },
   {
-    title: "Loyalty & Campaigns",
-    path: "/loyalty",
-    icon: Sparkles,
-    description: "Reward & Marketing Hub"
+    title: "Print Studio",
+    path: "/print-studio",
+    icon: Printer,
+    description: "Invoice Designs"
   },
   {
     title: "Reports",
@@ -154,22 +137,40 @@ export const businessMenuItems = [
     description: "Party & Analytics"
   },
   {
+    title: "Online Store",
+    path: "/online-store",
+    icon: Globe,
+    description: "Manage storefront"
+  },
+  {
     title: "All Expenses",
     path: "/expenses",
     icon: ReceiptIndianRupee,
     description: "Other Expenses"
   },
   {
-    title: "Recently Deleted",
-    path: "/recently-deleted",
-    icon: Clock,
-    description: "Recover items"
-  },
-  {
     title: "Settings",
     path: "/settings",
     icon: Settings,
     description: "Preferences"
+  },
+  {
+    title: "Bank Details",
+    path: "/bank-details",
+    icon: Landmark,
+    description: "Manage Bank Accounts"
+  },
+  {
+    title: "Loyalty & Campaigns",
+    path: "/loyalty",
+    icon: Sparkles,
+    description: "Reward & Marketing Hub"
+  },
+  {
+    title: "Recycle Bin",
+    path: "/recently-deleted",
+    icon: Trash2,
+    description: "Recover deleted items"
   }
 ];
 

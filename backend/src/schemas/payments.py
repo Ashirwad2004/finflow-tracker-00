@@ -15,6 +15,7 @@ class OrderCancel(BaseModel):
     customerPhone: Optional[str] = Field(default=None, max_length=30)
 
 class SubscriptionOrderCreate(BaseModel):
+    model_config = {"extra": "ignore"}
     planId: Literal["starter", "pro", "business", "premium"]
     billingCycle: Literal["monthly", "annual"]
     couponCode: Optional[str] = Field(default=None, max_length=40)

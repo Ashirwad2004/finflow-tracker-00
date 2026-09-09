@@ -37,8 +37,8 @@ graph TD
     %% Local Python Backend Services
     subgraph LocalServices["Optional Python Backend Service"]
         FastAPI["FastAPI Web Server"]
-        Alembic["Alembic Migration Engine"]
-        SQLA["SQLAlchemy ORM Model Layer"]
+        Migrations["Supabase SQL Migrations"]
+        Edge["Deno Edge Functions"]
     end
 
     %% Connections
@@ -51,13 +51,13 @@ graph TD
     SupabaseGateway --> Realtime
 
     Dashboard -.->|Optional API Sync| FastAPI
-    FastAPI -.->|Async PG Connections| DB
-    Alembic -.->|Schema Version Control| DB
-    FastAPI ---> SQLA
+    FastAPI -.->|Supabase client| DB
+    Migrations -.->|Schema Version Control| DB
+    Edge -.->|Serverless workflows| DB
 ```
 
 ### Architectural Pillars:
-*   **Offline-First Query Caching**: Integrates `@tanstack/react-query` with persistence layers to cache queries. Even if connection drops, the app loads immediately and responds dynamically.
+*   **Offline-First Data Access**: React Query and the IndexedDB-backed offline layer cache reads and queue supported writes for background synchronization when connectivity returns.
 *   **Real-time Synchronization**: Uses Supabase Realtime (WebSockets) to synchronize storefront orders and inventory stock levels instantly between the customer storefront and merchant dashboard.
 *   **Row-Level Security (RLS)**: Every single table in the PostgreSQL database is secured using context-aware RLS policies. A user can only read and write data that belongs to them or groups they are verified members of.
 *   **Modular Component Organization**: Divided strictly by "features" to ensure frontend code remains clean, testable, and highly decoupled.
@@ -76,8 +76,8 @@ FinFlow is built with modern, industry-standard technologies:
 | **State & Cache** | TanStack Query (React Query) | Server state management, auto-refetching, and cache optimization. |
 | **Database & Auth** | Supabase, PostgreSQL | Relational storage, Real-time channels, Row Level Security. |
 | **Storage** | Supabase Storage | File storage for invoices, receipts, and product photos. |
-| **Optional Backend** | FastAPI, SQLAlchemy | High-speed Python backend routes (rate-limited by SlowAPI). |
-| **DB Migrations** | Supabase Migrations / Alembic | Version-controlled database schema states. |
+| **Optional Backend** | FastAPI, Pydantic, SlowAPI | AI, payment, health, and utility API routes. |
+| **DB Migrations** | Supabase SQL migrations | Version-controlled database schema states in `supabase/migrations/`. |
 
 ---
 
@@ -85,13 +85,13 @@ FinFlow is built with modern, industry-standard technologies:
 
 ```
 finflow-tracker/
-├── backend/                  # FastAPI Python Service
-│   ├── alembic/              # Database Schema Versioning (Alembic)
+├── backend/                  # Optional FastAPI Python service
 │   ├── src/
-│   │   ├── api/v1/           # API routes (auth, expenses, etc.)
-│   │   ├── core/             # Application config and settings
-│   │   └── db/models/        # SQLAlchemy Models (BaseModel, etc.)
-│   ├── main.py               # FastAPI server entrypoint
+│   │   ├── api/v1/           # Versioned API routes
+│   │   ├── core/             # Settings, security, AI, and rate limiting
+│   │   └── services/         # AI, payments, and domain services
+│   ├── tests/                # Backend pytest suite
+│   ├── Dockerfile
 │   └── requirements.txt      # Python dependencies
 ├── docs/                     # Documentation hub
 │   ├── sql-archive/          # Historical SQL query scripts
@@ -99,10 +99,23 @@ finflow-tracker/
 │   ├── features-guide.md     # Detailed user-facing feature guide
 │   ├── database-schema.md    # Detailed database table schemas and RLS
 │   └── developer-setup.md    # Local setup and deployment manual
-├── supabase/                 # Supabase Configurations
-│   ├── migrations/           # Core DB migrations (Single Source of Truth)
-│   └── config.toml           # Supabase CLI setup
-├── src/                      # React Frontend Source
+├── frontend/                 # React/Vite frontend workspace
+│   ├── src/                  # Application source
+│   ├── public/               # Static assets and service worker
+│   ├── vite.config.ts        # Dev server (port 8080) and API proxy
+│   └── package.json
+├── package.json              # Root workspace scripts
+├── docker-compose.yml        # Frontend and backend containers
+├── run-backend.py            # Cross-platform FastAPI runner
+└── supabase/                 # Supabase configuration and migrations
+    ├── functions/            # Deno Edge Functions
+    └── migrations/           # Database source of truth
+```
+
+The frontend source is organized as follows:
+
+```
+frontend/src/
 │   ├── components/
 │   │   ├── layout/           # AppLayout, Sidebars, Header, Navigation
 │   │   ├── shared/           # AssistantGate, ThemeToggle, Dialogs

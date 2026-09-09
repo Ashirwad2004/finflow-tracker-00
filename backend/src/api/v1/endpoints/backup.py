@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -30,6 +30,13 @@ async def export_user_data(
             detail="Valid authenticated user required for data export",
         )
 
+    if supabase_client is None:
+        logger.error("Supabase client is not configured on the backend.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is temporarily unavailable",
+        )
+
     try:
         # Fetch user data across all personal & business tables
         expenses_res = supabase_client.table("expenses").select("*").eq("user_id", user_id).execute()
@@ -43,9 +50,10 @@ async def export_user_data(
         profile_res = supabase_client.table("profiles").select("*").eq("user_id", user_id).execute()
 
         profile_data = profile_res.data[0] if profile_res.data else None
+        now_dt = datetime.now(timezone.utc)
 
         backup_payload = {
-            "exportedAt": datetime.utcnow().isoformat(),
+            "exportedAt": now_dt.isoformat(),
             "userId": user_id,
             "userEmail": user_info.get("email"),
             "profile": profile_data,
@@ -59,13 +67,15 @@ async def export_user_data(
             "parties": parties_res.data or [],
         }
 
-        filename = f"finflow-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"
+        filename = f"finflow-backup-{now_dt.strftime('%Y-%m-%d')}.json"
         return JSONResponse(
             content=backup_payload,
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
             },
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to create data export")
         raise HTTPException(
