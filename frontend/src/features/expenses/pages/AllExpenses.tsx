@@ -84,6 +84,18 @@ const AllExpenses = () => {
         localStorage.setItem(recentlyDeletedKey, JSON.stringify(existingDeleted));
       }
     },
+    onMutate: async (id: string) => {
+      if (!user?.id) return;
+
+      await queryClient.cancelQueries({ queryKey: ["expenses", user.id] });
+      const previousExpenses = queryClient.getQueryData<any[]>(["expenses", user.id]) ?? expenses;
+
+      queryClient.setQueryData(["expenses", user.id], (old: any[] | undefined) =>
+        (old ?? []).filter((exp: any) => exp.id !== id)
+      );
+
+      return { previousExpenses };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       toast({
@@ -91,7 +103,11 @@ const AllExpenses = () => {
         description: "Moved to recently deleted.",
       });
     },
-    onError: () => {
+    onError: (_error, _id, context) => {
+      if (user?.id && context?.previousExpenses) {
+        queryClient.setQueryData(["expenses", user.id], context.previousExpenses);
+      }
+
       toast({
         title: "Error",
         description: "Failed to delete expense.",
