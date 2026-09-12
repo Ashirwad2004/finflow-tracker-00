@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
     Plus, 
     Building2, 
@@ -17,9 +17,6 @@ import {
     RefreshCw,
     TrendingUp,
     TrendingDown,
-    IndianRupee,
-    Briefcase,
-    Calendar,
     HelpCircle,
     BadgeAlert
 } from "lucide-react";
@@ -67,7 +64,27 @@ import {
 } from "recharts";
 import { format, subDays, isAfter, parseISO } from "date-fns";
 
+// ─── Storage Keys Constants ───────────────────────────────────────────────────
+
+const STORAGE_KEYS = {
+    ACCOUNTS: "rupeebill_bank_accounts",
+    TRANSACTIONS: "rupeebill_bank_transactions",
+    STATEMENT: "rupeebill_mock_statement",
+} as const;
+
 // ─── Interfaces & Schemas ───────────────────────────────────────────────────
+
+export type AccountType = "checking" | "savings" | "overdraft" | "cash";
+export type TransactionType = "deposit" | "withdrawal";
+export type TransactionCategory = 
+    | "Sales" 
+    | "Vendor Payment" 
+    | "Salary" 
+    | "Utilities" 
+    | "Rent" 
+    | "Transfer" 
+    | "Tax" 
+    | "Other";
 
 export interface BankAccount {
     id: string;
@@ -76,63 +93,65 @@ export interface BankAccount {
     ifscCode: string;
     branchName: string;
     isDefault: boolean;
-    accountType: "checking" | "savings" | "overdraft" | "cash";
+    accountType: AccountType;
     initialBalance: number;
-    odLimit?: number; // Only for overdraft accounts
+    odLimit?: number;
 }
 
 export interface BankTransaction {
     id: string;
     accountId: string;
     date: string;
-    type: "deposit" | "withdrawal";
+    type: TransactionType;
     amount: number;
-    category: "Sales" | "Vendor Payment" | "Salary" | "Utilities" | "Rent" | "Transfer" | "Tax" | "Other";
-    referenceId: string; // UTR or Ref Number
+    category: TransactionCategory;
+    referenceId: string;
     description: string;
     isReconciled: boolean;
     reconciledAt?: string;
-    transferToAccountId?: string; // If part of a transfer
+    transferToAccountId?: string;
 }
 
 export interface MockStatementRecord {
     id: string;
     date: string;
     description: string;
-    amount: number; // positive = credit, negative = debit
+    amount: number;
     referenceId: string;
     matchedTransactionId?: string;
 }
 
+// ─── Component Implementation ─────────────────────────────────────────────────
+
 const BankDetailsPage = () => {
-    // ─── State Hooks ─────────────────────────────────────────────────────────
+    // State
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
     const [transactions, setTransactions] = useState<BankTransaction[]>([]);
     const [mockStatement, setMockStatement] = useState<MockStatementRecord[]>([]);
-    
-    // Dialogs
+
+    // Dialog Controls
     const [isAccountOpen, setIsAccountOpen] = useState(false);
     const [isTxOpen, setIsTxOpen] = useState(false);
     const [isTransferOpen, setIsTransferOpen] = useState(false);
-    
+
     // Edit references
     const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
-    
+
     // Account Form state
     const [bankName, setBankName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [ifscCode, setIfscCode] = useState("");
     const [branchName, setBranchName] = useState("");
-    const [accountType, setAccountType] = useState<BankAccount["accountType"]>("checking");
+    const [accountType, setAccountType] = useState<AccountType>("checking");
     const [initialBalance, setInitialBalance] = useState("0");
     const [odLimit, setOdLimit] = useState("0");
 
     // Transaction Form state
     const [txAccountId, setTxAccountId] = useState("");
-    const [txType, setTxType] = useState<"deposit" | "withdrawal">("deposit");
+    const [txType, setTxType] = useState<TransactionType>("deposit");
     const [txAmount, setTxAmount] = useState("");
     const [txDate, setTxDate] = useState(format(new Date(), "yyyy-MM-dd"));
-    const [txCategory, setTxCategory] = useState<BankTransaction["category"]>("Sales");
+    const [txCategory, setTxCategory] = useState<TransactionCategory>("Sales");
     const [txRef, setTxRef] = useState("");
     const [txDesc, setTxDesc] = useState("");
 
@@ -149,36 +168,23 @@ const BankDetailsPage = () => {
     const [ledgerAccountFilter, setLedgerAccountFilter] = useState("all");
     const [ledgerTypeFilter, setLedgerTypeFilter] = useState("all");
 
-    // ─── Data Loading & Initialization ───────────────────────────────────────
-    useEffect(() => {
-        loadData();
+    // Persistence Helpers
+    const saveAccounts = useCallback((list: BankAccount[]) => {
+        setAccounts(list);
+        localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(list));
     }, []);
 
-    const loadData = () => {
-        try {
-            const savedAccounts = localStorage.getItem("rupeebill_bank_accounts");
-            const savedTransactions = localStorage.getItem("rupeebill_bank_transactions");
-            const savedStatement = localStorage.getItem("rupeebill_mock_statement");
+    const saveTransactions = useCallback((list: BankTransaction[]) => {
+        setTransactions(list);
+        localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(list));
+    }, []);
 
-            if (savedAccounts) {
-                setAccounts(JSON.parse(savedAccounts));
-            } else {
-                seedDefaultData();
-                return;
-            }
+    const saveStatement = useCallback((list: MockStatementRecord[]) => {
+        setMockStatement(list);
+        localStorage.setItem(STORAGE_KEYS.STATEMENT, JSON.stringify(list));
+    }, []);
 
-            if (savedTransactions) {
-                setTransactions(JSON.parse(savedTransactions));
-            }
-            if (savedStatement) {
-                setMockStatement(JSON.parse(savedStatement));
-            }
-        } catch (e) {
-            console.error("Failed to parse banking records", e);
-        }
-    };
-
-    const seedDefaultData = () => {
+    const seedDefaultData = useCallback(() => {
         const defaultAccounts: BankAccount[] = [
             {
                 id: "acc-sbi",
@@ -275,7 +281,6 @@ const BankDetailsPage = () => {
             }
         ];
 
-        // Seed some mock statement items that match or mismatch the ledger
         const defaultStatement: MockStatementRecord[] = [
             {
                 id: "st-1",
@@ -301,7 +306,6 @@ const BankDetailsPage = () => {
                 referenceId: "UTR1029302919",
                 matchedTransactionId: "tx-3"
             },
-            // Unreconciled bank statement feeds matching UTRs but not matched in UI yet
             {
                 id: "st-4",
                 date: format(subDays(today, 2), "yyyy-MM-dd"),
@@ -321,39 +325,44 @@ const BankDetailsPage = () => {
                 date: format(today, "yyyy-MM-dd"),
                 description: "BANK CHARGES DR TAX REF CHARGES",
                 amount: -250,
-                referenceId: "MOCKCHG992" // Mismatch to show statement reconciliation logic
+                referenceId: "MOCKCHG992"
             }
         ];
 
-        setAccounts(defaultAccounts);
-        setTransactions(defaultTransactions);
-        setMockStatement(defaultStatement);
-
-        localStorage.setItem("rupeebill_bank_accounts", JSON.stringify(defaultAccounts));
-        localStorage.setItem("rupeebill_bank_transactions", JSON.stringify(defaultTransactions));
-        localStorage.setItem("rupeebill_mock_statement", JSON.stringify(defaultStatement));
-        
+        saveAccounts(defaultAccounts);
+        saveTransactions(defaultTransactions);
+        saveStatement(defaultStatement);
         toast.success("Accountant Workspace initialized with sample bank books!");
-    };
+    }, [saveAccounts, saveTransactions, saveStatement]);
 
-    const saveAccounts = (list: BankAccount[]) => {
-        setAccounts(list);
-        localStorage.setItem("rupeebill_bank_accounts", JSON.stringify(list));
-    };
+    // Data Load
+    useEffect(() => {
+        try {
+            const savedAccounts = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+            const savedTransactions = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
+            const savedStatement = localStorage.getItem(STORAGE_KEYS.STATEMENT);
 
-    const saveTransactions = (list: BankTransaction[]) => {
-        setTransactions(list);
-        localStorage.setItem("rupeebill_bank_transactions", JSON.stringify(list));
-    };
+            if (savedAccounts) {
+                setAccounts(JSON.parse(savedAccounts));
+            } else {
+                seedDefaultData();
+                return;
+            }
 
-    const saveStatement = (list: MockStatementRecord[]) => {
-        setMockStatement(list);
-        localStorage.setItem("rupeebill_mock_statement", JSON.stringify(list));
-    };
+            if (savedTransactions) {
+                setTransactions(JSON.parse(savedTransactions));
+            }
+            if (savedStatement) {
+                setMockStatement(JSON.parse(savedStatement));
+            }
+        } catch (e) {
+            console.error("Failed to parse banking records", e);
+            toast.error("Failed to load local bank records. Resetting state.");
+            seedDefaultData();
+        }
+    }, [seedDefaultData]);
 
-    // ─── Accountant Ledger Math ──────────────────────────────────────────────
-    
-    // Calculates balances dynamically to emulate a real-world accounting registry
+    // Ledger Calculations
     const accountBalances = useMemo(() => {
         const balances: Record<string, number> = {};
         
@@ -378,7 +387,6 @@ const BankDetailsPage = () => {
         return Object.values(accountBalances).reduce((sum, val) => sum + val, 0);
     }, [accountBalances]);
 
-    // Calculate Inflows and Outflows (last 30 days)
     const stats30Days = useMemo(() => {
         const thirtyDaysAgo = subDays(new Date(), 30);
         let inbound = 0;
@@ -397,7 +405,7 @@ const BankDetailsPage = () => {
         return { inbound, outbound, net: inbound - outbound };
     }, [transactions]);
 
-    // ─── Account Actions ─────────────────────────────────────────────────────
+    // Actions
     const handleOpenAccountDialog = (acc?: BankAccount) => {
         if (acc) {
             setEditingAccount(acc);
@@ -429,7 +437,6 @@ const BankDetailsPage = () => {
             return;
         }
 
-        // Standard IFSC validation
         if (ifscCode.trim().length !== 11) {
             toast.error("IFSC Code must be exactly 11 characters.");
             return;
@@ -482,10 +489,9 @@ const BankDetailsPage = () => {
             return;
         }
 
-        // Check if there are transactions bound to this account
         const hasTransactions = transactions.some(t => t.accountId === id);
         if (hasTransactions) {
-            toast.error("Cannot delete a bank book with transaction records. Archive or delete transactions first.");
+            toast.error("Cannot delete a bank book with transaction records. Remove transactions first.");
             return;
         }
 
@@ -507,8 +513,7 @@ const BankDetailsPage = () => {
         toast.success("Default invoice bank account updated!");
     };
 
-    // ─── Transaction Actions ─────────────────────────────────────────────────
-    const handleOpenTxDialog = (type: "deposit" | "withdrawal", accountId?: string) => {
+    const handleOpenTxDialog = (type: TransactionType, accountId?: string) => {
         setTxAccountId(accountId || (accounts[0]?.id || ""));
         setTxType(type);
         setTxAmount("");
@@ -530,9 +535,8 @@ const BankDetailsPage = () => {
         const targetAcc = accounts.find(a => a.id === txAccountId);
         if (!targetAcc) return;
 
-        // Overdraft liability warning check
         if (txType === "withdrawal") {
-            const currentBal = accountBalances[txAccountId];
+            const currentBal = accountBalances[txAccountId] || 0;
             const remainingOD = targetAcc.accountType === "overdraft" 
                 ? (targetAcc.odLimit || 0) + currentBal 
                 : currentBal;
@@ -560,7 +564,6 @@ const BankDetailsPage = () => {
         toast.success(`Ledger posted: ${txType === "deposit" ? "+" : "-"}₹${newTx.amount.toLocaleString()}`);
     };
 
-    // ─── Account-to-Account Transfers ────────────────────────────────────────
     const handleOpenTransferDialog = () => {
         if (accounts.length < 2) {
             toast.error("At least two bank books are required to initiate an internal transfer.");
@@ -593,8 +596,7 @@ const BankDetailsPage = () => {
         const destAcc = accounts.find(a => a.id === toAccountId);
         if (!sourceAcc || !destAcc) return;
 
-        // Check if source has enough funds
-        const currentBal = accountBalances[fromAccountId];
+        const currentBal = accountBalances[fromAccountId] || 0;
         const maxLimit = sourceAcc.accountType === "overdraft" 
             ? (sourceAcc.odLimit || 0) + currentBal 
             : currentBal;
@@ -606,12 +608,8 @@ const BankDetailsPage = () => {
 
         const commonRef = transferRef || ("TXN" + Date.now());
 
-        // Create Contra (double-entry) ledger postings
-        const debitTxId = crypto.randomUUID();
-        const creditTxId = crypto.randomUUID();
-
         const debitTx: BankTransaction = {
-            id: debitTxId,
+            id: crypto.randomUUID(),
             accountId: fromAccountId,
             date: transferDate,
             type: "withdrawal",
@@ -624,7 +622,7 @@ const BankDetailsPage = () => {
         };
 
         const creditTx: BankTransaction = {
-            id: creditTxId,
+            id: crypto.randomUUID(),
             accountId: toAccountId,
             date: transferDate,
             type: "deposit",
@@ -646,7 +644,6 @@ const BankDetailsPage = () => {
         toast.success("Transaction removed from ledger.");
     };
 
-    // ─── Reconciliation Controls ─────────────────────────────────────────────
     const handleReconcileToggle = (txId: string) => {
         const updated = transactions.map(t => {
             if (t.id === txId) {
@@ -660,7 +657,6 @@ const BankDetailsPage = () => {
             return t;
         });
 
-        // Also update matching mock statement item status
         const tx = transactions.find(t => t.id === txId);
         if (tx) {
             const isReconciling = !tx.isReconciled;
@@ -684,7 +680,6 @@ const BankDetailsPage = () => {
         const updatedTxs = transactions.map(t => {
             if (t.isReconciled) return t;
 
-            // Search for matching UTR/Ref in mock statement
             const matchIndex = tempStatement.findIndex(st => 
                 st.referenceId === t.referenceId && 
                 Math.abs(st.amount) === t.amount &&
@@ -708,17 +703,15 @@ const BankDetailsPage = () => {
             saveStatement(tempStatement);
             toast.success(`Automated match completed! Reconciled ${matchCount} transactions with bank feeds.`);
         } else {
-            toast.info("No matching reference numbers or amounts found in the bank feeds.");
+            toast.info("No matching reference numbers or amounts found in bank feeds.");
         }
     };
 
-    // Simulated Bank Statement Generator tool
     const handleGenerateBankStatement = () => {
         const today = new Date();
-        // Generate new random statement feeds that match current unreconciled ledger entries
         const unreconciled = transactions.filter(t => !t.isReconciled);
+        
         if (unreconciled.length === 0) {
-            // Generate standard generic feeds
             const genericFeeds: MockStatementRecord[] = [
                 {
                     id: "gen-" + Math.random(),
@@ -751,29 +744,31 @@ const BankDetailsPage = () => {
                 referenceId: t.referenceId
             };
         });
-
-        // Add 1 mismatching bank charges feed for reality
-        newFeeds.push({
-            id: "st-feed-charge-" + Math.random(),
-            date: format(today, "yyyy-MM-dd"),
-            description: "SYSTEM CONVENIENCE FEE DR MOCKREF",
-            amount: -120,
-            referenceId: "FEE" + Date.now().toString().slice(-4)
-        });
-
         saveStatement([...newFeeds, ...mockStatement]);
         toast.success(`Generated ${newFeeds.length} new statement line feeds corresponding to your ledger.`);
     };
 
     const handleClearStatementFeeds = () => {
-        // Reset matches to false
         const resetTxs = transactions.map(t => ({ ...t, isReconciled: false, reconciledAt: undefined }));
         saveTransactions(resetTxs);
         saveStatement([]);
         toast.success("Bank statement feed cleared. Ledger reconciliation reset.");
     };
 
-    // ─── CSV Export ──────────────────────────────────────────────────────────
+    const filteredTransactions = useMemo(() => {
+        return transactions.filter(t => {
+            const matchesSearch = 
+                t.description.toLowerCase().includes(ledgerSearch.toLowerCase()) || 
+                t.referenceId.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                t.category.toLowerCase().includes(ledgerSearch.toLowerCase());
+            
+            const matchesAccount = ledgerAccountFilter === "all" || t.accountId === ledgerAccountFilter;
+            const matchesType = ledgerTypeFilter === "all" || t.type === ledgerTypeFilter;
+
+            return matchesSearch && matchesAccount && matchesType;
+        });
+    }, [transactions, ledgerSearch, ledgerAccountFilter, ledgerTypeFilter]);
+
     const handleExportCSV = () => {
         if (filteredTransactions.length === 0) {
             toast.error("No transactions to export.");
@@ -808,24 +803,7 @@ const BankDetailsPage = () => {
         toast.success("Bank Ledger exported successfully to CSV!");
     };
 
-    // ─── Filtered Transactions for Ledger ────────────────────────────────────
-    const filteredTransactions = useMemo(() => {
-        return transactions.filter(t => {
-            const matchesSearch = 
-                t.description.toLowerCase().includes(ledgerSearch.toLowerCase()) || 
-                t.referenceId.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
-                t.category.toLowerCase().includes(ledgerSearch.toLowerCase());
-            
-            const matchesAccount = ledgerAccountFilter === "all" || t.accountId === ledgerAccountFilter;
-            const matchesType = ledgerTypeFilter === "all" || t.type === ledgerTypeFilter;
-
-            return matchesSearch && matchesAccount && matchesType;
-        });
-    }, [transactions, ledgerSearch, ledgerAccountFilter, ledgerTypeFilter]);
-
-    // ─── Chart Data Construction ─────────────────────────────────────────────
     const chartData = useMemo(() => {
-        // Build 30-day chronological overview of inflow vs outflow
         const data: Record<string, { date: string; Inbound: number; Outbound: number }> = {};
         const today = new Date();
 
@@ -853,9 +831,9 @@ const BankDetailsPage = () => {
             <div className="container mx-auto p-4 sm:p-6 max-w-6xl space-y-6 animate-fade-in pb-12">
                 
                 {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-105 dark:border-slate-800/80 pb-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-5">
                     <div>
-                        <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-850 dark:text-slate-100">
+                        <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
                             <Landmark className="w-6 h-6 text-primary" />
                             Business Banking Hub
                         </h1>
@@ -906,7 +884,7 @@ const BankDetailsPage = () => {
                         </div>
                         <div>
                             <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Liquid Assets</span>
-                            <span className="text-lg font-bold text-slate-850 dark:text-slate-100">
+                            <span className="text-lg font-bold text-foreground">
                                 ₹{totalLiquidAssets.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                         </div>
@@ -960,14 +938,14 @@ const BankDetailsPage = () => {
 
                 {/* Main Content Workspace Tabs */}
                 <Tabs defaultValue="accounts" className="w-full space-y-4">
-                    <TabsList className="bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl w-full max-w-md grid grid-cols-4">
+                    <TabsList className="bg-muted p-1 rounded-xl w-full max-w-md grid grid-cols-4">
                         <TabsTrigger value="accounts" className="rounded-lg text-xs py-1.5">Accounts</TabsTrigger>
                         <TabsTrigger value="ledger" className="rounded-lg text-xs py-1.5">Ledger</TabsTrigger>
                         <TabsTrigger value="reconcile" className="rounded-lg text-xs py-1.5">Reconcile</TabsTrigger>
                         <TabsTrigger value="analytics" className="rounded-lg text-xs py-1.5">Analytics</TabsTrigger>
                     </TabsList>
 
-                    {/* ────────────────── ACCOUNTS REGISTER TAB ────────────────── */}
+                    {/* ACCOUNTS REGISTER TAB */}
                     <TabsContent value="accounts" className="space-y-4 outline-none">
                         {accounts.length === 0 ? (
                             <div className="border border-dashed rounded-3xl p-12 text-center flex flex-col items-center justify-center space-y-3 bg-card/50">
@@ -997,7 +975,6 @@ const BankDetailsPage = () => {
                                                 acc.isDefault ? "border-primary ring-2 ring-primary/5 shadow-sm" : "border-border/80"
                                             )}
                                         >
-                                            {/* Default Badge */}
                                             {acc.isDefault && (
                                                 <div className="absolute top-4 right-4 flex items-center gap-1 text-[9px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                                                     <CheckCircle2 className="w-3 h-3" />
@@ -1007,28 +984,26 @@ const BankDetailsPage = () => {
 
                                             <div className="space-y-3">
                                                 <div className="flex items-center gap-2.5">
-                                                    <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-650 dark:text-slate-350">
+                                                    <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
                                                         <Building2 className="w-4 h-4" />
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-bold text-sm text-slate-805 dark:text-slate-100">{acc.bankName}</h3>
+                                                        <h3 className="font-bold text-sm text-foreground">{acc.bankName}</h3>
                                                         <span className="text-[10px] text-muted-foreground capitalize font-semibold">{acc.accountType} Account</span>
                                                     </div>
                                                 </div>
 
-                                                {/* Dynamic Balance indicator */}
-                                                <div className="bg-slate-50 dark:bg-slate-905/60 p-3 rounded-xl">
+                                                <div className="bg-muted/50 p-3 rounded-xl">
                                                     <span className="text-[9px] uppercase font-bold text-muted-foreground block">Ledger Balance</span>
                                                     <span className={cn(
                                                         "text-base font-bold font-mono",
-                                                        bal < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-200"
+                                                        bal < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground"
                                                     )}>
                                                         ₹{bal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
 
-                                                {/* Overdraft limit details */}
-                                                {isOD && acc.odLimit && (
+                                                {isOD && acc.odLimit !== undefined && (
                                                     <div className="space-y-1 pt-1">
                                                         <div className="flex items-center justify-between text-[9px] font-bold">
                                                             <span className="text-muted-foreground">Available Credit</span>
@@ -1048,20 +1023,18 @@ const BankDetailsPage = () => {
                                                     </div>
                                                 )}
 
-                                                {/* Account info list */}
                                                 <div className="grid grid-cols-2 gap-y-2 pt-2 border-t text-[10px] font-mono">
                                                     <div>
                                                         <span className="text-[8px] text-muted-foreground uppercase block font-sans">Account Number</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{acc.accountNumber}</span>
+                                                        <span className="font-semibold text-foreground">{acc.accountNumber}</span>
                                                     </div>
                                                     <div>
                                                         <span className="text-[8px] text-muted-foreground uppercase block font-sans">IFSC Code</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{acc.ifscCode}</span>
+                                                        <span className="font-semibold text-foreground">{acc.ifscCode}</span>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* Actions */}
                                             <div className="flex items-center justify-between border-t pt-3">
                                                 <button 
                                                     onClick={() => handleSetDefault(acc.id)}
@@ -1070,7 +1043,7 @@ const BankDetailsPage = () => {
                                                         "text-[10px] font-bold transition-all disabled:opacity-50",
                                                         acc.isDefault 
                                                             ? "text-primary cursor-default" 
-                                                            : "text-slate-500 hover:text-primary"
+                                                            : "text-muted-foreground hover:text-primary"
                                                     )}
                                                 >
                                                     {acc.isDefault ? "Selected for prints" : "Set as default"}
@@ -1081,7 +1054,7 @@ const BankDetailsPage = () => {
                                                         onClick={() => handleOpenAccountDialog(acc)}
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="w-7 h-7 rounded-lg text-slate-500 hover:text-slate-800"
+                                                        className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground"
                                                         title="Edit account details"
                                                     >
                                                         <Edit2 className="w-3 h-3" />
@@ -1104,7 +1077,7 @@ const BankDetailsPage = () => {
                         )}
                     </TabsContent>
 
-                    {/* ────────────────── GENERAL LEDGER TAB ────────────────── */}
+                    {/* GENERAL LEDGER TAB */}
                     <TabsContent value="ledger" className="space-y-4 outline-none">
                         <div className="bg-card border border-border/80 rounded-2xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
                             <div className="relative w-full md:w-80">
@@ -1152,11 +1125,10 @@ const BankDetailsPage = () => {
                             </div>
                         </div>
 
-                        {/* Ledger list table */}
                         <div className="bg-card border border-border/85 rounded-2xl overflow-hidden shadow-sm">
                             <Table>
                                 <TableHeader>
-                                    <TableRow className="bg-slate-50 dark:bg-slate-900/60">
+                                    <TableRow className="bg-muted/50">
                                         <TableHead className="w-[100px] text-xs font-bold">Date</TableHead>
                                         <TableHead className="text-xs font-bold">Bank Book</TableHead>
                                         <TableHead className="text-xs font-bold">Type</TableHead>
@@ -1179,7 +1151,7 @@ const BankDetailsPage = () => {
                                         filteredTransactions.map((tx) => {
                                             const acc = accounts.find(a => a.id === tx.accountId);
                                             return (
-                                                <TableRow key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                                                <TableRow key={tx.id} className="hover:bg-muted/30">
                                                     <TableCell className="font-mono text-[10px]">{tx.date}</TableCell>
                                                     <TableCell className="font-medium text-xs">
                                                         {acc ? acc.bankName : "Unknown Account"}
@@ -1196,7 +1168,7 @@ const BankDetailsPage = () => {
                                                             </Badge>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell className="text-xs font-semibold text-slate-700 dark:text-slate-350">{tx.category}</TableCell>
+                                                    <TableCell className="text-xs font-semibold text-foreground">{tx.category}</TableCell>
                                                     <TableCell className="font-mono text-[10px] font-bold">{tx.referenceId}</TableCell>
                                                     <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={tx.description}>
                                                         {tx.description}
@@ -1223,7 +1195,7 @@ const BankDetailsPage = () => {
                                                             onClick={() => handleDeleteTransaction(tx.id)}
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="w-6 h-6 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                                            className="w-6 h-6 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </Button>
@@ -1237,14 +1209,13 @@ const BankDetailsPage = () => {
                         </div>
                     </TabsContent>
 
-                    {/* ────────────────── RECONCILIATION TAB ────────────────── */}
+                    {/* RECONCILIATION TAB */}
                     <TabsContent value="reconcile" className="space-y-4 outline-none">
                         
-                        {/* Reconciliation status summary */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="bg-card border border-border/80 p-4 rounded-2xl flex flex-col justify-between">
                                 <span className="text-[10px] uppercase font-bold text-muted-foreground">General Ledger Balance</span>
-                                <span className="text-lg font-bold font-mono text-slate-800 dark:text-slate-200">
+                                <span className="text-lg font-bold font-mono text-foreground">
                                     ₹{totalLiquidAssets.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </span>
                             </div>
@@ -1270,7 +1241,6 @@ const BankDetailsPage = () => {
                             </div>
                         </div>
 
-                        {/* Auto Match Toolbar */}
                         <div className="bg-card border border-border/80 rounded-2xl p-4 flex flex-wrap gap-2 items-center justify-between">
                             <div className="text-xs text-muted-foreground">
                                 Perform automated reconciliations by matching Ledger transaction UTR reference codes directly with incoming bank statement feeds.
@@ -1302,17 +1272,16 @@ const BankDetailsPage = () => {
                             </div>
                         </div>
 
-                        {/* Reconciliation Workspace Splits */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             
-                            {/* Left Side: General Ledger (Unreconciled) */}
+                            {/* Left Side: Unreconciled General Ledger */}
                             <div className="bg-card border border-border/80 rounded-2xl p-4 space-y-3">
                                 <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
                                     <Landmark className="w-3.5 h-3.5 text-primary" /> Unreconciled General Ledger ({transactions.filter(t => !t.isReconciled).length} Posts)
                                 </h3>
                                 <div className="border border-border/60 rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
                                     <Table>
-                                        <TableHeader className="bg-slate-50 dark:bg-slate-900/40">
+                                        <TableHeader className="bg-muted/50">
                                             <TableRow>
                                                 <TableHead className="text-[10px] font-bold">Date/Book</TableHead>
                                                 <TableHead className="text-[10px] font-bold">Ref/UTR</TableHead>
@@ -1331,7 +1300,7 @@ const BankDetailsPage = () => {
                                                 transactions.filter(t => !t.isReconciled).map(t => {
                                                     const acc = accounts.find(a => a.id === t.accountId);
                                                     return (
-                                                        <TableRow key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                                                        <TableRow key={t.id} className="hover:bg-muted/20">
                                                             <TableCell>
                                                                 <span className="block font-mono text-[9px]">{t.date}</span>
                                                                 <span className="text-[9px] font-semibold block truncate max-w-[120px]">{acc?.bankName}</span>
@@ -1348,7 +1317,7 @@ const BankDetailsPage = () => {
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 <Button
-                                                                    size="xs"
+                                                                    size="sm"
                                                                     onClick={() => handleReconcileToggle(t.id)}
                                                                     className="h-6 rounded px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px]"
                                                                 >
@@ -1364,14 +1333,14 @@ const BankDetailsPage = () => {
                                 </div>
                             </div>
 
-                            {/* Right Side: Incoming Bank Statement Feeds */}
+                            {/* Right Side: Bank Statement Feeds */}
                             <div className="bg-card border border-border/80 rounded-2xl p-4 space-y-3">
                                 <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
                                     <RefreshCw className="w-3.5 h-3.5 text-primary animate-pulse" /> Live Bank Statement Feeds ({mockStatement.length} Feeds)
                                 </h3>
                                 <div className="border border-border/60 rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
                                     <Table>
-                                        <TableHeader className="bg-slate-50 dark:bg-slate-900/40">
+                                        <TableHeader className="bg-muted/50">
                                             <TableRow>
                                                 <TableHead className="text-[10px] font-bold">Date/Bank Info</TableHead>
                                                 <TableHead className="text-[10px] font-bold">Ref/UTR</TableHead>
@@ -1388,7 +1357,7 @@ const BankDetailsPage = () => {
                                                 </TableRow>
                                             ) : (
                                                 mockStatement.map(st => (
-                                                    <TableRow key={st.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                                                    <TableRow key={st.id} className="hover:bg-muted/20">
                                                         <TableCell>
                                                             <span className="block font-mono text-[9px]">{st.date}</span>
                                                             <span className="text-[8px] text-muted-foreground block truncate max-w-[150px]">{st.description}</span>
@@ -1422,16 +1391,14 @@ const BankDetailsPage = () => {
                         </div>
                     </TabsContent>
 
-                    {/* ────────────────── ANALYTICS & CHARTS TAB ────────────────── */}
+                    {/* ANALYTICS & CHARTS TAB */}
                     <TabsContent value="analytics" className="space-y-6 outline-none">
-                        
-                        {/* Summary Metrics */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             
                             {/* Area Chart: cash flow trends */}
                             <div className="bg-card border border-border/80 rounded-2xl p-5 space-y-4">
                                 <div>
-                                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">30-Day Cash Flow Trends</h3>
+                                    <h3 className="font-bold text-sm text-foreground">30-Day Cash Flow Trends</h3>
                                     <p className="text-[10px] text-muted-foreground">Daily credit (Inflow) vs debit (Outflow) transaction aggregate tracking.</p>
                                 </div>
                                 <div className="h-[250px] w-full">
@@ -1468,7 +1435,7 @@ const BankDetailsPage = () => {
                             {/* Bar Chart: Balance distribution across accounts */}
                             <div className="bg-card border border-border/80 rounded-2xl p-5 space-y-4">
                                 <div>
-                                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Liquidity Distribution</h3>
+                                    <h3 className="font-bold text-sm text-foreground">Liquidity Distribution</h3>
                                     <p className="text-[10px] text-muted-foreground">Current ledger balance distributed by configured bank books.</p>
                                 </div>
                                 <div className="h-[250px] w-full">
@@ -1502,11 +1469,11 @@ const BankDetailsPage = () => {
                     </TabsContent>
                 </Tabs>
 
-                {/* ─── DIALOG: ADD/EDIT BANK ACCOUNT ────────────────────────── */}
+                {/* DIALOG: ADD/EDIT BANK ACCOUNT */}
                 <Dialog open={isAccountOpen} onOpenChange={setIsAccountOpen}>
                     <DialogContent className="sm:max-w-[425px] rounded-2xl">
                         <DialogHeader>
-                            <DialogTitle className="text-base font-bold text-slate-800 dark:text-slate-100">
+                            <DialogTitle className="text-base font-bold text-foreground">
                                 {editingAccount ? "Edit Bank Account" : "Add Bank Account"}
                             </DialogTitle>
                             <DialogDescription className="text-xs">
@@ -1517,7 +1484,7 @@ const BankDetailsPage = () => {
                         <form onSubmit={handleAccountSubmit} className="space-y-4 py-2">
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Bank Name</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Bank Name</label>
                                     <Input 
                                         value={bankName}
                                         onChange={e => setBankName(e.target.value)}
@@ -1527,22 +1494,23 @@ const BankDetailsPage = () => {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Account Type</label>
-                                    <select 
-                                        value={accountType}
-                                        onChange={e => setAccountType(e.target.value as BankAccount["accountType"])}
-                                        className="w-full h-9 rounded-xl border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    >
-                                        <option value="checking">Checking (Current)</option>
-                                        <option value="savings">Savings</option>
-                                        <option value="overdraft">Credit Line (Overdraft)</option>
-                                        <option value="cash">Cash In Hand / Safe</option>
-                                    </select>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Account Type</label>
+                                    <Select value={accountType} onValueChange={(val) => setAccountType(val as AccountType)}>
+                                        <SelectTrigger className="h-9 text-xs rounded-xl">
+                                            <SelectValue placeholder="Select type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="checking">Checking (Current)</SelectItem>
+                                            <SelectItem value="savings">Savings</SelectItem>
+                                            <SelectItem value="overdraft">Credit Line (Overdraft)</SelectItem>
+                                            <SelectItem value="cash">Cash In Hand / Safe</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-slate-500 block">Account Number</label>
+                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Account Number</label>
                                 <Input 
                                     value={accountNumber}
                                     onChange={e => setAccountNumber(e.target.value)}
@@ -1554,7 +1522,7 @@ const BankDetailsPage = () => {
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">IFSC Code</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">IFSC Code</label>
                                     <Input 
                                         value={ifscCode}
                                         onChange={e => setIfscCode(e.target.value.toUpperCase())}
@@ -1565,7 +1533,7 @@ const BankDetailsPage = () => {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Branch Name</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Branch Name</label>
                                     <Input 
                                         value={branchName}
                                         onChange={e => setBranchName(e.target.value)}
@@ -1578,7 +1546,7 @@ const BankDetailsPage = () => {
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Initial Book Balance (₹)</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Initial Book Balance (₹)</label>
                                     <Input 
                                         type="number"
                                         value={initialBalance}
@@ -1623,11 +1591,11 @@ const BankDetailsPage = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* ─── DIALOG: LOG TRANSACTION (CREDIT / DEBIT) ─────────────── */}
+                {/* DIALOG: LOG TRANSACTION (CREDIT / DEBIT) */}
                 <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
                     <DialogContent className="sm:max-w-[425px] rounded-2xl">
                         <DialogHeader>
-                            <DialogTitle className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-1.5">
                                 {txType === "deposit" ? (
                                     <><ArrowDownLeft className="w-5 h-5 text-emerald-500" /> Record Inward Credit</>
                                 ) : (
@@ -1642,20 +1610,20 @@ const BankDetailsPage = () => {
                         <form onSubmit={handleTxSubmit} className="space-y-4 py-2">
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Bank Account</label>
-                                    <select 
-                                        value={txAccountId}
-                                        onChange={e => setTxAccountId(e.target.value)}
-                                        className="w-full h-9 rounded-xl border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                        required
-                                    >
-                                        {accounts.map(a => (
-                                            <option key={a.id} value={a.id}>{a.bankName}</option>
-                                        ))}
-                                    </select>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Bank Account</label>
+                                    <Select value={txAccountId} onValueChange={setTxAccountId}>
+                                        <SelectTrigger className="h-9 text-xs rounded-xl">
+                                            <SelectValue placeholder="Select account" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {accounts.map(a => (
+                                                <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Amount (₹)</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Amount (₹)</label>
                                     <Input 
                                         type="number"
                                         value={txAmount}
@@ -1669,7 +1637,7 @@ const BankDetailsPage = () => {
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Transaction Date</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Transaction Date</label>
                                     <Input 
                                         type="date"
                                         value={txDate}
@@ -1679,36 +1647,36 @@ const BankDetailsPage = () => {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Category</label>
-                                    <select 
-                                        value={txCategory}
-                                        onChange={e => setTxCategory(e.target.value as BankTransaction["category"])}
-                                        className="w-full h-9 rounded-xl border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                        required
-                                    >
-                                        {txType === "deposit" ? (
-                                            <>
-                                                <option value="Sales">Sales Revenue</option>
-                                                <option value="Transfer">Internal Transfer (Inbound)</option>
-                                                <option value="Other">Other Revenue / Capital</option>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <option value="Vendor Payment">Vendor Payment</option>
-                                                <option value="Salary">Salaries & Wages</option>
-                                                <option value="Utilities">Office Utilities</option>
-                                                <option value="Rent">Commercial Rent</option>
-                                                <option value="Tax">Government Tax</option>
-                                                <option value="Transfer">Internal Transfer (Outbound)</option>
-                                                <option value="Other">Other Expense</option>
-                                            </>
-                                        )}
-                                    </select>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Category</label>
+                                    <Select value={txCategory} onValueChange={(val) => setTxCategory(val as TransactionCategory)}>
+                                        <SelectTrigger className="h-9 text-xs rounded-xl">
+                                            <SelectValue placeholder="Select category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {txType === "deposit" ? (
+                                                <>
+                                                    <SelectItem value="Sales">Sales Revenue</SelectItem>
+                                                    <SelectItem value="Transfer">Internal Transfer (Inbound)</SelectItem>
+                                                    <SelectItem value="Other">Other Revenue / Capital</SelectItem>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <SelectItem value="Vendor Payment">Vendor Payment</SelectItem>
+                                                    <SelectItem value="Salary">Salaries & Wages</SelectItem>
+                                                    <SelectItem value="Utilities">Office Utilities</SelectItem>
+                                                    <SelectItem value="Rent">Commercial Rent</SelectItem>
+                                                    <SelectItem value="Tax">Government Tax</SelectItem>
+                                                    <SelectItem value="Transfer">Internal Transfer (Outbound)</SelectItem>
+                                                    <SelectItem value="Other">Other Expense</SelectItem>
+                                                </>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-slate-500 block">Reference ID / UTR Number</label>
+                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Reference ID / UTR Number</label>
                                 <Input 
                                     value={txRef}
                                     onChange={e => setTxRef(e.target.value)}
@@ -1719,7 +1687,7 @@ const BankDetailsPage = () => {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-slate-500 block">Narration / Description</label>
+                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Narration / Description</label>
                                 <Input 
                                     value={txDesc}
                                     onChange={e => setTxDesc(e.target.value)}
@@ -1748,11 +1716,11 @@ const BankDetailsPage = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* ─── DIALOG: INTERNAL TRANSFER (CONTRA ENTRY) ────────────── */}
+                {/* DIALOG: INTERNAL TRANSFER (CONTRA ENTRY) */}
                 <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
                     <DialogContent className="sm:max-w-[425px] rounded-2xl">
                         <DialogHeader>
-                            <DialogTitle className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-1.5">
                                 <ArrowLeftRight className="w-5 h-5 text-primary" /> Post Contra Transfer
                             </DialogTitle>
                             <DialogDescription className="text-xs">
@@ -1764,35 +1732,35 @@ const BankDetailsPage = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase font-bold text-rose-500 block">From Account (Debit)</label>
-                                    <select 
-                                        value={fromAccountId}
-                                        onChange={e => setFromAccountId(e.target.value)}
-                                        className="w-full h-9 rounded-xl border border-rose-500/30 bg-background px-3 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                        required
-                                    >
-                                        {accounts.map(a => (
-                                            <option key={a.id} value={a.id}>{a.bankName}</option>
-                                        ))}
-                                    </select>
+                                    <Select value={fromAccountId} onValueChange={setFromAccountId}>
+                                        <SelectTrigger className="h-9 text-xs rounded-xl border-rose-500/30">
+                                            <SelectValue placeholder="From account" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {accounts.map(a => (
+                                                <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase font-bold text-emerald-500 block">To Account (Credit)</label>
-                                    <select 
-                                        value={toAccountId}
-                                        onChange={e => setToAccountId(e.target.value)}
-                                        className="w-full h-9 rounded-xl border border-emerald-500/30 bg-background px-3 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                        required
-                                    >
-                                        {accounts.map(a => (
-                                            <option key={a.id} value={a.id}>{a.bankName}</option>
-                                        ))}
-                                    </select>
+                                    <Select value={toAccountId} onValueChange={setToAccountId}>
+                                        <SelectTrigger className="h-9 text-xs rounded-xl border-emerald-500/30">
+                                            <SelectValue placeholder="To account" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {accounts.map(a => (
+                                                <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Transfer Amount (₹)</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Transfer Amount (₹)</label>
                                     <Input 
                                         type="number"
                                         value={transferAmount}
@@ -1803,7 +1771,7 @@ const BankDetailsPage = () => {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Transfer Date</label>
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Transfer Date</label>
                                     <Input 
                                         type="date"
                                         value={transferDate}
@@ -1815,7 +1783,7 @@ const BankDetailsPage = () => {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-slate-500 block">Reference ID / UTR Number</label>
+                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Reference ID / UTR Number</label>
                                 <Input 
                                     value={transferRef}
                                     onChange={e => setTransferRef(e.target.value)}
@@ -1826,7 +1794,7 @@ const BankDetailsPage = () => {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-slate-500 block">Narration / Memo</label>
+                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Narration / Memo</label>
                                 <Input 
                                     value={transferDesc}
                                     onChange={e => setTransferDesc(e.target.value)}

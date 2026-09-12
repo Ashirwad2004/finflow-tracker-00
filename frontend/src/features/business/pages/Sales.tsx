@@ -23,7 +23,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { useSalesSettings } from "@/core/hooks/use-sales-settings";
 import { TableLoadingRows } from "@/components/shared/PageStates";
-
 // Line item on an invoice — typed instead of `any` so a bad field name
 // (e.g. "qty" vs "quantity") fails at compile time, not in production billing.
 interface SaleItem {
@@ -46,8 +45,10 @@ interface Sale {
     customer_email?: string;
     customer_gstin?: string;
     invoice_number: string;
-    status: 'paid' | 'pending' | 'overdue' | 'draft';
+    status: 'paid' | 'pending' | 'overdue' | 'draft' | 'partial';
     total_amount: number;
+    amount_paid?: number;
+    balance_due?: number;
     subtotal?: number;
     tax_amount?: number;
     tax_rate?: number;
@@ -60,7 +61,7 @@ interface Sale {
 export default function SalesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft' | 'partial'>('all');
     const [editingInvoice, setEditingInvoice] = useState<any>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
@@ -352,8 +353,13 @@ export default function SalesPage() {
     const today = new Date();
 
     const outstandingTotal = invoices
-        .filter(inv => inv.status === 'pending')
-        .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+        .filter(inv => inv.status === 'pending' || inv.status === 'partial')
+        .reduce((sum, inv) => {
+            if (inv.status === 'partial') {
+                return sum + Number(inv.balance_due || 0);
+            }
+            return sum + Number(inv.total_amount || 0);
+        }, 0);
 
     const overdueTotal = invoices
         .filter(inv => inv.status === 'overdue')
@@ -510,7 +516,7 @@ export default function SalesPage() {
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
                     <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 border-t-0 dark:bg-slate-800/50">
                         <div className="flex items-center gap-1 bg-slate-200/50 dark:bg-slate-950 p-1 rounded-lg overflow-x-auto max-w-full">
-                            {['all', 'paid', 'pending', 'overdue'].map((status) => (
+                            {['all', 'paid', 'partial', 'pending', 'overdue'].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => setFilterStatus(status as any)}
@@ -607,6 +613,16 @@ export default function SalesPage() {
                                             <td className="px-4 py-2.5 text-center">
                                                 {invoice.status === 'paid' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">Paid</span>}
                                                 {invoice.status === 'pending' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">Pending</span>}
+                                                {invoice.status === 'partial' && (
+                                                    <div className="flex flex-col items-center gap-0.5">
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">Partial</span>
+                                                        {invoice.balance_due != null && (
+                                                            <span className="text-[9px] text-rose-500 font-semibold">
+                                                                Due: {formatCurrency(invoice.balance_due)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {invoice.status === 'overdue' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50">Overdue</span>}
                                                 {invoice.status === 'draft' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">Draft</span>}
                                             </td>
