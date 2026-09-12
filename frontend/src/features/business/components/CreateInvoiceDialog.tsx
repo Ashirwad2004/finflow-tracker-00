@@ -63,7 +63,8 @@ interface InvoiceFormValues {
     items: InvoiceItem[];
     tax_rate: number;
     overall_discount: number;
-    status: "paid" | "pending";
+    status: "paid" | "pending" | "partial";
+    amount_paid?: number;
     irn?: string;
     eway_bill_number?: string;
     qr_code?: string;
@@ -125,6 +126,7 @@ export const CreateInvoiceDialog = ({
             tax_rate: salesSettings?.defaultTaxRate ?? 0,
             overall_discount: 0,
             status: "paid",
+            amount_paid: 0,
             quick_item_name: "General Sale",
             quick_total_amount: 0,
         },
@@ -484,6 +486,8 @@ export const CreateInvoiceDialog = ({
                     invoiceToEdit.overall_discount || 0,
                 status:
                     invoiceToEdit.status || "paid",
+                amount_paid:
+                    Number(invoiceToEdit.amount_paid) || 0,
                 irn: invoiceToEdit.irn || "",
                 eway_bill_number:
                     invoiceToEdit.eway_bill_number || "",
@@ -526,6 +530,7 @@ export const CreateInvoiceDialog = ({
                 overall_discount: 0,
                 status:
                     salesSettings?.defaultStatus ?? "paid",
+                amount_paid: 0,
                 irn: "",
                 eway_bill_number: "",
                 qr_code: "",
@@ -787,6 +792,7 @@ export const CreateInvoiceDialog = ({
                 .in("status", [
                     "pending",
                     "overdue",
+                    "partial",
                 ]);
 
             outstanding =
@@ -801,7 +807,7 @@ export const CreateInvoiceDialog = ({
             outstanding = cachedSales.filter(
                 (s: any) =>
                     s.customer_name === customerName &&
-                    ["pending", "overdue"].includes(
+                    ["pending", "overdue", "partial"].includes(
                         s.status
                     )
             );
@@ -1214,6 +1220,28 @@ export const CreateInvoiceDialog = ({
                     total_amount:
                         calcTotalAmount,
                     status: values.status,
+                    amount_paid:
+                        values.status === "paid"
+                            ? calcTotalAmount
+                            : values.status === "partial"
+                                ? Math.min(
+                                    Number(values.amount_paid) || 0,
+                                    calcTotalAmount
+                                )
+                                : 0,
+                    balance_due:
+                        values.status === "paid"
+                            ? 0
+                            : values.status === "partial"
+                                ? Math.max(
+                                    0,
+                                    calcTotalAmount -
+                                    (Math.min(
+                                        Number(values.amount_paid) || 0,
+                                        calcTotalAmount
+                                    ))
+                                )
+                                : calcTotalAmount,
                     payment_method:
                         values.status === "paid"
                             ? "cash"
@@ -1845,20 +1873,18 @@ export const CreateInvoiceDialog = ({
 
                             <span
                                 className={`px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border ${
-                                    watch(
-                                        "status"
-                                    ) ===
-                                    "paid"
+                                    watch("status") === "paid"
                                         ? "bg-green-50 text-green-700 border-green-200"
-                                        : "bg-orange-50 text-orange-700 border-orange-200"
+                                        : watch("status") === "partial"
+                                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                                            : "bg-orange-50 text-orange-700 border-orange-200"
                                 }`}
                             >
-                                {watch(
-                                    "status"
-                                ) ===
-                                "paid"
+                                {watch("status") === "paid"
                                     ? "PAID"
-                                    : "PENDING"}
+                                    : watch("status") === "partial"
+                                        ? "PARTIAL"
+                                        : "PENDING"}
                             </span>
                         </div>
                     </div>
@@ -2125,7 +2151,7 @@ export const CreateInvoiceDialog = ({
                                         </Label>
 
                                         <p className="text-[11px] text-slate-400">
-                                            Mark this invoice as immediately paid or pending.
+                                            Mark this invoice as immediately paid, partial, or pending.
                                         </p>
                                     </div>
 
@@ -2138,11 +2164,54 @@ export const CreateInvoiceDialog = ({
                                         <option value="paid">
                                             Paid
                                         </option>
+                                        <option value="partial">
+                                            Partial
+                                        </option>
                                         <option value="pending">
                                             Pending
                                         </option>
                                     </select>
                                 </div>
+
+                                {/* Amount Paid (shown only for Partial status) */}
+                                {watch("status") === "partial" && (
+                                    <div className="space-y-3 p-4 rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                                Amount Paid Now (₹){" "}
+                                                <span className="text-destructive">*</span>
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                step="any"
+                                                className="h-10 rounded-md border-blue-300 bg-white dark:bg-slate-950 font-semibold"
+                                                {...register("amount_paid", {
+                                                    valueAsNumber: true,
+                                                    min: { value: 0, message: "Cannot be negative" },
+                                                })}
+                                                placeholder="0.00"
+                                            />
+                                            {errors.amount_paid && (
+                                                <span className="text-destructive text-xs block">
+                                                    {errors.amount_paid.message}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm pt-1 border-t border-blue-200">
+                                            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Balance Due</span>
+                                            <span className="font-bold text-rose-600">
+                                                {formatCurrency(
+                                                    Math.max(
+                                                        0,
+                                                        (Number(watchQuickTotalAmount) || 0) -
+                                                        (Number(watch("amount_paid")) || 0)
+                                                    )
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -2576,11 +2645,53 @@ export const CreateInvoiceDialog = ({
                                                 <option value="pending">
                                                     Pending
                                                 </option>
+                                                <option value="partial">
+                                                    Partial
+                                                </option>
                                                 <option value="paid">
                                                     Paid
                                                 </option>
                                             </select>
                                         </div>
+
+                                        {/* Amount Paid — shown only for Partial status */}
+                                        {watch("status") === "partial" && (
+                                            <div className="space-y-2 p-3 rounded-sm border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 mt-1">
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                                                        Amount Paid (₹)
+                                                    </Label>
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        step="any"
+                                                        className="h-9 w-[140px] text-right font-semibold border-blue-300"
+                                                        {...register("amount_paid", {
+                                                            valueAsNumber: true,
+                                                            min: { value: 0, message: "Cannot be negative" },
+                                                        })}
+                                                        placeholder="0.00"
+                                                    />
+                                                </div>
+                                                {errors.amount_paid && (
+                                                    <p className="text-destructive text-[10px] text-right">
+                                                        {errors.amount_paid.message}
+                                                    </p>
+                                                )}
+                                                <div className="flex items-center justify-between pt-1 border-t border-blue-200">
+                                                    <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">Balance Due</span>
+                                                    <span className="text-xs font-bold text-rose-600">
+                                                        {formatCurrency(
+                                                            Math.max(
+                                                                0,
+                                                                totalAmount -
+                                                                (Number(watch("amount_paid")) || 0)
+                                                            )
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {watch(
                                             "customer_gstin"
