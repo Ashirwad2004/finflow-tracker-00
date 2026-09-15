@@ -114,12 +114,15 @@ const SalesmanRoute = ({ children }: { children: React.ReactNode }) => {
   return <Navigate to="/business-dashboard" replace />;
 };
 
+import { useSubscription } from "@/core/hooks/useSubscription";
+
 // Merchant route wrapper (excludes salesmen)
 const MerchantRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const { isSalesman, isLoading: businessLoading } = useBusiness();
+  const { canAccessApp, isLoading: subLoading, isTrialExpired } = useSubscription();
 
-  if (loading || businessLoading) {
+  if (loading || businessLoading || subLoading) {
     return <PageLoader />;
   }
 
@@ -129,6 +132,10 @@ const MerchantRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isSalesman) {
     return <Navigate to="/salesman-dashboard" replace />;
+  }
+
+  if (!canAccessApp) {
+    return <Navigate to="/pricing" replace state={{ trialExpired: isTrialExpired }} />;
   }
 
   return <>{children}</>;

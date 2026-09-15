@@ -3,6 +3,7 @@ import { BookDemoModal } from "@/features/demo/BookDemoModal";
 import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
 import { useBusiness } from "@/core/contexts/BusinessContext";
+import { useSubscription } from "@/core/hooks/useSubscription";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/core/hooks/use-toast";
@@ -44,6 +45,7 @@ import { Logo } from "@/components/shared/Logo";
 const Index = () => {
   const { user, loading } = useAuth();
   const { isSalesman } = useBusiness();
+  const { canAccessApp, isLoading: subLoading, isTrialExpired } = useSubscription();
   const navigate = useNavigate();
   const targetRef = useRef<HTMLDivElement>(null);
   const [demoOpen, setDemoOpen] = useState(false);
@@ -135,7 +137,7 @@ const Index = () => {
     y.set((clientY / innerHeight - 0.5) * 20);
   }
 
-  if (loading) {
+  if (loading || subLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -148,6 +150,9 @@ const Index = () => {
   if (user && !isRecovery) {
     if (isSalesman) {
       return <Navigate to="/salesman-dashboard" replace />;
+    }
+    if (!canAccessApp) {
+      return <Navigate to="/pricing" replace state={{ trialExpired: isTrialExpired }} />;
     }
     return <Dashboard />;
   }
