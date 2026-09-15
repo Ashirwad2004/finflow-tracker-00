@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => ({
             try {
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 600);
-              const testPing = await fetch("http://localhost:8000/api/v1/payments", {
+              const testPing = await fetch("http://localhost:8000/health", {
                 signal: controller.signal,
               }).catch(() => null);
               clearTimeout(timeoutId);

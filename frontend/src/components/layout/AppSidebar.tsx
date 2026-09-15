@@ -40,7 +40,7 @@ import { RequestFeatureDialog } from "@/components/shared/RequestFeatureDialog";
 import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { Logo } from "@/components/shared/Logo";
-import { RealSubscriptionCheckout } from "@/features/landing/components/RealSubscriptionCheckout";
+import { useSubscription } from "@/core/hooks/useSubscription";
 
 const personalMenuItems = [
   {
@@ -189,9 +189,10 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const navigationRef = useRef<HTMLElement>(null);
   const navigationScrollKey = `sidebar-scroll:${user?.id || "anonymous"}:${isBusinessMode ? "business" : "personal"}`;
+
+  const { isPaidSubscriber, isTrialActive, trialDaysLeft, isTrialExpired } = useSubscription();
 
   useEffect(() => {
     const navigation = navigationRef.current;
@@ -248,24 +249,6 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
     enabled: !!currentStoreId,
   });
 
-  // Query user subscription status to conditionally hide upgrade prompts
-  const { data: subStatus } = useQuery({
-    queryKey: ["subscription_status", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await (supabase as any)
-        .from("subscription_status")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (error) console.warn("Fetch subscription status warning:", error.message);
-      return data || { plan: "starter", status: "active" };
-    },
-    enabled: !!user?.id,
-  });
-
-  const isUpgraded = subStatus?.plan === "pro" || subStatus?.plan === "business" || subStatus?.plan === "premium";
-
   const currentMenuItems = isSalesman
     ? businessMenuItems.filter(item => item.path === "/online-store" || item.path === "/settings")
     : (isBusinessMode ? businessMenuItems : personalMenuItems);
@@ -298,6 +281,18 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
                 {isSalesman ? "Salesman Session" : (profile?.display_name ?? profile?.business_name ?? "Welcome")}
               </p>
             </div>
+            {!isSalesman && (
+              <span className={cn(
+                "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                isPaidSubscriber
+                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                  : isTrialActive
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "bg-destructive/10 text-destructive border-destructive/20"
+              )}>
+                {isPaidSubscriber ? "PRO" : isTrialActive ? `${trialDaysLeft}d Trial` : "Expired"}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -401,18 +396,29 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
 
       <div className="p-3 border-t space-y-2">
         {/* Upgrade Plan Button (Hidden if user is already upgraded) */}
-        {!isSalesman && !isUpgraded && (
+        {!isSalesman && !isPaidSubscriber && (
           <Button
             variant="outline"
             onClick={() => navigate("/pricing")}
             className={cn(
-              "w-full justify-start gap-3 bg-gradient-to-r from-primary/10 to-violet-500/10 border-primary/20 text-primary font-bold hover:bg-primary/20 transition-all",
+              "w-full justify-start gap-3 border font-bold transition-all",
+              isTrialExpired
+                ? "bg-amber-500/15 border-amber-500/30 text-amber-500 hover:bg-amber-500/25"
+                : "bg-gradient-to-r from-primary/10 to-violet-500/10 border-primary/20 text-primary hover:bg-primary/20",
               collapsed && "justify-center px-0"
             )}
-            title="Upgrade Subscription"
+            title={isTrialExpired ? "Trial Expired - Pay to Continue" : "Upgrade Subscription"}
           >
-            <Sparkles className="w-5 h-5 text-primary shrink-0" />
-            {!collapsed && <span>Upgrade Plan</span>}
+            <Sparkles className="w-5 h-5 shrink-0" />
+            {!collapsed && (
+              <span className="truncate">
+                {isTrialExpired
+                  ? "Trial Expired • ₹299"
+                  : isTrialActive
+                  ? `Trial: ${trialDaysLeft}d left`
+                  : "Upgrade Plan"}
+              </span>
+            )}
           </Button>
         )}
 
