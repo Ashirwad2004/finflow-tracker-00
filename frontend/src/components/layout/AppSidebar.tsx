@@ -30,7 +30,7 @@ import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { useAuth } from "@/core/lib/auth";
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calculator as CalculatorComponent } from "@/components/shared/calculator";
 import { Settings } from "lucide-react";
 import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
@@ -436,12 +436,22 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
               aria-label="Calculator"
             >
               <Calculator className="w-5 h-5" />
-              {!collapsed && <span>Calculator</span>}
+              {!collapsed && <span>GST & Calculator</span>}
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Calculator</DialogTitle>
+          <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader className="pb-2 border-b">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                  <ReceiptIndianRupee className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold">Advanced GST & Business Calculator</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Statutory Indian GST computations, margin pricing & standard arithmetic
+                  </DialogDescription>
+                </div>
+              </div>
             </DialogHeader>
             <CalculatorComponent />
           </DialogContent>
