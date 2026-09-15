@@ -1,0 +1,12 @@
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = [".", ".."]
+executionEnvironments = [
+  { root = "src", extraPaths = [".", ".."] },
+  { root = "tests", extraPaths = [".", ".."] }
+]
+venvPath = "."
+venv = "venv"
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingModuleSource = "none"
