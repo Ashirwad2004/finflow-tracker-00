@@ -57,22 +57,22 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  inserted_claims INTEGER;
-  normalized_email TEXT;
+  v_inserted_claims INTEGER := 0;
+  v_normalized_email TEXT;
 BEGIN
   IF NEW.email IS NULL OR NEW.email_confirmed_at IS NULL THEN
     RETURN NEW;
   END IF;
 
-  normalized_email := lower(trim(NEW.email));
+  v_normalized_email := lower(trim(NEW.email));
 
   INSERT INTO public.trial_claims (normalized_email, user_id)
-  VALUES (normalized_email, NEW.id)
+  VALUES (v_normalized_email, NEW.id)
   ON CONFLICT (normalized_email) DO NOTHING;
 
-  GET DIAGNOSTICS inserted_claims = ROW_COUNT;
+  GET DIAGNOSTICS v_inserted_claims = ROW_COUNT;
 
-  IF inserted_claims = 1 THEN
+  IF v_inserted_claims = 1 THEN
     INSERT INTO public.subscription_status (
       user_id,
       plan,
