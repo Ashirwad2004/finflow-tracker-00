@@ -1,3 +1,5 @@
+"""Payments API endpoints."""
+
 import logging
 import random
 from datetime import datetime, timedelta, timezone
@@ -21,7 +23,21 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 PROCESSED_WEBHOOK_EVENTS: set[str] = set()
 
 
-def extract_webhook_entity(event_type: str, data: Any) -> Tuple[Dict[str, Any], Optional[str], Optional[str]]:
+def first_row(data: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+        return data[0]
+    if isinstance(data, dict):
+        return data
+    return None
+
+
+def rows_list(data: Any) -> list[Dict[str, Any]]:
+    if isinstance(data, list):
+        return [p for p in data if isinstance(p, dict)]
+    return []
+
+
+def extract_webhook_entity(event_type: Optional[str], data: Any) -> Tuple[Dict[str, Any], Optional[str], Optional[str]]:
     """
     Normalizes webhook payload entities across Razorpay and Stripe.
     Returns: (entity_dict, gateway_order_id, gateway_payment_id)
@@ -152,13 +168,12 @@ async def create_order(
             .eq("id", order_id)
             .execute()
         )
-        if not order_res.data or len(order_res.data) == 0:
+        order = first_row(order_res.data)
+        if not order:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Order not found."
             )
-
-        order = order_res.data[0]
 
         if current_user and order["store_id"] != current_user["user_id"]:
             raise HTTPException(status_code=403, detail="Forbidden")
@@ -196,7 +211,7 @@ async def create_order(
             "success": True,
             "order_id": gateway_response["gatewayOrderId"],
             "gatewayOrderId": gateway_response["gatewayOrderId"],
-            "amount": int(round(float(order["total_amount"]) * 100)),
+            "amount": round(float(order["total_amount"]) * 100),
             "currency": order.get("currency") or "INR",
             "key_id": key_id,
             "details": gateway_response.get("details")
@@ -229,13 +244,12 @@ async def cancel_order(
         else:
             raise HTTPException(status_code=401, detail="Authentication or customer verification required")
         order_res = order_query.execute()
-        if not order_res.data or len(order_res.data) == 0:
+        order = first_row(order_res.data)
+        if not order:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Order not found."
             )
-
-        order = order_res.data[0]
         if order.get("status") not in {"pending", "processing"}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -332,7 +346,7 @@ async def create_subscription_order(
         }
 
         res = supabase_client.table("payments").insert(insert_data).execute()
-        payment_record = res.data[0] if res.data and len(res.data) > 0 else None
+        payment_record = first_row(res.data)
 
         return {
             "success": True,
@@ -380,7 +394,7 @@ async def verify_payment(
 
         # Retrieve payment from DB
         pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
-        payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
+        payment = first_row(pay_res.data)
 
         if not payment:
             raise HTTPException(
@@ -529,7 +543,7 @@ async def webhook(request: Request):
                 return {"received": True, "warning": "Unresolved order ID"}
 
             pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
-            payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
+            payment = first_row(pay_res.data)
 
             if payment and payment["status"] != "success":
                 now_iso = datetime.now(timezone.utc).isoformat()
@@ -592,7 +606,7 @@ async def webhook(request: Request):
         elif event_type in ["payment.failed", "payment_intent.payment_failed"]:
             if gateway_order_id:
                 pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
-                payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
+                payment = first_row(pay_res.data)
 
                 if payment and payment["status"] != "success":
                     supabase_client.table("payments").update({
@@ -614,7 +628,7 @@ async def webhook(request: Request):
             pay_identifier = gateway_payment_id or entity.get("payment_id")
             if pay_identifier:
                 pay_res = supabase_client.table("payments").select("*").eq("gateway_payment_id", pay_identifier).execute()
-                payment = pay_res.data[0] if pay_res.data and len(pay_res.data) > 0 else None
+                payment = first_row(pay_res.data)
 
                 if payment and payment["status"] != "refunded":
                     supabase_client.table("payments").update({
@@ -657,10 +671,9 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
     try:
         # Fetch payment
         pay_res = supabase_client.table("payments").select("*").eq("id", payload.paymentId).execute()
-        if not pay_res.data or len(pay_res.data) == 0:
+        payment = first_row(pay_res.data)
+        if not payment:
             raise HTTPException(status_code=404, detail="Payment not found.")
-
-        payment = pay_res.data[0]
 
         # Verify Owner role/authorization check
         if payment["user_id"] != current_user["user_id"]:
@@ -693,7 +706,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
             .execute()
         )
         already_refunded = sum(
-            (Decimal(str(row["amount"])) for row in (existing_refunds.data or [])),
+            (Decimal(str(row.get("amount", 0))) for row in rows_list(existing_refunds.data)),
             Decimal("0"),
         )
         if already_refunded + refund_amount > payment_amount:
@@ -702,8 +715,15 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
                 detail="Refund exceeds the remaining refundable balance",
             )
         
+        gateway_payment_id = payment.get("gateway_payment_id")
+        if not gateway_payment_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Payment is missing a gateway payment ID and cannot be refunded.",
+            )
+
         refund_result = await driver.refund(
-            gateway_payment_id=payment.get("gateway_payment_id"),
+            gateway_payment_id=gateway_payment_id,
             amount=float(refund_amount),
             reason=payload.reason or "Merchant initiated refund"
         )
@@ -719,7 +739,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
             "gateway_refund_id": refund_result["refundId"],
             "reason": payload.reason or "Merchant initiated"
         }).execute()
-        refund_record = ref_res.data[0] if ref_res.data else None
+        refund_record = first_row(ref_res.data)
 
         # Update payment status
         supabase_client.table("payments").update({
@@ -736,7 +756,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
             "ip_address": client_ip,
             "details": {
                 "refundId": refund_result["refundId"],
-                "amount": refund_amount,
+                "amount": float(refund_amount),
                 "reason": payload.reason
             }
         }).execute()
@@ -762,7 +782,7 @@ async def get_stats(storeId: str, current_user: dict = Depends(get_current_user)
 
     try:
         pay_res = supabase_client.table("payments").select("*").eq("user_id", storeId).execute()
-        payments = pay_res.data or []
+        payments = rows_list(pay_res.data)
 
         gross_volume = 0.0
         net_profit = 0.0
@@ -839,7 +859,7 @@ async def get_history(
             query = query.eq("status", status)
 
         res = query.order("created_at", desc=True).execute()
-        payments = res.data or []
+        payments = rows_list(res.data)
 
         # Perform filtering search logic
         filtered_payments = payments
@@ -847,13 +867,19 @@ async def get_history(
             clean_search = search.lower()
             filtered_payments = []
             for p in payments:
-                orders = p.get("online_orders") or {}
-                customer_name = (orders.get("customer_name") or "").lower()
-                customer_phone = (orders.get("customer_phone") or "").lower()
-                gateway_order_id = (p.get("gateway_order_id") or "").lower()
+                raw_orders = p.get("online_orders")
+                orders: Dict[str, Any] = (
+                    raw_orders
+                    if isinstance(raw_orders, dict)
+                    else (raw_orders[0] if isinstance(raw_orders, list) and len(raw_orders) > 0 and isinstance(raw_orders[0], dict) else {})
+                )
+                customer_name = (str(orders.get("customer_name") or "")).lower()
+                customer_phone = (str(orders.get("customer_phone") or "")).lower()
+                gateway_order_id = (str(p.get("gateway_order_id") or "")).lower()
                 
-                invoice_list = p.get("invoices") or []
-                invoice_num = (invoice_list[0].get("invoice_number") or "").lower() if invoice_list else ""
+                raw_invoices = p.get("invoices")
+                invoice_list = rows_list(raw_invoices)
+                invoice_num = (str(invoice_list[0].get("invoice_number") or "")).lower() if invoice_list else ""
                 
                 if (clean_search in customer_name or 
                     clean_search in customer_phone or 

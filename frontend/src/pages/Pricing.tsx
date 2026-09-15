@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/core/hooks/use-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { Logo } from "@/components/shared/Logo";
+import { loadRazorpayScript } from "@/core/hooks/useRazorpayPayment";
 import axios from "axios";
 import {
   CheckCircle2,

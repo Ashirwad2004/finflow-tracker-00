@@ -27,12 +27,18 @@ interface OfflineMutateParams {
   userId: string;
 }
 
+export interface OfflineMutateResult {
+  data: any;
+  error: any;
+  offline: boolean;
+}
+
 /**
  * An Offline-First wrapper around Supabase mutations.
  * Reads and writes update local storage immediately, queue offline tasks,
  * and synchronize with Supabase asynchronously.
  */
-export const offlineMutate = async ({ table, action, recordId, payload, userId }: OfflineMutateParams) => {
+export const offlineMutate = async ({ table, action, recordId, payload, userId }: OfflineMutateParams): Promise<OfflineMutateResult> => {
   const basePayload = {
     id: recordId,
     // Only inject user_id for tables that actually have the column
