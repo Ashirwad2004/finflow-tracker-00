@@ -843,7 +843,7 @@ export const CreateInvoiceDialog = ({
     // ============================================================
 
     const isItemWiseTax =
-        !!salesSettings?.enableItemWiseTax;
+        !!(salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill);
 
     const subtotal = watchItems.reduce(
         (sum, item) => {
@@ -2771,22 +2771,22 @@ export const CreateInvoiceDialog = ({
                                         </p>
                                     )}
 
-                                <div className="border border-slate-200 rounded-sm bg-white overflow-hidden">
+                                <div className="border border-slate-200 rounded-lg overflow-hidden">
                                     {/* Header */}
                                     <div
                                         className={`hidden sm:grid ${
                                             salesSettings?.enableHsnCode &&
-                                            salesSettings?.enableItemWiseTax
+                                            (salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill)
                                                 ? "grid-cols-[1fr_90px_80px_90px_80px_80px_100px_40px]"
                                                 : salesSettings?.enableHsnCode
                                                     ? "grid-cols-[1fr_100px_100px_100px_100px_120px_40px]"
-                                                    : salesSettings?.enableItemWiseTax
+                                                    : (salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill)
                                                         ? "grid-cols-[1fr_80px_100px_80px_80px_100px_40px]"
                                                         : "grid-cols-[1fr_100px_120px_100px_120px_40px]"
                                         } gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider`}
                                     >
                                         <div className="py-2.5 px-3">
-                                            Item Description
+                                             Item Description
                                         </div>
 
                                         {salesSettings?.enableHsnCode && (
@@ -2807,7 +2807,7 @@ export const CreateInvoiceDialog = ({
                                             Disc %
                                         </div>
 
-                                        {salesSettings?.enableItemWiseTax && (
+                                        {(salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill) && (
                                             <div className="py-2.5 px-3 border-l border-slate-200 text-right">
                                                 Tax %
                                             </div>
@@ -2856,7 +2856,7 @@ export const CreateInvoiceDialog = ({
                                                     !!salesSettings?.enableHsnCode;
 
                                                 const itemTaxEnabled =
-                                                    !!salesSettings?.enableItemWiseTax;
+                                                    !!(salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill);
 
                                                 // IMPORTANT:
                                                 // Destructure RHF's ref so we can

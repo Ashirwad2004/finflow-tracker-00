@@ -21,7 +21,8 @@ import {
     TrendingUp,
     FileCheck,
     Landmark,
-    QrCode
+    QrCode,
+    Percent
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,7 +117,8 @@ const InvoiceMockPreview = ({
     printBankDetails,
     bankAccount,
     printUpiQr,
-    upiId
+    upiId,
+    showItemTaxRate
 }: { 
     sale: any; 
     profile: any; 
@@ -128,6 +130,7 @@ const InvoiceMockPreview = ({
     bankAccount?: BankDetailsInfo | null;
     printUpiQr?: boolean;
     upiId?: string;
+    showItemTaxRate?: boolean;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
     const dateToParse = sale.date || sale.created_at;
@@ -240,13 +243,16 @@ const InvoiceMockPreview = ({
                                 <th className="p-2 border-r border-black text-center w-12">Qty</th>
                                 <th className="p-2 border-r border-black text-right w-24">Rate</th>
                                 <th className="p-2 border-r border-black text-center w-12">per</th>
+                                {showItemTaxRate && (
+                                    <th className="p-2 border-r border-black text-center w-14">Tax %</th>
+                                )}
                                 <th className="p-2 text-right w-28">Amount</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-black/30 text-slate-950 font-mono text-[10px]">
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-6 text-center text-muted-foreground italic">No items listed.</td>
+                                    <td colSpan={showItemTaxRate ? 7 : 6} className="p-6 text-center text-muted-foreground italic">No items listed.</td>
                                 </tr>
                             ) : (
                                 items.map((item: any, idx: number) => (
@@ -259,17 +265,23 @@ const InvoiceMockPreview = ({
                                         <td className="p-2 border-r border-b border-black text-center">{item.quantity ?? 1}</td>
                                         <td className="p-2 border-r border-b border-black text-right">{formatCurrency(item.price).replace("Rs. ","")}</td>
                                         <td className="p-2 border-r border-b border-black text-center font-sans">{item.unit || "pcs"}</td>
+                                        {showItemTaxRate && (
+                                            <td className="p-2 border-r border-b border-black text-center font-sans text-[9px] font-semibold text-slate-700">
+                                                {item.tax_rate !== undefined ? `${item.tax_rate}%` : (taxRate > 0 ? `${taxRate}%` : '0%')}
+                                            </td>
+                                        )}
                                         <td className="p-2 border-b border-black text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity ?? 1) * Number(item.price))).replace("Rs. ","")}</td>
                                     </tr>
                                 ))
                             )}
-                            {/* Empty spacer row with exactly 6 cells to match columns */}
+                            {/* Empty spacer row matching column count */}
                             <tr className="h-full">
                                 <td className="p-2 border-r border-black"></td>
                                 <td className="p-2 border-r border-black"></td>
                                 <td className="p-2 border-r border-black"></td>
                                 <td className="p-2 border-r border-black"></td>
                                 <td className="p-2 border-r border-black"></td>
+                                {showItemTaxRate && <td className="p-2 border-r border-black"></td>}
                                 <td className="p-2"></td>
                             </tr>
                         </tbody>
@@ -570,7 +582,7 @@ const InvoiceMockPreview = ({
                             <tr className={cn("text-[10px] uppercase font-bold tracking-wider", styles.tableHead)}>
                                 <th className="p-3">Item Description</th>
                                 <th className="p-3 text-center">Qty</th>
-                                <th className="p-3 text-center">Tax %</th>
+                                {showItemTaxRate && <th className="p-3 text-center">Tax %</th>}
                                 <th className="p-3 text-right">Unit Price</th>
                                 <th className="p-3 text-right">Amount</th>
                             </tr>
@@ -578,7 +590,7 @@ const InvoiceMockPreview = ({
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-6 text-center text-muted-foreground italic">No items listed in this invoice.</td>
+                                    <td colSpan={showItemTaxRate ? 5 : 4} className="p-6 text-center text-muted-foreground italic">No items listed in this invoice.</td>
                                 </tr>
                             ) : (
                                 items.map((item: any, idx: number) => (
@@ -588,7 +600,9 @@ const InvoiceMockPreview = ({
                                             {item.hsn_code && <div className="text-[9px] text-muted-foreground mt-0.5">HSN: {item.hsn_code}</div>}
                                         </td>
                                         <td className="p-3 text-center font-medium">{item.quantity ?? 1}</td>
-                                        <td className="p-3 text-center font-medium text-slate-600">{item.tax_rate !== undefined ? `${item.tax_rate}%` : taxRate > 0 ? `${taxRate}%` : '—'}</td>
+                                        {showItemTaxRate && (
+                                            <td className="p-3 text-center font-medium text-slate-600">{item.tax_rate !== undefined ? `${item.tax_rate}%` : taxRate > 0 ? `${taxRate}%` : '—'}</td>
+                                        )}
                                         <td className="p-3 text-right font-medium">{formatCurrency(item.price)}</td>
                                         <td className="p-3 text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity ?? 1) * Number(item.price)))}</td>
                                     </tr>
@@ -744,6 +758,18 @@ const PrintStudioPage = () => {
         setPrintUpiQr(checked);
         localStorage.setItem("rupeebill_print_upi_qr", checked ? "true" : "false");
         toast.success(checked ? "UPI QR code enabled on invoices" : "UPI QR code hidden from invoices");
+    };
+
+    // Product Tax % on Bill Preferences
+    const [showItemTaxRate, setShowItemTaxRate] = useState<boolean>(() => {
+        const saved = localStorage.getItem("rupeebill_show_item_tax_rate_on_bill");
+        return saved === "true";
+    });
+
+    const handleShowItemTaxToggle = (checked: boolean) => {
+        setShowItemTaxRate(checked);
+        localStorage.setItem("rupeebill_show_item_tax_rate_on_bill", checked ? "true" : "false");
+        toast.success(checked ? "Product Tax % enabled on bills/invoices" : "Product Tax % hidden from bills/invoices");
     };
 
     const [upiIdInput, setUpiIdInput] = useState<string>(() => {
@@ -912,7 +938,8 @@ const PrintStudioPage = () => {
                 bankDetails: activeBankAccount || undefined,
                 selectedBankAccountId: selectedBankId,
                 printUpiQr,
-                upiId: upiIdInput || profile?.upi_id
+                upiId: upiIdInput || profile?.upi_id,
+                showItemTaxRateOnBill: showItemTaxRate
             });
         }
     };
@@ -1228,11 +1255,30 @@ const PrintStudioPage = () => {
                             )}
                         </div>
 
-                        {/* 6. Terms & Conditions Card */}
+                        {/* 6. Product Tax % on Bill Card */}
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <div className="flex items-center justify-between border-b pb-2">
+                                <h2 className="text-sm font-bold flex items-center gap-2">
+                                    <Percent className="w-3.5 h-3.5 text-primary" />
+                                    6. Product Tax % on Bill
+                                </h2>
+                                <Switch 
+                                    checked={showItemTaxRate}
+                                    onCheckedChange={handleShowItemTaxToggle}
+                                />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                {showItemTaxRate 
+                                    ? "Showing item-level GST / Tax % column on printed bills and PDF downloads." 
+                                    : "Tax % column is hidden on bills. Switch on to display individual product tax rates."}
+                            </p>
+                        </div>
+
+                        {/* 7. Terms & Conditions Card */}
                         <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
                             <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
                                 <FileCheck className="w-3.5 h-3.5 text-primary" />
-                                6. Terms & Conditions
+                                7. Terms & Conditions
                             </h2>
                             <textarea
                                 value={customTerms}
@@ -1314,7 +1360,8 @@ const PrintStudioPage = () => {
                                                     bankDetails: activeBankAccount || undefined,
                                                     selectedBankAccountId: selectedBankId,
                                                     printUpiQr,
-                                                    upiId: upiIdInput || profile?.upi_id
+                                                    upiId: upiIdInput || profile?.upi_id,
+                                                    showItemTaxRateOnBill: showItemTaxRate
                                                 }
                                             );
                                         }}
@@ -1380,6 +1427,7 @@ const PrintStudioPage = () => {
                                             bankAccount={activeBankAccount}
                                             printUpiQr={printUpiQr}
                                             upiId={upiIdInput || profile?.upi_id}
+                                            showItemTaxRate={showItemTaxRate}
                                         />
                                     </div>
                                 </div>

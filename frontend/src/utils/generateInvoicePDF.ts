@@ -357,9 +357,10 @@ export const handleContinuationPage = (
     brandColor: [number, number, number] | null, 
     themeName: string, 
     invoiceNum: string, 
-    bizName: string
+    bizName: string,
+    footerHeight: number = 72
 ): number => {
-    if (finalY + 55 > pageHeight - 15) {
+    if (finalY + footerHeight > pageHeight - 12) {
         doc.addPage();
         if (themeName === 'tally-accounting') {
             const scale = pageWidth / 210;
@@ -369,9 +370,9 @@ export const handleContinuationPage = (
             doc.rect(tallyMarginX, tallyMarginX, pageWidth - 2 * tallyMarginX, pageHeight - 2 * tallyMarginX);
             doc.setFont("helvetica", "bold");
             doc.setFontSize(9);
-            doc.text(`${bizName} - Invoice ${invoiceNum} (Continuation)`, tallyMarginX + 2, 16);
-            doc.line(tallyMarginX, 19, pageWidth - tallyMarginX, 19);
-            return 24;
+            doc.text(`${bizName} - Invoice ${invoiceNum} (Continuation)`, tallyMarginX + 2, 16 * scale);
+            doc.line(tallyMarginX, 19 * scale, pageWidth - tallyMarginX, 19 * scale);
+            return 24 * scale;
         } else {
             const color = brandColor || [79, 70, 229];
             doc.setFillColor(...color);
@@ -399,7 +400,8 @@ export const generateInvoicePDF = async (
         bankDetails?: BankDetailsInfo,
         selectedBankAccountId?: string,
         printUpiQr?: boolean,
-        upiId?: string
+        upiId?: string,
+        showItemTaxRateOnBill?: boolean
     }
 ) => {
     try {
@@ -490,6 +492,10 @@ export const generateInvoicePDF = async (
                 console.warn("Failed to generate UPI QR code for invoice:", err);
             }
         }
+
+        const showItemTaxRate = options?.showItemTaxRateOnBill !== undefined
+            ? options.showItemTaxRateOnBill
+            : (localStorage.getItem("rupeebill_show_item_tax_rate_on_bill") === "true");
 
         let taxRateVal = Number(data.tax_rate) || 0;
         if (taxRateVal === 0 && data.tax_amount && data.tax_amount > 0) {
@@ -665,26 +671,64 @@ export const generateInvoicePDF = async (
             // Border above table
             doc.line(tallyMarginX, tableStartY, pageWidth - tallyMarginX, tableStartY);
 
-            // Standard 6-column Tally Table
-            const tableRowsTally = data.items.map((item, index) => [
-                (index + 1).toString(),
-                safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
-                item.quantity.toString(),
-                formatAmountClean(item.price),
-                safeText(item.unit || "pcs"),
-                formatAmountClean(item.total ?? (Number(item.quantity) * Number(item.price)))
-            ]);
+            // Standard Tally Table: support showing or hiding individual product Tax % column
+            const tableHeadTally = showItemTaxRate ? [[
+                { content: "S.No", styles: { halign: 'center' } },
+                { content: "Description of Goods", styles: { halign: 'left' } },
+                { content: "Qty", styles: { halign: 'center' } },
+                { content: "Rate", styles: { halign: 'right' } },
+                { content: "per", styles: { halign: 'center' } },
+                { content: "Tax %", styles: { halign: 'center' } },
+                { content: "Amount", styles: { halign: 'right' } }
+            ]] : [[
+                { content: "S.No", styles: { halign: 'center' } },
+                { content: "Description of Goods", styles: { halign: 'left' } },
+                { content: "Qty", styles: { halign: 'center' } },
+                { content: "Rate", styles: { halign: 'right' } },
+                { content: "per", styles: { halign: 'center' } },
+                { content: "Amount", styles: { halign: 'right' } }
+            ]];
+
+            const tableRowsTally = data.items.map((item, index) => {
+                const itemTax = item.tax_rate !== undefined && item.tax_rate !== null && item.tax_rate !== ''
+                    ? `${Number(item.tax_rate)}%`
+                    : (taxRateVal > 0 ? `${taxRateVal}%` : "0%");
+                return showItemTaxRate ? [
+                    (index + 1).toString(),
+                    safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
+                    item.quantity.toString(),
+                    formatAmountClean(item.price),
+                    safeText(item.unit || "pcs"),
+                    itemTax,
+                    formatAmountClean(item.total ?? (Number(item.quantity) * Number(item.price)))
+                ] : [
+                    (index + 1).toString(),
+                    safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
+                    item.quantity.toString(),
+                    formatAmountClean(item.price),
+                    safeText(item.unit || "pcs"),
+                    formatAmountClean(item.total ?? (Number(item.quantity) * Number(item.price)))
+                ];
+            });
+
+            const columnStylesTally = showItemTaxRate ? {
+                0: { cellWidth: 10 * scale, halign: 'center' }, 
+                2: { cellWidth: 14 * scale, halign: 'center' }, 
+                3: { cellWidth: 24 * scale, halign: 'right' }, 
+                4: { cellWidth: 12 * scale, halign: 'center' },
+                5: { cellWidth: 16 * scale, halign: 'center' },
+                6: { cellWidth: 28 * scale, halign: 'right' } 
+            } : {
+                0: { cellWidth: 12 * scale, halign: 'center' }, 
+                2: { cellWidth: 16 * scale, halign: 'center' }, 
+                3: { cellWidth: 28 * scale, halign: 'right' }, 
+                4: { cellWidth: 14 * scale, halign: 'center' },
+                5: { cellWidth: 32 * scale, halign: 'right' } 
+            };
 
             autoTable(doc, {
                 startY: tableStartY,
-                head: [[
-                    { content: "S.No", styles: { halign: 'center' } },
-                    { content: "Description of Goods", styles: { halign: 'left' } },
-                    { content: "Qty", styles: { halign: 'center' } },
-                    { content: "Rate", styles: { halign: 'right' } },
-                    { content: "per", styles: { halign: 'center' } },
-                    { content: "Amount", styles: { halign: 'right' } }
-                ]],
+                head: tableHeadTally,
                 body: tableRowsTally,
                 theme: 'grid',
                 headStyles: { 
@@ -703,31 +747,37 @@ export const generateInvoicePDF = async (
                     lineColor: [0, 0, 0], 
                     lineWidth: 0.5 
                 },
-                columnStyles: { 
-                    0: { cellWidth: 12 * scale, halign: 'center' }, 
-                    2: { cellWidth: 16 * scale, halign: 'center' }, 
-                    3: { cellWidth: 28 * scale, halign: 'right' }, 
-                    4: { cellWidth: 14 * scale, halign: 'center' },
-                    5: { cellWidth: 32 * scale, halign: 'right' } 
-                },
+                columnStyles: columnStylesTally,
                 didParseCell: (hookData: any) => {
                     const colIdx = hookData.column.index;
-                    if (colIdx === 0 || colIdx === 2 || colIdx === 4) {
-                        hookData.cell.styles.halign = 'center';
-                    } else if (colIdx === 3 || colIdx === 5) {
-                        hookData.cell.styles.halign = 'right';
-                    } else if (colIdx === 1) {
-                        hookData.cell.styles.halign = 'left';
+                    if (showItemTaxRate) {
+                        if (colIdx === 0 || colIdx === 2 || colIdx === 4 || colIdx === 5) {
+                            hookData.cell.styles.halign = 'center';
+                        } else if (colIdx === 3 || colIdx === 6) {
+                            hookData.cell.styles.halign = 'right';
+                        } else if (colIdx === 1) {
+                            hookData.cell.styles.halign = 'left';
+                        }
+                    } else {
+                        if (colIdx === 0 || colIdx === 2 || colIdx === 4) {
+                            hookData.cell.styles.halign = 'center';
+                        } else if (colIdx === 3 || colIdx === 5) {
+                            hookData.cell.styles.halign = 'right';
+                        } else if (colIdx === 1) {
+                            hookData.cell.styles.halign = 'left';
+                        }
                     }
                 },
                 margin: { left: tallyMarginX, right: tallyMarginX },
             });
 
             let finalY = (doc as any).lastAutoTable.finalY;
-            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, lineDark, theme, data.invoice_number, bizName);
 
-            // Footer height adapts if bank details are printed or omitted
-            const footerHeight = (resolvedBank ? 65 : 50) * scale;
+            // Footer height: dynamically accommodate Bank details, UPI QR, words, totals, and signature
+            const hasBankOrUpi = Boolean(resolvedBank || upiQrBase64);
+            const footerHeight = (hasBankOrUpi ? 72 : 54) * scale;
+            finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, lineDark, theme, data.invoice_number, bizName, footerHeight);
+
             const footerStartY = Math.max(finalY, pageHeight - tallyMarginY - footerHeight);
 
             doc.setDrawColor(...lineDark);
@@ -763,163 +813,203 @@ export const generateInvoicePDF = async (
             const wordsText = convertAmountToIndianWords(data.total_amount);
             const splitWords = doc.splitTextToSize(wordsText, splitX - tallyMarginX - 4);
             doc.text(splitWords, tallyMarginX + 2, footerStartY + 8.5);
-            let leftCurrentY = footerStartY + 8.5 + (splitWords.length * 3.4);
 
-            // Real Bank details and UPI QR Code
-            if (resolvedBank || upiQrBase64) {
-                doc.line(tallyMarginX, leftCurrentY + 1.5, splitX, leftCurrentY + 1.5);
-                leftCurrentY += 4.5;
+            if (hasBankOrUpi) {
+                // Divider 1: between words and Bank/UPI
+                const line1Y = footerStartY + 14 * scale;
+                doc.line(tallyMarginX, line1Y, splitX, line1Y);
 
-                const qrSize = upiQrBase64 ? 22 * scale : 0;
+                const qrSize = upiQrBase64 ? 20 * scale : 0;
                 const qrX = splitX - qrSize - 3 * scale;
-                const qrY = leftCurrentY;
+                const qrY = line1Y + 2.5 * scale;
 
                 if (upiQrBase64) {
                     doc.addImage(upiQrBase64.dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
                     doc.setFontSize(5.5);
                     doc.setFont(fontStyle, "bold");
-                    doc.text("SCAN TO PAY (UPI)", qrX + qrSize / 2, qrY + qrSize + 2.5, { align: "center" });
+                    doc.text("SCAN TO PAY (UPI)", qrX + qrSize / 2, qrY + qrSize + 2.5 * scale, { align: "center" });
                 }
 
-                const maxBankWidth = upiQrBase64 ? (qrX - tallyMarginX - 4) : (splitX - tallyMarginX - 4);
-                let textY = leftCurrentY;
+                let textY = line1Y + 4 * scale;
 
                 if (resolvedBank) {
                     doc.setFont(fontStyle, "bold");
                     doc.setFontSize(7.5);
                     doc.text("Company's Bank Details:", tallyMarginX + 2, textY);
-                    textY += 3.6;
+                    textY += 3.5 * scale;
                     doc.setFont(fontStyle, "normal");
                     doc.setFontSize(7);
                     doc.text(`Bank Name : ${resolvedBank.bankName}`, tallyMarginX + 2, textY);
-                    textY += 3.2;
+                    textY += 3.1 * scale;
                     doc.text(`A/c No.   : ${resolvedBank.accountNumber}`, tallyMarginX + 2, textY);
-                    textY += 3.2;
+                    textY += 3.1 * scale;
                     const branchIfsc = [
                         resolvedBank.branchName ? `Branch: ${resolvedBank.branchName}` : '',
                         resolvedBank.ifscCode ? `IFSC: ${resolvedBank.ifscCode}` : ''
                     ].filter(Boolean).join("  |  ");
                     if (branchIfsc) {
                         doc.text(branchIfsc, tallyMarginX + 2, textY);
-                        textY += 3.2;
+                        textY += 3.1 * scale;
                     }
                 } else if (upiQrBase64) {
                     doc.setFont(fontStyle, "bold");
                     doc.setFontSize(7.5);
                     doc.text("Instant Payment via UPI:", tallyMarginX + 2, textY);
-                    textY += 3.6;
+                    textY += 3.5 * scale;
                     doc.setFont(fontStyle, "normal");
                     doc.setFontSize(7);
                     doc.text(`UPI ID / VPA : ${resolvedUpiId}`, tallyMarginX + 2, textY);
-                    textY += 3.2;
-                    doc.text(`Payee Name   : ${bizName.slice(0, 30)}`, tallyMarginX + 2, textY);
-                    textY += 3.2;
+                    textY += 3.1 * scale;
+                    doc.text(`Payee Name   : ${bizName.slice(0, 32)}`, tallyMarginX + 2, textY);
+                    textY += 3.1 * scale;
                     doc.text(`Amount       : ${formatCurrencySafe(balanceDue > 0 ? balanceDue : totalAmount)}`, tallyMarginX + 2, textY);
-                    textY += 3.2;
+                    textY += 3.1 * scale;
                 }
 
-                leftCurrentY = Math.max(textY, upiQrBase64 ? (qrY + qrSize + 4) : textY);
+                // Divider 2: between Bank/UPI and Declaration
+                const line2Y = line1Y + 28 * scale;
+                doc.line(tallyMarginX, line2Y, splitX, line2Y);
+
+                // Declaration
+                const declY = line2Y + 3.8 * scale;
+                doc.setFont(fontStyle, "bold");
+                doc.setFontSize(7.5);
+                doc.text("Declaration:", tallyMarginX + 2, declY);
+
+                doc.setFont(fontStyle, "normal");
+                doc.setFontSize(6.8);
+                const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+                const splitTerms = doc.splitTextToSize(termsText, splitX - tallyMarginX - 4);
+                doc.text(splitTerms, tallyMarginX + 2, declY + 3.5 * scale);
+
+                // Seal note at bottom left
+                doc.setFont(fontStyle, "normal");
+                doc.setFontSize(6.5);
+                doc.setTextColor(110, 110, 110);
+                doc.text("Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5 * scale);
+                doc.setTextColor(...textDark);
+
+            } else {
+                // Divider 1: between words and Declaration
+                const line1Y = footerStartY + 15 * scale;
+                doc.line(tallyMarginX, line1Y, splitX, line1Y);
+
+                // Declaration
+                const declY = line1Y + 4 * scale;
+                doc.setFont(fontStyle, "bold");
+                doc.setFontSize(7.5);
+                doc.text("Declaration:", tallyMarginX + 2, declY);
+
+                doc.setFont(fontStyle, "normal");
+                doc.setFontSize(6.8);
+                const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+                const splitTerms = doc.splitTextToSize(termsText, splitX - tallyMarginX - 4);
+                doc.text(splitTerms, tallyMarginX + 2, declY + 3.5 * scale);
+
+                // Seal note at bottom left
+                doc.setFont(fontStyle, "normal");
+                doc.setFontSize(6.5);
+                doc.setTextColor(110, 110, 110);
+                doc.text("Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5 * scale);
+                doc.setTextColor(...textDark);
             }
 
-            // Horizontal line above declaration
-            doc.line(tallyMarginX, leftCurrentY + 1.5, splitX, leftCurrentY + 1.5);
-            leftCurrentY += 5;
-            
-            // Declaration
-            doc.setFont(fontStyle, "bold");
-            doc.setFontSize(7.5);
-            doc.text("Declaration:", tallyMarginX + 2, leftCurrentY);
-            leftCurrentY += 3.5;
-            doc.setFont(fontStyle, "normal");
-            doc.setFontSize(6.8);
-            const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
-            const splitTerms = doc.splitTextToSize(termsText, splitX - tallyMarginX - 4);
-            doc.text(splitTerms, tallyMarginX + 2, leftCurrentY);
-
-            // Seal note at bottom left
-            doc.setFont(fontStyle, "normal");
-            doc.setFontSize(6.5);
-            doc.setTextColor(110, 110, 110);
-            doc.text("Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5);
-            doc.setTextColor(...textDark);
-
             // --- RIGHT COLUMN: Summary & Signatory ---
-            let rightY = footerStartY + 4.5;
+            let rightY = footerStartY + 4.2 * scale;
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
             
             doc.text("Subtotal:", splitX + 2, rightY);
             doc.text(formatCurrencySafe(data.subtotal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-            rightY += 4.5;
+            rightY += 4.2 * scale;
             
             if (data.discount_amount && data.discount_amount > 0) {
                 doc.text("Discount:", splitX + 2, rightY);
                 doc.text(`-${formatCurrencySafe(data.discount_amount)}`, pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-                rightY += 4.5;
+                rightY += 4.2 * scale;
             }
             if (data.tax_amount && data.tax_amount > 0) {
                 const tr = taxRateVal;
-                doc.text(`CGST (${tr/2}%):`, splitX + 2, rightY);
-                doc.text(formatCurrencySafe(cgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-                rightY += 4.5;
-                doc.text(`SGST (${tr/2}%):`, splitX + 2, rightY);
-                doc.text(formatCurrencySafe(sgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-                rightY += 4.5;
+                if (data.igst !== undefined && Number(data.igst) > 0) {
+                    doc.text(`IGST (${tr}%):`, splitX + 2, rightY);
+                    doc.text(formatCurrencySafe(Number(data.igst)), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
+                    rightY += 4.0 * scale;
+                } else {
+                    doc.text(`CGST (${tr/2}%):`, splitX + 2, rightY);
+                    doc.text(formatCurrencySafe(cgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
+                    rightY += 4.0 * scale;
+                    doc.text(`SGST (${tr/2}%):`, splitX + 2, rightY);
+                    doc.text(formatCurrencySafe(sgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
+                    rightY += 4.0 * scale;
+                }
             }
             
-            doc.line(splitX, rightY - 1, pageWidth - tallyMarginX, rightY - 1);
+            doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(9);
-            doc.text("Total:", splitX + 2, rightY + 3);
-            doc.text(formatCurrencySafe(data.total_amount), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
-            rightY += 7.5;
+            doc.text("Total:", splitX + 2, rightY + 3.8 * scale);
+            doc.text(formatCurrencySafe(data.total_amount), pageWidth - tallyMarginX - 2, rightY + 3.8 * scale, { align: "right" });
+            rightY += 5.8 * scale;
 
             // Partial Payment Breakdown
-            doc.line(splitX, rightY - 1, pageWidth - tallyMarginX, rightY - 1);
+            doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
             doc.setTextColor(22, 101, 52); // Forest green
-            doc.text("Amount Paid:", splitX + 2, rightY + 2.8);
-            doc.text(formatCurrencySafe(amountPaid), pageWidth - tallyMarginX - 2, rightY + 2.8, { align: "right" });
-            rightY += 5.5;
+            doc.text("Amount Paid:", splitX + 2, rightY + 3.2 * scale);
+            doc.text(formatCurrencySafe(amountPaid), pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
+            rightY += 4.8 * scale;
 
             doc.setFont(fontStyle, "bold");
             if (balanceDue > 0) {
                 doc.setTextColor(185, 28, 28); // Crimson red
-                doc.text("Balance Due:", splitX + 2, rightY + 2.8);
-                doc.text(formatCurrencySafe(balanceDue), pageWidth - tallyMarginX - 2, rightY + 2.8, { align: "right" });
+                doc.text("Balance Due:", splitX + 2, rightY + 3.2 * scale);
+                doc.text(formatCurrencySafe(balanceDue), pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
             } else {
                 doc.setTextColor(22, 101, 52); // Forest green
-                doc.text("Balance Due:", splitX + 2, rightY + 2.8);
-                doc.text("0.00 (PAID)", pageWidth - tallyMarginX - 2, rightY + 2.8, { align: "right" });
+                doc.text("Balance Due:", splitX + 2, rightY + 3.2 * scale);
+                doc.text("0.00 (PAID)", pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
             }
             doc.setTextColor(...textDark);
-            rightY += 6.5;
+            rightY += 5.2 * scale;
 
             doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
 
-            // Signatory Block
-            const signatoryY = rightY + 3;
+            // Signatory Box
+            const signatoryBoxTop = rightY;
+            const signatoryBoxBottom = pageHeight - tallyMarginY;
+            const rightColWidth = (pageWidth - tallyMarginX) - splitX;
+            const signatoryCenterX = splitX + rightColWidth / 2;
+
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(7.5);
-            doc.text(`for ${bizName.toUpperCase()}`, splitX + 2, signatoryY);
-            
-            const signatoryCenterX = splitX + (pageWidth - tallyMarginX - splitX) / 2;
-            if (signatureBase64) {
-                const maxDim = 22 * scale;
-                let renderW = signatureBase64.width;
-                let renderH = signatureBase64.height;
-                if (renderW > maxDim || renderH > maxDim) {
-                    const ratio = Math.min(maxDim / renderW, maxDim / renderH);
-                    renderW *= ratio;
-                    renderH *= ratio;
-                }
-                doc.addImage(signatureBase64.dataUrl, "PNG", signatoryCenterX - renderW/2, pageHeight - tallyMarginY - renderH - 6, renderW, renderH);
-            }
-            
+            const forBizText = `for ${bizName.toUpperCase()}`;
+            const splitForBiz = doc.splitTextToSize(forBizText, rightColWidth - 4);
+            doc.text(splitForBiz, splitX + 2, signatoryBoxTop + 3.5 * scale);
+            const bizTextH = splitForBiz.length * 3.2 * scale;
+
+            // Authorized Signatory anchor at bottom
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
-            doc.text("Authorized Signatory", signatoryCenterX, pageHeight - tallyMarginY - 2.5, { align: "center" });
+            doc.text("Authorized Signatory", signatoryCenterX, signatoryBoxBottom - 2.5 * scale, { align: "center" });
+
+            // Signature Image strictly placed in the available slot between forBizText and Authorized Signatory
+            if (signatureBase64) {
+                const sigSlotTop = signatoryBoxTop + 3.5 * scale + bizTextH + 1.5 * scale;
+                const sigSlotBottom = signatoryBoxBottom - 6.5 * scale;
+                const maxSigH = Math.max(6, sigSlotBottom - sigSlotTop);
+                const maxSigW = rightColWidth - 8 * scale;
+
+                let renderW = signatureBase64.width;
+                let renderH = signatureBase64.height;
+                const ratio = Math.min(maxSigW / renderW, maxSigH / renderH);
+                renderW *= ratio;
+                renderH *= ratio;
+
+                const sigY = sigSlotTop + (maxSigH - renderH) / 2;
+                const sigX = signatoryCenterX - renderW / 2;
+                doc.addImage(signatureBase64.dataUrl, "PNG", sigX, sigY, renderW, renderH);
+            }
 
         } else {
             // --- STARTUP GRADIENT THEME (Modern Tech Default) ---
@@ -1034,40 +1124,76 @@ export const generateInvoicePDF = async (
             if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
             if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
 
-            const tableRows = data.items.map((item) => [
-                safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
-                item.quantity.toString(),
-                formatCurrencySafe(item.price),
-                formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
-            ]);
+            const tableHeadGradient = showItemTaxRate ? [[
+                { content: "Item Description", styles: { halign: 'left' } },
+                { content: "Qty", styles: { halign: 'center' } },
+                { content: "Price", styles: { halign: 'right' } },
+                { content: "Tax %", styles: { halign: 'center' } },
+                { content: "Amount", styles: { halign: 'right' } }
+            ]] : [[
+                { content: "Item Description", styles: { halign: 'left' } },
+                { content: "Qty", styles: { halign: 'center' } },
+                { content: "Price", styles: { halign: 'right' } },
+                { content: "Amount", styles: { halign: 'right' } }
+            ]];
+
+            const tableRows = data.items.map((item) => {
+                const itemTax = item.tax_rate !== undefined && item.tax_rate !== null && item.tax_rate !== ''
+                    ? `${Number(item.tax_rate)}%`
+                    : (taxRateVal > 0 ? `${taxRateVal}%` : "0%");
+                return showItemTaxRate ? [
+                    safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
+                    item.quantity.toString(),
+                    formatCurrencySafe(item.price),
+                    itemTax,
+                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+                ] : [
+                    safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
+                    item.quantity.toString(),
+                    formatCurrencySafe(item.price),
+                    formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+                ];
+            });
+
+            const columnStylesGradient = showItemTaxRate ? {
+                1: { cellWidth: 18 * scale, halign: 'center' }, 
+                2: { cellWidth: 28 * scale, halign: 'right' }, 
+                3: { cellWidth: 20 * scale, halign: 'center' },
+                4: { cellWidth: 32 * scale, halign: 'right' } 
+            } : { 
+                0: { cellWidth: 90 * scale }, 
+                1: { cellWidth: 22 * scale, halign: 'center' }, 
+                2: { cellWidth: 35 * scale, halign: 'right' }, 
+                3: { cellWidth: 35 * scale, halign: 'right' } 
+            };
 
             autoTable(doc, {
                 startY: Math.max(85, billY + 10),
-                head: [[
-                    { content: "Item Description", styles: { halign: 'left' } },
-                    { content: "Qty", styles: { halign: 'center' } },
-                    { content: "Price", styles: { halign: 'right' } },
-                    { content: "Amount", styles: { halign: 'right' } }
-                ]],
+                head: tableHeadGradient,
                 body: tableRows,
                 theme: 'grid',
                 headStyles: { fillColor: indigoColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 244, 246] },
                 alternateRowStyles: { fillColor: [249, 250, 251] },
-                columnStyles: { 
-                    0: { cellWidth: 90 * scale }, 
-                    1: { cellWidth: 22 * scale, halign: 'center' }, 
-                    2: { cellWidth: 35 * scale, halign: 'right' }, 
-                    3: { cellWidth: 35 * scale, halign: 'right' } 
-                },
+                columnStyles: columnStylesGradient,
                 didParseCell: (hookData: any) => {
                     const colIdx = hookData.column.index;
-                    if (colIdx === 1) {
-                        hookData.cell.styles.halign = 'center';
-                    } else if (colIdx === 2 || colIdx === 3) {
-                        hookData.cell.styles.halign = 'right';
-                    } else if (colIdx === 0) {
-                        hookData.cell.styles.halign = 'left';
+                    if (showItemTaxRate) {
+                        if (colIdx === 1 || colIdx === 3) {
+                            hookData.cell.styles.halign = 'center';
+                        } else if (colIdx === 2 || colIdx === 4) {
+                            hookData.cell.styles.halign = 'right';
+                        } else if (colIdx === 0) {
+                            hookData.cell.styles.halign = 'left';
+                        }
+                    } else {
+                        if (colIdx === 1) {
+                            hookData.cell.styles.halign = 'center';
+                        } else if (colIdx === 2 || colIdx === 3) {
+                            hookData.cell.styles.halign = 'right';
+                        } else if (colIdx === 0) {
+                            hookData.cell.styles.halign = 'left';
+                        }
                     }
                 },
                 margin: { left: marginX, right: marginX },

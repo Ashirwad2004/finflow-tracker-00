@@ -59,6 +59,8 @@ export interface SalesSettings {
   enableQuickBilling: boolean;
   /** Enable item-wise tax allowing individual GST tax rates per line item. */
   enableItemWiseTax: boolean;
+  /** Show individual product tax % column on bills and invoices. */
+  showItemTaxRateOnBill: boolean;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -76,6 +78,7 @@ const DEFAULTS: SalesSettings = {
   defaultTermsAndConditions: "Thank you for your business. For any inquiries, please contact us.",
   enableQuickBilling: false,
   enableItemWiseTax: false,
+  showItemTaxRateOnBill: false,
 };
 
 function getStorageKey(userId: string | undefined) {
@@ -84,18 +87,27 @@ function getStorageKey(userId: string | undefined) {
 
 function loadSettings(userId: string | undefined): SalesSettings {
   const key = getStorageKey(userId);
-  if (!key) return { ...DEFAULTS };
+  const globalShowItemTax = localStorage.getItem("rupeebill_show_item_tax_rate_on_bill");
+  const fallbackShowTax = globalShowItemTax !== null ? globalShowItemTax === "true" : DEFAULTS.showItemTaxRateOnBill;
+  
+  if (!key) return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax };
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    if (!raw) return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax };
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULTS,
+      ...parsed,
+      showItemTaxRateOnBill: parsed.showItemTaxRateOnBill !== undefined ? parsed.showItemTaxRateOnBill : fallbackShowTax
+    };
   } catch {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax };
   }
 }
 
 function saveSettings(userId: string | undefined, settings: SalesSettings) {
   const key = getStorageKey(userId);
+  localStorage.setItem("rupeebill_show_item_tax_rate_on_bill", String(Boolean(settings.showItemTaxRateOnBill)));
   if (!key) return;
   localStorage.setItem(key, JSON.stringify(settings));
 }
