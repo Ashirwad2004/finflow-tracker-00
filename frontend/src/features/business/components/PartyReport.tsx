@@ -400,7 +400,12 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
                                     </DropdownMenuItem>
                                     <DropdownMenuItem 
                                         className="text-xs"
-                                        onClick={() => exportPartyReportCSV(filteredData)}
+                                        onClick={() => exportPartyReportCSV(filteredData, profile ? {
+                                            name: (profile as any).business_name,
+                                            address: (profile as any).business_address,
+                                            phone: (profile as any).business_phone,
+                                            gst: (profile as any).gst_number
+                                        } : undefined)}
                                     >
                                         <FileSpreadsheet className="w-3.5 h-3.5 mr-2 text-emerald-600" />
                                         Export Statement (Excel)

@@ -1,4 +1,5 @@
 import React from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface ThermalReceiptProps {
     data: {
@@ -23,6 +24,7 @@ interface ThermalReceiptProps {
             address?: string;
             phone?: string;
             gst?: string;
+            upi_id?: string;
         };
     };
     className?: string;
@@ -43,6 +45,13 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ data, className 
     };
 
     const bizName = data.business_details?.name || "SHOP NAME";
+    const effectiveUpi = data.business_details?.upi_id || localStorage.getItem("rupeebill_upi_id") || "";
+    const balanceDue = Number(data.balance_due ?? 0);
+    const totalAmount = Number(data.total_amount ?? 0);
+    const amountToPay = (balanceDue > 0 ? balanceDue : totalAmount).toFixed(2);
+    const upiUri = effectiveUpi 
+        ? `upi://pay?pa=${encodeURIComponent(effectiveUpi)}&pn=${encodeURIComponent(bizName)}&am=${amountToPay}&cu=INR&tn=${encodeURIComponent(`Bill ${data.invoice_number}`)}`
+        : "";
 
     // Simulate slight horizontal misalignments common in thermal printers
     const getRandomOffset = () => {
@@ -179,23 +188,34 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ data, className 
                     <p>PLEASE VISIT AGAIN</p>
                 </div>
 
-                {/* Optional Barcode / QR Code Placeholder */}
-                <div className={`mt-6 flex flex-col items-center justify-center opacity-80 ${getRandomOffset()}`}>
-                    {/* Pure CSS Barcode Mock */}
-                    <div className="flex h-10 w-48 mb-1 items-end justify-center mix-blend-multiply">
-                        {[...Array(30)].map((_, i) => (
-                            <div
-                                key={i}
-                                className="bg-black h-full"
-                                style={{
-                                    width: `${Math.max(1, Math.floor(Math.random() * 4))}px`,
-                                    marginRight: `${Math.max(1, Math.floor(Math.random() * 3))}px`
-                                }}
-                            />
-                        ))}
+                {/* UPI QR Code or Barcode Footer */}
+                {upiUri ? (
+                    <div className={`mt-5 flex flex-col items-center justify-center ${getRandomOffset()}`}>
+                        <div className="p-1.5 bg-white border border-black rounded shadow-xs">
+                            <QRCodeSVG value={upiUri} size={68} level="M" />
+                        </div>
+                        <p className="text-[10px] font-bold mt-1 tracking-wider">SCAN TO PAY (UPI)</p>
+                        <p className="text-[9px] font-mono text-stone-700">{effectiveUpi}</p>
+                        <p className="text-[10px] font-bold">₹{amountToPay}</p>
                     </div>
-                    <p className="text-[10px] tracking-widest">{data.invoice_number.replace(/[^A-Z0-9]/ig, '')}</p>
-                </div>
+                ) : (
+                    <div className={`mt-6 flex flex-col items-center justify-center opacity-80 ${getRandomOffset()}`}>
+                        {/* Pure CSS Barcode Mock */}
+                        <div className="flex h-10 w-48 mb-1 items-end justify-center mix-blend-multiply">
+                            {[...Array(30)].map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="bg-black h-full"
+                                    style={{
+                                        width: `${Math.max(1, Math.floor(Math.random() * 4))}px`,
+                                        marginRight: `${Math.max(1, Math.floor(Math.random() * 3))}px`
+                                    }}
+                                />
+                            ))}
+                        </div>
+                        <p className="text-[10px] tracking-widest">{data.invoice_number.replace(/[^A-Z0-9]/ig, '')}</p>
+                    </div>
+                )}
 
                 {/* Thermal paper end cut spacing */}
                 <div className="h-8"></div>

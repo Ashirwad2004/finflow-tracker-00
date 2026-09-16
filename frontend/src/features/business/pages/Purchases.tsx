@@ -330,49 +330,37 @@ export default function PurchasesPage() {
                 </div>
 
                 {/* Top Metrics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-4">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unpaid Bills</span>
-                            <div className="h-10 w-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center">
-                                <Clock className="w-5 h-5" />
-                            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all flex items-center justify-between">
+                        <div>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Unpaid Bills</span>
+                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(outstandingTotal)}</p>
+                            <p className="text-[10px] font-medium text-slate-400 mt-0.5">Pending payment</p>
                         </div>
-                        <div className="flex flex-col">
-                            <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(outstandingTotal)}</p>
-                            <p className="text-[11px] font-semibold text-slate-500 mt-2">
-                                Pending payment
-                            </p>
+                        <div className="h-9 w-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                            <Clock className="w-4.5 h-4.5" />
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-4">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overdue Bills</span>
-                            <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center">
-                                <TrendingDown className="w-5 h-5" />
-                            </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all flex items-center justify-between">
+                        <div>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Overdue Bills</span>
+                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(overdueTotal)}</p>
+                            <p className="text-[10px] font-medium text-rose-500 mt-0.5">Requires attention</p>
                         </div>
-                        <div className="flex flex-col">
-                            <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(overdueTotal)}</p>
-                            <p className="text-[11px] font-semibold text-rose-600 flex items-center mt-2">
-                                Requires attention
-                            </p>
+                        <div className="h-9 w-9 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                            <TrendingDown className="w-4.5 h-4.5" />
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
-                        <div className="flex items-center justify-between mb-4">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Spent this Month</span>
-                            <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
-                                <ShoppingBag className="w-5 h-5" />
-                            </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all flex items-center justify-between">
+                        <div>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Spent this Month</span>
+                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(spentThisMonth)}</p>
+                            <p className="text-[10px] font-medium text-emerald-500 mt-0.5">Paid expenses</p>
                         </div>
-                        <div className="flex flex-col">
-                            <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(spentThisMonth)}</p>
-                            <p className="text-[11px] font-semibold text-emerald-600 flex items-center mt-2">
-                                Paid expenses
-                            </p>
+                        <div className="h-9 w-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <ShoppingBag className="w-4.5 h-4.5" />
                         </div>
                     </div>
                 </div>

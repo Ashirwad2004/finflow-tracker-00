@@ -73,3 +73,4 @@
 9. **Notes Column**: `public.sales` and `public.purchases` both have `notes TEXT` column used for invoice terms and payment audit entries.
 10. **Backend Health Check**: Test backend connectivity using `/health`, not `/api/v1/payments`.
 11. **Real Bank Details & Invoice Print Setting**: Never print hardcoded dummy bank accounts (e.g. fake SBI). Bank details must be resolved from real accounts (`rupeebill_bank_accounts` or `profile`) and respect `rupeebill_print_bank_details` setting. If disabled or none exist, cleanly omit the bank block.
+12. **Party Export & Statements**: Party directory and individual statements must support both Excel (`.xlsx` via `exportParties.ts`) and PDF (`jsPDF` + `autoTable`). Always use `parseSafeDate()` for transaction dates and calculate net balances using invariant formulas (Receivable Dr / Payable Cr).
