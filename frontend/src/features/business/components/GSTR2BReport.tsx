@@ -29,12 +29,21 @@ interface B2BPurchaseRecord {
     place_of_supply: string;
 }
 
-const now = new Date(2026, 2, 21); // March 2026
+const now = new Date();
+const currentMonth = now.getMonth();
+const currentYear = now.getFullYear();
+const fyStart = currentMonth >= 3 ? currentYear : currentYear - 1;
+const fyEnd = fyStart + 1;
+
 const PERIODS = [
-    { label: "March 2026 (Current)", from: startOfMonth(now), to: endOfMonth(now) },
-    { label: "February 2026", from: startOfMonth(subMonths(now, 1)), to: endOfMonth(subMonths(now, 1)) },
-    { label: "January 2026", from: startOfMonth(subMonths(now, 2)), to: endOfMonth(subMonths(now, 2)) },
-    { label: "December 2025", from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 3)) },
+    { label: `${format(now, "MMMM yyyy")} (Current)`, from: startOfMonth(now), to: endOfMonth(now) },
+    { label: format(subMonths(now, 1), "MMMM yyyy"), from: startOfMonth(subMonths(now, 1)), to: endOfMonth(subMonths(now, 1)) },
+    { label: format(subMonths(now, 2), "MMMM yyyy"), from: startOfMonth(subMonths(now, 2)), to: endOfMonth(subMonths(now, 2)) },
+    { label: format(subMonths(now, 3), "MMMM yyyy"), from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 3)) },
+    { label: `Q2 FY ${fyStart}-${String(fyEnd).slice(-2)} (Jul–Sep)`, from: new Date(fyStart, 6, 1), to: new Date(fyStart, 8, 30) },
+    { label: `Q1 FY ${fyStart}-${String(fyEnd).slice(-2)} (Apr–Jun)`, from: new Date(fyStart, 3, 1), to: new Date(fyStart, 5, 30) },
+    { label: `Full FY ${fyStart}-${String(fyEnd).slice(-2)}`, from: new Date(fyStart, 3, 1), to: new Date(fyEnd, 2, 31) },
+    { label: `Full FY ${fyStart - 1}-${String(fyStart).slice(-2)} (Previous)`, from: new Date(fyStart - 1, 3, 1), to: new Date(fyStart, 2, 31) },
 ];
 
 function formatINR(n: number): string {
@@ -102,22 +111,86 @@ export const GSTR2BReport = () => {
         enabled: !!user,
     });
 
-    const bizGSTIN = profile?.gst_number || "";
-    const bizStateCode = bizGSTIN ? bizGSTIN.substring(0, 2) : "";
+    const bizGSTIN = (profile?.gst_number || "").trim();
+    const fallbackState = typeof window !== 'undefined' ? (localStorage.getItem("rupeebill_fallback_state_code") || "27") : "27";
+    const effectiveStateCode = (bizGSTIN && bizGSTIN.length >= 2) ? bizGSTIN.substring(0, 2) : fallbackState;
 
     const { data: gstr2bData, isLoading } = useQuery({
-        queryKey: ["gstr2b-data", user?.id, period.from.toISOString(), period.to.toISOString(), bizStateCode],
+        queryKey: ["gstr2b-data", user?.id, period.from.toISOString(), period.to.toISOString(), effectiveStateCode],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).rpc("generate_gstr2b_data", {
-                p_user_id: user?.id,
-                p_start_date: format(period.from, "yyyy-MM-dd"),
-                p_end_date: format(period.to, "yyyy-MM-dd"),
-                p_biz_state_code: bizStateCode
+            try {
+                const { data, error } = await (supabase as any).rpc("generate_gstr2b_data", {
+                    p_user_id: user?.id,
+                    p_start_date: format(period.from, "yyyy-MM-dd"),
+                    p_end_date: format(period.to, "yyyy-MM-dd"),
+                    p_biz_state_code: effectiveStateCode
+                });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("generate_gstr2b_data RPC failed, executing client-side calculation:", e);
+            }
+
+            // Fallback calculation directly from purchases
+            const { data: rawPurchases, error: purErr } = await (supabase as any)
+                .from("purchases")
+                .select("*")
+                .eq("user_id", user?.id || "")
+                .gte("date", format(period.from, "yyyy-MM-dd"))
+                .lte("date", format(period.to, "yyyy-MM-dd"));
+
+            if (purErr) throw purErr;
+            const purchases = rawPurchases || [];
+
+            const b2b: B2BPurchaseRecord[] = [];
+            let totalTaxable = 0;
+            let totalIgst = 0;
+            let totalCgst = 0;
+            let totalSgst = 0;
+
+            purchases.forEach((p: any) => {
+                const isRegistered = p.vendor_gstin && p.vendor_gstin.trim().length === 15;
+                const taxVal = Number(p.tax_amount) || 0;
+                const invVal = Number(p.total_amount) || 0;
+                const taxableVal = Number(p.subtotal) || (invVal - taxVal);
+
+                if (isRegistered || taxVal > 0) {
+                    const pos = p.place_of_supply || (p.vendor_gstin ? p.vendor_gstin.slice(0, 2) : effectiveStateCode);
+                    const isInter = pos !== effectiveStateCode;
+                    const igst = isInter ? taxVal : 0;
+                    const cgst = isInter ? 0 : taxVal / 2;
+                    const sgst = isInter ? 0 : taxVal / 2;
+
+                    totalTaxable += taxableVal;
+                    totalIgst += igst;
+                    totalCgst += cgst;
+                    totalSgst += sgst;
+
+                    b2b.push({
+                        gstin: p.vendor_gstin || "URP (Unregistered)",
+                        vendor_name: p.vendor_name || "Vendor",
+                        invoice_number: p.bill_number || p.invoice_number || `PUR-${p.id.slice(0, 6)}`,
+                        invoice_date: p.date,
+                        invoice_value: invVal,
+                        taxable_value: taxableVal,
+                        igst,
+                        cgst,
+                        sgst,
+                        place_of_supply: pos
+                    });
+                }
             });
-            if (error) throw error;
-            return data;
+
+            return {
+                b2b,
+                summary: {
+                    total_taxable: totalTaxable,
+                    total_igst: totalIgst,
+                    total_cgst: totalCgst,
+                    total_sgst: totalSgst
+                }
+            };
         },
-        enabled: !!user && !!bizStateCode,
+        enabled: !!user,
     });
 
     const b2bRecords: B2BPurchaseRecord[] = gstr2bData?.b2b || [];

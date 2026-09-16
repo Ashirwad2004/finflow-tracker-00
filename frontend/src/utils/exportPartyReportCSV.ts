@@ -10,11 +10,15 @@ export const exportPartyReportCSV = (data: PartyReportItem[]) => {
     // Define Headers
     const headers = [
         "Party Name",
-        "Total Sales Number",
-        "Total Purchases Number",
+        "Party Type",
+        "Phone",
         "Total Sales Volume",
+        "Pending Receivable (Dr)",
         "Total Purchases Volume",
-        "Net Balance"
+        "Pending Payable (Cr)",
+        "Net Outstanding Balance",
+        "Sales Count",
+        "Purchases Count"
     ];
 
     // Process Data
@@ -22,12 +26,16 @@ export const exportPartyReportCSV = (data: PartyReportItem[]) => {
         headers.join(","), // Header Row
         ...data.map(party => {
             const row = [
-                `"${(party.name || "").replace(/"/g, '""')}"`, // Escape quotes
+                `"${(party.name || "").replace(/"/g, '""')}"`,
+                party.type || "Both",
+                party.phone ? `"${party.phone}"` : '""',
+                (party.totalSales || 0).toFixed(2),
+                (party.receivable || 0).toFixed(2),
+                (party.totalPurchases || 0).toFixed(2),
+                (party.payable || 0).toFixed(2),
+                (party.netBalance || 0).toFixed(2),
                 party.salesCount || 0,
-                party.purchasesCount || 0,
-                party.totalSales || 0,
-                party.totalPurchases || 0,
-                party.netBalance || 0
+                party.purchasesCount || 0
             ];
             return row.join(",");
         })

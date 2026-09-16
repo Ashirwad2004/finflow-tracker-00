@@ -16,12 +16,21 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const now = new Date(2026, 2, 21); // March 2026
+const now = new Date();
+const currentMonth = now.getMonth();
+const currentYear = now.getFullYear();
+const fyStart = currentMonth >= 3 ? currentYear : currentYear - 1;
+const fyEnd = fyStart + 1;
+
 const PERIODS = [
-    { label: "March 2026 (Current)", from: startOfMonth(now), to: endOfMonth(now) },
-    { label: "February 2026", from: startOfMonth(subMonths(now, 1)), to: endOfMonth(subMonths(now, 1)) },
-    { label: "January 2026", from: startOfMonth(subMonths(now, 2)), to: endOfMonth(subMonths(now, 2)) },
-    { label: "December 2025", from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 3)) },
+    { label: `${format(now, "MMMM yyyy")} (Current)`, from: startOfMonth(now), to: endOfMonth(now) },
+    { label: format(subMonths(now, 1), "MMMM yyyy"), from: startOfMonth(subMonths(now, 1)), to: endOfMonth(subMonths(now, 1)) },
+    { label: format(subMonths(now, 2), "MMMM yyyy"), from: startOfMonth(subMonths(now, 2)), to: endOfMonth(subMonths(now, 2)) },
+    { label: format(subMonths(now, 3), "MMMM yyyy"), from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 3)) },
+    { label: `Q2 FY ${fyStart}-${String(fyEnd).slice(-2)} (Jul–Sep)`, from: new Date(fyStart, 6, 1), to: new Date(fyStart, 8, 30) },
+    { label: `Q1 FY ${fyStart}-${String(fyEnd).slice(-2)} (Apr–Jun)`, from: new Date(fyStart, 3, 1), to: new Date(fyStart, 5, 30) },
+    { label: `Full FY ${fyStart}-${String(fyEnd).slice(-2)}`, from: new Date(fyStart, 3, 1), to: new Date(fyEnd, 2, 31) },
+    { label: `Full FY ${fyStart - 1}-${String(fyStart).slice(-2)} (Previous)`, from: new Date(fyStart - 1, 3, 1), to: new Date(fyStart, 2, 31) },
 ];
 
 function formatINR(n: number): string {
@@ -88,22 +97,95 @@ export const GSTR3BReport = () => {
         enabled: !!user,
     });
 
-    const bizGSTIN = profile?.gst_number || "";
-    const bizStateCode = bizGSTIN ? bizGSTIN.substring(0, 2) : "";
+    const bizGSTIN = (profile?.gst_number || "").trim();
+    const fallbackState = typeof window !== 'undefined' ? (localStorage.getItem("rupeebill_fallback_state_code") || "27") : "27";
+    const effectiveStateCode = (bizGSTIN && bizGSTIN.length >= 2) ? bizGSTIN.substring(0, 2) : fallbackState;
 
     const { data: gstr3bData, isLoading } = useQuery({
-        queryKey: ["gstr3b-data", user?.id, period.from.toISOString(), period.to.toISOString(), bizStateCode],
+        queryKey: ["gstr3b-data", user?.id, period.from.toISOString(), period.to.toISOString(), effectiveStateCode],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).rpc("generate_gstr3b_data", {
-                p_user_id: user?.id,
-                p_start_date: format(period.from, "yyyy-MM-dd"),
-                p_end_date: format(period.to, "yyyy-MM-dd"),
-                p_biz_state_code: bizStateCode
+            try {
+                const { data, error } = await (supabase as any).rpc("generate_gstr3b_data", {
+                    p_user_id: user?.id,
+                    p_start_date: format(period.from, "yyyy-MM-dd"),
+                    p_end_date: format(period.to, "yyyy-MM-dd"),
+                    p_biz_state_code: effectiveStateCode
+                });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("generate_gstr3b_data RPC failed, executing client-side calculation:", e);
+            }
+
+            // Fallback calculation directly from sales and purchases
+            const startDateStr = format(period.from, "yyyy-MM-dd");
+            const endDateStr = format(period.to, "yyyy-MM-dd");
+
+            const { data: rawSales } = await (supabase as any)
+                .from("sales")
+                .select("total_amount, subtotal, tax_amount, customer_gstin, place_of_supply")
+                .eq("user_id", user?.id || "")
+                .gte("date", startDateStr)
+                .lte("date", endDateStr)
+                .neq("status", "draft");
+
+            const { data: rawPurchases } = await (supabase as any)
+                .from("purchases")
+                .select("total_amount, subtotal, tax_amount, vendor_gstin, place_of_supply")
+                .eq("user_id", user?.id || "")
+                .gte("date", startDateStr)
+                .lte("date", endDateStr);
+
+            const sales = rawSales || [];
+            const purchases = rawPurchases || [];
+
+            let outTaxable = 0, outIgst = 0, outCgst = 0, outSgst = 0;
+            sales.forEach((s: any) => {
+                const tax = Number(s.tax_amount) || 0;
+                const taxable = Number(s.subtotal) || (Number(s.total_amount) || 0) - tax;
+                outTaxable += taxable;
+
+                const pos = s.place_of_supply || (s.customer_gstin ? s.customer_gstin.slice(0, 2) : effectiveStateCode);
+                if (pos !== effectiveStateCode) {
+                    outIgst += tax;
+                } else {
+                    outCgst += tax / 2;
+                    outSgst += tax / 2;
+                }
             });
-            if (error) throw error;
-            return data;
+
+            let inTaxable = 0, inIgst = 0, inCgst = 0, inSgst = 0;
+            purchases.forEach((p: any) => {
+                const tax = Number(p.tax_amount) || 0;
+                const taxable = Number(p.subtotal) || (Number(p.total_amount) || 0) - tax;
+                const isReg = p.vendor_gstin && p.vendor_gstin.trim().length === 15;
+                if (isReg || tax > 0) {
+                    inTaxable += taxable;
+                    const pos = p.place_of_supply || (p.vendor_gstin ? p.vendor_gstin.slice(0, 2) : effectiveStateCode);
+                    if (pos !== effectiveStateCode) {
+                        inIgst += tax;
+                    } else {
+                        inCgst += tax / 2;
+                        inSgst += tax / 2;
+                    }
+                }
+            });
+
+            return {
+                outward: {
+                    total_taxable_value: outTaxable,
+                    total_igst: outIgst,
+                    total_cgst: outCgst,
+                    total_sgst: outSgst
+                },
+                inward: {
+                    total_taxable_value: inTaxable,
+                    total_igst: inIgst,
+                    total_cgst: inCgst,
+                    total_sgst: inSgst
+                }
+            };
         },
-        enabled: !!user && !!bizStateCode,
+        enabled: !!user,
     });
 
     const outward = gstr3bData?.outward || { total_taxable_value: 0, total_igst: 0, total_cgst: 0, total_sgst: 0 };

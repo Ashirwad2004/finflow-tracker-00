@@ -9,6 +9,10 @@ export interface PartyReportItem {
     netBalance: number;
     salesCount: number;
     purchasesCount: number;
+    receivable?: number;
+    payable?: number;
+    phone?: string;
+    type?: string;
 }
 
 const sanitizeText = (text: string) => {
@@ -18,7 +22,7 @@ const sanitizeText = (text: string) => {
 const formatCurrencySafe = (amount: number | string) => {
     const num = Number(amount);
     if (isNaN(num)) return "0.00";
-    return `Rs. ${num.toFixed(2)}`;
+    return `Rs. ${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const exportPartyReportPDF = (
@@ -90,16 +94,25 @@ export const exportPartyReportPDF = (
         doc.text(`Total Parties: ${data.length}`, 14, infoStartY + 11);
 
         // --- Table ---
-        const tableRows = data.map(party => [
-            sanitizeText(party.name),
-            party.totalSales > 0 ? formatCurrencySafe(party.totalSales) : "-",
-            party.totalPurchases > 0 ? formatCurrencySafe(party.totalPurchases) : "-",
-            formatCurrencySafe(party.netBalance)
-        ]);
+        const tableRows = data.map(party => {
+            const net = party.netBalance;
+            const netLabel = net > 0 
+                ? `${formatCurrencySafe(net)} (Dr - Receivable)`
+                : net < 0 
+                    ? `${formatCurrencySafe(Math.abs(net))} (Cr - Payable)`
+                    : "Settled (Nil)";
+
+            return [
+                sanitizeText(party.name),
+                party.receivable !== undefined ? formatCurrencySafe(party.receivable) : (party.totalSales > 0 ? formatCurrencySafe(party.totalSales) : "-"),
+                party.payable !== undefined ? formatCurrencySafe(party.payable) : (party.totalPurchases > 0 ? formatCurrencySafe(party.totalPurchases) : "-"),
+                netLabel
+            ];
+        });
 
         autoTable(doc, {
             startY: 85,
-            head: [["Party Name", "Total Sales", "Total Purchases", "Net Balance"]],
+            head: [["Party Name", "Receivable (Dr)", "Payable (Cr)", "Net Outstanding"]],
             body: tableRows,
             theme: 'striped',
             headStyles: {
@@ -108,15 +121,15 @@ export const exportPartyReportPDF = (
                 fontStyle: 'bold'
             },
             columnStyles: {
-                0: { cellWidth: 72 }, // Name
-                1: { cellWidth: 35, halign: 'right' }, // Sales
-                2: { cellWidth: 35, halign: 'right' }, // Purchases
-                3: { cellWidth: 40, halign: 'right' }  // Net Balance
+                0: { cellWidth: 62 }, 
+                1: { cellWidth: 38, halign: 'right' }, 
+                2: { cellWidth: 38, halign: 'right' }, 
+                3: { cellWidth: 44, halign: 'right' }  
             },
             styles: {
                 font: "helvetica",
-                fontSize: 9,
-                cellPadding: 4,
+                fontSize: 8.5,
+                cellPadding: 3.5,
                 overflow: 'linebreak'
             },
             margin: { top: 70, left: 14, right: 14 },
