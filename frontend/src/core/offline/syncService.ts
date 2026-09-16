@@ -15,7 +15,7 @@ let isSyncingActive = false;
 
 const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants']);
 
-const sanitizePayloadForTable = (table: string, action: string, payload: any) => {
+export const sanitizePayloadForTable = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;
 
   const clean = { ...payload };
@@ -26,13 +26,62 @@ const sanitizePayloadForTable = (table: string, action: string, payload: any) =>
   }
 
   if (table === 'purchases') {
-    const { id, user_id, bill_number, vendor_name, date, status, subtotal, tax_amount, total_amount, items } = clean;
-    return { id, user_id, bill_number, vendor_name, date, status, subtotal, tax_amount, total_amount, items };
+    const { id, user_id, bill_number, vendor_name, vendor_phone, vendor_email, vendor_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, items, place_of_supply, notes } = clean;
+    return {
+      id,
+      user_id,
+      bill_number,
+      vendor_name,
+      vendor_phone: vendor_phone || null,
+      vendor_email: vendor_email || null,
+      vendor_gstin: vendor_gstin || null,
+      date,
+      due_date: due_date || null,
+      status: status || 'paid',
+      subtotal: Number(subtotal) || 0,
+      tax_amount: Number(tax_amount) || 0,
+      tax_rate: Number(tax_rate) || 0,
+      discount_amount: Number(discount_amount) || 0,
+      total_amount: Number(total_amount) || 0,
+      amount_paid: Number(amount_paid) || 0,
+      balance_due: Number(balance_due) || 0,
+      items: items || [],
+      place_of_supply: place_of_supply || null,
+      notes: notes || null
+    };
   }
   
   if (table === 'sales') {
-    const { id, user_id, invoice_number, customer_name, customer_phone, customer_email, date, status, subtotal, tax_amount, total_amount, payment_method, items } = clean;
-    return { id, user_id, invoice_number, customer_name, customer_phone, customer_email, date, status, subtotal, tax_amount, total_amount, payment_method, items };
+    const { id, user_id, party_id, invoice_number, customer_name, customer_phone, customer_email, customer_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, payment_method, items, notes, place_of_supply, is_reverse_charge, document_type, irn, eway_bill_number, qr_code } = clean;
+    return {
+      id,
+      user_id,
+      party_id: party_id || null,
+      invoice_number,
+      customer_name,
+      customer_phone: customer_phone || null,
+      customer_email: customer_email || null,
+      customer_gstin: customer_gstin || null,
+      date,
+      due_date: due_date || null,
+      status: status || 'pending',
+      subtotal: Number(subtotal) || 0,
+      tax_amount: Number(tax_amount) || 0,
+      tax_rate: Number(tax_rate) || 0,
+      discount_amount: Number(discount_amount) || 0,
+      total_amount: Number(total_amount) || 0,
+      amount_paid: Number(amount_paid) || 0,
+      balance_due: Number(balance_due) || 0,
+      payment_method: payment_method || null,
+      items: items || [],
+      notes: notes || null,
+      place_of_supply: place_of_supply || null,
+      is_reverse_charge: !!is_reverse_charge,
+      document_type: document_type || 'invoice',
+      irn: irn || null,
+      eway_bill_number: eway_bill_number || null,
+      qr_code: qr_code || null
+    };
   }
 
   return clean;

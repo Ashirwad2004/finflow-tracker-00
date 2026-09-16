@@ -26,6 +26,8 @@ interface InvoiceData {
   paymentMethod: string;
   status: string;
   orderId?: string;
+  amountPaid?: number;
+  balanceDue?: number;
 }
 
 export function generateInvoicePDF(data: InvoiceData) {
@@ -276,6 +278,32 @@ export function generateInvoicePDF(data: InvoiceData) {
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.text('Total Amount:', 125, finalY + 26);
   doc.text(`Rs. ${data.totalAmount.toFixed(2)}`, 195, finalY + 26, { align: 'right' });
+
+  let curY = finalY + 26;
+  if (data.amountPaid !== undefined || data.balanceDue !== undefined) {
+    const paid = data.amountPaid ?? data.totalAmount;
+    const due = data.balanceDue ?? Math.max(0, data.totalAmount - paid);
+
+    curY += 6;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(22, 101, 52); // green 800
+    doc.text('Amount Paid:', 125, curY);
+    doc.text(`Rs. ${paid.toFixed(2)}`, 195, curY, { align: 'right' });
+
+    curY += 5;
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9.5);
+    if (due > 0.01) {
+      doc.setTextColor(185, 28, 28); // red 700
+      doc.text('Balance Due (Pending):', 125, curY);
+      doc.text(`Rs. ${due.toFixed(2)}`, 195, curY, { align: 'right' });
+    } else {
+      doc.setTextColor(22, 101, 52); // green 800
+      doc.text('Balance Due:', 125, curY);
+      doc.text(`Rs. 0.00 (Fully Paid)`, 195, curY, { align: 'right' });
+    }
+  }
 
   // 6. DECLARATION, BARCODE & SIGNATORY (Bottom)
   const footerY = 246;

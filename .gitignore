@@ -48,3 +48,6 @@ backend/__pycache__/
 backend/.whatsapp_session/
 backend/src/whatsapp/session_data/
 
+# AI Agent Skills & Artifacts
+.agents/
+skills-lock.json

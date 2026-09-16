@@ -88,12 +88,6 @@ interface ProductFormValues {
     rack_location?: string;
 }
 
-type SupabaseProductSelect = {
-    from: (table: string) => {
-        select: (columns: string) => Promise<{ data: Product[] | null; error: unknown }>;
-    };
-};
-
 export default function Inventory() {
     const { user } = useAuth();
     const userId = user?.id || "";
@@ -209,17 +203,21 @@ export default function Inventory() {
 
     useProductsRealtime(user?.id);
 
-    // Fetch products
+    // Fetch products strictly scoped to current user
     const { data: products = [], isLoading } = useQuery({
         queryKey: ["products", userId],
         queryFn: async () => {
-            const response = await (supabase as unknown as SupabaseProductSelect).from("products").select("*");
-            const { data, error } = response;
+            if (!userId) return [];
+            const { data, error } = await (supabase as any)
+                .from("products")
+                .select("*")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false });
 
             if (error) throw error;
-            return data ?? [];
+            return (data as Product[]) ?? [];
         },
-        enabled: !!user
+        enabled: !!user && !!userId
     });
 
     // Filter products based on search and stock status

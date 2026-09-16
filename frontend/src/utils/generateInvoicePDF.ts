@@ -5,6 +5,11 @@ import { format } from "date-fns";
 export interface InvoiceDetails {
     invoice_number: string;
     date: string;
+    due_date?: string;
+    status?: 'paid' | 'pending' | 'overdue' | 'draft' | 'partial' | string;
+    amount_paid?: number;
+    balance_due?: number;
+    payment_method?: string;
     customer_name: string;
     customer_phone?: string;
     customer_email?: string;
@@ -45,7 +50,27 @@ export interface TotalRow {
     label: string;
     value: number;
     bold?: boolean;
+    isPaid?: boolean;
+    isDue?: boolean;
 }
+
+const parseSafeDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
+    if (typeof d === 'string') {
+        const s = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            const [y, m, day] = s.split('-').map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+        if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(s)) {
+            const [day, m, y] = s.split(/[-/]/).map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+    }
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? new Date() : dt;
+};
 
 const sanitizeText = (text: string) => {
     return text.replace(/[^\x00-\x7F]/g, "");
@@ -228,7 +253,18 @@ export const generateInvoicePDF = async (
         };
 
         const safeText = (txt: string | undefined | null) => sanitizeText(txt || "");
-        const dateFormatted = data.date ? format(new Date(data.date), "dd MMM yyyy") : format(new Date(), "dd MMM yyyy");
+        const dateFormatted = format(parseSafeDate(data.date), "dd MMM yyyy");
+        const dueDateFormatted = data.due_date ? format(parseSafeDate(data.due_date), "dd MMM yyyy") : undefined;
+
+        const totalAmount = Number(data.total_amount) || 0;
+        const isFullyPaid = data.status === 'paid' || (data.balance_due !== undefined && Number(data.balance_due) <= 0 && data.status !== 'pending' && data.status !== 'overdue');
+        const amountPaid = data.amount_paid !== undefined 
+            ? Number(data.amount_paid) 
+            : (isFullyPaid ? totalAmount : 0);
+        const balanceDue = data.balance_due !== undefined 
+            ? Number(data.balance_due) 
+            : Math.max(0, totalAmount - amountPaid);
+
         const bizName = safeText(data.business_details?.name || "RupeeBill Business");
         const pageHeight = doc.internal.pageSize.getHeight();
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -317,7 +353,9 @@ export const generateInvoicePDF = async (
             { label: "Subtotal", value: data.subtotal },
             ...(data.discount_amount && data.discount_amount > 0 ? [{ label: "Discount", value: -data.discount_amount }] : []),
             ...getTaxRows("at"),
-            { label: "Grand Total", value: data.total_amount, bold: true }
+            { label: "Grand Total", value: data.total_amount, bold: true },
+            { label: "Amount Paid", value: amountPaid, isPaid: true },
+            { label: "Balance Due (Pending)", value: balanceDue, isDue: true, bold: balanceDue > 0 }
         ];
 
         if (theme === 'tally-accounting') {
@@ -376,10 +414,11 @@ export const generateInvoicePDF = async (
             doc.text(dateFormatted, pageWidth / 2 + 38, 30);
 
             doc.text(`Delivery Note:`, pageWidth / 2 + 2, 36);
-            doc.text("Direct Delivery", pageWidth / 2 + 38, 36);
+            doc.text(dueDateFormatted ? `Due: ${dueDateFormatted}` : "Direct Delivery", pageWidth / 2 + 38, 36);
 
             doc.text(`Mode/Terms of Payment:`, pageWidth / 2 + 2, 42);
-            doc.text("Immediate / Paid", pageWidth / 2 + 38, 42);
+            const statusLabel = balanceDue <= 0 ? "Immediate / Paid" : (amountPaid > 0 ? `Partial (Due: Rs. ${balanceDue.toFixed(2)})` : "Pending / Due");
+            doc.text(statusLabel, pageWidth / 2 + 38, 42);
 
             // Horizontal border separating Quadrants 1/2 from 3/4
             doc.line(tallyMarginX, 47, pageWidth - tallyMarginX, 47);
@@ -555,6 +594,27 @@ export const generateInvoicePDF = async (
             doc.text(formatCurrencySafe(data.total_amount), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
             rightY += 8;
 
+            // Partial Payment Breakdown
+            doc.line(splitX, rightY - 2, pageWidth - tallyMarginX, rightY - 2);
+            doc.setFont(fontStyle, "normal");
+            doc.setTextColor(22, 101, 52); // Forest green
+            doc.text("Amount Paid:", splitX + 2, rightY + 3);
+            doc.text(formatCurrencySafe(amountPaid), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
+            rightY += 6;
+
+            doc.setFont(fontStyle, "bold");
+            if (balanceDue > 0) {
+                doc.setTextColor(185, 28, 28); // Crimson red
+                doc.text("Balance Due (Pending):", splitX + 2, rightY + 3);
+                doc.text(formatCurrencySafe(balanceDue), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
+            } else {
+                doc.setTextColor(22, 101, 52); // Forest green
+                doc.text("Balance Due:", splitX + 2, rightY + 3);
+                doc.text("Rs. 0.00 (PAID)", pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
+            }
+            doc.setTextColor(...textDark);
+            rightY += 8;
+
             doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
 
             // Signatory Block
@@ -656,6 +716,22 @@ export const generateInvoicePDF = async (
             doc.setFont("helvetica", "normal");
             doc.text(`No. ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
             doc.text(`Date: ${dateFormatted}`, 196, 32, { align: "right" });
+            if (dueDateFormatted) {
+                doc.text(`Due Date: ${dueDateFormatted}`, 196, 37, { align: "right" });
+            }
+            const statusLineY = dueDateFormatted ? 42 : 37;
+            doc.setFontSize(8.5);
+            doc.setFont("helvetica", "bold");
+            if (balanceDue <= 0) {
+                doc.setTextColor(22, 101, 52);
+                doc.text("STATUS: FULLY PAID", 196, statusLineY, { align: "right" });
+            } else if (amountPaid > 0) {
+                doc.setTextColor(180, 83, 9);
+                doc.text(`STATUS: PARTIALLY PAID (Pending: ${formatCurrencySafe(balanceDue)})`, 196, statusLineY, { align: "right" });
+            } else {
+                doc.setTextColor(220, 38, 38);
+                doc.text("STATUS: UNPAID / DUE", 196, statusLineY, { align: "right" });
+            }
 
             doc.setTextColor(...textDark);
             doc.setFontSize(12);
@@ -705,13 +781,36 @@ export const generateInvoicePDF = async (
             let currentTotalY = finalY;
             totalRows.slice(1).forEach(row => {
                 currentTotalY += 7;
-                doc.setTextColor(...(row.bold ? pinkColor : textLight));
-                doc.setFont("helvetica", row.bold ? "bold" : "normal");
-                if (row.bold) {
+                if (row.isPaid) {
+                    doc.setFont("helvetica", "normal");
+                    doc.setTextColor(22, 101, 52); // Forest Green
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    doc.text(formatCurrencySafe(row.value), vAlignX, currentTotalY, { align: "right" });
+                } else if (row.isDue) {
+                    if (row.value > 0) {
+                        currentTotalY += 2;
+                        const dueBoxY = currentTotalY - 5;
+                        doc.setFillColor(254, 242, 242); // red-50
+                        doc.setDrawColor(239, 68, 68); // red-500
+                        doc.roundedRect(totalBlockX - 5, dueBoxY, 87, 13, 2, 2, "FD");
+                        doc.setTextColor(185, 28, 28); // red-700
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Balance Due (Pending):", totalBlockX, dueBoxY + 8.5);
+                        doc.text(formatCurrencySafe(row.value), vAlignX, dueBoxY + 8.5, { align: "right" });
+                        currentTotalY += 8;
+                    } else {
+                        doc.setFont("helvetica", "bold");
+                        doc.setTextColor(22, 101, 52);
+                        doc.text("Balance Due:", totalBlockX, currentTotalY);
+                        doc.text("Rs. 0.00 (PAID)", vAlignX, currentTotalY, { align: "right" });
+                    }
+                } else if (row.bold) {
                     const totalBoxY = currentTotalY - 5;
                     doc.setFillColor(253, 244, 245); // pink-50
                     doc.setDrawColor(...pinkColor);
                     doc.roundedRect(totalBlockX - 5, totalBoxY, 87, 14, 2, 2, "FD");
+                    doc.setTextColor(...pinkColor);
+                    doc.setFont("helvetica", "bold");
                     doc.text(row.label + ":", totalBlockX, totalBoxY + 9);
                     doc.text(formatCurrencySafe(row.value), vAlignX, totalBoxY + 9, { align: "right" });
                     currentTotalY += 7;

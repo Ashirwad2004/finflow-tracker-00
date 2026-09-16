@@ -15,6 +15,9 @@ interface ThermalReceiptProps {
         tax_rate?: number;
         tax_amount?: number;
         total_amount: number;
+        amount_paid?: number;
+        balance_due?: number;
+        status?: string;
         business_details?: {
             name: string;
             address?: string;
@@ -151,6 +154,20 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ data, className 
                         <span>TOTAL AMOUNT</span>
                         <span>₹{data.total_amount.toFixed(2)}</span>
                     </div>
+
+                    {data.amount_paid !== undefined && (
+                        <div className={`flex justify-between text-xs mt-1 ${getRandomOffset()}`}>
+                            <span>AMOUNT PAID</span>
+                            <span>₹{Number(data.amount_paid).toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    {data.balance_due !== undefined && (
+                        <div className={`flex justify-between font-bold text-xs mt-0.5 ${getRandomOffset()}`}>
+                            <span>BALANCE DUE</span>
+                            <span>{Number(data.balance_due) > 0 ? `₹${Number(data.balance_due).toFixed(2)} (PENDING)` : "₹0.00 (PAID)"}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Separator */}

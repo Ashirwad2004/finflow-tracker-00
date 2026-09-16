@@ -62,6 +62,7 @@ const invoiceThemes = Object.keys(themeMeta) as InvoiceTheme[];
 const sampleSale = {
     id: "sample-id-12345",
     invoice_number: "INV-2026-089",
+    date: new Date().toISOString().split("T")[0],
     created_at: new Date().toISOString(),
     customer_name: "Acme Corporates Ltd.",
     customer_phone: "+91 98765 01234",
@@ -72,6 +73,10 @@ const sampleSale = {
     tax_rate: 18,
     tax_amount: 2340,
     total_amount: 15340,
+    amount_paid: 10000,
+    balance_due: 5340,
+    status: "partial",
+    payment_method: "upi",
     items: [
         { description: "Premium Software Subscription (Annual)", quantity: 1, price: 12000, total: 12000, hsn_code: "998313", unit: "pcs" },
         { description: "Developer API Integration Consultancy", quantity: 2, price: 1250, total: 2500, hsn_code: "998314", unit: "Hours" }
@@ -95,7 +100,8 @@ const InvoiceMockPreview = ({
     customTerms: string;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
-    const parsedDate = sale.created_at ? new Date(sale.created_at) : new Date();
+    const dateToParse = sale.date || sale.created_at;
+    const parsedDate = dateToParse ? new Date(dateToParse) : new Date();
     const dateFormatted = isNaN(parsedDate.getTime()) ? format(new Date(), "dd MMM yyyy") : format(parsedDate, "dd MMM yyyy");
     
     const items = sale.items || [];
@@ -103,6 +109,15 @@ const InvoiceMockPreview = ({
     const discount = sale.discount_amount || 0;
     const subtotal = sale.subtotal || sale.total_amount;
     const totalAmount = sale.total_amount;
+
+    const isPaid = sale.status === 'paid' || (sale.balance_due !== undefined && Number(sale.balance_due) <= 0 && sale.status !== 'pending');
+    const amountPaid = sale.amount_paid !== undefined 
+        ? Number(sale.amount_paid) 
+        : (isPaid ? totalAmount : 0);
+    const balanceDue = sale.balance_due !== undefined 
+        ? Number(sale.balance_due) 
+        : Math.max(0, totalAmount - amountPaid);
+    const isPartial = sale.status === 'partial' || (amountPaid > 0 && balanceDue > 0);
 
     let taxRate = Number(sale.tax_rate) || 0;
     if (taxRate === 0 && taxAmount > 0) {
@@ -171,7 +186,9 @@ const InvoiceMockPreview = ({
                         </div>
                         <div>
                             <span className="text-slate-500 block text-[9px] font-bold">Mode/Terms of Payment</span>
-                            <span>Immediate / Paid</span>
+                            <span className={cn("font-bold text-[10px]", balanceDue <= 0 ? "text-emerald-700" : "text-amber-700")}>
+                                {balanceDue <= 0 ? "Immediate / Paid" : isPartial ? `Partial (Pending: ₹${balanceDue.toFixed(2)})` : "Pending / Due"}
+                            </span>
                         </div>
                     </div>
                     
@@ -287,8 +304,17 @@ const InvoiceMockPreview = ({
                             )}
                             <div className="border-t border-black/20 my-1"></div>
                             <div className="flex justify-between font-extrabold text-[11px]">
-                                <span>Total</span>
+                                <span>Total Amount</span>
                                 <span>{formatCurrency(totalAmount).replace("Rs. ","")}</span>
+                            </div>
+                            <div className="border-t border-black/20 my-1"></div>
+                            <div className="flex justify-between text-emerald-700 font-semibold text-[10px]">
+                                <span>Amount Paid</span>
+                                <span>{formatCurrency(amountPaid).replace("Rs. ","")}</span>
+                            </div>
+                            <div className={cn("flex justify-between text-[10px] font-bold", balanceDue > 0 ? "text-rose-700" : "text-emerald-700")}>
+                                <span>Balance Due (Pending)</span>
+                                <span>{balanceDue > 0 ? formatCurrency(balanceDue).replace("Rs. ","") : "0.00 (PAID)"}</span>
                             </div>
                         </div>
                         
@@ -361,6 +387,11 @@ const InvoiceMockPreview = ({
                     )}
                     <div className="border-b border-dashed border-black/40 my-1"></div>
                     <div className="flex justify-between font-bold text-sm"><span>TOTAL AMOUNT</span><span>₹{totalAmount.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-[11px] font-semibold text-emerald-800"><span>AMOUNT PAID</span><span>₹{amountPaid.toFixed(2)}</span></div>
+                    <div className={cn("flex justify-between text-[11px] font-bold", balanceDue > 0 ? "text-rose-700" : "text-emerald-800")}>
+                        <span>BALANCE DUE</span>
+                        <span>{balanceDue > 0 ? `₹${balanceDue.toFixed(2)} (PENDING)` : "₹0.00 (PAID)"}</span>
+                    </div>
                 </div>
                 
                 <div className="border-b border-dashed border-black my-2"></div>
@@ -550,6 +581,14 @@ const InvoiceMockPreview = ({
                         <span>Grand Total</span>
                         <span className={cn("text-base font-extrabold", styles.accentText)}>{formatCurrency(totalAmount)}</span>
                     </div>
+                    <div className="flex justify-between px-3 py-1 text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
+                        <span>Amount Paid</span>
+                        <span>{formatCurrency(amountPaid)}</span>
+                    </div>
+                    <div className={cn("flex justify-between px-3 py-1.5 rounded-md font-bold text-xs", balanceDue > 0 ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-400" : "text-emerald-700")}>
+                        <span>Balance Due (Pending)</span>
+                        <span>{balanceDue > 0 ? formatCurrency(balanceDue) : "₹0.00 (Fully Settled)"}</span>
+                    </div>
                 </div>
             </div>
             
@@ -657,7 +696,12 @@ const PrintStudioPage = () => {
     const handlePrintSale = async (sale: any) => {
         const invoiceDetails: InvoiceDetails = {
             invoice_number: sale.invoice_number || `INV-${sale.id.slice(0, 6).toUpperCase()}`,
-            date: sale.created_at,
+            date: sale.date || sale.created_at,
+            due_date: sale.due_date,
+            status: sale.status,
+            amount_paid: sale.amount_paid,
+            balance_due: sale.balance_due,
+            payment_method: sale.payment_method,
             customer_name: sale.customer_name,
             customer_phone: sale.customer_phone,
             customer_email: sale.customer_email,
@@ -906,7 +950,12 @@ const PrintStudioPage = () => {
                                             await generateInvoicePDF(
                                                 {
                                                     invoice_number: activeSaleData.invoice_number || `INV-${activeSaleData.id.slice(0, 6).toUpperCase()}`,
-                                                    date: activeSaleData.created_at,
+                                                    date: activeSaleData.date || activeSaleData.created_at,
+                                                    due_date: activeSaleData.due_date,
+                                                    status: activeSaleData.status,
+                                                    amount_paid: activeSaleData.amount_paid,
+                                                    balance_due: activeSaleData.balance_due,
+                                                    payment_method: activeSaleData.payment_method,
                                                     customer_name: activeSaleData.customer_name,
                                                     customer_phone: activeSaleData.customer_phone,
                                                     customer_email: activeSaleData.customer_email,

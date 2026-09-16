@@ -32,6 +32,7 @@ interface CreateInvoiceDialogProps {
     onOpenChange: (open: boolean) => void;
     invoiceToEdit?: any;
     salesSettings?: SalesSettings;
+    initialParty?: any;
 }
 
 interface InvoiceItem {
@@ -77,6 +78,7 @@ export const CreateInvoiceDialog = ({
     onOpenChange,
     invoiceToEdit,
     salesSettings,
+    initialParty,
 }: CreateInvoiceDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -500,11 +502,11 @@ export const CreateInvoiceDialog = ({
             });
         } else if (open && !invoiceToEdit) {
             reset({
-                customer_name: "",
-                customer_phone: "",
-                customer_email: "",
-                customer_gstin: "",
-                place_of_supply: "",
+                customer_name: initialParty?.name || "",
+                customer_phone: initialParty?.phone || "",
+                customer_email: initialParty?.email || "",
+                customer_gstin: initialParty?.gst_number || "",
+                place_of_supply: initialParty?.address || "",
                 is_reverse_charge: false,
                 document_type: "invoice",
                 original_invoice_id: "",
@@ -555,6 +557,7 @@ export const CreateInvoiceDialog = ({
     }, [
         open,
         invoiceToEdit,
+        initialParty,
         reset,
         salesSettings,
     ]);
@@ -817,7 +820,7 @@ export const CreateInvoiceDialog = ({
             const total = outstanding.reduce(
                 (sum: number, inv: any) =>
                     sum +
-                    Number(inv.total_amount || 0),
+                    Number(inv.balance_due != null ? inv.balance_due : inv.total_amount || 0),
                 0
             );
 
@@ -1170,8 +1173,94 @@ export const CreateInvoiceDialog = ({
                         calcTaxAmountVal;
                 }
 
+                // ------------------------------------------------
+                // AUTO RESOLVE / AUTO CREATE PARTY & LINK
+                // ------------------------------------------------
+                let resolvedPartyId: string | null = null;
+                const customerNameTrimmed = values.customer_name?.trim();
+
+                if (customerNameTrimmed) {
+                    const cachedParties: any[] = queryClient.getQueryData(["parties", user.id]) || (parties as any[]) || [];
+                    const existingParty = cachedParties.find(
+                        (p: any) => p.name?.trim().toLowerCase() === customerNameTrimmed.toLowerCase()
+                    );
+
+                    if (existingParty) {
+                        resolvedPartyId = existingParty.id;
+                        // Enrich party contact info if invoice has new details
+                        const needsUpdate = (
+                            (!existingParty.phone && values.customer_phone?.trim()) ||
+                            (!existingParty.email && values.customer_email?.trim()) ||
+                            (!existingParty.gst_number && values.customer_gstin?.trim()) ||
+                            (!existingParty.address && values.place_of_supply?.trim()) ||
+                            (existingParty.type === 'vendor')
+                        );
+
+                        if (needsUpdate) {
+                            const updatedPartyPayload: any = {
+                                ...existingParty,
+                                phone: existingParty.phone || values.customer_phone?.trim() || null,
+                                email: existingParty.email || values.customer_email?.trim() || null,
+                                gst_number: existingParty.gst_number || values.customer_gstin?.trim()?.toUpperCase() || null,
+                                address: existingParty.address || values.place_of_supply?.trim() || null,
+                                type: existingParty.type === 'vendor' ? 'both' : existingParty.type
+                            };
+
+                            offlineMutate({
+                                table: "parties",
+                                action: "update",
+                                recordId: existingParty.id,
+                                payload: updatedPartyPayload,
+                                userId: user.id
+                            }).catch((err) => console.warn("Could not update party details:", err));
+
+                            queryClient.setQueryData(["parties", user.id], (old: any) => {
+                                if (!old) return [updatedPartyPayload];
+                                return old.map((p: any) => p.id === existingParty.id ? updatedPartyPayload : p);
+                            });
+                            queryClient.setQueryData(["invoice-parties"], (old: any) => {
+                                if (!old) return [updatedPartyPayload];
+                                return old.map((p: any) => p.id === existingParty.id ? updatedPartyPayload : p);
+                            });
+                        }
+                    } else {
+                        // Party does not exist -> Automatically add new party to directory
+                        resolvedPartyId = uuidv4();
+                        const newPartyPayload = {
+                            id: resolvedPartyId,
+                            user_id: user.id,
+                            name: customerNameTrimmed,
+                            type: "customer",
+                            phone: values.customer_phone?.trim() || null,
+                            email: values.customer_email?.trim() || null,
+                            address: values.place_of_supply?.trim() || null,
+                            gst_number: values.customer_gstin?.trim()?.toUpperCase() || null,
+                            opening_balance: 0,
+                            created_at: new Date().toISOString()
+                        };
+
+                        await offlineMutate({
+                            table: "parties",
+                            action: "insert",
+                            recordId: resolvedPartyId,
+                            payload: newPartyPayload,
+                            userId: user.id
+                        });
+
+                        queryClient.setQueryData(["parties", user.id], (old: any) => {
+                            const prev = old || [];
+                            return [...prev, newPartyPayload].sort((a: any, b: any) => a.name.localeCompare(b.name));
+                        });
+                        queryClient.setQueryData(["invoice-parties"], (old: any) => {
+                            const prev = old || [];
+                            return [...prev, newPartyPayload].sort((a: any, b: any) => a.name.localeCompare(b.name));
+                        });
+                    }
+                }
+
                 const saleData = {
                     user_id: user.id,
+                    party_id: resolvedPartyId,
                     invoice_number:
                         values.invoice_number,
                     customer_name:
@@ -1219,13 +1308,22 @@ export const CreateInvoiceDialog = ({
                         calcTaxAmount,
                     total_amount:
                         calcTotalAmount,
-                    status: values.status,
+                    status:
+                        values.status === "paid"
+                            ? "paid"
+                            : values.status === "partial"
+                                ? ((Number(values.amount_paid) || 0) >= calcTotalAmount && calcTotalAmount > 0)
+                                    ? "paid"
+                                    : (Number(values.amount_paid) || 0) <= 0
+                                        ? "pending"
+                                        : "partial"
+                                : "pending",
                     amount_paid:
                         values.status === "paid"
                             ? calcTotalAmount
                             : values.status === "partial"
                                 ? Math.min(
-                                    Number(values.amount_paid) || 0,
+                                    Math.max(0, Number(values.amount_paid) || 0),
                                     calcTotalAmount
                                 )
                                 : 0,
@@ -1236,14 +1334,14 @@ export const CreateInvoiceDialog = ({
                                 ? Math.max(
                                     0,
                                     calcTotalAmount -
-                                    (Math.min(
-                                        Number(values.amount_paid) || 0,
+                                    Math.min(
+                                        Math.max(0, Number(values.amount_paid) || 0),
                                         calcTotalAmount
-                                    ))
+                                    )
                                 )
                                 : calcTotalAmount,
                     payment_method:
-                        values.status === "paid"
+                        values.status === "paid" || (values.status === "partial" && (Number(values.amount_paid) || 0) > 0)
                             ? "cash"
                             : null,
                     irn:
@@ -1334,6 +1432,8 @@ export const CreateInvoiceDialog = ({
                         id: sPayload.id,
                         user_id:
                             sPayload.user_id,
+                        party_id:
+                            sPayload.party_id || null,
                         invoice_number:
                             sPayload.invoice_number,
                         customer_name:
@@ -1350,6 +1450,10 @@ export const CreateInvoiceDialog = ({
                             sPayload.tax_amount,
                         total_amount:
                             sPayload.total_amount,
+                        amount_paid:
+                            sPayload.amount_paid,
+                        balance_due:
+                            sPayload.balance_due,
                         payment_method:
                             sPayload.payment_method,
                         items: sPayload.items,
@@ -1375,100 +1479,6 @@ export const CreateInvoiceDialog = ({
 
                 if (result.error) {
                     throw result.error;
-                }
-
-                // ------------------------------------------------
-                // AUTO ADD CUSTOMER
-                // ------------------------------------------------
-
-                try {
-                    const autoAddParties =
-                        localStorage.getItem(
-                            "rupeebill_auto_add_parties"
-                        ) === "true";
-
-                    if (
-                        autoAddParties &&
-                        values.customer_name?.trim()
-                    ) {
-                        const partyExists =
-                            parties.some(
-                                (p: any) =>
-                                    p.name
-                                        .toLowerCase() ===
-                                    values.customer_name
-                                        .trim()
-                                        .toLowerCase()
-                            );
-
-                        if (!partyExists) {
-                            const newPartyId =
-                                uuidv4();
-
-                            const partyPayload = {
-                                id: newPartyId,
-                                user_id: user.id,
-                                name: values.customer_name.trim(),
-                                phone:
-                                    values.customer_phone?.trim() ||
-                                    null,
-                                email:
-                                    values.customer_email?.trim() ||
-                                    null,
-                                address: null,
-                                gst_number:
-                                    values.customer_gstin?.trim() ||
-                                    null,
-                                type: "customer",
-                                created_at:
-                                    new Date().toISOString(),
-                            };
-
-                            await offlineMutate({
-                                table: "parties",
-                                action: "insert",
-                                recordId:
-                                    newPartyId,
-                                payload:
-                                    partyPayload,
-                                userId: user.id,
-                            });
-
-                            queryClient.setQueryData(
-                                [
-                                    "parties",
-                                    user.id,
-                                ],
-                                (old: any) => {
-                                    const prev =
-                                        old || [];
-
-                                    return [
-                                        ...prev,
-                                        partyPayload,
-                                    ];
-                                }
-                            );
-
-                            queryClient.setQueryData(
-                                ["invoice-parties"],
-                                (old: any) => {
-                                    const prev =
-                                        old || [];
-
-                                    return [
-                                        ...prev,
-                                        partyPayload,
-                                    ];
-                                }
-                            );
-                        }
-                    }
-                } catch (partyErr) {
-                    console.error(
-                        "Error auto-adding party:",
-                        partyErr
-                    );
                 }
 
                 // ------------------------------------------------
@@ -1628,6 +1638,18 @@ export const CreateInvoiceDialog = ({
                     queryClient.invalidateQueries(
                         {
                             queryKey: ["sales"],
+                        }
+                    );
+
+                    queryClient.invalidateQueries(
+                        {
+                            queryKey: ["parties"],
+                        }
+                    );
+
+                    queryClient.invalidateQueries(
+                        {
+                            queryKey: ["invoice-parties"],
                         }
                     );
 

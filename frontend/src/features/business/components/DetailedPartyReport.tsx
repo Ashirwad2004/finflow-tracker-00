@@ -24,9 +24,32 @@ export interface LedgerTransaction {
     date: string;
     type: 'sale' | 'purchase';
     amount: number;
+    amount_paid?: number;
+    balance_due?: number;
+    status?: string;
     ref: string;
     runningBalance: number;
 }
+
+export const parseSafeDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
+    if (typeof d === 'string') {
+        const s = d.trim();
+        // YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            const [y, m, day] = s.split('-').map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+        // DD-MM-YYYY or DD/MM/YYYY
+        if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(s)) {
+            const [day, m, y] = s.split(/[-/]/).map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+    }
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? new Date() : dt;
+};
 
 export const DetailedPartyReport = () => {
     const { formatCurrency, currency } = useCurrency();
@@ -59,7 +82,7 @@ export const DetailedPartyReport = () => {
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("sales")
-                .select("id, customer_name, total_amount, date, invoice_number")
+                .select("id, customer_name, party_id, total_amount, amount_paid, balance_due, status, date, created_at, invoice_number")
                 .eq("user_id", user?.id || "");
             if (error) throw error;
             return data as any[];
@@ -73,7 +96,7 @@ export const DetailedPartyReport = () => {
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("purchases")
-                .select("id, vendor_name, total_amount, date, bill_number")
+                .select("id, vendor_name, party_id, total_amount, amount_paid, balance_due, status, date, created_at, bill_number")
                 .eq("user_id", user?.id || "");
             if (error) throw error;
             return data as any[];
@@ -94,15 +117,21 @@ export const DetailedPartyReport = () => {
         if (!selectedParty || selectedParty === "all") return [];
 
         let rawTransactions: Omit<LedgerTransaction, 'runningBalance'>[] = [];
+        const normSelected = selectedParty.trim().toLowerCase();
 
         // Add matching sales (Credits)
         sales.forEach(sale => {
-            if (sale.customer_name?.trim() === selectedParty) {
+            const custName = (sale.customer_name || "").trim().toLowerCase();
+            if (custName === normSelected) {
+                const txDate = sale.date || sale.created_at || new Date().toISOString();
                 rawTransactions.push({
                     id: `sale-${sale.id}`,
-                    date: sale.date,
+                    date: txDate,
                     type: 'sale',
-                    amount: Number(sale.total_amount),
+                    amount: Number(sale.total_amount) || 0,
+                    amount_paid: sale.amount_paid != null ? Number(sale.amount_paid) : (sale.status === 'paid' ? Number(sale.total_amount) : 0),
+                    balance_due: sale.balance_due != null ? Number(sale.balance_due) : (sale.status === 'paid' ? 0 : Number(sale.total_amount)),
+                    status: sale.status,
                     ref: sale.invoice_number || "Sale"
                 });
             }
@@ -110,27 +139,31 @@ export const DetailedPartyReport = () => {
 
         // Add matching purchases (Debits)
         purchases.forEach(purchase => {
-            if (purchase.vendor_name?.trim() === selectedParty) {
+            const vendName = (purchase.vendor_name || "").trim().toLowerCase();
+            if (vendName === normSelected) {
+                const txDate = purchase.date || purchase.created_at || new Date().toISOString();
                 rawTransactions.push({
                     id: `pur-${purchase.id}`,
-                    date: purchase.date,
+                    date: txDate,
                     type: 'purchase',
-                    amount: Number(purchase.total_amount),
+                    amount: Number(purchase.total_amount) || 0,
+                    amount_paid: purchase.amount_paid != null ? Number(purchase.amount_paid) : (purchase.status === 'paid' ? Number(purchase.total_amount) : 0),
+                    balance_due: purchase.balance_due != null ? Number(purchase.balance_due) : (purchase.status === 'paid' ? 0 : Number(purchase.total_amount)),
+                    status: purchase.status,
                     ref: purchase.bill_number || "Purchase"
                 });
             }
         });
 
         // Sort chronologically (oldest to newest ensures correct running balance)
-        // If exact same date, put purchases before sales (arbitrary tie-breaker)
         rawTransactions.sort((a, b) => {
-            const timeA = new Date(a.date).getTime();
-            const timeB = new Date(b.date).getTime();
+            const timeA = parseSafeDate(a.date).getTime();
+            const timeB = parseSafeDate(b.date).getTime();
             if (timeA === timeB) return a.type === 'purchase' ? -1 : 1;
             return timeA - timeB;
         });
 
-        // Final Filter by Date Range (but we calculate running balance ON THE FULL SET first so it's accurate!)
+        // Calculate running balance ON THE FULL SET first so it's always strictly accurate
         let currentBalance = 0;
         const fullLedger: LedgerTransaction[] = rawTransactions.map(tx => {
             currentBalance += (tx.type === 'sale' ? tx.amount : -tx.amount);
@@ -143,7 +176,7 @@ export const DetailedPartyReport = () => {
         // Now filter the viewable portion based on Date Range
         if (dateRange.from || dateRange.to) {
             return fullLedger.filter(tx => {
-                const txDate = parseISO(tx.date);
+                const txDate = parseSafeDate(tx.date);
                 if (dateRange.from && dateRange.to) {
                     return isWithinInterval(txDate, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) });
                 }
@@ -157,8 +190,8 @@ export const DetailedPartyReport = () => {
             });
         }
 
-        // We reverse it JUST for display so newest is at the top.
-        return fullLedger.reverse();
+        // Return a reversed clone so newest transaction displays at the top without in-place mutation
+        return [...fullLedger].reverse();
     }, [sales, purchases, selectedParty, dateRange]);
 
 
@@ -333,16 +366,26 @@ export const DetailedPartyReport = () => {
                                     <TableBody>
                                         {ledger.map((tx) => (
                                             <TableRow key={tx.id} className="hover:bg-accent/40 transition-colors">
-                                                <TableCell className="font-medium text-muted-foreground">
-                                                    {tx.date ? (isNaN(new Date(tx.date).getTime()) ? "Invalid Date" : format(new Date(tx.date), "dd MMM yyyy")) : "-"}
+                                                <TableCell className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                    {format(parseSafeDate(tx.date), "dd MMM yyyy")}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{tx.ref}</span>
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        <span className="font-semibold text-slate-900 dark:text-slate-100">{tx.ref}</span>
                                                         <Badge variant="outline" className={cn("text-[10px] uppercase",
                                                             tx.type === 'sale' ? "border-green-200 text-green-700 dark:text-green-400" : "border-red-200 text-red-600 dark:text-red-400")}>
                                                             {tx.type}
                                                         </Badge>
+                                                        {tx.balance_due != null && tx.balance_due > 0 && (
+                                                            <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200">
+                                                                Pending: {formatCurrency(tx.balance_due)}
+                                                            </Badge>
+                                                        )}
+                                                        {tx.status === 'paid' && (
+                                                            <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200">
+                                                                Paid
+                                                            </Badge>
+                                                        )}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-right font-medium text-green-600 dark:text-green-500">
