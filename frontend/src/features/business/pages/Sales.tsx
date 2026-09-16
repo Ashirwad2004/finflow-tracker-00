@@ -1000,6 +1000,36 @@ export default function SalesPage() {
                                 </button>
                             </div>
 
+                            {/* Show Product Tax % on Bill */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Product Tax % on Bill</p>
+                                        {settings.showItemTaxRateOnBill && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">Active</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Display individual product tax / GST percentage (e.g. 5%, 12%, 18%) as a column on bills, invoices, and print receipts. Turn off if you don't want tax rates on items.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.showItemTaxRateOnBill}
+                                    onClick={() => {
+                                        const nextVal = !settings.showItemTaxRateOnBill;
+                                        updateSetting("showItemTaxRateOnBill", nextVal);
+                                        if (nextVal && !settings.enableItemWiseTax) {
+                                            updateSetting("enableItemWiseTax", true);
+                                        }
+                                    }}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.showItemTaxRateOnBill ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.showItemTaxRateOnBill ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
+                            </div>
+
                             {/* Default Invoice Status */}
                             <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
                                 <div className="flex-1">
