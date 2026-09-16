@@ -451,9 +451,9 @@ async def verify_payment(
         notes = payment.get("notes") or {}
         plan_id = notes.get("planId") or payload.planId
         if plan_id:
-            billing_cycle = notes.get("billingCycle") or payload.billingCycle or "annual"
             now = datetime.now(timezone.utc)
-            period_end = now + timedelta(days=365) if billing_cycle == "annual" else now + timedelta(days=30)
+            # RupeeBill Business license: 6 months (183 days) for flat ₹299
+            period_end = now + timedelta(days=183)
             
             try:
                 supabase_client.table("subscription_status").upsert({

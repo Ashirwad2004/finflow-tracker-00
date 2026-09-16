@@ -7,31 +7,25 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     backend_dir = os.path.join(base_dir, 'backend')
     
-    # Try to locate uvicorn in backend/venv or root .venv
-    possible_paths = [
-        os.path.join(backend_dir, 'venv', 'Scripts' if is_win else 'bin', 'uvicorn.exe' if is_win else 'uvicorn'),
-        os.path.join(base_dir, '.venv', 'Scripts' if is_win else 'bin', 'uvicorn.exe' if is_win else 'uvicorn'),
+    # Locate python executable in backend/venv or root .venv
+    possible_python_paths = [
+        os.path.join(backend_dir, 'venv', 'Scripts' if is_win else 'bin', 'python.exe' if is_win else 'python'),
+        os.path.join(base_dir, '.venv', 'Scripts' if is_win else 'bin', 'python.exe' if is_win else 'python'),
     ]
     
-    uvicorn_path = ''
-    for p in possible_paths:
+    python_path = sys.executable
+    for p in possible_python_paths:
         if os.path.exists(p):
-            uvicorn_path = p
+            python_path = p
             break
             
-    if not uvicorn_path:
-        uvicorn_path = 'uvicorn' # Fallback to global
-        
-    print(f"[Backend Runner] Starting FastAPI backend using: {uvicorn_path}")
+    print(f"[Backend Runner] Starting FastAPI backend using: {python_path}")
     
-    cmd = [uvicorn_path, 'src.main:app', '--reload', '--port', '8000']
-    if is_win:
-        cmd.extend(['--loop', 'src.main:win_proactor_loop'])
+    cmd = [python_path, '-m', 'uvicorn', 'src.main:app', '--reload', '--port', '8000', '--host', '0.0.0.0']
     
     # Run uvicorn
     try:
-        # On Windows, shell=True can help resolve paths cleanly
-        subprocess.run(cmd, cwd=backend_dir, shell=is_win, check=True)
+        subprocess.run(cmd, cwd=backend_dir, check=True)
     except KeyboardInterrupt:
         print("\n[Backend Runner] Stopping FastAPI backend...")
     except Exception as e:
@@ -39,4 +33,4 @@ def main():
         sys.exit(1)
 
 if __name__ == '__main__':
-    main()
+    main()

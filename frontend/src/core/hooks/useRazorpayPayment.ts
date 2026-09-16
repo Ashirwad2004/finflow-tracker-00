@@ -23,6 +23,58 @@ export interface SubscriptionPaymentOptions {
   onDismiss?: () => void;
 }
 
+// Ensure 2D Canvas contexts set willReadFrequently: true to suppress browser readback warnings
+if (typeof window !== "undefined" && typeof HTMLCanvasElement !== "undefined") {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type: string, attributes?: any) {
+    if (type === "2d") {
+      return originalGetContext.call(this, type, { willReadFrequently: true, ...attributes });
+    }
+    return originalGetContext.call(this, type, attributes);
+  } as any;
+}
+
+// Convert Razorpay third-party preload links to prefetch to eliminate Chromium's unused preload warning
+if (typeof window !== "undefined" && typeof document !== "undefined" && typeof MutationObserver !== "undefined") {
+  try {
+    const preloadObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of Array.from(mutation.addedNodes)) {
+          if (node instanceof HTMLLinkElement && node.rel === "preload") {
+            const href = node.href || "";
+            if (href.includes("razorpay.com") || href.includes("checkout-static")) {
+              node.rel = "prefetch";
+            }
+          }
+        }
+      }
+    });
+
+    if (document.head) {
+      preloadObserver.observe(document.head, { childList: true });
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        preloadObserver.observe(document.head, { childList: true });
+      });
+    }
+
+    // Filter out third-party SDK unhandled console warnings
+    const originalWarn = console.warn.bind(console);
+    console.warn = (...args: any[]) => {
+      const first = typeof args[0] === "string" ? args[0] : "";
+      if (
+        (first.includes("razorpay.com") && first.includes("preloaded using link preload")) ||
+        (first.includes("Canvas2D") && first.includes("willReadFrequently"))
+      ) {
+        return;
+      }
+      originalWarn(...args);
+    };
+  } catch (e) {
+    // Ignore in non-browser environments
+  }
+}
+
 // Singleton promise for loading the Razorpay SDK
 let razorpayScriptPromise: Promise<boolean> | null = null;
 
@@ -106,9 +158,11 @@ export function useRazorpayPayment() {
             key: razorpayKey,
             amount: orderData.amount, // in paise from backend
             currency: orderData.currency || "INR",
-            name: "RupeeBill Tracker",
-            description: `${options.planId.toUpperCase()} Subscription`,
-            order_id: orderData.gatewayOrderId,
+            name: "RupeeBill",
+            description: "RupeeBill Business License (6 Months)",
+            ...(Boolean(orderData.gatewayOrderId && /^order_[a-zA-Z0-9]{14,}$/.test(orderData.gatewayOrderId) && !orderData.gatewayOrderId.includes("dev") && !orderData.gatewayOrderId.includes("mock"))
+              ? { order_id: orderData.gatewayOrderId }
+              : {}),
             prefill: {
               name: options.customerName || "",
               email: options.customerEmail || "",
