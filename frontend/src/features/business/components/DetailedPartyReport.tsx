@@ -22,12 +22,14 @@ import { cn } from "@/core/lib/utils";
 export interface LedgerTransaction {
     id: string;
     date: string;
-    type: 'sale' | 'purchase';
+    type: 'sale' | 'purchase' | 'payment_received' | 'payment_made';
     amount: number;
     amount_paid?: number;
     balance_due?: number;
     status?: string;
     ref: string;
+    debit: number;
+    credit: number;
     runningBalance: number;
 }
 
@@ -36,12 +38,10 @@ export const parseSafeDate = (d: any): Date => {
     if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
     if (typeof d === 'string') {
         const s = d.trim();
-        // YYYY-MM-DD
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
             const [y, m, day] = s.split('-').map(Number);
             return new Date(y, m - 1, day, 12, 0, 0);
         }
-        // DD-MM-YYYY or DD/MM/YYYY
         if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(s)) {
             const [day, m, y] = s.split(/[-/]/).map(Number);
             return new Date(y, m - 1, day, 12, 0, 0);
@@ -82,8 +82,9 @@ export const DetailedPartyReport = () => {
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("sales")
-                .select("id, customer_name, party_id, total_amount, amount_paid, balance_due, status, date, created_at, invoice_number")
-                .eq("user_id", user?.id || "");
+                .select("id, customer_name, party_id, total_amount, amount_paid, balance_due, status, date, created_at, invoice_number, payment_method")
+                .eq("user_id", user?.id || "")
+                .neq("status", "draft");
             if (error) throw error;
             return data as any[];
         },
@@ -96,7 +97,7 @@ export const DetailedPartyReport = () => {
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("purchases")
-                .select("id, vendor_name, party_id, total_amount, amount_paid, balance_due, status, date, created_at, bill_number")
+                .select("id, vendor_name, party_id, total_amount, amount_paid, balance_due, status, date, created_at, bill_number, payment_method")
                 .eq("user_id", user?.id || "");
             if (error) throw error;
             return data as any[];
@@ -112,46 +113,96 @@ export const DetailedPartyReport = () => {
         return Array.from(parties).sort();
     }, [sales, purchases]);
 
-    // Build Chronological Ledger for Selected Party
+    // Build Chronological Ledger for Selected Party with CA double-entry accounting
     const ledger = useMemo(() => {
         if (!selectedParty || selectedParty === "all") return [];
 
         let rawTransactions: Omit<LedgerTransaction, 'runningBalance'>[] = [];
         const normSelected = selectedParty.trim().toLowerCase();
 
-        // Add matching sales (Credits)
+        // Process Sales:
+        // Invoice is a DEBIT to customer (increases receivable)
+        // Cash/Bank Payment collected is a CREDIT (decreases receivable)
         sales.forEach(sale => {
             const custName = (sale.customer_name || "").trim().toLowerCase();
             if (custName === normSelected) {
                 const txDate = sale.date || sale.created_at || new Date().toISOString();
+                const total = Number(sale.total_amount) || 0;
+                const paid = sale.amount_paid != null ? Number(sale.amount_paid) : (sale.status === 'paid' ? total : 0);
+                const due = sale.balance_due != null ? Number(sale.balance_due) : Math.max(0, total - paid);
+
+                // 1. Sales Invoice (Debit)
                 rawTransactions.push({
-                    id: `sale-${sale.id}`,
+                    id: `sale-inv-${sale.id}`,
                     date: txDate,
                     type: 'sale',
-                    amount: Number(sale.total_amount) || 0,
-                    amount_paid: sale.amount_paid != null ? Number(sale.amount_paid) : (sale.status === 'paid' ? Number(sale.total_amount) : 0),
-                    balance_due: sale.balance_due != null ? Number(sale.balance_due) : (sale.status === 'paid' ? 0 : Number(sale.total_amount)),
+                    amount: total,
+                    amount_paid: paid,
+                    balance_due: due,
                     status: sale.status,
-                    ref: sale.invoice_number || "Sale"
+                    ref: `Sales Invoice #${sale.invoice_number || "INV"}`,
+                    debit: total,
+                    credit: 0
                 });
+
+                // 2. Immediate Receipt / Payment entry if paid > 0 (Credit)
+                if (paid > 0) {
+                    rawTransactions.push({
+                        id: `sale-rcpt-${sale.id}`,
+                        date: txDate,
+                        type: 'payment_received',
+                        amount: paid,
+                        amount_paid: paid,
+                        balance_due: 0,
+                        status: 'paid',
+                        ref: `Receipt against #${sale.invoice_number || "INV"} (${sale.payment_method || 'Cash/Bank'})`,
+                        debit: 0,
+                        credit: paid
+                    });
+                }
             }
         });
 
-        // Add matching purchases (Debits)
+        // Process Purchases:
+        // Purchase Bill is a CREDIT to supplier (increases payable)
+        // Payment made to supplier is a DEBIT (decreases payable)
         purchases.forEach(purchase => {
             const vendName = (purchase.vendor_name || "").trim().toLowerCase();
             if (vendName === normSelected) {
                 const txDate = purchase.date || purchase.created_at || new Date().toISOString();
+                const total = Number(purchase.total_amount) || 0;
+                const paid = purchase.amount_paid != null ? Number(purchase.amount_paid) : (purchase.status === 'paid' ? total : 0);
+                const due = purchase.balance_due != null ? Number(purchase.balance_due) : Math.max(0, total - paid);
+
+                // 1. Purchase Bill (Credit)
                 rawTransactions.push({
-                    id: `pur-${purchase.id}`,
+                    id: `pur-bill-${purchase.id}`,
                     date: txDate,
                     type: 'purchase',
-                    amount: Number(purchase.total_amount) || 0,
-                    amount_paid: purchase.amount_paid != null ? Number(purchase.amount_paid) : (purchase.status === 'paid' ? Number(purchase.total_amount) : 0),
-                    balance_due: purchase.balance_due != null ? Number(purchase.balance_due) : (purchase.status === 'paid' ? 0 : Number(purchase.total_amount)),
+                    amount: total,
+                    amount_paid: paid,
+                    balance_due: due,
                     status: purchase.status,
-                    ref: purchase.bill_number || "Purchase"
+                    ref: `Purchase Bill #${purchase.bill_number || "BILL"}`,
+                    debit: 0,
+                    credit: total
                 });
+
+                // 2. Payment Made to Supplier (Debit)
+                if (paid > 0) {
+                    rawTransactions.push({
+                        id: `pur-pmt-${purchase.id}`,
+                        date: txDate,
+                        type: 'payment_made',
+                        amount: paid,
+                        amount_paid: paid,
+                        balance_due: 0,
+                        status: 'paid',
+                        ref: `Payment against Bill #${purchase.bill_number || "BILL"} (${purchase.payment_method || 'Cash/Bank'})`,
+                        debit: paid,
+                        credit: 0
+                    });
+                }
             }
         });
 
@@ -159,38 +210,42 @@ export const DetailedPartyReport = () => {
         rawTransactions.sort((a, b) => {
             const timeA = parseSafeDate(a.date).getTime();
             const timeB = parseSafeDate(b.date).getTime();
-            if (timeA === timeB) return a.type === 'purchase' ? -1 : 1;
+            if (timeA === timeB) {
+                // Invoices before payments on the same date
+                if (a.type === 'sale' && b.type === 'payment_received') return -1;
+                if (a.type === 'payment_received' && b.type === 'sale') return 1;
+                if (a.type === 'purchase' && b.type === 'payment_made') return -1;
+                if (a.type === 'payment_made' && b.type === 'purchase') return 1;
+            }
             return timeA - timeB;
         });
 
-        // Calculate running balance ON THE FULL SET first so it's always strictly accurate
+        // Calculate running balance: Net Balance = Cumulative Debit - Cumulative Credit
+        // Positive (> 0): Dr (Debit Balance = Party owes us / Receivable)
+        // Negative (< 0): Cr (Credit Balance = We owe party / Payable)
         let currentBalance = 0;
         const fullLedger: LedgerTransaction[] = rawTransactions.map(tx => {
-            currentBalance += (tx.type === 'sale' ? tx.amount : -tx.amount);
+            currentBalance += (tx.debit - tx.credit);
             return {
                 ...tx,
                 runningBalance: currentBalance
             };
         });
 
-        // Now filter the viewable portion based on Date Range
+        // Filter viewable portion based on Date Range
         if (dateRange.from || dateRange.to) {
             return fullLedger.filter(tx => {
                 const txDate = parseSafeDate(tx.date);
                 if (dateRange.from && dateRange.to) {
                     return isWithinInterval(txDate, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) });
                 }
-                if (dateRange.from) {
-                    return txDate >= startOfDay(dateRange.from);
-                }
-                if (dateRange.to) {
-                    return txDate <= endOfDay(dateRange.to);
-                }
+                if (dateRange.from) return txDate >= startOfDay(dateRange.from);
+                if (dateRange.to) return txDate <= endOfDay(dateRange.to);
                 return true;
             });
         }
 
-        // Return a reversed clone so newest transaction displays at the top without in-place mutation
+        // Return reversed clone so latest transaction shows first
         return [...fullLedger].reverse();
     }, [sales, purchases, selectedParty, dateRange]);
 
@@ -357,9 +412,9 @@ export const DetailedPartyReport = () => {
                                     <TableHeader className="bg-muted/70">
                                         <TableRow>
                                             <TableHead className="w-[120px]">Date</TableHead>
-                                            <TableHead>Reference</TableHead>
-                                            <TableHead className="text-right text-green-700 dark:text-green-500 font-semibold">Credit (Sales)</TableHead>
-                                            <TableHead className="text-right text-red-600 dark:text-red-400 font-semibold">Debit (Buys)</TableHead>
+                                            <TableHead>Particulars / Reference</TableHead>
+                                            <TableHead className="text-right text-blue-700 dark:text-blue-400 font-bold">Debit (Dr)</TableHead>
+                                            <TableHead className="text-right text-emerald-700 dark:text-emerald-400 font-bold">Credit (Cr)</TableHead>
                                             <TableHead className="text-right bg-muted font-bold">Running Balance</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -373,33 +428,30 @@ export const DetailedPartyReport = () => {
                                                     <div className="flex flex-wrap items-center gap-1.5">
                                                         <span className="font-semibold text-slate-900 dark:text-slate-100">{tx.ref}</span>
                                                         <Badge variant="outline" className={cn("text-[10px] uppercase",
-                                                            tx.type === 'sale' ? "border-green-200 text-green-700 dark:text-green-400" : "border-red-200 text-red-600 dark:text-red-400")}>
-                                                            {tx.type}
+                                                            (tx.type === 'sale' || tx.type === 'payment_made') 
+                                                                ? "border-blue-200 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30" 
+                                                                : "border-emerald-200 text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30")}>
+                                                            {tx.type.replace('_', ' ')}
                                                         </Badge>
                                                         {tx.balance_due != null && tx.balance_due > 0 && (
                                                             <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200">
-                                                                Pending: {formatCurrency(tx.balance_due)}
-                                                            </Badge>
-                                                        )}
-                                                        {tx.status === 'paid' && (
-                                                            <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200">
-                                                                Paid
+                                                                Due: {formatCurrency(tx.balance_due)}
                                                             </Badge>
                                                         )}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right font-medium text-green-600 dark:text-green-500">
-                                                    {tx.type === 'sale' ? formatCurrency(tx.amount) : "-"}
+                                                <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">
+                                                    {tx.debit > 0 ? formatCurrency(tx.debit) : "-"}
                                                 </TableCell>
-                                                <TableCell className="text-right font-medium text-red-500">
-                                                    {tx.type === 'purchase' ? formatCurrency(tx.amount) : "-"}
+                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">
+                                                    {tx.credit > 0 ? formatCurrency(tx.credit) : "-"}
                                                 </TableCell>
                                                 <TableCell className="text-right font-semibold bg-muted/30 border-l">
                                                     <span className={cn(
                                                         tx.runningBalance > 0 ? "text-blue-600 dark:text-blue-400" :
-                                                            tx.runningBalance < 0 ? "text-red-600 dark:text-red-400" : ""
+                                                            tx.runningBalance < 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600"
                                                     )}>
-                                                        {formatCurrency(tx.runningBalance)}
+                                                        {formatCurrency(Math.abs(tx.runningBalance))} {tx.runningBalance > 0 ? "Dr" : tx.runningBalance < 0 ? "Cr" : "Nil"}
                                                     </span>
                                                 </TableCell>
                                             </TableRow>

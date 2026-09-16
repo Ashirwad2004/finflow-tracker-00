@@ -2,75 +2,65 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PartyReport } from "@/features/business/components/PartyReport";
 import { DetailedPartyReport } from "@/features/business/components/DetailedPartyReport";
-import { GSTR1Report } from "@/features/business/components/GSTR1Report";
-import { GSTR2BReport } from "@/features/business/components/GSTR2BReport";
-import { GSTR3BReport } from "@/features/business/components/GSTR3BReport";
+import { GstReportsHub } from "@/features/business/components/GstReportsHub";
 import { OnlineStoreReport } from "@/features/business/components/OnlineStoreReport";
 import { BusinessAiInsights } from "@/features/business/components/BusinessAiInsights";
-import { FileBarChart, ShieldCheck, ShoppingBag, Sparkles } from "lucide-react";
+import { FileBarChart, ShieldCheck, Users, BookOpen, ShoppingBag, Sparkles } from "lucide-react";
 
 const ReportsPage = () => {
     return (
         <AppLayout>
-            <div className="container mx-auto px-4 py-8 animate-fade-in relative max-w-7xl">
-                <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6 animate-fade-in">
+                {/* Clean Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-4xl font-bold flex items-center gap-3 mb-2">
-                            <FileBarChart className="w-8 h-8 text-primary" />
+                        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2.5">
+                            <FileBarChart className="w-7 h-7 text-primary" />
                             Business Reports
                         </h1>
-                        <p className="text-muted-foreground">Comprehensive analytics, ledgers, and GST returns for your business</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            Party ledgers, statement of accounts, and unified statutory GST compliance
+                        </p>
                     </div>
                 </div>
 
+                {/* Clean, Simple Navigation Tabs */}
                 <Tabs defaultValue="party-report" className="space-y-6">
-                    <div className="bg-card w-full sm:w-auto inline-block p-1 rounded-lg border">
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-7 h-auto p-0 bg-transparent gap-1">
+                    <div className="bg-card w-full sm:w-auto inline-block p-1 rounded-xl border shadow-xs">
+                        <TabsList className="flex flex-wrap sm:flex-nowrap h-auto p-0 bg-transparent gap-1">
                             <TabsTrigger
                                 value="party-report"
-                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2.5 px-6 rounded-md shadow-sm transition-all"
+                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2 px-4 rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-2"
                             >
-                                Party Report
+                                <Users className="w-3.5 h-3.5" />
+                                Party Balances
                             </TabsTrigger>
                             <TabsTrigger
                                 value="detailed-ledger"
-                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2.5 px-6 rounded-md shadow-sm transition-all"
+                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-2 px-4 rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-2"
                             >
+                                <BookOpen className="w-3.5 h-3.5" />
                                 Detailed Ledger
                             </TabsTrigger>
                             <TabsTrigger
-                                value="gstr1"
-                                className="data-[state=active]:bg-orange-500 data-[state=active]:text-white py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center gap-2"
+                                value="gst-hub"
+                                className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4 rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-2"
                             >
-                                <ShieldCheck className="w-4 h-4" />
-                                GSTR-1
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="gstr2b"
-                                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center gap-2"
-                            >
-                                <ShieldCheck className="w-4 h-4" />
-                                GSTR-2B
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="gstr3b"
-                                className="data-[state=active]:bg-violet-600 data-[state=active]:text-white py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center gap-2"
-                            >
-                                <ShieldCheck className="w-4 h-4" />
-                                GSTR-3B
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                GST Returns Hub
                             </TabsTrigger>
                             <TabsTrigger
                                 value="online-store"
-                                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white py-2.5 px-6 rounded-md shadow-sm transition-all flex items-center gap-2"
+                                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white py-2 px-4 rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-2"
                             >
-                                <ShoppingBag className="w-4 h-4" />
+                                <ShoppingBag className="w-3.5 h-3.5" />
                                 Online Store
                             </TabsTrigger>
                             <TabsTrigger
                                 value="ai-audit"
-                                className="data-[state=active]:bg-violet-600 data-[state=active]:text-white py-2.5 px-6 rounded-md shadow-sm transition-all flex items-center gap-2"
+                                className="data-[state=active]:bg-violet-600 data-[state=active]:text-white py-2 px-4 rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-2"
                             >
-                                <Sparkles className="w-4 h-4" />
+                                <Sparkles className="w-3.5 h-3.5" />
                                 AI Audit
                             </TabsTrigger>
                         </TabsList>
@@ -84,16 +74,8 @@ const ReportsPage = () => {
                         <DetailedPartyReport />
                     </TabsContent>
 
-                    <TabsContent value="gstr1" className="mt-0 outline-none">
-                        <GSTR1Report />
-                    </TabsContent>
-
-                    <TabsContent value="gstr2b" className="mt-0 outline-none">
-                        <GSTR2BReport />
-                    </TabsContent>
-
-                    <TabsContent value="gstr3b" className="mt-0 outline-none">
-                        <GSTR3BReport />
+                    <TabsContent value="gst-hub" className="mt-0 outline-none">
+                        <GstReportsHub />
                     </TabsContent>
 
                     <TabsContent value="online-store" className="mt-0 outline-none">
@@ -109,4 +91,4 @@ const ReportsPage = () => {
     );
 };
 
-export default ReportsPage;
+export default ReportsPage;

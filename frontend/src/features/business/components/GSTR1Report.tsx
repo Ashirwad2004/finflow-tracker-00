@@ -118,16 +118,21 @@ interface HSNRecord {
 
 // ─── Period options ───────────────────────────────────────────────────────────
 
-const now = new Date(2026, 2, 21); // Use current date from system: 2026-03-21
+const now = new Date();
+const currentMonth = now.getMonth();
+const currentYear = now.getFullYear();
+const fyStart = currentMonth >= 3 ? currentYear : currentYear - 1;
+const fyEnd = fyStart + 1;
+
 const PERIODS = [
-    { label: "March 2026 (Current)", from: startOfMonth(now), to: endOfMonth(now) },
-    { label: "February 2026", from: startOfMonth(subMonths(now, 1)), to: endOfMonth(subMonths(now, 1)) },
-    { label: "January 2026", from: startOfMonth(subMonths(now, 2)), to: endOfMonth(subMonths(now, 2)) },
-    { label: "December 2025", from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 3)) },
-    { label: "Q4 FY 2025-26 (Jan–Mar 2026)", from: new Date(2026, 0, 1), to: new Date(2026, 2, 31) },
-    { label: "Q3 FY 2025-26 (Oct–Dec 2025)", from: new Date(2025, 9, 1), to: new Date(2025, 11, 31) },
-    { label: "Full FY 2025-26", from: new Date(2025, 3, 1), to: new Date(2026, 2, 31) },
-    { label: "Full FY 2024-25", from: new Date(2024, 3, 1), to: new Date(2025, 2, 31) },
+    { label: `${format(now, "MMMM yyyy")} (Current)`, from: startOfMonth(now), to: endOfMonth(now) },
+    { label: format(subMonths(now, 1), "MMMM yyyy"), from: startOfMonth(subMonths(now, 1)), to: endOfMonth(subMonths(now, 1)) },
+    { label: format(subMonths(now, 2), "MMMM yyyy"), from: startOfMonth(subMonths(now, 2)), to: endOfMonth(subMonths(now, 2)) },
+    { label: format(subMonths(now, 3), "MMMM yyyy"), from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 3)) },
+    { label: `Q2 FY ${fyStart}-${String(fyEnd).slice(-2)} (Jul–Sep)`, from: new Date(fyStart, 6, 1), to: new Date(fyStart, 8, 30) },
+    { label: `Q1 FY ${fyStart}-${String(fyEnd).slice(-2)} (Apr–Jun)`, from: new Date(fyStart, 3, 1), to: new Date(fyStart, 5, 30) },
+    { label: `Full FY ${fyStart}-${String(fyEnd).slice(-2)}`, from: new Date(fyStart, 3, 1), to: new Date(fyEnd, 2, 31) },
+    { label: `Full FY ${fyStart - 1}-${String(fyStart).slice(-2)} (Previous)`, from: new Date(fyStart - 1, 3, 1), to: new Date(fyStart, 2, 31) },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -240,22 +245,144 @@ export const GSTR1Report = () => {
     });
 
     const bizGSTIN = (profile as any)?.gst_number || "";
-    const bizStateCode = bizGSTIN ? bizGSTIN.substring(0, 2) : "";
+    const fallbackState = typeof window !== 'undefined' ? (localStorage.getItem("rupeebill_fallback_state_code") || "27") : "27";
+    const effectiveStateCode = (bizGSTIN && bizGSTIN.length >= 2) ? bizGSTIN.substring(0, 2) : fallbackState;
 
-    // Fetch pre-aggregated GSTR-1 data from backend RPC
+    // Fetch pre-aggregated GSTR-1 data from backend RPC with client-side fallback
     const { data: gstr1Data, isLoading } = useQuery({
-        queryKey: ["gstr1-data", user?.id, period.from.toISOString(), period.to.toISOString(), bizStateCode],
+        queryKey: ["gstr1-data", user?.id, period.from.toISOString(), period.to.toISOString(), effectiveStateCode],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).rpc("generate_gstr1_data", {
-                p_user_id: user?.id,
-                p_start_date: format(period.from, "yyyy-MM-dd"),
-                p_end_date: format(period.to, "yyyy-MM-dd"),
-                p_biz_state_code: bizStateCode
+            try {
+                const { data, error } = await (supabase as any).rpc("generate_gstr1_data", {
+                    p_user_id: user?.id,
+                    p_start_date: format(period.from, "yyyy-MM-dd"),
+                    p_end_date: format(period.to, "yyyy-MM-dd"),
+                    p_biz_state_code: effectiveStateCode
+                });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("generate_gstr1_data RPC failed, using client-side calculation:", e);
+            }
+
+            // Fallback calculation directly from sales table
+            const { data: rawSales, error: salesErr } = await (supabase as any)
+                .from("sales")
+                .select("*")
+                .eq("user_id", user?.id || "")
+                .gte("date", format(period.from, "yyyy-MM-dd"))
+                .lte("date", format(period.to, "yyyy-MM-dd"))
+                .neq("status", "draft");
+
+            if (salesErr) throw salesErr;
+            const sales = rawSales || [];
+
+            const b2b: any[] = [];
+            const b2cl: any[] = [];
+            const b2csMap = new Map<string, any>();
+            const hsnMap = new Map<string, any>();
+            let totalInvoices = sales.length;
+            let totalTaxable = 0;
+            let totalTax = 0;
+
+            sales.forEach((s: any) => {
+                const invVal = Number(s.total_amount) || 0;
+                const taxVal = Number(s.tax_amount) || 0;
+                const taxableVal = Number(s.subtotal) || (invVal - taxVal);
+                totalTaxable += taxableVal;
+                totalTax += taxVal;
+
+                const custGst = (s.customer_gstin || "").trim();
+                const pos = s.place_of_supply || (custGst ? custGst.slice(0, 2) : effectiveStateCode);
+                const isInter = pos !== effectiveStateCode;
+                const igst = isInter ? taxVal : 0;
+                const cgst = isInter ? 0 : taxVal / 2;
+                const sgst = isInter ? 0 : taxVal / 2;
+
+                if (custGst && custGst.length === 15) {
+                    b2b.push({
+                        gstin: custGst,
+                        customer_name: s.customer_name || "Registered Customer",
+                        invoice_number: s.invoice_number,
+                        invoice_date: s.date,
+                        invoice_value: invVal,
+                        taxable_value: taxableVal,
+                        igst,
+                        cgst,
+                        sgst,
+                        place_of_supply: pos,
+                        reverse_charge: false
+                    });
+                } else if (isInter && invVal > 250000) {
+                    b2cl.push({
+                        invoice_number: s.invoice_number,
+                        invoice_date: s.date,
+                        invoice_value: invVal,
+                        place_of_supply: pos,
+                        taxable_value: taxableVal,
+                        igst
+                    });
+                } else {
+                    const rate = taxVal > 0 && taxableVal > 0 ? Math.round((taxVal / taxableVal) * 100) : 18;
+                    const key = `${pos}_${rate}`;
+                    if (!b2csMap.has(key)) {
+                        b2csMap.set(key, {
+                            place_of_supply: pos,
+                            tax_rate: rate,
+                            taxable_value: 0,
+                            igst: 0,
+                            cgst: 0,
+                            sgst: 0
+                        });
+                    }
+                    const row = b2csMap.get(key)!;
+                    row.taxable_value += taxableVal;
+                    row.igst += igst;
+                    row.cgst += cgst;
+                    row.sgst += sgst;
+                }
+
+                const items = Array.isArray(s.items) ? s.items : [];
+                items.forEach((it: any) => {
+                    const hsn = it.hsn_code || "GEN";
+                    const itTaxable = Number(it.total) || (Number(it.quantity || 1) * Number(it.price || 0));
+                    if (!hsnMap.has(hsn)) {
+                        hsnMap.set(hsn, {
+                            hsn_code: hsn,
+                            description: it.description || "Goods",
+                            uqc: it.unit || "PCS",
+                            quantity: 0,
+                            taxable_value: 0,
+                            tax_rate: 18,
+                            igst: 0,
+                            cgst: 0,
+                            sgst: 0
+                        });
+                    }
+                    const hRow = hsnMap.get(hsn)!;
+                    hRow.quantity += Number(it.quantity) || 1;
+                    hRow.taxable_value += itTaxable;
+                    if (isInter) hRow.igst += itTaxable * 0.18;
+                    else {
+                        hRow.cgst += itTaxable * 0.09;
+                        hRow.sgst += itTaxable * 0.09;
+                    }
+                });
             });
-            if (error) throw error;
-            return data;
+
+            return {
+                b2b,
+                b2ba: [],
+                b2cl,
+                b2cs: Array.from(b2csMap.values()),
+                hsn: Array.from(hsnMap.values()),
+                summary: {
+                    total_invoices: totalInvoices,
+                    total_taxable_value: totalTaxable,
+                    total_tax_amount: totalTax
+                }
+            };
         },
-        enabled: !!user && !!bizStateCode,
+        enabled: !!user,
     });
 
     const b2bRecords: B2BRecord[] = gstr1Data?.b2b || [];
