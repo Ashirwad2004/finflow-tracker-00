@@ -379,7 +379,12 @@ export const DetailedPartyReport = () => {
                                         <FileText className="w-4 h-4 mr-2 text-red-500" />
                                         Download Ledger (PDF)
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => exportDetailedPartyCSV(ledger, selectedParty)}>
+                                    <DropdownMenuItem onClick={() => exportDetailedPartyCSV(ledger, selectedParty, dateRange, profile ? {
+                                        name: (profile as any).business_name,
+                                        address: (profile as any).business_address,
+                                        phone: (profile as any).business_phone,
+                                        gst: (profile as any).gst_number
+                                    } : undefined)}>
                                         <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
                                         Download Ledger (Excel)
                                     </DropdownMenuItem>

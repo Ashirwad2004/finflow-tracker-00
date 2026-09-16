@@ -29,8 +29,15 @@ import {
     AlertCircle,
     ChevronRight,
     Share2,
-    Calendar
+    Calendar,
+    FileSpreadsheet
 } from "lucide-react";
+import {
+    exportPartiesToExcel,
+    exportPartiesToPDF,
+    exportPartyStatementToExcel,
+    exportPartyStatementToPDF
+} from "@/utils/exportParties";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -677,6 +684,105 @@ const PartiesPage = () => {
     // Active metrics for the currently viewed sheet party
     const currentSheetMetrics = selectedPartyForSheet ? partyLedgerMap.get(selectedPartyForSheet.id) : null;
 
+    // Party Export Handlers
+    const handleExportPartiesExcel = () => {
+        try {
+            const listToExport = filteredParties.length > 0 ? filteredParties : parties;
+            if (listToExport.length === 0) {
+                toast({ title: "No Parties", description: "There are no parties available to export.", variant: "destructive" });
+                return;
+            }
+            exportPartiesToExcel(
+                listToExport,
+                partyLedgerMap,
+                profile ? {
+                    name: (profile as any).business_name || (profile as any).display_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone || (profile as any).phone,
+                    gst: (profile as any).gst_number
+                } : undefined,
+                filterType !== "All Types" ? filterType : undefined
+            );
+            toast({ title: "Excel Export Complete", description: `Exported ${listToExport.length} parties to Excel.` });
+        } catch (err: any) {
+            console.error("Failed to export parties to Excel:", err);
+            toast({ title: "Export Failed", description: err.message || "Failed to export Excel file.", variant: "destructive" });
+        }
+    };
+
+    const handleExportPartiesPDF = () => {
+        try {
+            const listToExport = filteredParties.length > 0 ? filteredParties : parties;
+            if (listToExport.length === 0) {
+                toast({ title: "No Parties", description: "There are no parties available to export.", variant: "destructive" });
+                return;
+            }
+            exportPartiesToPDF(
+                listToExport,
+                partyLedgerMap,
+                profile ? {
+                    name: (profile as any).business_name || (profile as any).display_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone || (profile as any).phone,
+                    gst: (profile as any).gst_number
+                } : undefined,
+                filterType !== "All Types" ? filterType : undefined
+            );
+            toast({ title: "PDF Export Complete", description: `Exported ${listToExport.length} parties to PDF.` });
+        } catch (err: any) {
+            console.error("Failed to export parties to PDF:", err);
+            toast({ title: "Export Failed", description: err.message || "Failed to export PDF file.", variant: "destructive" });
+        }
+    };
+
+    const handleExportSinglePartyExcel = (party: Party) => {
+        try {
+            const metrics = partyLedgerMap.get(party.id);
+            if (!metrics) {
+                toast({ title: "No Data", description: "Party transaction metrics not found.", variant: "destructive" });
+                return;
+            }
+            exportPartyStatementToExcel(
+                party,
+                metrics,
+                profile ? {
+                    name: (profile as any).business_name || (profile as any).display_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone || (profile as any).phone,
+                    gst: (profile as any).gst_number
+                } : undefined
+            );
+            toast({ title: "Statement Exported", description: `Exported ${party.name}'s statement to Excel.` });
+        } catch (err: any) {
+            console.error("Failed to export party statement to Excel:", err);
+            toast({ title: "Export Failed", description: err.message || "Failed to export statement.", variant: "destructive" });
+        }
+    };
+
+    const handleExportSinglePartyPDF = (party: Party) => {
+        try {
+            const metrics = partyLedgerMap.get(party.id);
+            if (!metrics) {
+                toast({ title: "No Data", description: "Party transaction metrics not found.", variant: "destructive" });
+                return;
+            }
+            exportPartyStatementToPDF(
+                party,
+                metrics,
+                profile ? {
+                    name: (profile as any).business_name || (profile as any).display_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone || (profile as any).phone,
+                    gst: (profile as any).gst_number
+                } : undefined
+            );
+            toast({ title: "Statement Exported", description: `Exported ${party.name}'s statement to PDF.` });
+        } catch (err: any) {
+            console.error("Failed to export party statement to PDF:", err);
+            toast({ title: "Export Failed", description: err.message || "Failed to export statement.", variant: "destructive" });
+        }
+    };
+
     return (
         <AppLayout>
             <div className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-8 animate-fade-in text-slate-900 dark:text-slate-100 font-display">
@@ -692,10 +798,32 @@ const PartiesPage = () => {
                             Manage customer & vendor accounts, track outstanding balances, and inspect complete transaction records.
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="flex items-center gap-1.5 shadow-xs font-semibold h-10 px-3.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                >
+                                    <Download className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                                    <span>Export</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 shadow-lg">
+                                <DropdownMenuItem onClick={handleExportPartiesExcel} className="cursor-pointer flex items-center gap-2.5 py-2">
+                                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                                    <span className="font-medium text-xs">Export Excel (.xlsx)</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportPartiesPDF} className="cursor-pointer flex items-center gap-2.5 py-2">
+                                    <FileText className="w-4 h-4 text-rose-600" />
+                                    <span className="font-medium text-xs">Export PDF (.pdf)</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Button
                             onClick={handleAddClick}
-                            className="flex items-center space-x-2 shadow-sm font-bold bg-primary hover:bg-primary/90 text-white"
+                            className="flex items-center space-x-2 shadow-sm font-bold bg-primary hover:bg-primary/90 text-white h-10"
                         >
                             <Plus className="w-4 h-4 mr-1" />
                             Add New Party
@@ -917,12 +1045,18 @@ const PartiesPage = () => {
                                                                     <MoreVertical className="w-4 h-4" />
                                                                 </button>
                                                             </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
+                                                             <DropdownMenuContent align="end" className="w-48">
                                                                 <DropdownMenuItem onClick={() => handleCreateInvoiceForParty(party)}>
                                                                     <Plus className="w-4 h-4 mr-2" /> New Invoice
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => handleEditClick(party)}>
                                                                     <Edit className="w-4 h-4 mr-2" /> Edit Party Details
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleExportSinglePartyExcel(party)}>
+                                                                    <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" /> Statement (.xlsx)
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleExportSinglePartyPDF(party)}>
+                                                                    <FileText className="w-4 h-4 mr-2 text-rose-600" /> Statement (.pdf)
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem
                                                                     onClick={() => handleDeleteClick(party)}
@@ -993,6 +1127,25 @@ const PartiesPage = () => {
                                         </div>
 
                                         <div className="flex items-center gap-2">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button size="sm" variant="outline" className="text-xs font-semibold flex items-center gap-1">
+                                                        <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                                                        <span>Export</span>
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-48 shadow-lg">
+                                                    <DropdownMenuItem onClick={() => handleExportSinglePartyExcel(selectedPartyForSheet)} className="cursor-pointer flex items-center gap-2 py-2 text-xs">
+                                                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                                                        <span>Statement (.xlsx)</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleExportSinglePartyPDF(selectedPartyForSheet)} className="cursor-pointer flex items-center gap-2 py-2 text-xs">
+                                                        <FileText className="w-4 h-4 text-rose-600" />
+                                                        <span>Statement (.pdf)</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+
                                             <Button
                                                 size="sm"
                                                 variant="outline"
