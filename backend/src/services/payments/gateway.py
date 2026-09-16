@@ -1,7 +1,7 @@
 from src.core.config import settings
 from src.services.payments.drivers import MockGateway, StripeGateway, RazorpayGateway
 
-def get_gateway_driver(provider: str = None):
+def get_gateway_driver(provider: str | None = None):
     if not provider:
         provider = settings.PAYMENT_GATEWAY_PROVIDER or "razorpay"
         
