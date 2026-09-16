@@ -8,7 +8,6 @@ import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Ce
 import { useState } from "react";
 import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { RevenueAnalytics } from "@/features/business/components/RevenueAnalytics";
-import { LocalAIBusinessForecast } from "@/features/business/components/LocalAIBusinessForecast";
 import {
     TrendingUp,
     TrendingDown,
@@ -251,9 +250,6 @@ export default function BusinessDashboard() {
                     <h3 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(netProfit)}</h3>
                 </div>
             </div>
-
-            {/* AI Business Forecast Section */}
-            <LocalAIBusinessForecast sales={sales} expenses={expenses} />
 
             {/* Revenue Analytics Section */}
             <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
