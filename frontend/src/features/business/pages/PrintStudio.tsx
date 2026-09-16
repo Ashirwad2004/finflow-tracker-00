@@ -19,14 +19,33 @@ import {
     Sparkles,
     Eye,
     TrendingUp,
-    FileCheck
+    FileCheck,
+    Landmark
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { format } from "date-fns";
-import { generateInvoicePDF, InvoiceDetails, InvoicePdfTheme, PageSize } from "@/utils/generateInvoicePDF";
+import { 
+    generateInvoicePDF, 
+    InvoiceDetails, 
+    InvoicePdfTheme, 
+    PageSize,
+    convertAmountToIndianWords,
+    resolveInvoiceBankDetails,
+    getStoredBankAccounts,
+    BankDetailsInfo
+} from "@/utils/generateInvoicePDF";
 import { printThermalReceipt } from "@/utils/printThermalReceipt";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { toast } from "sonner";
@@ -90,7 +109,9 @@ const InvoiceMockPreview = ({
     theme, 
     formatCurrency,
     pageSize,
-    customTerms
+    customTerms,
+    printBankDetails,
+    bankAccount
 }: { 
     sale: any; 
     profile: any; 
@@ -98,6 +119,8 @@ const InvoiceMockPreview = ({
     formatCurrency: (n: number) => string;
     pageSize: PageSize;
     customTerms: string;
+    printBankDetails?: boolean;
+    bankAccount?: BankDetailsInfo | null;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
     const dateToParse = sale.date || sale.created_at;
@@ -132,26 +155,11 @@ const InvoiceMockPreview = ({
     const cgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
     const sgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
 
-    const [bankAccount, setBankAccount] = useState<{bankName: string; accountNumber: string; ifscCode: string; branchName: string} | null>(null);
-
-    useEffect(() => {
-        try {
-            const saved = localStorage.getItem("rupeebill_bank_accounts");
-            if (saved) {
-                const list = JSON.parse(saved);
-                const defaultAcc = list.find((a: any) => a.isDefault) || list[0];
-                if (defaultAcc) {
-                    setBankAccount(defaultAcc);
-                }
-            }
-        } catch {}
-    }, []);
-
     // 1. TALLY ERP GST TAX INVOICE PREVIEW
     if (theme === 'tally-accounting') {
         return (
             <div className={cn(
-                "bg-white text-black p-6 mx-auto font-sans text-xs border border-black shadow-lg w-full flex flex-col justify-between select-none transition-all duration-300",
+                "bg-white text-black p-5 mx-auto font-sans text-xs border border-black shadow-lg w-full flex flex-col justify-between select-none transition-all duration-300",
                 pageSize === 'a5' ? "max-w-[500px] min-h-[530px]" : "max-w-[680px] min-h-[750px]"
             )}>
                 {/* Header label */}
@@ -162,7 +170,7 @@ const InvoiceMockPreview = ({
                 {/* Seller & Invoice Details Grid (Quadrants) */}
                 <div className="grid grid-cols-2 border border-black">
                     {/* Top Left: Seller Details */}
-                    <div className="p-3 border-r border-b border-black space-y-1">
+                    <div className="p-2.5 border-r border-b border-black space-y-1">
                         <span className="text-[9px] uppercase text-slate-500 font-bold block">Sender / Company Details</span>
                         <div className="font-extrabold text-xs">{bizName}</div>
                         {profile?.business_address && <p className="text-[10px] text-slate-700 leading-tight">{profile.business_address}</p>}
@@ -171,29 +179,29 @@ const InvoiceMockPreview = ({
                     </div>
                     
                     {/* Top Right: Invoice Metadata */}
-                    <div className="p-3 border-b border-black grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px] content-start">
+                    <div className="p-2.5 border-b border-black grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] content-start">
                         <div>
-                            <span className="text-slate-500 block text-[9px] font-bold">Invoice No.</span>
+                            <span className="text-slate-500 block text-[9px]">Invoice No.</span>
                             <span className="font-bold text-xs">{sale.invoice_number}</span>
                         </div>
                         <div>
-                            <span className="text-slate-500 block text-[9px] font-bold">Dated</span>
+                            <span className="text-slate-500 block text-[9px]">Dated</span>
                             <span className="font-bold">{dateFormatted}</span>
                         </div>
                         <div>
-                            <span className="text-slate-500 block text-[9px] font-bold">Delivery Note</span>
-                            <span>Direct Delivery</span>
+                            <span className="text-slate-500 block text-[9px]">Delivery Note</span>
+                            <span className="font-medium">Direct Delivery</span>
                         </div>
                         <div>
-                            <span className="text-slate-500 block text-[9px] font-bold">Mode/Terms of Payment</span>
+                            <span className="text-slate-500 block text-[9px]">Terms / Mode</span>
                             <span className={cn("font-bold text-[10px]", balanceDue <= 0 ? "text-emerald-700" : "text-amber-700")}>
-                                {balanceDue <= 0 ? "Immediate / Paid" : isPartial ? `Partial (Pending: ₹${balanceDue.toFixed(2)})` : "Pending / Due"}
+                                {balanceDue <= 0 ? "Paid" : isPartial ? `Partial (Due: ₹${balanceDue.toFixed(2)})` : "Pending"}
                             </span>
                         </div>
                     </div>
                     
                     {/* Bottom Left: Buyer details */}
-                    <div className="p-3 border-r border-black space-y-1">
+                    <div className="p-2.5 border-r border-black space-y-1">
                         <span className="text-[9px] uppercase text-slate-500 font-bold block">Buyer (Bill to)</span>
                         <div className="font-bold text-[11px]">{sale.customer_name || "Walk-in Guest"}</div>
                         {sale.customer_phone && <p className="text-[10px] text-slate-700">Phone: {sale.customer_phone}</p>}
@@ -202,22 +210,21 @@ const InvoiceMockPreview = ({
                     </div>
                     
                     {/* Bottom Right: Consignee Details */}
-                    <div className="p-3 space-y-1">
+                    <div className="p-2.5 space-y-1">
                         <span className="text-[9px] uppercase text-slate-500 font-bold block">Consignee (Ship to)</span>
                         <div className="font-bold text-[11px]">{sale.customer_name || "Walk-in Guest"}</div>
                         <p className="text-[10px] text-slate-600 italic">Same as billing address</p>
                     </div>
                 </div>
 
-                {/* Items Table */}
-                <div className="mt-4 border border-black overflow-hidden flex-1 flex flex-col justify-start">
+                {/* Items Table: Standard 6 columns with exact matching spacer */}
+                <div className="mt-3 border border-black overflow-hidden flex-1 flex flex-col justify-start">
                     <table className="w-full h-full text-left text-xs border-collapse">
                         <thead>
                             <tr className="bg-slate-100/50 border-b border-black text-[9px] font-bold tracking-wider text-black">
                                 <th className="p-2 border-r border-black text-center w-10">S.No</th>
                                 <th className="p-2 border-r border-black">Description of Goods</th>
                                 <th className="p-2 border-r border-black text-center w-12">Qty</th>
-                                <th className="p-2 border-r border-black text-center w-12">Tax%</th>
                                 <th className="p-2 border-r border-black text-right w-24">Rate</th>
                                 <th className="p-2 border-r border-black text-center w-12">per</th>
                                 <th className="p-2 text-right w-28">Amount</th>
@@ -237,14 +244,13 @@ const InvoiceMockPreview = ({
                                             {item.hsn_code && <span className="text-[8px] text-slate-500 font-mono">HSN: {item.hsn_code}</span>}
                                         </td>
                                         <td className="p-2 border-r border-b border-black text-center">{item.quantity ?? 1}</td>
-                                        <td className="p-2 border-r border-b border-black text-center text-[9px]">{item.tax_rate !== undefined ? `${item.tax_rate}%` : taxRate > 0 ? `${taxRate}%` : '—'}</td>
                                         <td className="p-2 border-r border-b border-black text-right">{formatCurrency(item.price).replace("Rs. ","")}</td>
-                                        <td className="p-2 border-r border-b border-black text-center font-sans">{item.unit || ""}</td>
+                                        <td className="p-2 border-r border-b border-black text-center font-sans">{item.unit || "pcs"}</td>
                                         <td className="p-2 border-b border-black text-right font-bold text-slate-900">{formatCurrency(item.total ?? (Number(item.quantity ?? 1) * Number(item.price))).replace("Rs. ","")}</td>
                                     </tr>
                                 ))
                             )}
-                            {/* Empty spacer row to stretch and draw vertical lines to the bottom of the table in Tally style */}
+                            {/* Empty spacer row with exactly 6 cells to match columns */}
                             <tr className="h-full">
                                 <td className="p-2 border-r border-black"></td>
                                 <td className="p-2 border-r border-black"></td>
@@ -258,34 +264,42 @@ const InvoiceMockPreview = ({
                 </div>
 
                 {/* Footer Section split vertically */}
-                <div className="mt-4 grid grid-cols-12 border border-black min-h-[160px]">
-                    {/* Left 8 columns: Words, Bank Details, Declaration */}
-                    <div className="col-span-8 p-3 border-r border-black flex flex-col justify-between space-y-3">
-                        <div className="space-y-1">
+                <div className="mt-3 grid grid-cols-12 border border-black min-h-[160px]">
+                    {/* Left 8 columns: Words, Bank Details (if enabled & real), Declaration */}
+                    <div className="col-span-8 p-3 border-r border-black flex flex-col justify-between space-y-2.5">
+                        <div className="space-y-0.5">
                             <span className="text-[8px] text-slate-500 font-bold block uppercase">Amount Chargeable (in words)</span>
-                            <span className="font-bold text-[10px] uppercase">INR {formatCurrency(totalAmount).replace("Rs. ", "")} ONLY</span>
+                            <span className="font-bold text-[9.5px] uppercase">{convertAmountToIndianWords(totalAmount)}</span>
                         </div>
-                        <div className="border-t border-black/10 pt-2 space-y-1 text-[9px] text-slate-700">
-                            <p className="font-bold text-[10px] text-slate-900">Company Bank Details</p>
-                            <p>Bank Name: {bankAccount?.bankName || "State Bank of India"}</p>
-                            <p>A/c No: {bankAccount?.accountNumber || "332405891234"}  |  IFSC: {bankAccount?.ifscCode || "SBI0001609"}</p>
-                        </div>
+
+                        {printBankDetails && bankAccount?.bankName && (
+                            <div className="border-t border-black/10 pt-2 space-y-0.5 text-[9px] text-slate-700">
+                                <p className="font-bold text-[9.5px] text-slate-900">Company's Bank Details</p>
+                                <p>Bank Name: {bankAccount.bankName}</p>
+                                <p>A/c No: {bankAccount.accountNumber} {bankAccount.ifscCode ? ` | IFSC: ${bankAccount.ifscCode}` : ''} {bankAccount.branchName ? ` | Branch: ${bankAccount.branchName}` : ''}</p>
+                            </div>
+                        )}
+
                         <div className="border-t border-black/10 pt-2 text-[8px] text-slate-500">
                             <span className="font-bold text-[9px] text-slate-700 block mb-0.5">Declaration</span>
                             {customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."}
+                        </div>
+
+                        <div className="text-[7px] text-slate-400 pt-1">
+                            Customer's Seal and Signature
                         </div>
                     </div>
                     
                     {/* Right 4 columns: Totals summary and Signatory box */}
                     <div className="col-span-4 flex flex-col justify-between">
                         {/* Summary details */}
-                        <div className="p-3 space-y-1.5 text-[10px] border-b border-black bg-slate-50/50">
+                        <div className="p-2.5 space-y-1 text-[10px] border-b border-black bg-slate-50/50">
                             <div className="flex justify-between">
                                 <span className="text-slate-500">Subtotal</span>
                                 <span>{formatCurrency(subtotal).replace("Rs. ","")}</span>
                             </div>
                             {discount > 0 && (
-                                <div className="flex justify-between text-rose-755 font-bold">
+                                <div className="flex justify-between text-rose-700 font-bold">
                                     <span>Discount</span>
                                     <span>-{formatCurrency(discount).replace("Rs. ","")}</span>
                                 </div>
@@ -302,29 +316,29 @@ const InvoiceMockPreview = ({
                                     </div>
                                 </>
                             )}
-                            <div className="border-t border-black/20 my-1"></div>
+                            <div className="border-t border-black/20 my-0.5"></div>
                             <div className="flex justify-between font-extrabold text-[11px]">
                                 <span>Total Amount</span>
                                 <span>{formatCurrency(totalAmount).replace("Rs. ","")}</span>
                             </div>
-                            <div className="border-t border-black/20 my-1"></div>
+                            <div className="border-t border-black/20 my-0.5"></div>
                             <div className="flex justify-between text-emerald-700 font-semibold text-[10px]">
                                 <span>Amount Paid</span>
                                 <span>{formatCurrency(amountPaid).replace("Rs. ","")}</span>
                             </div>
                             <div className={cn("flex justify-between text-[10px] font-bold", balanceDue > 0 ? "text-rose-700" : "text-emerald-700")}>
-                                <span>Balance Due (Pending)</span>
+                                <span>Balance Due</span>
                                 <span>{balanceDue > 0 ? formatCurrency(balanceDue).replace("Rs. ","") : "0.00 (PAID)"}</span>
                             </div>
                         </div>
                         
                         {/* Signatory Box */}
-                        <div className="p-3 text-center space-y-1 flex flex-col justify-between h-full bg-white">
-                            <span className="text-[9px] font-bold block text-left">for {bizName.toUpperCase()}</span>
+                        <div className="p-2.5 text-center space-y-1 flex flex-col justify-between h-full bg-white">
+                            <span className="text-[8.5px] font-bold block text-left">for {bizName.toUpperCase()}</span>
                             {profile?.signature_url && (
-                                <img src={profile.signature_url} alt="Signature" className="h-8 object-contain mx-auto my-1" />
+                                <img src={profile.signature_url} alt="Signature" className="h-7 object-contain mx-auto my-0.5" />
                             )}
-                            <span className="text-[9px] font-bold block text-slate-500">Authorized Signatory</span>
+                            <span className="text-[8px] font-medium block text-slate-500">Authorized Signatory</span>
                         </div>
                     </div>
                 </div>
@@ -638,6 +652,39 @@ const PrintStudioPage = () => {
         localStorage.setItem("rupeebill_invoice_terms", text);
     };
 
+    // Bank Details Preferences
+    const [printBankDetails, setPrintBankDetails] = useState<boolean>(() => {
+        const saved = localStorage.getItem("rupeebill_print_bank_details");
+        return saved !== "false";
+    });
+
+    const handlePrintBankToggle = (checked: boolean) => {
+        setPrintBankDetails(checked);
+        localStorage.setItem("rupeebill_print_bank_details", checked ? "true" : "false");
+        toast.success(checked ? "Bank details enabled on invoices" : "Bank details hidden from invoices");
+    };
+
+    const [bankAccounts, setBankAccounts] = useState<any[]>(() => getStoredBankAccounts());
+    const [selectedBankId, setSelectedBankId] = useState<string>(() => {
+        return localStorage.getItem("rupeebill_selected_bank_account_id") || "";
+    });
+
+    const handleBankSelect = (id: string) => {
+        setSelectedBankId(id);
+        localStorage.setItem("rupeebill_selected_bank_account_id", id);
+        toast.success("Default invoice bank account updated");
+    };
+
+    useEffect(() => {
+        const updateAccounts = () => {
+            const accounts = getStoredBankAccounts();
+            setBankAccounts(accounts);
+        };
+        updateAccounts();
+        window.addEventListener("focus", updateAccounts);
+        return () => window.removeEventListener("focus", updateAccounts);
+    }, []);
+
     useEffect(() => {
         const savedTheme = localStorage.getItem("rupeebill_invoice_theme") as InvoiceTheme;
         if (savedTheme && invoiceThemes.includes(savedTheme)) {
@@ -682,6 +729,14 @@ const PrintStudioPage = () => {
         enabled: !!user,
     });
 
+    const activeBankAccount: BankDetailsInfo | null = useMemo(() => {
+        return resolveInvoiceBankDetails({
+            printBankDetails,
+            selectedBankAccountId: selectedBankId,
+            profile
+        });
+    }, [printBankDetails, selectedBankId, profile, bankAccounts]);
+
     // Auto-select latest sale for live preview once recentSales load
     useEffect(() => {
         if (recentSales.length > 0 && !selectedSale) {
@@ -719,6 +774,10 @@ const PrintStudioPage = () => {
                 gst: profile.gst_number || undefined,
                 logo_url: profile.business_logo || undefined,
                 signature_url: profile.signature_url || undefined,
+                bank_name: activeBankAccount?.bankName,
+                bank_account_no: activeBankAccount?.accountNumber,
+                bank_ifsc: activeBankAccount?.ifscCode,
+                bank_branch: activeBankAccount?.branchName
             } : undefined
         };
 
@@ -727,7 +786,16 @@ const PrintStudioPage = () => {
             await printThermalReceipt(invoiceDetails);
         } else {
             toast.success(`Generating PDF via ${themeMeta[selectedTheme].name} template...`);
-            await generateInvoicePDF(invoiceDetails, { action: 'download', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms, fontSizeFactor });
+            await generateInvoicePDF(invoiceDetails, { 
+                action: 'download', 
+                theme: selectedTheme as InvoicePdfTheme, 
+                pageSize, 
+                customTerms, 
+                fontSizeFactor,
+                printBankDetails,
+                bankDetails: activeBankAccount || undefined,
+                selectedBankAccountId: selectedBankId
+            });
         }
     };
 
@@ -904,11 +972,94 @@ const PrintStudioPage = () => {
                             </div>
                         </div>
 
-                        {/* 4. Terms & Conditions Card */}
+                        {/* 4. Bank Details Printing Card */}
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <div className="flex items-center justify-between border-b pb-2">
+                                <h2 className="text-sm font-bold flex items-center gap-2">
+                                    <Landmark className="w-3.5 h-3.5 text-primary" />
+                                    4. Bank Details on Invoice
+                                </h2>
+                                <Switch 
+                                    checked={printBankDetails}
+                                    onCheckedChange={handlePrintBankToggle}
+                                />
+                            </div>
+
+                            {printBankDetails ? (
+                                <div className="space-y-2.5 animate-fade-in">
+                                    {bankAccounts.length > 0 ? (
+                                        <>
+                                            {bankAccounts.length > 1 && (
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold text-muted-foreground block">Select Account to Print</label>
+                                                    <Select 
+                                                        value={selectedBankId || (bankAccounts.find((a: any) => a.isDefault)?.id || bankAccounts[0]?.id)}
+                                                        onValueChange={handleBankSelect}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs">
+                                                            <SelectValue placeholder="Choose bank account" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {bankAccounts.map((acc: any) => (
+                                                                <SelectItem key={acc.id} value={acc.id} className="text-xs">
+                                                                    {acc.bankName} ({acc.accountNumber.slice(-4) ? `...${acc.accountNumber.slice(-4)}` : acc.accountNumber})
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            )}
+
+                                            {activeBankAccount && (
+                                                <div className="p-2.5 rounded-lg border bg-muted/40 space-y-1 text-xs">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-bold text-[11px] text-slate-800 dark:text-slate-100">{activeBankAccount.bankName}</span>
+                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">Active</Badge>
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground font-mono">
+                                                        A/c: {activeBankAccount.accountNumber}
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">
+                                                        IFSC: {activeBankAccount.ifscCode || "N/A"} {activeBankAccount.branchName ? `• ${activeBankAccount.branchName}` : ''}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="pt-0.5">
+                                                <Link 
+                                                    to="/bank-details" 
+                                                    className="text-[10px] text-primary font-semibold hover:underline flex items-center gap-1"
+                                                >
+                                                    Manage Bank Accounts & Books &rarr;
+                                                </Link>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="p-3 border border-dashed border-amber-300 dark:border-amber-800 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                                            <p className="text-[10px] text-amber-800 dark:text-amber-200 leading-snug">
+                                                No bank account saved yet. Add your bank details to display on customer invoices.
+                                            </p>
+                                            <Link to="/bank-details">
+                                                <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-100">
+                                                    <Landmark className="w-3 h-3 mr-1" />
+                                                    + Add Bank Account
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-[10px] text-muted-foreground italic">
+                                    Bank details will not be printed on downloaded or printed invoices.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* 5. Terms & Conditions Card */}
                         <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
                             <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
                                 <FileCheck className="w-3.5 h-3.5 text-primary" />
-                                4. Terms & Conditions
+                                5. Terms & Conditions
                             </h2>
                             <textarea
                                 value={customTerms}
@@ -973,9 +1124,22 @@ const PrintStudioPage = () => {
                                                         gst: profile.gst_number || undefined,
                                                         logo_url: profile.business_logo || undefined,
                                                         signature_url: profile.signature_url || undefined,
+                                                        bank_name: activeBankAccount?.bankName,
+                                                        bank_account_no: activeBankAccount?.accountNumber,
+                                                        bank_ifsc: activeBankAccount?.ifscCode,
+                                                        bank_branch: activeBankAccount?.branchName
                                                     } : undefined
                                                 }, 
-                                                { action: 'preview', theme: selectedTheme as InvoicePdfTheme, pageSize, customTerms, fontSizeFactor }
+                                                { 
+                                                    action: 'preview', 
+                                                    theme: selectedTheme as InvoicePdfTheme, 
+                                                    pageSize, 
+                                                    customTerms, 
+                                                    fontSizeFactor,
+                                                    printBankDetails,
+                                                    bankDetails: activeBankAccount || undefined,
+                                                    selectedBankAccountId: selectedBankId
+                                                }
                                             );
                                         }}
                                         className="rounded-lg text-xs h-8.5 border-border flex items-center gap-1.5 flex-1 sm:flex-initial"
@@ -1036,6 +1200,8 @@ const PrintStudioPage = () => {
                                             formatCurrency={formatCurrency}
                                             pageSize={pageSize}
                                             customTerms={customTerms}
+                                            printBankDetails={printBankDetails}
+                                            bankAccount={activeBankAccount}
                                         />
                                     </div>
                                 </div>

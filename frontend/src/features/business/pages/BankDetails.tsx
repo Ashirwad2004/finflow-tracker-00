@@ -345,8 +345,7 @@ const BankDetailsPage = () => {
             if (savedAccounts) {
                 setAccounts(JSON.parse(savedAccounts));
             } else {
-                seedDefaultData();
-                return;
+                setAccounts([]);
             }
 
             if (savedTransactions) {
@@ -357,10 +356,9 @@ const BankDetailsPage = () => {
             }
         } catch (e) {
             console.error("Failed to parse banking records", e);
-            toast.error("Failed to load local bank records. Resetting state.");
-            seedDefaultData();
+            setAccounts([]);
         }
-    }, [seedDefaultData]);
+    }, []);
 
     // Ledger Calculations
     const accountBalances = useMemo(() => {

@@ -20,6 +20,7 @@ export interface InvoiceDetails {
         total: number | string;
         hsn_code?: string;
         unit?: string;
+        tax_rate?: number | string;
     }[];
     subtotal: number;
     discount_amount?: number;
@@ -41,10 +42,21 @@ export interface InvoiceDetails {
         gst?: string;
         logo_url?: string;
         signature_url?: string;
+        bank_name?: string;
+        bank_account_no?: string;
+        bank_ifsc?: string;
+        bank_branch?: string;
     };
 }
 
 export type InvoicePdfTheme = 'startup-gradient' | 'tally-accounting';
+
+export interface BankDetailsInfo {
+    bankName: string;
+    accountNumber: string;
+    ifscCode: string;
+    branchName?: string;
+}
 
 export interface TotalRow {
     label: string;
@@ -53,6 +65,149 @@ export interface TotalRow {
     isPaid?: boolean;
     isDue?: boolean;
 }
+
+/**
+ * Converts a numeric amount to Indian English Words (Rupees and Paise)
+ * e.g. 15340 -> "INR Fifteen Thousand Three Hundred Forty Rupees Only"
+ */
+export function convertAmountToIndianWords(amount: number): string {
+    if (!amount || isNaN(amount) || amount <= 0) return "Zero Rupees Only";
+
+    const singleDigits = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+    const teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+    const convertChunk = (n: number): string => {
+        let str = "";
+        if (n >= 100) {
+            str += singleDigits[Math.floor(n / 100)] + " Hundred ";
+            n %= 100;
+        }
+        if (n >= 10 && n <= 19) {
+            str += teens[n - 10] + " ";
+        } else if (n >= 20) {
+            str += tens[Math.floor(n / 10)] + " ";
+            if (n % 10 > 0) str += singleDigits[n % 10] + " ";
+        } else if (n > 0) {
+            str += singleDigits[n] + " ";
+        }
+        return str.trim();
+    };
+
+    const whole = Math.floor(amount);
+    const paise = Math.round((amount - whole) * 100);
+
+    let res = "";
+    const crore = Math.floor(whole / 10000000);
+    let rem = whole % 10000000;
+    const lakh = Math.floor(rem / 100000);
+    rem = rem % 100000;
+    const thousand = Math.floor(rem / 1000);
+    rem = rem % 1000;
+    const hundredAndBelow = rem;
+
+    if (crore > 0) res += convertChunk(crore) + " Crore ";
+    if (lakh > 0) res += convertChunk(lakh) + " Lakh ";
+    if (thousand > 0) res += convertChunk(thousand) + " Thousand ";
+    if (hundredAndBelow > 0) res += convertChunk(hundredAndBelow) + " ";
+
+    res = res.trim();
+    if (!res) res = "Zero";
+
+    res = `INR ${res} Rupees`;
+
+    if (paise > 0) {
+        res += ` and ${convertChunk(paise)} Paise`;
+    }
+
+    res += " Only";
+    return res.replace(/\s+/g, " ");
+}
+
+/**
+ * Reads bank accounts from localStorage
+ */
+export const getStoredBankAccounts = (): any[] => {
+    try {
+        const saved = localStorage.getItem("rupeebill_bank_accounts");
+        if (saved) {
+            const list = JSON.parse(saved);
+            if (Array.isArray(list)) return list;
+        }
+    } catch (e) {
+        console.error("Error reading stored bank accounts", e);
+    }
+    return [];
+};
+
+/**
+ * Resolves the real bank account to print on the invoice.
+ * Returns null if user turned off printing or if no real bank account is found.
+ * Never returns hardcoded dummy accounts.
+ */
+export const resolveInvoiceBankDetails = (options?: {
+    printBankDetails?: boolean;
+    bankDetails?: BankDetailsInfo;
+    selectedBankAccountId?: string;
+    profile?: any;
+    businessDetails?: any;
+}): BankDetailsInfo | null => {
+    // 1. Check setting
+    const printSetting = options?.printBankDetails !== undefined 
+        ? options.printBankDetails 
+        : localStorage.getItem("rupeebill_print_bank_details") !== "false";
+
+    if (!printSetting) {
+        return null;
+    }
+
+    // 2. Explicit bankDetails passed
+    if (options?.bankDetails?.bankName && options?.bankDetails?.accountNumber) {
+        return options.bankDetails;
+    }
+
+    // 3. Check customer added bank accounts from localStorage
+    const accounts = getStoredBankAccounts();
+    if (accounts.length > 0) {
+        const preferredId = options?.selectedBankAccountId || localStorage.getItem("rupeebill_selected_bank_account_id");
+        let target = accounts.find((a: any) => a.id === preferredId);
+        if (!target) {
+            target = accounts.find((a: any) => a.isDefault) || accounts[0];
+        }
+        if (target && target.bankName && target.accountNumber) {
+            return {
+                bankName: target.bankName,
+                accountNumber: target.accountNumber,
+                ifscCode: target.ifscCode || "",
+                branchName: target.branchName || ""
+            };
+        }
+    }
+
+    // 4. Check business_details or profile
+    const biz = options?.businessDetails;
+    if (biz?.bank_name && biz?.bank_account_no) {
+        return {
+            bankName: biz.bank_name,
+            accountNumber: biz.bank_account_no,
+            ifscCode: biz.bank_ifsc || "",
+            branchName: biz.bank_branch || ""
+        };
+    }
+
+    const profile = options?.profile;
+    if (profile?.bank_name && profile?.bank_account_no) {
+        return {
+            bankName: profile.bank_name,
+            accountNumber: profile.bank_account_no,
+            ifscCode: profile.bank_ifsc || "",
+            branchName: profile.bank_branch || ""
+        };
+    }
+
+    // 5. No real bank details found -> return null
+    return null;
+};
 
 const parseSafeDate = (d: any): Date => {
     if (!d) return new Date();
@@ -76,10 +231,14 @@ const sanitizeText = (text: string) => {
     return text.replace(/[^\x00-\x7F]/g, "");
 };
 
-const formatCurrencySafe = (amount: number | string) => {
+const formatAmountClean = (amount: number | string) => {
     const num = Number(amount);
     if (isNaN(num)) return "0.00";
-    return `Rs. ${num.toFixed(2)}`;
+    return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const formatCurrencySafe = (amount: number | string) => {
+    return `Rs. ${formatAmountClean(amount)}`;
 };
 
 const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width: number, height: number } | null> => {
@@ -128,6 +287,8 @@ const fetchImageAsBase64 = async (url: string): Promise<{ dataUrl: string, width
         return null;
     }
 };
+
+const getBase64Image = fetchImageAsBase64;
 
 const runAutoTable = (pdfDoc: jsPDF, opts: any) => {
     const userWillDrawCell = opts.willDrawCell;
@@ -225,7 +386,17 @@ export const handleContinuationPage = (
 
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
-    options?: { action?: 'download' | 'preview', theme?: InvoicePdfTheme, documentTitle?: string, pageSize?: PageSize, customTerms?: string, fontSizeFactor?: number }
+    options?: { 
+        action?: 'download' | 'preview', 
+        theme?: InvoicePdfTheme, 
+        documentTitle?: string, 
+        pageSize?: PageSize, 
+        customTerms?: string, 
+        fontSizeFactor?: number,
+        printBankDetails?: boolean,
+        bankDetails?: BankDetailsInfo,
+        selectedBankAccountId?: string
+    }
 ) => {
     try {
         const autoTable = runAutoTable;
@@ -265,88 +436,47 @@ export const generateInvoicePDF = async (
             ? Number(data.balance_due) 
             : Math.max(0, totalAmount - amountPaid);
 
-        const bizName = safeText(data.business_details?.name || "RupeeBill Business");
-        const pageHeight = doc.internal.pageSize.getHeight();
+        // Resolve real bank account details (no hardcoded fallback)
+        const resolvedBank = resolveInvoiceBankDetails({
+            printBankDetails: options?.printBankDetails,
+            bankDetails: options?.bankDetails,
+            selectedBankAccountId: options?.selectedBankAccountId,
+            businessDetails: data.business_details
+        });
+
         const pageWidth = doc.internal.pageSize.getWidth();
-        const scale = pageWidth / 210;
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const scale = pageSize === 'a5' ? 0.72 : 1.0;
+        const marginX = (pageSize === 'a5' ? 10 : 14);
+
+        const logoBase64 = data.business_details?.logo_url ? await getBase64Image(data.business_details.logo_url) : null;
+        const signatureBase64 = data.business_details?.signature_url ? await getBase64Image(data.business_details.signature_url) : null;
+
+        const bizName = safeText(data.business_details?.name || "Business Name");
+        const custGSTIN = safeText(data.customer_gstin);
 
         let taxRateVal = Number(data.tax_rate) || 0;
         if (taxRateVal === 0 && data.tax_amount && data.tax_amount > 0) {
             const taxableAmount = Math.max(1, Number(data.subtotal || 0) - Number(data.discount_amount || 0));
             taxRateVal = Math.round((Number(data.tax_amount) / taxableAmount) * 100);
         }
-        const getScaledColumnStyles = (baseStyles: Record<number, any>) => {
-            const scaled: any = {};
-            for (const key in baseStyles) {
-                const style = baseStyles[key];
-                scaled[key] = {
-                    ...style,
-                    cellWidth: style.cellWidth ? style.cellWidth * scale : undefined
-                };
-            }
-            return scaled;
-        };
-        const marginX = 14 * scale;
-
-        const tableRows = data.items.map(item => [
-            safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
-            item.quantity.toString(),
-            formatCurrencySafe(item.price),
-            formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
-        ]);
-
-        // Fetch images
-        let logoBase64: { dataUrl: string, width: number, height: number } | null = null;
-        let signatureBase64: { dataUrl: string, width: number, height: number } | null = null;
-
-        if (data.business_details?.logo_url) {
-            logoBase64 = await fetchImageAsBase64(data.business_details.logo_url);
-        }
-        
-        if (data.business_details?.signature_url) {
-            signatureBase64 = await fetchImageAsBase64(data.business_details.signature_url);
+        if (taxRateVal === 0 && data.items.length > 0 && data.items[0].tax_rate) {
+            taxRateVal = Number(data.items[0].tax_rate) || 0;
         }
 
-        // Tax logic
-        let cgstVal = data.cgst || 0;
-        let sgstVal = data.sgst || 0;
-        let igstVal = data.igst || 0;
-        let isInterState = false;
+        const cgstVal = data.cgst !== undefined ? Number(data.cgst) : ((Number(data.tax_amount) || 0) / 2);
+        const sgstVal = data.sgst !== undefined ? Number(data.sgst) : ((Number(data.tax_amount) || 0) / 2);
 
-        const bizGSTIN = data.business_details?.gst?.trim().toUpperCase();
-        const custGSTIN = data.customer_gstin?.trim().toUpperCase();
-        
-        if (data.tax_amount && data.tax_amount > 0 && !cgstVal && !igstVal) {
-            if (bizGSTIN && bizGSTIN.length >= 2 && custGSTIN && custGSTIN.length >= 2) {
-                if (bizGSTIN.substring(0, 2) !== custGSTIN.substring(0, 2)) {
-                    isInterState = true;
-                }
+        const getTaxRows = (prefix: string) => {
+            if (!data.tax_amount || data.tax_amount <= 0) return [];
+            const tr = taxRateVal;
+            if (data.igst !== undefined && Number(data.igst) > 0) {
+                return [{ label: `IGST (${tr}%)`, value: Number(data.igst) }];
             }
-            if (isInterState) {
-                igstVal = data.tax_amount;
-            } else {
-                cgstVal = Number((data.tax_amount / 2).toFixed(2));
-                sgstVal = Number((data.tax_amount - cgstVal).toFixed(2));
-            }
-        }
-
-        const getTaxRows = (style: "paren" | "at" = "paren"): TotalRow[] => {
-            const rows: TotalRow[] = [];
-            const splitRate = taxRateVal ? taxRateVal / 2 : 0;
-            const cgstLabel = splitRate ? (style === "at" ? `CGST @ ${splitRate}%` : `CGST (${splitRate}%)`) : "CGST";
-            const sgstLabel = splitRate ? (style === "at" ? `SGST @ ${splitRate}%` : `SGST (${splitRate}%)`) : "SGST";
-            const igstLabel = taxRateVal ? (style === "at" ? `IGST @ ${taxRateVal}%` : `IGST (${taxRateVal}%)`) : "IGST";
-
-            if (isInterState && igstVal > 0) {
-                rows.push({ label: igstLabel, value: igstVal });
-            } else if (!isInterState && (cgstVal > 0 || sgstVal > 0)) {
-                if (cgstVal > 0) rows.push({ label: cgstLabel, value: cgstVal });
-                if (sgstVal > 0) rows.push({ label: sgstLabel, value: sgstVal });
-            } else if (data.tax_amount && data.tax_amount > 0) {
-                rows.push({ label: taxRateVal ? `Tax (${taxRateVal}%)` : "Tax", value: data.tax_amount });
-            }
-
-            return rows;
+            return [
+                { label: `CGST (${tr/2}%)`, value: cgstVal },
+                { label: `SGST (${tr/2}%)`, value: sgstVal }
+            ];
         };
 
         const totalRows: TotalRow[] = [
@@ -364,124 +494,195 @@ export const generateInvoicePDF = async (
             const textDark: [number, number, number] = [0, 0, 0];
             const fontStyle = "helvetica";
             const tallyMarginX = 10 * scale;
+            const tallyMarginY = 10 * scale;
 
             // Outer border around the page
             doc.setDrawColor(...lineDark);
             doc.setLineWidth(0.5);
-            doc.rect(tallyMarginX, tallyMarginX, pageWidth - 2 * tallyMarginX, pageHeight - 2 * tallyMarginX);
+            doc.rect(tallyMarginX, tallyMarginY, pageWidth - 2 * tallyMarginX, pageHeight - 2 * tallyMarginY);
 
             // Centered Header Label: "TAX INVOICE"
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(11);
-            doc.text(documentTitle || "TAX INVOICE", pageWidth / 2, 16, { align: "center" });
-            doc.line(tallyMarginX, 19, pageWidth - tallyMarginX, 19);
+            doc.text(documentTitle || "TAX INVOICE", pageWidth / 2, 16 * scale, { align: "center" });
+            doc.line(tallyMarginX, 19 * scale, pageWidth - tallyMarginX, 19 * scale);
 
-            // Quadrants: Vertical divider
-            doc.line(pageWidth / 2, 19, pageWidth / 2, 75);
+            const midX = pageWidth / 2;
 
             // Quadrant 1: Seller Details (Top Left)
-            doc.setFont(fontStyle, "normal");
+            doc.setFont(fontStyle, "bold");
             doc.setFontSize(7.5);
-            doc.text("Sender / Company Details:", tallyMarginX + 2, 23);
+            doc.setTextColor(80, 80, 80);
+            doc.text("Sender / Company Details:", tallyMarginX + 2, 23 * scale);
+            doc.setTextColor(...textDark);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(11);
-            doc.text(bizName, tallyMarginX + 2, 28);
+            doc.text(bizName, tallyMarginX + 2, 27.5 * scale);
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8);
-            let sellerY = 32;
+            doc.setFontSize(7.5);
+            let sellerY = 31.5 * scale;
             if (data.business_details?.address) {
-                const addrLines = doc.splitTextToSize(safeText(data.business_details.address), pageWidth / 2 - tallyMarginX - 5);
+                const addrLines = doc.splitTextToSize(safeText(data.business_details.address), midX - tallyMarginX - 4);
                 doc.text(addrLines, tallyMarginX + 2, sellerY);
-                sellerY += addrLines.length * 3.6 + 1.2;
+                sellerY += addrLines.length * 3.4 * scale;
             }
             if (data.business_details?.phone) {
                 doc.text(`Phone: ${safeText(data.business_details.phone)}`, tallyMarginX + 2, sellerY);
-                sellerY += 4;
+                sellerY += 3.6 * scale;
             }
             if (data.business_details?.gst) {
+                doc.setFont(fontStyle, "bold");
                 doc.text(`GSTIN/UIN: ${safeText(data.business_details.gst)}`, tallyMarginX + 2, sellerY);
+                doc.setFont(fontStyle, "normal");
+                sellerY += 3.6 * scale;
             }
 
-            // Quadrant 2: Invoice Details (Top Right)
+            // Quadrant 2: Invoice Metadata (Top Right)
+            let metaY = 23 * scale;
+            const metaLabelX = midX + 2;
+            const metaValX = pageWidth - tallyMarginX - 2;
+
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8);
-            doc.text(`Invoice No:`, pageWidth / 2 + 2, 24);
+            doc.setFontSize(7.5);
+            doc.text("Invoice No:", metaLabelX, metaY);
             doc.setFont(fontStyle, "bold");
-            doc.text(safeText(data.invoice_number), pageWidth / 2 + 38, 24);
-            
+            doc.text(safeText(data.invoice_number), metaValX, metaY, { align: "right" });
+            metaY += 4.8 * scale;
+
             doc.setFont(fontStyle, "normal");
-            doc.text(`Dated:`, pageWidth / 2 + 2, 30);
-            doc.text(dateFormatted, pageWidth / 2 + 38, 30);
+            doc.text("Dated:", metaLabelX, metaY);
+            doc.setFont(fontStyle, "bold");
+            doc.text(dateFormatted, metaValX, metaY, { align: "right" });
+            metaY += 4.8 * scale;
 
-            doc.text(`Delivery Note:`, pageWidth / 2 + 2, 36);
-            doc.text(dueDateFormatted ? `Due: ${dueDateFormatted}` : "Direct Delivery", pageWidth / 2 + 38, 36);
+            doc.setFont(fontStyle, "normal");
+            doc.text("Delivery Note:", metaLabelX, metaY);
+            doc.text(dueDateFormatted ? `Due: ${dueDateFormatted}` : "Direct Delivery", metaValX, metaY, { align: "right" });
+            metaY += 4.8 * scale;
 
-            doc.text(`Mode/Terms of Payment:`, pageWidth / 2 + 2, 42);
+            doc.text("Mode/Terms:", metaLabelX, metaY);
             const statusLabel = balanceDue <= 0 ? "Immediate / Paid" : (amountPaid > 0 ? `Partial (Due: Rs. ${balanceDue.toFixed(2)})` : "Pending / Due");
-            doc.text(statusLabel, pageWidth / 2 + 38, 42);
+            doc.setFont(fontStyle, "bold");
+            if (balanceDue <= 0) doc.setTextColor(22, 101, 52);
+            else if (amountPaid > 0) doc.setTextColor(180, 83, 9);
+            else doc.setTextColor(220, 38, 38);
+            doc.text(statusLabel, metaValX, metaY, { align: "right" });
+            doc.setTextColor(...textDark);
+            metaY += 4.8 * scale;
 
-            // Horizontal border separating Quadrants 1/2 from 3/4
-            doc.line(tallyMarginX, 47, pageWidth - tallyMarginX, 47);
+            // Horizontal dividing line between Quadrants 1/2 and 3/4
+            const middleY = Math.max(sellerY + 2, metaY + 2, 45 * scale);
+            doc.line(tallyMarginX, middleY, pageWidth - tallyMarginX, middleY);
 
             // Quadrant 3: Buyer Details (Bottom Left)
-            doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8);
-            doc.text("Buyer (Bill to):", tallyMarginX + 2, 51);
+            let buyerY = middleY + 4 * scale;
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(7.5);
+            doc.setTextColor(80, 80, 80);
+            doc.text("Buyer (Bill to):", tallyMarginX + 2, buyerY);
+            doc.setTextColor(...textDark);
+            buyerY += 4.2 * scale;
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(10);
-            doc.text(safeText(data.customer_name), tallyMarginX + 2, 56);
+            doc.text(safeText(data.customer_name || "Walk-in Guest"), tallyMarginX + 2, buyerY);
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8.5);
-            let buyerY = 61;
+            doc.setFontSize(7.5);
+            buyerY += 4 * scale;
             if (data.customer_phone) {
                 doc.text(`Phone: ${safeText(data.customer_phone)}`, tallyMarginX + 2, buyerY);
-                buyerY += 4.5;
+                buyerY += 3.6 * scale;
             }
             if (data.customer_email) {
                 doc.text(`Email: ${safeText(data.customer_email)}`, tallyMarginX + 2, buyerY);
-                buyerY += 4.5;
+                buyerY += 3.6 * scale;
             }
             if (custGSTIN) {
+                doc.setFont(fontStyle, "bold");
                 doc.text(`GSTIN/UIN: ${custGSTIN}`, tallyMarginX + 2, buyerY);
+                doc.setFont(fontStyle, "normal");
+                buyerY += 3.6 * scale;
             }
 
-            // Quadrant 4: Dispatch Details (Bottom Right)
-            doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8);
-            doc.text("Consignee (Ship to):", pageWidth / 2 + 2, 51);
+            // Quadrant 4: Consignee Details (Bottom Right)
+            let shipY = middleY + 4 * scale;
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(7.5);
+            doc.setTextColor(80, 80, 80);
+            doc.text("Consignee (Ship to):", midX + 2, shipY);
+            doc.setTextColor(...textDark);
+            shipY += 4.2 * scale;
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(9.5);
-            doc.text(safeText(data.customer_name), pageWidth / 2 + 2, 56);
+            doc.text(safeText(data.customer_name || "Walk-in Guest"), midX + 2, shipY);
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8.5);
-            doc.text("Same as billing address", pageWidth / 2 + 2, 61);
+            doc.setFontSize(7.5);
+            shipY += 4 * scale;
+            doc.text("Same as billing address", midX + 2, shipY);
+            shipY += 4 * scale;
+
+            // Compute table start Y
+            const tableStartY = Math.max(buyerY + 3, shipY + 3, middleY + 24 * scale);
+
+            // Vertical divider between quadrants
+            doc.line(midX, 19 * scale, midX, tableStartY);
 
             // Border above table
-            doc.line(tallyMarginX, 75, pageWidth - tallyMarginX, 75);
+            doc.line(tallyMarginX, tableStartY, pageWidth - tallyMarginX, tableStartY);
 
-            // Autotable
+            // Standard 6-column Tally Table
             const tableRowsTally = data.items.map((item, index) => [
                 (index + 1).toString(),
                 safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
                 item.quantity.toString(),
-                formatCurrencySafe(item.price),
-                safeText(item.unit || ""),
-                formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+                formatAmountClean(item.price),
+                safeText(item.unit || "pcs"),
+                formatAmountClean(item.total ?? (Number(item.quantity) * Number(item.price)))
             ]);
 
             autoTable(doc, {
-                startY: 75,
-                head: [["S.No", "Description of Goods", "Qty", "Rate", "per", "Amount"]],
+                startY: tableStartY,
+                head: [[
+                    { content: "S.No", styles: { halign: 'center' } },
+                    { content: "Description of Goods", styles: { halign: 'left' } },
+                    { content: "Qty", styles: { halign: 'center' } },
+                    { content: "Rate", styles: { halign: 'right' } },
+                    { content: "per", styles: { halign: 'center' } },
+                    { content: "Amount", styles: { halign: 'right' } }
+                ]],
                 body: tableRowsTally,
                 theme: 'grid',
-                headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8.5, cellPadding: 3, lineWidth: 0.5, lineColor: [0, 0, 0] },
-                bodyStyles: { textColor: [0, 0, 0], fontSize: 8.5, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.5 },
+                headStyles: { 
+                    fillColor: [255, 255, 255], 
+                    textColor: [0, 0, 0], 
+                    fontStyle: 'bold', 
+                    fontSize: 8, 
+                    cellPadding: 2.8, 
+                    lineWidth: 0.5, 
+                    lineColor: [0, 0, 0] 
+                },
+                bodyStyles: { 
+                    textColor: [0, 0, 0], 
+                    fontSize: 8, 
+                    cellPadding: 2.8, 
+                    lineColor: [0, 0, 0], 
+                    lineWidth: 0.5 
+                },
                 columnStyles: { 
                     0: { cellWidth: 12 * scale, halign: 'center' }, 
-                    2: { cellWidth: 15 * scale, halign: 'center' }, 
+                    2: { cellWidth: 16 * scale, halign: 'center' }, 
                     3: { cellWidth: 28 * scale, halign: 'right' }, 
-                    4: { cellWidth: 15 * scale, halign: 'center' },
-                    5: { cellWidth: 30 * scale, halign: 'right' } 
+                    4: { cellWidth: 14 * scale, halign: 'center' },
+                    5: { cellWidth: 32 * scale, halign: 'right' } 
+                },
+                didParseCell: (hookData: any) => {
+                    const colIdx = hookData.column.index;
+                    if (colIdx === 0 || colIdx === 2 || colIdx === 4) {
+                        hookData.cell.styles.halign = 'center';
+                    } else if (colIdx === 3 || colIdx === 5) {
+                        hookData.cell.styles.halign = 'right';
+                    } else if (colIdx === 1) {
+                        hookData.cell.styles.halign = 'left';
+                    }
                 },
                 margin: { left: tallyMarginX, right: tallyMarginX },
             });
@@ -489,143 +690,155 @@ export const generateInvoicePDF = async (
             let finalY = (doc as any).lastAutoTable.finalY;
             finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, lineDark, theme, data.invoice_number, bizName);
 
-            const footerHeight = 70;
-            const footerStartY = Math.max(finalY, pageHeight - 10 - footerHeight);
+            // Footer height adapts if bank details are printed or omitted
+            const footerHeight = (resolvedBank ? 65 : 50) * scale;
+            const footerStartY = Math.max(finalY, pageHeight - tallyMarginY - footerHeight);
 
             doc.setDrawColor(...lineDark);
             doc.setLineWidth(0.5);
-            if (finalY < footerStartY) {
-                const colXs = [
-                    tallyMarginX + 12 * scale,
-                    tallyMarginX + 102 * scale,
-                    tallyMarginX + 117 * scale,
-                    tallyMarginX + 145 * scale,
-                    tallyMarginX + 160 * scale
-                ];
-                colXs.forEach(x => {
-                    doc.line(x, finalY, x, footerStartY);
-                });
+
+            // Dynamic continuation vertical lines derived from actual table columns
+            const headCells = (doc as any).lastAutoTable?.head?.[0]?.cells;
+            if (headCells && finalY < footerStartY) {
+                const cellKeys = Object.keys(headCells);
+                for (let i = 0; i < cellKeys.length - 1; i++) {
+                    const c = headCells[cellKeys[i]];
+                    if (c && typeof c.x === 'number' && typeof c.width === 'number') {
+                        const lineX = c.x + c.width;
+                        doc.line(lineX, finalY, lineX, footerStartY);
+                    }
+                }
             }
 
             // Box for bank/amount details starting at footerStartY
-            doc.rect(tallyMarginX, footerStartY, pageWidth - 2 * tallyMarginX, pageHeight - 10 - footerStartY);
+            doc.rect(tallyMarginX, footerStartY, pageWidth - 2 * tallyMarginX, (pageHeight - tallyMarginY) - footerStartY);
             
-            // Vertical split
-            const splitX = pageWidth - 85 * scale;
-            doc.line(splitX, footerStartY, splitX, pageHeight - 10);
+            // Vertical split: left column for words/bank/declaration, right for financial breakdown & signature
+            const splitX = pageWidth - (80 * scale);
+            doc.line(splitX, footerStartY, splitX, pageHeight - tallyMarginY);
             
-            // Left Column: Bank / Words / Declarations
+            // --- LEFT COLUMN: Words, Bank Details (if active), Declaration ---
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8);
-            doc.text("Amount Chargeable (in words):", tallyMarginX + 2, footerStartY + 5);
+            doc.setFontSize(7.5);
+            doc.text("Amount Chargeable (in words):", tallyMarginX + 2, footerStartY + 4.5);
+            
             doc.setFont(fontStyle, "bold");
-            doc.text(`INR ${formatCurrencySafe(data.total_amount).replace("Rs. ", "")} Only`, tallyMarginX + 2, footerStartY + 10);
-
-            // Horizontal line in left column
-            doc.line(tallyMarginX, footerStartY + 15, splitX, footerStartY + 15);
-            
-            // GST Tax split details
-            doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
-            doc.text("Tax Summary & CGST/SGST splitting computed internally under GST rules.", tallyMarginX + 2, footerStartY + 20);
+            const wordsText = convertAmountToIndianWords(data.total_amount);
+            const splitWords = doc.splitTextToSize(wordsText, splitX - tallyMarginX - 4);
+            doc.text(splitWords, tallyMarginX + 2, footerStartY + 8.5);
+            let leftCurrentY = footerStartY + 8.5 + (splitWords.length * 3.4);
 
-            // Bank details
-            let bankNameText = "Bank Name: State Bank of India";
-            let bankAccText = "A/c No: 332405891234";
-            let bankIfscText = "Branch & IFSC: SBI0001609";
-
-            try {
-                const savedBanks = localStorage.getItem("rupeebill_bank_accounts");
-                if (savedBanks) {
-                    const accounts = JSON.parse(savedBanks);
-                    const defaultAcc = accounts.find((a: any) => a.isDefault) || accounts[0];
-                    if (defaultAcc) {
-                        bankNameText = `Bank Name: ${defaultAcc.bankName || ""}`;
-                        bankAccText = `A/c No: ${defaultAcc.accountNumber || ""}`;
-                        bankIfscText = `Branch & IFSC: ${defaultAcc.branchName || ""} / ${defaultAcc.ifscCode || ""}`;
-                    }
+            // Real Bank details (only rendered if user has added a real bank account and setting is enabled)
+            if (resolvedBank) {
+                doc.line(tallyMarginX, leftCurrentY + 1.5, splitX, leftCurrentY + 1.5);
+                leftCurrentY += 5;
+                doc.setFont(fontStyle, "bold");
+                doc.setFontSize(7.5);
+                doc.text("Company's Bank Details:", tallyMarginX + 2, leftCurrentY);
+                leftCurrentY += 3.6;
+                doc.setFont(fontStyle, "normal");
+                doc.setFontSize(7);
+                doc.text(`Bank Name : ${resolvedBank.bankName}`, tallyMarginX + 2, leftCurrentY);
+                leftCurrentY += 3.2;
+                doc.text(`A/c No.   : ${resolvedBank.accountNumber}`, tallyMarginX + 2, leftCurrentY);
+                leftCurrentY += 3.2;
+                const branchIfsc = [
+                    resolvedBank.branchName ? `Branch: ${resolvedBank.branchName}` : '',
+                    resolvedBank.ifscCode ? `IFSC: ${resolvedBank.ifscCode}` : ''
+                ].filter(Boolean).join("  |  ");
+                if (branchIfsc) {
+                    doc.text(branchIfsc, tallyMarginX + 2, leftCurrentY);
+                    leftCurrentY += 3.2;
                 }
-            } catch (e) {
-                console.error("Error reading bank details", e);
             }
 
-            doc.text(bankNameText, tallyMarginX + 2, footerStartY + 28);
-            doc.text(bankAccText, tallyMarginX + 2, footerStartY + 32);
-            doc.text(bankIfscText, tallyMarginX + 2, footerStartY + 36);
-
             // Horizontal line above declaration
-            doc.line(tallyMarginX, footerStartY + 40, splitX, footerStartY + 40);
+            doc.line(tallyMarginX, leftCurrentY + 1.5, splitX, leftCurrentY + 1.5);
+            leftCurrentY += 5;
             
             // Declaration
             doc.setFont(fontStyle, "bold");
-            doc.text("Declaration:", tallyMarginX + 2, footerStartY + 44);
-            doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
-            const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
-            doc.text(doc.splitTextToSize(termsText, splitX - tallyMarginX - 4), tallyMarginX + 2, footerStartY + 49);
-
-            // Right Column: Summary & Signatory
-            let rightY = footerStartY + 5;
+            doc.text("Declaration:", tallyMarginX + 2, leftCurrentY);
+            leftCurrentY += 3.5;
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(9);
+            doc.setFontSize(6.8);
+            const termsText = customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+            const splitTerms = doc.splitTextToSize(termsText, splitX - tallyMarginX - 4);
+            doc.text(splitTerms, tallyMarginX + 2, leftCurrentY);
+
+            // Seal note at bottom left
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(6.5);
+            doc.setTextColor(110, 110, 110);
+            doc.text("Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5);
+            doc.setTextColor(...textDark);
+
+            // --- RIGHT COLUMN: Summary & Signatory ---
+            let rightY = footerStartY + 4.5;
+            doc.setFont(fontStyle, "normal");
+            doc.setFontSize(8);
             
             doc.text("Subtotal:", splitX + 2, rightY);
             doc.text(formatCurrencySafe(data.subtotal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-            rightY += 5;
+            rightY += 4.5;
             
             if (data.discount_amount && data.discount_amount > 0) {
                 doc.text("Discount:", splitX + 2, rightY);
                 doc.text(`-${formatCurrencySafe(data.discount_amount)}`, pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-                rightY += 5;
+                rightY += 4.5;
             }
             if (data.tax_amount && data.tax_amount > 0) {
                 const tr = taxRateVal;
                 doc.text(`CGST (${tr/2}%):`, splitX + 2, rightY);
                 doc.text(formatCurrencySafe(cgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-                rightY += 5;
+                rightY += 4.5;
                 doc.text(`SGST (${tr/2}%):`, splitX + 2, rightY);
                 doc.text(formatCurrencySafe(sgstVal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
-                rightY += 5;
+                rightY += 4.5;
             }
             
-            doc.line(splitX, rightY - 2, pageWidth - tallyMarginX, rightY - 2);
+            doc.line(splitX, rightY - 1, pageWidth - tallyMarginX, rightY - 1);
             doc.setFont(fontStyle, "bold");
+            doc.setFontSize(9);
             doc.text("Total:", splitX + 2, rightY + 3);
             doc.text(formatCurrencySafe(data.total_amount), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
-            rightY += 8;
+            rightY += 7.5;
 
             // Partial Payment Breakdown
-            doc.line(splitX, rightY - 2, pageWidth - tallyMarginX, rightY - 2);
+            doc.line(splitX, rightY - 1, pageWidth - tallyMarginX, rightY - 1);
             doc.setFont(fontStyle, "normal");
+            doc.setFontSize(7.5);
             doc.setTextColor(22, 101, 52); // Forest green
-            doc.text("Amount Paid:", splitX + 2, rightY + 3);
-            doc.text(formatCurrencySafe(amountPaid), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
-            rightY += 6;
+            doc.text("Amount Paid:", splitX + 2, rightY + 2.8);
+            doc.text(formatCurrencySafe(amountPaid), pageWidth - tallyMarginX - 2, rightY + 2.8, { align: "right" });
+            rightY += 5.5;
 
             doc.setFont(fontStyle, "bold");
             if (balanceDue > 0) {
                 doc.setTextColor(185, 28, 28); // Crimson red
-                doc.text("Balance Due (Pending):", splitX + 2, rightY + 3);
-                doc.text(formatCurrencySafe(balanceDue), pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
+                doc.text("Balance Due:", splitX + 2, rightY + 2.8);
+                doc.text(formatCurrencySafe(balanceDue), pageWidth - tallyMarginX - 2, rightY + 2.8, { align: "right" });
             } else {
                 doc.setTextColor(22, 101, 52); // Forest green
-                doc.text("Balance Due:", splitX + 2, rightY + 3);
-                doc.text("Rs. 0.00 (PAID)", pageWidth - tallyMarginX - 2, rightY + 3, { align: "right" });
+                doc.text("Balance Due:", splitX + 2, rightY + 2.8);
+                doc.text("0.00 (PAID)", pageWidth - tallyMarginX - 2, rightY + 2.8, { align: "right" });
             }
             doc.setTextColor(...textDark);
-            rightY += 8;
+            rightY += 6.5;
 
             doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
 
             // Signatory Block
-            const sigY = pageHeight - 35;
-            doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8.5);
-            doc.text(`for ${bizName.toUpperCase()}`, splitX + 2, Math.max(rightY + 5, sigY - 6));
+            const signatoryY = rightY + 3;
+            doc.setFont(fontStyle, "bold");
+            doc.setFontSize(7.5);
+            doc.text(`for ${bizName.toUpperCase()}`, splitX + 2, signatoryY);
             
             const signatoryCenterX = splitX + (pageWidth - tallyMarginX - splitX) / 2;
             if (signatureBase64) {
-                const maxDim = 28 * scale;
+                const maxDim = 22 * scale;
                 let renderW = signatureBase64.width;
                 let renderH = signatureBase64.height;
                 if (renderW > maxDim || renderH > maxDim) {
@@ -633,12 +846,12 @@ export const generateInvoicePDF = async (
                     renderW *= ratio;
                     renderH *= ratio;
                 }
-                doc.addImage(signatureBase64.dataUrl, "PNG", signatoryCenterX - renderW/2, sigY - 2, renderW, renderH);
+                doc.addImage(signatureBase64.dataUrl, "PNG", signatoryCenterX - renderW/2, pageHeight - tallyMarginY - renderH - 6, renderW, renderH);
             }
             
             doc.setFont(fontStyle, "normal");
-            doc.setFontSize(8);
-            doc.text("Authorized Signatory", signatoryCenterX, pageHeight - 14, { align: "center" });
+            doc.setFontSize(7.5);
+            doc.text("Authorized Signatory", signatoryCenterX, pageHeight - tallyMarginY - 2.5, { align: "center" });
 
         } else {
             // --- STARTUP GRADIENT THEME (Modern Tech Default) ---
@@ -753,15 +966,42 @@ export const generateInvoicePDF = async (
             if (data.customer_email) { doc.text(`Email: ${safeText(data.customer_email)}`, 14, billY); billY += 5; }
             if (custGSTIN) { doc.text(`GSTIN/UIN: ${custGSTIN}`, 14, billY); billY += 5; }
 
+            const tableRows = data.items.map((item) => [
+                safeText(item.description) + (item.hsn_code ? `\nHSN: ${safeText(item.hsn_code)}` : ""),
+                item.quantity.toString(),
+                formatCurrencySafe(item.price),
+                formatCurrencySafe(item.total ?? (Number(item.quantity) * Number(item.price)))
+            ]);
+
             autoTable(doc, {
                 startY: Math.max(85, billY + 10),
-                head: [["Item Description", "Qty", "Price", "Amount"]],
+                head: [[
+                    { content: "Item Description", styles: { halign: 'left' } },
+                    { content: "Qty", styles: { halign: 'center' } },
+                    { content: "Price", styles: { halign: 'right' } },
+                    { content: "Amount", styles: { halign: 'right' } }
+                ]],
                 body: tableRows,
                 theme: 'grid',
                 headStyles: { fillColor: indigoColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
                 bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 244, 246] },
                 alternateRowStyles: { fillColor: [249, 250, 251] },
-                columnStyles: getScaledColumnStyles({ 0: { cellWidth: 90 }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } }),
+                columnStyles: { 
+                    0: { cellWidth: 90 * scale }, 
+                    1: { cellWidth: 22 * scale, halign: 'center' }, 
+                    2: { cellWidth: 35 * scale, halign: 'right' }, 
+                    3: { cellWidth: 35 * scale, halign: 'right' } 
+                },
+                didParseCell: (hookData: any) => {
+                    const colIdx = hookData.column.index;
+                    if (colIdx === 1) {
+                        hookData.cell.styles.halign = 'center';
+                    } else if (colIdx === 2 || colIdx === 3) {
+                        hookData.cell.styles.halign = 'right';
+                    } else if (colIdx === 0) {
+                        hookData.cell.styles.halign = 'left';
+                    }
+                },
                 margin: { left: marginX, right: marginX },
             });
 
