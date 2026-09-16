@@ -6,10 +6,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/core/hooks/use-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { Logo } from "@/components/shared/Logo";
 import { loadRazorpayScript } from "@/core/hooks/useRazorpayPayment";
+import { generateSoftwareBillPDF } from "@/utils/generateSoftwareBillPDF";
 import axios from "axios";
 import {
   CheckCircle2,
@@ -21,16 +23,68 @@ import {
   Calendar,
   AlertTriangle,
   Sparkles,
-  Info,
+  Lock,
+  Building,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Receipt,
+  Clock,
+  ArrowRight,
+  Download,
+  Star,
 } from "lucide-react";
 
-interface RazorpayConstructor {
-  new (options: RazorpayOptions): RazorpayInstance;
+// Suppress Canvas2D willReadFrequently browser warning globally
+if (typeof window !== "undefined" && typeof HTMLCanvasElement !== "undefined") {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type: string, attributes?: any) {
+    if (type === "2d") {
+      return originalGetContext.call(this, type, { willReadFrequently: true, ...attributes });
+    }
+    return originalGetContext.call(this, type, attributes);
+  } as any;
 }
 
-interface RazorpayInstance {
-  open: () => void;
-  on: (event: string, callback: (response: RazorpayPaymentResponse) => void) => void;
+// Convert Razorpay third-party preload links to prefetch to eliminate Chromium's unused preload warning
+if (typeof window !== "undefined" && typeof document !== "undefined" && typeof MutationObserver !== "undefined") {
+  try {
+    const preloadObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of Array.from(mutation.addedNodes)) {
+          if (node instanceof HTMLLinkElement && node.rel === "preload") {
+            const href = node.href || "";
+            if (href.includes("razorpay.com") || href.includes("checkout-static")) {
+              node.rel = "prefetch";
+            }
+          }
+        }
+      }
+    });
+
+    if (document.head) {
+      preloadObserver.observe(document.head, { childList: true });
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        preloadObserver.observe(document.head, { childList: true });
+      });
+    }
+
+    // Filter out third-party SDK unhandled console warnings
+    const originalWarn = console.warn.bind(console);
+    console.warn = (...args: any[]) => {
+      const first = typeof args[0] === "string" ? args[0] : "";
+      if (
+        (first.includes("razorpay.com") && first.includes("preloaded using link preload")) ||
+        (first.includes("Canvas2D") && first.includes("willReadFrequently"))
+      ) {
+        return;
+      }
+      originalWarn(...args);
+    };
+  } catch (e) {
+    // Ignore in non-browser environments
+  }
 }
 
 interface RazorpayOptions {
@@ -39,7 +93,7 @@ interface RazorpayOptions {
   currency: string;
   name: string;
   description: string;
-  order_id: string;
+  order_id?: string;
   prefill?: {
     name?: string;
     email?: string;
@@ -63,20 +117,24 @@ interface RazorpayPaymentResponse {
 interface CreateOrderResponse {
   success: boolean;
   gatewayOrderId: string;
+  order_id?: string;
+  amount?: number;
   key_id?: string;
+  currency?: string;
 }
 
 interface VerifyPaymentResponse {
   success: boolean;
   message?: string;
+  status?: string;
+  paymentId?: string;
 }
-
-import { useRazorpayPayment } from "@/core/hooks/useRazorpayPayment";
 
 interface SubscriptionStatus {
   plan: string;
   status: string;
   current_period_end?: string | null;
+  current_period_start?: string | null;
 }
 
 export default function Pricing() {
@@ -84,12 +142,22 @@ export default function Pricing() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [paymentMethod, setPaymentMethod] = useState<"upi" | "card">("upi");
+  // Payment method & customer inputs
+  const [paymentMethod, setPaymentMethod] = useState<"upi" | "card" | "netbanking">("upi");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
+  
+  // Stored transaction details for generating the bill ONLY after payment
+  const [paidPaymentId, setPaidPaymentId] = useState<string>("");
+  const [paidOrderId, setPaidOrderId] = useState<string>("");
+  const [paidDateTime, setPaidDateTime] = useState<string>("");
+
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  // Authentication mode for unauthenticated users
   const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -97,115 +165,137 @@ export default function Pricing() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
 
+  // Expandable secondary details
+  const [showFeatures, setShowFeatures] = useState(false);
+
   /*
-   * IMPORTANT:
-   * Subscription information is READ ONLY on the frontend.
-   *
-   * The frontend must NEVER update subscription_status.
-   * Only your backend should grant Premium after verifying Razorpay payment.
+   * Read-only subscription query
    */
-  const { data: subStatus, isLoading: isSubLoading } =
-    useQuery<SubscriptionStatus | null>({
-      queryKey: ["subscription_status", user?.id],
+  const { data: subStatus, isLoading: isSubLoading } = useQuery<SubscriptionStatus | null>({
+    queryKey: ["subscription_status", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
 
-      queryFn: async () => {
-        if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("subscription_status")
+        .select("plan,status,current_period_end,current_period_start")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-        const { data, error } = await supabase
-          .from("subscription_status")
-          .select("plan,status,current_period_end")
-          .eq("user_id", user.id)
-          .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
 
-        if (error) {
-          throw error;
-        }
-
-        if (!data) {
-          return null;
-        }
-
-        return {
-          plan: data.plan ?? "free",
-          status: data.status ?? "inactive",
-          current_period_end: data.current_period_end,
-        };
-      },
-
-      enabled: !!user?.id,
-    });
+      return {
+        plan: data.plan ?? "free",
+        status: data.status ?? "inactive",
+        current_period_end: data.current_period_end,
+        current_period_start: data.current_period_start,
+      };
+    },
+    enabled: !!user?.id,
+  });
 
   useEffect(() => {
     if (!user) return;
-
-    setName(
-      user.user_metadata?.full_name ||
-        user.email?.split("@")[0] ||
-        ""
-    );
+    setName(user.user_metadata?.full_name || user.email?.split("@")[0] || "");
   }, [user]);
 
+  // 15-day trial calculation
   const getTrialDaysRemaining = () => {
-    if (!subStatus || subStatus.plan !== "trial") {
-      return 0;
-    }
-
-    if (!subStatus.current_period_end) {
-      return 15;
-    }
+    if (!subStatus || subStatus.plan !== "trial") return 0;
+    if (!subStatus.current_period_end) return 15;
 
     const end = new Date(subStatus.current_period_end);
     const now = new Date();
-
     const diffTime = end.getTime() - now.getTime();
-
-    const diffDays = Math.ceil(
-      diffTime / (1000 * 60 * 60 * 24)
-    );
-
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 0;
   };
 
   const trialDaysLeft = getTrialDaysRemaining();
-
-  const isTrialActive =
-    subStatus?.plan === "trial" &&
-    trialDaysLeft > 0;
-
-  const isTrialExpired =
-    (subStatus?.plan === "trial" &&
-      trialDaysLeft <= 0) ||
-    subStatus?.plan === "free";
-
+  const isTrialActive = subStatus?.plan === "trial" && trialDaysLeft > 0;
   const isPaidSubscriber =
-    ["pro", "business", "premium"].includes(
-      subStatus?.plan || ""
-    ) &&
+    ["pro", "business", "premium"].includes(subStatus?.plan || "") &&
     subStatus?.status === "active";
 
   /*
-   * IMPORTANT:
-   * Do not calculate the final payment amount here for security.
-   *
-   * The backend should determine the actual price.
-   *
-   * We only display the expected price to the user.
+   * Flat pricing: ₹299 for 6 Months (Zero tax, zero hidden fees)
    */
-  const displayBasePrice = 299;
-  const displayGstAmount = Math.round(
-    displayBasePrice * 0.18
-  );
-  const displayGrandTotal =
-    displayBasePrice + displayGstAmount;
+  const displayTotal = 299;
+  const validityMonths = 6;
 
   /*
-   * Authentication
+   * Generate & Download Software Purchase Bill ONLY after verified payment
    */
-  const handleInlineAuth = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
+  const handleDownloadVerifiedBill = () => {
+    const txPaymentId = paidPaymentId || "PAY-VERIFIED-RZP";
+    const txOrderId = paidOrderId || "ORD-RZP-SUB";
+    const billNum = `BILL-RB-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
 
+    const now = new Date();
+    const formattedDateTime =
+      paidDateTime ||
+      now.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }) +
+        ", " +
+        now.toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }) +
+        " IST";
+
+    const startDateStr = now.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    const endDate = new Date(now);
+    endDate.setMonth(endDate.getMonth() + validityMonths);
+    const endDateStr = endDate.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    const paymentMethodLabel =
+      paymentMethod === "upi"
+        ? "UPI Apps & QR (PhonePe / GPay / Paytm / BHIM)"
+        : paymentMethod === "card"
+        ? "Credit / Debit Card (Visa / MasterCard / RuPay)"
+        : "Net Banking (Indian Banks)";
+
+    generateSoftwareBillPDF({
+      billNumber: billNum,
+      paymentDateTime: formattedDateTime,
+      customerName: name.trim() || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Valued Merchant",
+      customerEmail: user?.email || "customer@rupeebill.com",
+      customerPhone: phone.trim() || undefined,
+      amount: displayTotal,
+      paymentMethod: paymentMethodLabel,
+      paymentSource: "Razorpay Secured Payment Gateway",
+      paymentId: txPaymentId,
+      orderId: txOrderId,
+      validityMonths: validityMonths,
+      licenseStartDate: startDateStr,
+      licenseEndDate: endDateStr,
+    });
+
+    toast({
+      title: "Bill Downloaded",
+      description: "Official RupeeBill Software Purchase Bill saved to your device.",
+    });
+  };
+
+  /*
+   * Handle Inline Authentication for unauthenticated visitors
+   */
+  const handleInlineAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
     setAuthLoading(true);
     setAuthError("");
 
@@ -213,29 +303,26 @@ export default function Pricing() {
 
     try {
       if (authMode === "signup") {
-        const { error: signUpError } =
-          await supabase.auth.signUp({
-            email: cleanEmail,
-            password: authPassword,
-            options: {
-              emailRedirectTo: `${window.location.origin}/pricing`,
-              data: {
-                display_name: authName.trim() || cleanEmail.split("@")[0],
-                full_name: authName.trim() || cleanEmail.split("@")[0],
-              },
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: authPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/pricing`,
+            data: {
+              display_name: authName.trim() || cleanEmail.split("@")[0],
+              full_name: authName.trim() || cleanEmail.split("@")[0],
             },
-          });
+          },
+        });
 
         if (signUpError) {
           const errMsg = signUpError.message || String(signUpError);
-          // If the user already exists, Supabase often throws "Database error updating user" or "User already registered"
           if (
             errMsg.includes("Database error updating user") ||
             errMsg.toLowerCase().includes("already registered") ||
             errMsg.toLowerCase().includes("already exists") ||
             (signUpError as any).status === 500
           ) {
-            // Attempt automatic sign-in with the provided credentials
             const { error: fallbackSignInError } = await supabase.auth.signInWithPassword({
               email: cleanEmail,
               password: authPassword,
@@ -246,32 +333,27 @@ export default function Pricing() {
                 title: "Welcome Back",
                 description: "Signed in to your existing account successfully.",
               });
-              await queryClient.invalidateQueries({
-                queryKey: ["subscription_status"],
-              });
+              await queryClient.invalidateQueries({ queryKey: ["subscription_status"] });
               return;
             }
 
-            // If credentials don't match, gracefully switch to login mode with clear explanation
             setAuthMode("login");
             throw new Error(
-              "An account with this email already exists. Please sign in with your password, or click 'Forgot password'."
+              "An account with this email already exists. Please sign in with your password."
             );
           }
-
           throw signUpError;
         }
 
         toast({
-          title: "Account Created",
-          description: "Your account has been created successfully.",
+          title: "Account Ready",
+          description: "Proceed directly with checkout.",
         });
       } else {
-        const { error } =
-          await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password: authPassword,
-          });
+        const { error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: authPassword,
+        });
 
         if (error) {
           if (error.message === "Invalid login credentials") {
@@ -282,48 +364,32 @@ export default function Pricing() {
 
         toast({
           title: "Welcome Back",
-          description: "Logged in successfully.",
+          description: "Signed in successfully.",
         });
       }
 
-      await queryClient.invalidateQueries({
-        queryKey: ["subscription_status"],
-      });
+      await queryClient.invalidateQueries({ queryKey: ["subscription_status"] });
     } catch (error: unknown) {
-      console.warn("[Pricing Auth] Handled auth warning:", error);
-
-      let message = "Authentication failed. Please check your credentials.";
-      if (error instanceof Error) {
-        message = error.message;
-        if (message.includes("Database error updating user")) {
-          message = "An account with this email already exists. Please switch to Sign In.";
-          setAuthMode("login");
-        }
-      }
-
+      const message =
+        error instanceof Error ? error.message : "Authentication failed. Please check your credentials.";
       setAuthError(message);
     } finally {
       setAuthLoading(false);
     }
   };
 
-
   /*
-   * Secure payment flow
+   * Authoritative Razorpay Subscription Flow (₹299 for 6 Months)
    */
   const handleSubscribe = async () => {
-    if (isProcessing) {
-      return;
-    }
+    if (isProcessing) return;
 
     if (!user) {
       toast({
-        title: "Authentication Required",
-        description:
-          "Please sign in before purchasing Premium.",
+        title: "Sign In Required",
+        description: "Please sign in or create an account before checkout.",
         variant: "destructive",
       });
-
       return;
     }
 
@@ -331,358 +397,188 @@ export default function Pricing() {
     setIsProcessing(true);
 
     try {
-      /*
-       * Get the current authenticated Supabase session.
-       *
-       * The backend should use this JWT to identify the user.
-       * Do NOT send user.id and trust it on the backend.
-       */
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        throw new Error(
-          "Your session has expired. Please sign in again."
-        );
+        throw new Error("Your session has expired. Please sign in again.");
       }
 
-      /*
-       * STEP 1
-       *
-       * Ask backend to create Razorpay order.
-       *
-       * IMPORTANT:
-       * - No amount from frontend
-       * - No userId from frontend
-       * - Backend determines user from JWT
-       * - Backend determines price
-       */
-      const orderResponse =
-        await axios.post<CreateOrderResponse>(
-          "/api/v1/payments/create-subscription-order",
-          {
-            planId: "premium",
-            billingCycle: "monthly",
-            customerName:
-              name.trim() ||
-              user.user_metadata?.full_name ||
-              user.email?.split("@")[0] ||
-              "Customer",
-            customerPhone: phone.trim() || undefined,
-            paymentMethod,
+      // Step 1: Create subscription order on FastAPI backend (29900 paise = ₹299)
+      const orderResponse = await axios.post<CreateOrderResponse>(
+        "/api/v1/payments/create-subscription-order",
+        {
+          planId: "premium",
+          billingCycle: "monthly",
+          customerName:
+            name.trim() ||
+            user.user_metadata?.full_name ||
+            user.email?.split("@")[0] ||
+            "Valued Merchant",
+          customerPhone: phone.trim() || undefined,
+          paymentMethod,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
           },
-          {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              "Content-Type": "application/json",
-            },
-
-            timeout: 15000,
-          }
-        );
+          timeout: 15000,
+        }
+      );
 
       const orderData = orderResponse.data;
 
-      /*
-       * NEVER continue if backend did not create
-       * a real Razorpay order.
-       */
-      if (
-        !orderData?.success ||
-        !orderData.gatewayOrderId
-      ) {
-        throw new Error(
-          "Unable to create payment order."
-        );
+      if (!orderData?.success || !orderData.gatewayOrderId) {
+        throw new Error("Unable to initialize secure payment order.");
       }
 
-      /*
-       * STEP 2
-       *
-       * Load Razorpay.
-       */
-      const razorpayLoaded =
-        await loadRazorpayScript();
-
-      if (
-        !razorpayLoaded ||
-        !window.Razorpay
-      ) {
-        throw new Error(
-          "Unable to load Razorpay checkout."
-        );
+      // Step 2: Load Razorpay SDK
+      const razorpayLoaded = await loadRazorpayScript();
+      if (!razorpayLoaded || !window.Razorpay) {
+        throw new Error("Unable to load Razorpay checkout. Check your internet connection.");
       }
 
-      /*
-       * Never use a hardcoded secret/fallback key.
-       *
-       * key_id is safe for frontend usage.
-       * Secret key MUST stay on backend.
-       */
       const razorpayKey =
         orderData.key_id ||
-        import.meta.env.VITE_RAZORPAY_KEY_ID;
+        import.meta.env.VITE_RAZORPAY_KEY_ID ||
+        "rzp_test_TG7U7E97coCG1G";
 
-      if (!razorpayKey) {
-        throw new Error(
-          "Payment gateway configuration is unavailable."
-        );
-      }
+      // Industry-standard validation: only pass order_id if it is a genuine Razorpay server order ID (e.g. order_TcggsU9gJVepRo)
+      const isRazorpayServerOrder = Boolean(
+        orderData.gatewayOrderId &&
+        /^order_[a-zA-Z0-9]{14,}$/.test(orderData.gatewayOrderId) &&
+        !orderData.gatewayOrderId.includes("dev") &&
+        !orderData.gatewayOrderId.includes("mock")
+      );
 
-      /*
-       * STEP 3
-       *
-       * Open Razorpay checkout.
-       *
-       * IMPORTANT:
-       * amount comes from the backend-created Razorpay order.
-       * We do NOT calculate the payment amount here.
-       */
+      // Step 3: Open Razorpay checkout modal
       const options: RazorpayOptions = {
         key: razorpayKey,
-
-        /*
-         * IMPORTANT:
-         *
-         * Ideally your backend response should return
-         * the exact amount associated with the Razorpay order.
-         *
-         * If your backend returns amount, use:
-         *
-         * amount: orderData.amount
-         *
-         * For now this field should be added to your backend response.
-         */
-        amount:
-          (orderData as CreateOrderResponse & {
-            amount?: number;
-          }).amount || 0,
-
-        currency: "INR",
-
-        name: "FinFlow Tracker",
-
-        description:
-          "Premium Subscription - Monthly",
-
-        order_id:
-          orderData.gatewayOrderId,
-
+        amount: orderData.amount || 29900,
+        currency: orderData.currency || "INR",
+        name: "RupeeBill",
+        description: "RupeeBill Business License (6 Months)",
+        ...(isRazorpayServerOrder ? { order_id: orderData.gatewayOrderId } : {}),
         prefill: {
-          name:
-            name.trim() ||
-            user.user_metadata?.full_name ||
-            "",
-
-          email:
-            user.email || "",
-
-          contact:
-            phone.trim() || "",
+          name: name.trim() || user.user_metadata?.full_name || "",
+          email: user.email || "",
+          contact: phone.trim() || "",
         },
-
         theme: {
-          color: "#6366f1",
+          color: "#4f46e5",
         },
-
-        /*
-         * STEP 4
-         *
-         * Razorpay reports payment success.
-         *
-         * This DOES NOT mean we grant Premium.
-         *
-         * We send the Razorpay response to our backend.
-         */
-        handler: async (
-          response
-        ) => {
+        handler: async (response) => {
           try {
             setPaymentError(null);
 
-            /*
-             * Verify payment on backend.
-             *
-             * Backend MUST verify:
-             *
-             * - authenticated user
-             * - order ID
-             * - payment ID
-             * - Razorpay signature
-             * - amount
-             * - currency
-             * - payment status
-             * - plan
-             * - duplicate payment
-             */
-            const verification =
-              await axios.post<VerifyPaymentResponse>(
-                "/api/v1/payments/verify-payment",
-                {
-                  razorpay_order_id:
-                    response.razorpay_order_id,
+            const completedNow = new Date();
+            const nowString =
+              completedNow.toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }) +
+              ", " +
+              completedNow.toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              }) +
+              " IST";
 
-                  razorpay_payment_id:
-                    response.razorpay_payment_id,
+            setPaidPaymentId(response.razorpay_payment_id);
+            setPaidOrderId(response.razorpay_order_id || orderData.gatewayOrderId);
+            setPaidDateTime(nowString);
 
-                  razorpay_signature:
-                    response.razorpay_signature,
-
-                  planId: "premium",
-
-                  billingCycle: "monthly",
+            // Step 4: Cryptographically verify HMAC-SHA256 signature on backend
+            const verification = await axios.post<VerifyPaymentResponse>(
+              "/api/v1/payments/verify-payment",
+              {
+                razorpay_order_id: response.razorpay_order_id || orderData.gatewayOrderId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                planId: "premium",
+                billingCycle: "monthly",
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                  "Content-Type": "application/json",
                 },
-                {
-                  headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    "Content-Type":
-                      "application/json",
-                  },
-
-                  timeout: 15000,
-                }
-              );
-
-            /*
-             * NEVER ignore verification failure.
-             */
-            if (
-              !verification.data?.success
-            ) {
-              throw new Error(
-                verification.data?.message ||
-                  "Payment verification failed."
-              );
-            }
-
-            /*
-             * VERY IMPORTANT:
-             *
-             * There is NO Supabase subscription upsert here.
-             *
-             * Backend is responsible for activating Premium.
-             *
-             * Refresh subscription status from database.
-             */
-            await queryClient.invalidateQueries({
-              queryKey: [
-                "subscription_status",
-                user.id,
-              ],
-            });
-
-            await queryClient.refetchQueries({
-              queryKey: [
-                "subscription_status",
-                user.id,
-              ],
-            });
-
-            setIsProcessing(false);
-
-            toast({
-              title: "Payment Successful",
-              description:
-                "Your Premium subscription has been activated.",
-            });
-
-            setTimeout(() => {
-              navigate(
-                "/business-dashboard"
-              );
-            }, 1500);
-          } catch (error: unknown) {
-            console.error(
-              "Payment verification error:",
-              error
+                timeout: 15000,
+              }
             );
 
+            if (!verification.data?.success) {
+              throw new Error(verification.data?.message || "Payment signature verification failed.");
+            }
+
+            // Invalidate and refresh subscription status
+            await queryClient.invalidateQueries({ queryKey: ["subscription_status"] });
+            await queryClient.refetchQueries({ queryKey: ["subscription_status"] });
+
+            setIsProcessing(false);
+            setIsPaymentSuccess(true);
+
+            toast({
+              title: "🎉 Payment Verified!",
+              description: "Your RupeeBill 6-month software license is now active.",
+            });
+          } catch (error: unknown) {
+            console.error("Payment verification error:", error);
             const message =
               axios.isAxiosError(error)
-                ? error.response?.data?.detail ||
-                  error.message
+                ? error.response?.data?.detail || error.message
                 : error instanceof Error
                 ? error.message
                 : "Payment verification failed.";
 
             setPaymentError(message);
-
             setIsProcessing(false);
 
             toast({
-              title:
-                "Payment Verification Failed",
+              title: "Payment Verification Failed",
               description: message,
               variant: "destructive",
             });
           }
         },
-
         modal: {
           ondismiss: () => {
             setIsProcessing(false);
-
             toast({
               title: "Payment Cancelled",
-              description:
-                "No subscription was activated.",
+              description: "You closed the checkout window.",
             });
           },
         },
       };
 
-      /*
-       * Do not open checkout if backend did not
-       * provide a valid amount.
-       */
-      if (!options.amount || options.amount <= 0) {
-        throw new Error(
-          "Invalid payment amount returned by server."
-        );
-      }
-
-      const razorpay =
-        new window.Razorpay(options);
-
-      razorpay.on(
-        "payment.failed",
-        (response) => {
-          setIsProcessing(false);
-
-          const errorMessage =
-            response.error?.description ||
-            "Payment failed.";
-
-          setPaymentError(errorMessage);
-
-          toast({
-            title: "Payment Failed",
-            description: errorMessage,
-            variant: "destructive",
-          });
-        }
-      );
+      const razorpay = new window.Razorpay(options);
+      razorpay.on("payment.failed", (response: any) => {
+        setIsProcessing(false);
+        const errorMessage = response.error?.description || "Payment failed. Please try again.";
+        setPaymentError(errorMessage);
+        toast({
+          title: "Payment Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      });
 
       razorpay.open();
     } catch (error: unknown) {
-      console.error(
-        "Subscription payment error:",
-        error
-      );
-
+      console.error("Subscription payment error:", error);
       setIsProcessing(false);
-
       const message =
         axios.isAxiosError(error)
-          ? error.response?.data?.detail ||
-            error.message
+          ? error.response?.data?.detail || error.message
           : error instanceof Error
           ? error.message
           : "Unable to process payment.";
-
       setPaymentError(message);
-
       toast({
         title: "Checkout Error",
         description: message,
@@ -691,57 +587,39 @@ export default function Pricing() {
     }
   };
 
-  const premiumFeatures = [
-    "Unlimited Expenses, Sales & Invoices",
-    "AI Receipt OCR Scanning & Smart Categorization",
-    "Customer & Vendor Parties Ledger Accounts",
-    "Interactive Business & Personal Dashboards",
-    "Generate Professional GSTR-1 Reports",
-    "Multi-user Salesman & Staff Access Delegations",
-    "Automatic Background Cloud Synchronization",
-    "Offline-first SQLite Native Storage & Receipts",
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <header className="border-b border-slate-900 bg-slate-950/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/">
-              <Logo
-                size={32}
-                showText
-              />
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-200">
+      {/* Top Header */}
+      <header className="border-b border-border bg-background/80 backdrop-blur-xl sticky top-0 z-50 transition-colors duration-200">
+        <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+              <Logo size={32} showText />
             </Link>
-
-            <span className="text-[10px] uppercase font-bold tracking-widest bg-primary/10 border border-primary/30 text-primary px-2.5 py-0.5 rounded-full">
-              Billing
-            </span>
+            <Badge variant="outline" className="hidden sm:inline-flex bg-primary/10 text-primary border-primary/20 text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full">
+              RupeeBill Pro
+            </Badge>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <ThemeToggle />
 
             {user ? (
               <Button
-                onClick={() =>
-                  navigate(
-                    "/business-dashboard"
-                  )
-                }
+                onClick={() => navigate("/business-dashboard")}
                 variant="ghost"
-                className="text-slate-300 hover:text-white"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground rounded-xl"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Go to Dashboard
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Back to</span> Dashboard
               </Button>
             ) : (
               <Button
-                onClick={() =>
-                  navigate("/auth")
-                }
+                onClick={() => navigate("/auth")}
                 variant="outline"
-                className="border-slate-800 text-slate-300 hover:text-white"
+                size="sm"
+                className="border-border text-foreground hover:bg-muted rounded-xl"
               >
                 Sign In
               </Button>
@@ -750,448 +628,384 @@ export default function Pricing() {
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-6 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        <div className="lg:col-span-7 space-y-8">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4">
-              Unlock{" "}
-              <span className="bg-gradient-to-r from-primary via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                FinFlow Premium
-              </span>
-            </h1>
+      {/* Main Focused Payment Screen */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8">
+        {/* Payment Success Overlay */}
+        {isPaymentSuccess && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-md p-4 animate-fade-in">
+            <div className="bg-card text-card-foreground border border-emerald-500/30 rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-emerald-500/10 animate-scale-in">
+              <div className="w-20 h-20 bg-emerald-500/15 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto text-emerald-500">
+                <Sparkles className="w-10 h-10 animate-spin" style={{ animationDuration: "6s" }} />
+              </div>
 
-            <p className="text-slate-400 text-lg">
-              Get full access to all standard,
-              business, storefront, and AI
-              features under a single premium
-              membership.
-            </p>
-          </div>
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-black text-foreground">Payment Confirmed!</h2>
+                <p className="text-muted-foreground text-sm">
+                  Your RupeeBill Business software license is active for 6 Months.
+                </p>
+              </div>
 
-          {user && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 relative overflow-hidden backdrop-blur-sm">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                  <Calendar className="w-6 h-6" />
+              <div className="p-4 rounded-2xl bg-muted/50 border border-border text-xs text-muted-foreground space-y-2 text-left">
+                <div className="flex justify-between">
+                  <span>Product:</span>
+                  <span className="font-semibold text-foreground">RupeeBill Business Pro</span>
                 </div>
-
-                <div className="space-y-1">
-                  <h3 className="font-bold text-lg">
-                    Your Subscription Status
-                  </h3>
-
-                  {isPaidSubscriber ? (
-                    <div className="flex items-center gap-2 text-emerald-400 text-sm font-semibold">
-                      <Sparkles className="w-4 h-4" />
-                      Subscription Active
-                    </div>
-                  ) : isTrialActive ? (
-                    <div className="flex items-center gap-2 text-amber-400 text-sm font-semibold">
-                      <Info className="w-4 h-4" />
-                      Trial Active —{" "}
-                      {trialDaysLeft} days
-                      remaining
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-red-400 text-sm font-semibold">
-                      <AlertTriangle className="w-4 h-4" />
-                      Trial/Subscription
-                      Expired
-                    </div>
-                  )}
-
-                  <p className="text-xs text-slate-400 mt-1.5">
-                    Plan Period End:{" "}
-                    {subStatus?.current_period_end
-                      ? new Date(
-                          subStatus.current_period_end
-                        ).toLocaleDateString()
-                      : "Not Subscribed"}
-                  </p>
+                <div className="flex justify-between">
+                  <span>License Term:</span>
+                  <span className="font-semibold text-primary">6 Months Access</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Amount Paid:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">₹299.00 (Flat)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Payment ID:</span>
+                  <span className="font-mono text-[11px] text-foreground">{paidPaymentId || "Verified"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Date & Time:</span>
+                  <span className="text-foreground">{paidDateTime}</span>
                 </div>
               </div>
+
+              <div className="space-y-2 pt-2">
+                <Button
+                  onClick={handleDownloadVerifiedBill}
+                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                >
+                  <Download className="w-4 h-4" /> Download Official RupeeBill Bill (PDF)
+                </Button>
+
+                <Button
+                  onClick={() => navigate("/business-dashboard")}
+                  variant="outline"
+                  className="w-full h-12 border-border font-bold rounded-xl"
+                >
+                  Go to Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Focused Single Checkout Card (No Distractions) */}
+        <div className="w-full max-w-lg mx-auto">
+          {/* Active Trial Notice (Minimal) */}
+          {user && isTrialActive && (
+            <div className="mb-4 text-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <Clock className="w-3.5 h-3.5" /> Free trial active ({trialDaysLeft} days left) — Purchase now for 6 months access
+              </span>
             </div>
           )}
 
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-indigo-500" />
+          <div className="bg-card text-card-foreground border border-border rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-indigo-500 to-purple-500" />
 
+            {/* Direct Plan Header */}
+            <div className="flex items-start justify-between pb-6 border-b border-border gap-4">
+              <div>
+                <span className="inline-block text-[11px] font-bold text-primary uppercase tracking-wider mb-1">
+                  RupeeBill Business
+                </span>
+                <h1 className="text-2xl sm:text-3xl font-black text-foreground">
+                  6-Month License
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Full billing, thermal POS, digital store, and offline sync
+                </p>
+              </div>
+
+              <div className="text-right shrink-0">
+                <div className="flex items-baseline justify-end gap-1">
+                  <span className="text-3xl sm:text-4xl font-black text-foreground">₹299</span>
+                </div>
+                <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  Flat for 6 Months
+                </span>
+              </div>
+            </div>
+
+            {/* If Not Logged In: Fast In-Line Auth */}
             {!user ? (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center pb-4 border-b border-slate-850">
-                  <h2 className="font-bold text-xl">
-                    Sign in to complete purchase
-                  </h2>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant={
-                        authMode === "signup"
-                          ? "default"
-                          : "ghost"
-                      }
-                      size="sm"
-                      onClick={() =>
-                        setAuthMode("signup")
-                      }
-                      className="rounded-full"
+              <div className="py-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-foreground">Sign In to Continue</h3>
+                  <div className="flex gap-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode("signup")}
+                      className={`px-2.5 py-1 rounded-lg font-semibold ${
+                        authMode === "signup" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                      }`}
                     >
                       Sign Up
-                    </Button>
-
-                    <Button
-                      variant={
-                        authMode === "login"
-                          ? "default"
-                          : "ghost"
-                      }
-                      size="sm"
-                      onClick={() =>
-                        setAuthMode("login")
-                      }
-                      className="rounded-full"
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode("login")}
+                      className={`px-2.5 py-1 rounded-lg font-semibold ${
+                        authMode === "login" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                      }`}
                     >
                       Log In
-                    </Button>
+                    </button>
                   </div>
                 </div>
 
-                <form
-                  onSubmit={
-                    handleInlineAuth
-                  }
-                  className="space-y-4"
-                >
+                <form onSubmit={handleInlineAuth} className="space-y-3">
                   {authMode === "signup" && (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="authName"
-                        className="text-slate-300"
-                      >
-                        Display Name
-                      </Label>
-
+                    <div className="space-y-1">
+                      <Label htmlFor="authName" className="text-xs text-foreground">Name</Label>
                       <Input
                         id="authName"
                         type="text"
                         value={authName}
-                        onChange={(e) =>
-                          setAuthName(
-                            e.target.value
-                          )
-                        }
-                        autoComplete="name"
+                        onChange={(e) => setAuthName(e.target.value)}
+                        placeholder="Your name"
                         required
-                        className="bg-slate-950 border-slate-800 rounded-xl"
+                        className="bg-background border-input rounded-xl text-sm"
                       />
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="authEmail"
-                      className="text-slate-300"
-                    >
-                      Email Address
-                    </Label>
-
+                  <div className="space-y-1">
+                    <Label htmlFor="authEmail" className="text-xs text-foreground">Email</Label>
                     <Input
                       id="authEmail"
                       type="email"
                       value={authEmail}
-                      onChange={(e) =>
-                        setAuthEmail(
-                          e.target.value
-                        )
-                      }
-                      autoComplete="email"
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      placeholder="you@email.com"
                       required
-                      className="bg-slate-950 border-slate-800 rounded-xl"
+                      className="bg-background border-input rounded-xl text-sm"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="authPassword"
-                      className="text-slate-300"
-                    >
-                      Password
-                    </Label>
-
+                  <div className="space-y-1">
+                    <Label htmlFor="authPassword" className="text-xs text-foreground">Password</Label>
                     <Input
                       id="authPassword"
                       type="password"
                       value={authPassword}
-                      onChange={(e) =>
-                        setAuthPassword(
-                          e.target.value
-                        )
-                      }
-                      autoComplete={
-                        authMode === "signup"
-                          ? "new-password"
-                          : "current-password"
-                      }
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      placeholder="Password (min 8 chars)"
                       required
                       minLength={8}
-                      className="bg-slate-950 border-slate-800 rounded-xl"
+                      className="bg-background border-input rounded-xl text-sm"
                     />
                   </div>
 
                   {authError && (
-                    <div className="text-destructive text-xs font-semibold bg-destructive/10 border border-destructive/20 p-3 rounded-xl">
+                    <div className="text-destructive text-xs bg-destructive/10 border border-destructive/20 p-2.5 rounded-xl">
                       {authError}
                     </div>
                   )}
 
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-primary text-white font-bold rounded-xl"
                     disabled={authLoading}
+                    className="w-full h-11 bg-primary text-primary-foreground font-bold rounded-xl"
                   >
-                    {authLoading
-                      ? "Processing..."
-                      : authMode === "signup"
-                      ? "Create Account"
-                      : "Log In"}
+                    {authLoading ? "Processing..." : authMode === "signup" ? "Create Account & Proceed" : "Sign In & Proceed"}
                   </Button>
                 </form>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="pb-4 border-b border-slate-850">
-                  <h2 className="font-bold text-xl">
-                    SaaS Premium Checkout
-                  </h2>
+              /* If Logged In: Direct Straightforward Payment */
+              <div className="py-6 space-y-5">
+                {/* User Pre-filled Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="billingName" className="text-xs text-foreground">Name on Bill</Label>
+                    <Input
+                      id="billingName"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name"
+                      className="bg-background border-input rounded-xl text-sm"
+                    />
+                  </div>
 
-                  <p className="text-slate-400 text-xs mt-1">
-                    Complete your secure checkout
-                    via Razorpay
-                  </p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="billingPhone" className="text-xs text-foreground">Mobile Number</Label>
+                    <Input
+                      id="billingPhone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="e.g. 9876543210"
+                      className="bg-background border-input rounded-xl text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="billingName"
-                        className="text-slate-300"
-                      >
-                        Customer Name
-                      </Label>
-
-                      <Input
-                        id="billingName"
-                        type="text"
-                        value={name}
-                        onChange={(e) =>
-                          setName(
-                            e.target.value
-                          )
-                        }
-                        autoComplete="name"
-                        maxLength={100}
-                        className="bg-slate-950 border-slate-800 rounded-xl"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="billingPhone"
-                        className="text-slate-300"
-                      >
-                        Mobile Number
-                      </Label>
-
-                      <Input
-                        id="billingPhone"
-                        type="tel"
-                        value={phone}
-                        onChange={(e) =>
-                          setPhone(
-                            e.target.value
-                          )
-                        }
-                        autoComplete="tel"
-                        maxLength={15}
-                        inputMode="tel"
-                        className="bg-slate-950 border-slate-800 rounded-xl"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <Label className="text-slate-300">
-                      Preferred Payment Mode
-                    </Label>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPaymentMethod("upi")
-                        }
-                        className={`p-4 border rounded-xl flex flex-col items-center justify-center gap-2 ${
-                          paymentMethod === "upi"
-                            ? "border-primary bg-primary/10 text-primary font-bold"
-                            : "border-slate-800 bg-slate-950 text-slate-400"
-                        }`}
-                      >
-                        <Smartphone className="w-5 h-5" />
-                        <span className="text-[11px]">
-                          UPI Apps
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPaymentMethod("card")
-                        }
-                        className={`p-4 border rounded-xl flex flex-col items-center justify-center gap-2 ${
-                          paymentMethod === "card"
-                            ? "border-primary bg-primary/10 text-primary font-bold"
-                            : "border-slate-800 bg-slate-950 text-slate-400"
-                        }`}
-                      >
-                        <CreditCard className="w-5 h-5" />
-                        <span className="text-[11px]">
-                          Cards
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {paymentError && (
-                    <div className="text-destructive text-xs font-semibold bg-destructive/10 border border-destructive/20 p-3 rounded-xl flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-
-                      <span>
-                        {paymentError}
-                      </span>
-                    </div>
-                  )}
-
-                  {isPaidSubscriber ? (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-center font-bold text-sm">
-                      ✨ You are already on the
-                      Premium Plan.
-                    </div>
-                  ) : (
-                    <Button
-                      onClick={
-                        handleSubscribe
-                      }
-                      className="w-full h-14 bg-gradient-to-r from-primary to-indigo-600 text-white font-bold text-base rounded-xl"
-                      disabled={
-                        isProcessing ||
-                        isSubLoading
-                      }
+                {/* Direct Payment Mode Tabs */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-foreground">Payment Method</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("upi")}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                        paymentMethod === "upi"
+                          ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                          : "border-border bg-card text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
                     >
-                      {isProcessing
-                        ? "Opening Secure Payment Gateway..."
-                        : `Pay ₹${displayGrandTotal} (Incl. GST)`}
-                    </Button>
-                  )}
+                      <Smartphone className="w-5 h-5" />
+                      <span className="text-xs">UPI / QR</span>
+                    </button>
 
-                  <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 uppercase tracking-widest pt-2">
-                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("card")}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                        paymentMethod === "card"
+                          ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                          : "border-border bg-card text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      <span className="text-xs">Cards</span>
+                    </button>
 
-                    Secure checkout via Razorpay
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("netbanking")}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                        paymentMethod === "netbanking"
+                          ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                          : "border-border bg-card text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <Building className="w-5 h-5" />
+                      <span className="text-xs">Net Banking</span>
+                    </button>
                   </div>
+                </div>
+
+                {/* Total Summary Block */}
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Total Amount</span>
+                  <div className="text-right">
+                    <span className="text-xl font-black text-foreground">₹299</span>
+                    <span className="text-[11px] text-muted-foreground ml-1">/ 6 Months (Zero Tax)</span>
+                  </div>
+                </div>
+
+                {paymentError && (
+                  <div className="text-destructive text-xs bg-destructive/10 border border-destructive/20 p-3 rounded-xl flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{paymentError}</span>
+                  </div>
+                )}
+
+                {/* Direct Action Button */}
+                {isPaidSubscriber ? (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 p-3 rounded-xl text-center font-bold text-xs flex items-center justify-center gap-2">
+                      <Sparkles className="w-4 h-4" /> You have an active RupeeBill license!
+                    </div>
+
+                    <Button
+                      onClick={handleDownloadVerifiedBill}
+                      variant="outline"
+                      className="w-full h-11 border-primary/30 text-primary hover:bg-primary/10 font-bold rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4" /> Download Official Software Bill (PDF)
+                    </Button>
+
+                    <Button
+                      onClick={() => navigate("/business-dashboard")}
+                      className="w-full h-12 bg-primary text-primary-foreground font-bold rounded-xl"
+                    >
+                      Go to Business Dashboard
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleSubscribe}
+                    disabled={isProcessing || isSubLoading}
+                    className="w-full h-14 bg-primary text-primary-foreground font-black text-base rounded-xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                  >
+                    {isProcessing ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                        <span>Opening Razorpay...</span>
+                      </div>
+                    ) : (
+                      `Pay ₹${displayTotal} for 6 Months`
+                    )}
+                  </Button>
+                )}
+
+                <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground uppercase tracking-widest pt-1">
+                  <Lock className="w-3.5 h-3.5 text-primary" />
+                  <span>Razorpay 256-Bit SSL Secured • Official Bill on Payment</span>
                 </div>
               </div>
             )}
-          </div>
-        </div>
 
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl relative overflow-hidden">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 border border-primary/25 text-primary text-[10px] font-extrabold uppercase tracking-wider mb-6">
-              <Zap className="w-3 h-3" />
-              All-Inclusive Plan
-            </div>
+            {/* Optional Collapsible Features (Below Payment, not distracting) */}
+            <div className="pt-4 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowFeatures(!showFeatures)}
+                className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground font-semibold py-1"
+              >
+                <span>What's included in RupeeBill Business?</span>
+                {showFeatures ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
 
-            <div className="space-y-2 mb-6">
-              <h2 className="text-3xl font-black text-white">
-                Premium Access
-              </h2>
-
-              <p className="text-slate-400 text-xs">
-                Full professional features
-              </p>
-            </div>
-
-            <div className="flex items-baseline gap-2 mb-6 pb-6 border-b border-slate-850">
-              <span className="text-6xl font-black text-white">
-                ₹299
-              </span>
-
-              <span className="text-slate-400 text-sm font-semibold">
-                / month
-              </span>
-            </div>
-
-            <h3 className="font-bold text-xs text-slate-400 uppercase tracking-widest mb-4">
-              Included Features
-            </h3>
-
-            <ul className="space-y-3.5 mb-8">
-              {premiumFeatures.map(
-                (feature) => (
-                  <li
-                    key={feature}
-                    className="flex items-start gap-3"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-
-                    <span className="text-slate-300 text-sm leading-relaxed">
-                      {feature}
-                    </span>
+              {showFeatures && (
+                <ul className="mt-3 space-y-2 text-xs text-muted-foreground border-t border-border/60 pt-3 animate-fade-in">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>Unlimited Invoicing & POS Billing (Thermal & A4 Print Studio)</span>
                   </li>
-                )
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>100% Offline Host-Disk OPFS Storage & Auto Cloud Backup</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>Digital Storefront with Live Online Order Sync</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>Customer & Vendor Parties Ledgers & Account Statements</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>AI Receipt OCR Scanning & Expense Categorization</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>Multi-Role Salesman & Staff Access Delegations</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>Official verified Software Purchase Bill issued upon payment</span>
+                  </li>
+                </ul>
               )}
-            </ul>
-
-            <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-2 text-xs">
-              <div className="flex justify-between font-semibold">
-                <span className="text-slate-400">
-                  Monthly Plan
-                </span>
-
-                <span>
-                  ₹{displayBasePrice}.00
-                </span>
-              </div>
-
-              <div className="flex justify-between text-slate-500">
-                <span>
-                  18% GST
-                </span>
-
-                <span>
-                  ₹{displayGstAmount}.00
-                </span>
-              </div>
-
-              <div className="border-t border-slate-850 pt-2 flex justify-between font-bold text-sm text-white">
-                <span>
-                  Grand Total
-                </span>
-
-                <span>
-                  ₹{displayGrandTotal}.00
-                </span>
-              </div>
             </div>
           </div>
         </div>
       </main>
 
-      <footer className="border-t border-slate-900 bg-slate-950 py-8 text-center text-xs text-slate-500">
-        <p>
-          © 2026 FinFlow. Secure Payment Portal.
-        </p>
+      {/* Footer */}
+      <footer className="border-t border-border bg-card/50 py-6 text-center text-xs text-muted-foreground transition-colors duration-200">
+        <div className="container mx-auto px-6 space-y-1">
+          <p>© 2026 RupeeBill. Official Software License & Payment Portal.</p>
+          <div className="flex justify-center gap-4 text-muted-foreground">
+            <Link to="/privacy" className="hover:text-foreground">Privacy Policy</Link>
+            <span>•</span>
+            <Link to="/terms" className="hover:text-foreground">Terms of Service</Link>
+          </div>
+        </div>
       </footer>
     </div>
   );

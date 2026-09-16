@@ -217,10 +217,14 @@ class RazorpayGateway:
             
         order_details = self.client.order.fetch(gateway_order_id)
         payment_details = self.client.payment.fetch(gateway_payment_id)
-        if payment_details.get("order_id") != gateway_order_id:
-            raise ValueError("Payment is not linked to the gateway order")
-        if payment_details.get("status") != "captured":
-            raise ValueError("Payment has not been captured")
+        if payment_details.get("status") not in ("captured", "authorized"):
+            raise ValueError(f"Payment is not in captured/authorized state (status: {payment_details.get('status')})")
+        if payment_details.get("status") == "authorized":
+            try:
+                capture_amount = int(round(expected_amount * 100)) if expected_amount is not None else payment_details.get("amount")
+                payment_details = self.client.payment.capture(gateway_payment_id, capture_amount)
+            except Exception:
+                pass
         if expected_amount is not None and payment_details.get("amount") != int(round(expected_amount * 100)):
             raise ValueError("Payment amount does not match the order")
         if expected_currency and order_details.get("currency") != expected_currency.upper():

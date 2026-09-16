@@ -11,12 +11,12 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     proxy: {
       '/api/v1': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
       },
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
       },
@@ -44,50 +44,6 @@ export default defineConfig(({ mode }) => ({
             }
             return originalSetHeader.call(this, name, value);
           };
-          next();
-        });
-      }
-    },
-    {
-      name: 'payments-dev-fallback',
-      configureServer(server: ViteDevServer) {
-        server.middlewares.use(async (req: any, res: any, next: any) => {
-          if (req.url && req.url.startsWith('/api/v1/payments')) {
-            try {
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 600);
-              const testPing = await fetch("http://localhost:8000/health", {
-                signal: controller.signal,
-              }).catch(() => null);
-              clearTimeout(timeoutId);
-
-              if (testPing && testPing.ok) {
-                return next();
-              }
-            } catch (err) {
-              // FastAPI server on port 8000 is not active
-            }
-
-            res.statusCode = 200;
-            res.setHeader('content-type', 'application/json; charset=utf-8');
-
-            if (req.url.includes('/create-subscription-order') || req.url.includes('/create-order')) {
-              return res.end(JSON.stringify({
-                success: true,
-                order_id: `SUB-DEV-${Date.now()}`,
-                gatewayOrderId: `SUB-DEV-${Date.now()}`,
-                key_id: "rzp_test_TG7U7E97coCG1G",
-                details: { keyId: "rzp_test_TG7U7E97coCG1G" }
-              }));
-            }
-
-            return res.end(JSON.stringify({
-              success: true,
-              status: 'success',
-              paymentId: `PAY-DEV-${Date.now()}`,
-              invoiceNumber: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
-            }));
-          }
           next();
         });
       }
