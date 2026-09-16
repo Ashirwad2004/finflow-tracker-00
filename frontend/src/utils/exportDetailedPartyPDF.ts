@@ -13,6 +13,24 @@ const formatCurrencySafe = (amount: number | string) => {
     return `Rs. ${num.toFixed(2)}`;
 };
 
+const parseSafeDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
+    if (typeof d === 'string') {
+        const s = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            const [y, m, day] = s.split('-').map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+        if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(s)) {
+            const [day, m, y] = s.split(/[-/]/).map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+    }
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? new Date() : dt;
+};
+
 export const exportDetailedPartyPDF = (
     data: LedgerTransaction[],
     partyName: string,
@@ -95,8 +113,8 @@ export const exportDetailedPartyPDF = (
         doc.text(`Period: ${dateRangeStr}`, 14, infoStartY + 11);
         doc.text(`Generated On: ${generatedDate}`, 14, infoStartY + 16);
 
-        // --- Summary Stats ---
-        const finalBalance = data.length > 0 ? data[data.length - 1].runningBalance : 0;
+        // --- Summary Stats (data is newest first) ---
+        const finalBalance = data.length > 0 ? data[0].runningBalance : 0;
         doc.setFont("helvetica", "bold");
         doc.text("Net Balance:", 140, infoStartY + 6);
         doc.setTextColor(finalBalance >= 0 ? 37 : 239, finalBalance >= 0 ? 99 : 68, finalBalance >= 0 ? 235 : 68); // Blue or Red
@@ -104,7 +122,7 @@ export const exportDetailedPartyPDF = (
 
         // --- Table ---
         const tableRows = data.map(tx => [
-            format(new Date(tx.date), "dd MMM yyyy"),
+            format(parseSafeDate(tx.date), "dd MMM yyyy"),
             sanitizeText(tx.ref),
             tx.type === 'sale' ? "Sale" : "Purchase",
             tx.type === 'sale' ? formatCurrencySafe(tx.amount) : "-",

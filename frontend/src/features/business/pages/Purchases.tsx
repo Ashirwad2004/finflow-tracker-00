@@ -90,7 +90,11 @@ export default function PurchasesPage() {
         // Map purchase fields to invoice generator
         const url = await generateInvoicePDF({
             invoice_number: purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`,
-            date: purchase.date,
+            date: purchase.date || (purchase as any).created_at,
+            due_date: purchase.due_date,
+            status: purchase.status,
+            amount_paid: purchase.amount_paid,
+            balance_due: purchase.balance_due,
             customer_name: purchase.vendor_name, // Mapping Vendor to Customer field in the PDF
             customer_phone: purchase.vendor_phone,
             customer_email: purchase.vendor_email,
@@ -119,7 +123,11 @@ export default function PurchasesPage() {
     const handleDownload = (purchase: Purchase) => {
         generateInvoicePDF({
             invoice_number: purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`,
-            date: purchase.date,
+            date: purchase.date || (purchase as any).created_at,
+            due_date: purchase.due_date,
+            status: purchase.status,
+            amount_paid: purchase.amount_paid,
+            balance_due: purchase.balance_due,
             customer_name: purchase.vendor_name,
             customer_phone: purchase.vendor_phone,
             customer_email: purchase.vendor_email,
@@ -146,7 +154,11 @@ export default function PurchasesPage() {
             const billString = purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`;
             const url = await generateInvoicePDF({
                 invoice_number: billString,
-                date: purchase.date,
+                date: purchase.date || (purchase as any).created_at,
+                due_date: purchase.due_date,
+                status: purchase.status,
+                amount_paid: purchase.amount_paid,
+                balance_due: purchase.balance_due,
                 customer_name: purchase.vendor_name,
                 customer_phone: purchase.vendor_phone,
                 customer_email: purchase.vendor_email,

@@ -1,6 +1,24 @@
 import { format } from "date-fns";
 import { LedgerTransaction } from "@/features/business/components/DetailedPartyReport";
 
+const parseSafeDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
+    if (typeof d === 'string') {
+        const s = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            const [y, m, day] = s.split('-').map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+        if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(s)) {
+            const [day, m, y] = s.split(/[-/]/).map(Number);
+            return new Date(y, m - 1, day, 12, 0, 0);
+        }
+    }
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? new Date() : dt;
+};
+
 export const exportDetailedPartyCSV = (
     data: LedgerTransaction[],
     partyName: string
@@ -25,7 +43,7 @@ export const exportDetailedPartyCSV = (
         headers.join(","), // Header Row
         ...data.map(tx => {
             const row = [
-                format(new Date(tx.date), "yyyy-MM-dd"), // Date
+                format(parseSafeDate(tx.date), "yyyy-MM-dd"), // Date
                 tx.type, // Type (sale/purchase)
                 `"${(tx.ref || "").replace(/"/g, '""')}"`, // Ref
                 tx.type === 'sale' ? tx.amount : 0, // Credit

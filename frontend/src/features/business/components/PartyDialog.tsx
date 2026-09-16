@@ -22,6 +22,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
     const [email, setEmail] = useState("");
     const [address, setAddress] = useState("");
     const [gstNumber, setGstNumber] = useState("");
+    const [openingBalance, setOpeningBalance] = useState<string>("0");
 
     useEffect(() => {
         if (open) {
@@ -32,6 +33,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
                 setEmail(party.email || "");
                 setAddress(party.address || "");
                 setGstNumber(party.gst_number || "");
+                setOpeningBalance(String((party as any).opening_balance || 0));
             } else {
                 setName("");
                 setType("customer");
@@ -39,6 +41,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
                 setEmail("");
                 setAddress("");
                 setGstNumber("");
+                setOpeningBalance("0");
             }
         }
     }, [open, party, isEditing]);
@@ -53,6 +56,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
             email: email.trim() || null,
             address: address.trim() || null,
             gst_number: gstNumber.trim() || null,
+            opening_balance: Number(openingBalance) || 0,
         } as any);
         // Do not close dialog here, wait for mutation success
     };
@@ -136,6 +140,20 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
                             onChange={(e) => setGstNumber(e.target.value)}
                             className="col-span-3 font-mono text-sm"
                             placeholder="22AAAAA0000A1Z5"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="opening_balance" className="text-right font-medium">Opening Bal (₹)</Label>
+                        <Input
+                            id="opening_balance"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={openingBalance}
+                            onChange={(e) => setOpeningBalance(e.target.value)}
+                            className="col-span-3 font-semibold"
+                            placeholder="0.00"
                         />
                     </div>
                 </div>

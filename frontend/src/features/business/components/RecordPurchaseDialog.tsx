@@ -262,9 +262,11 @@ export const RecordPurchaseDialog = ({ open, onOpenChange, purchaseToEdit }: Rec
             const calcAmountPaid = Number(values.amount_paid || 0);
             const calcBalanceDue = Math.max(0, calcTotalAmount - calcAmountPaid);
             
-            let calcStatus: 'paid' | 'pending' | 'overdue' = 'paid';
+            let calcStatus: 'paid' | 'pending' | 'overdue' | 'partial' = 'paid';
             if (calcAmountPaid >= calcTotalAmount && calcTotalAmount > 0) {
                 calcStatus = 'paid';
+            } else if (calcAmountPaid > 0 && calcAmountPaid < calcTotalAmount) {
+                calcStatus = 'partial';
             } else {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
