@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, X } from "lucide-react";
+import { Loader2, Upload, X, QrCode } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
@@ -24,6 +24,7 @@ interface BusinessDetailsFormValues {
     gst_number: string;
     business_phone: string;
     business_address: string;
+    upi_id?: string;
 }
 
 export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: BusinessDetailsDialogProps) => {
@@ -44,7 +45,8 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
             business_name: "",
             gst_number: "",
             business_phone: "",
-            business_address: ""
+            business_address: "",
+            upi_id: ""
         }
     });
 
@@ -53,16 +55,18 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
         if (open && user) {
             (supabase as any)
                 .from("profiles")
-                .select("business_name, gst_number, business_phone, business_address, business_logo, signature_url")
+                .select("business_name, gst_number, business_phone, business_address, business_logo, signature_url, upi_id")
                 .eq("user_id", user.id)
                 .single()
                 .then(({ data }) => {
                     if (data) {
+                        const loadedUpi = (data as any).upi_id || localStorage.getItem("rupeebill_upi_id") || "";
                         reset({
                             business_name: (data as any).business_name || "",
                             gst_number: (data as any).gst_number || "",
                             business_phone: (data as any).business_phone || "",
-                            business_address: (data as any).business_address || ""
+                            business_address: (data as any).business_address || "",
+                            upi_id: loadedUpi
                         });
                         setLogoPreview((data as any).business_logo || null);
                         setSignaturePreview((data as any).signature_url || null);
@@ -141,12 +145,18 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                     business_phone: values.business_phone,
                     business_address: values.business_address,
                     business_logo: currentLogoUrl,
-                    signature_url: currentSignatureUrl
+                    signature_url: currentSignatureUrl,
+                    upi_id: values.upi_id?.trim() || null
                 },
                 userId: user.id
             });
 
             if (error) throw error;
+            if (values.upi_id) {
+                localStorage.setItem("rupeebill_upi_id", values.upi_id.trim());
+            } else {
+                localStorage.removeItem("rupeebill_upi_id");
+            }
             return { ...values, business_logo: currentLogoUrl, signature_url: currentSignatureUrl };
         },
         onSuccess: (data) => {
@@ -159,7 +169,8 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                     business_phone: data.business_phone,
                     business_address: data.business_address,
                     business_logo: data.business_logo,
-                    signature_url: data.signature_url
+                    signature_url: data.signature_url,
+                    upi_id: data.upi_id
                 } : old;
             });
 
@@ -294,6 +305,24 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
                                 {errors.business_address && (
                                     <span className="text-xs text-destructive">{errors.business_address.message}</span>
                                 )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="upi_id" className="flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                                        <QrCode className="w-4 h-4 text-primary" />
+                                        UPI ID / VPA (Optional)
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-normal">For invoice QR code</span>
+                                </Label>
+                                <Input
+                                    id="upi_id"
+                                    {...register("upi_id")}
+                                    placeholder="e.g. yourshop@upi, 9876543210@paytm, store@okhdfcbank"
+                                />
+                                <p className="text-[11px] text-muted-foreground leading-tight">
+                                    An NPCI dynamic UPI QR code will be generated on customer bills and thermal receipts for instant scan-to-pay.
+                                </p>
                             </div>
                         </div>
 

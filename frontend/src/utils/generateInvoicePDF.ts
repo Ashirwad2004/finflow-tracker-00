@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
+import QRCode from "qrcode";
 
 export interface InvoiceDetails {
     invoice_number: string;
@@ -46,6 +47,7 @@ export interface InvoiceDetails {
         bank_account_no?: string;
         bank_ifsc?: string;
         bank_branch?: string;
+        upi_id?: string;
     };
 }
 
@@ -395,7 +397,9 @@ export const generateInvoicePDF = async (
         fontSizeFactor?: number,
         printBankDetails?: boolean,
         bankDetails?: BankDetailsInfo,
-        selectedBankAccountId?: string
+        selectedBankAccountId?: string,
+        printUpiQr?: boolean,
+        upiId?: string
     }
 ) => {
     try {
@@ -454,6 +458,38 @@ export const generateInvoicePDF = async (
 
         const bizName = safeText(data.business_details?.name || "Business Name");
         const custGSTIN = safeText(data.customer_gstin);
+
+        // Resolve UPI QR Code details
+        const printUpiSetting = options?.printUpiQr !== undefined
+            ? options.printUpiQr
+            : localStorage.getItem("rupeebill_print_upi_qr") !== "false";
+
+        const resolvedUpiId = (
+            options?.upiId ||
+            data.business_details?.upi_id ||
+            localStorage.getItem("rupeebill_upi_id") ||
+            ""
+        ).trim();
+
+        let upiQrBase64: { dataUrl: string; width: number; height: number } | null = null;
+        if (printUpiSetting && resolvedUpiId) {
+            try {
+                const payeeVpa = resolvedUpiId;
+                const payeeName = encodeURIComponent(bizName.slice(0, 50));
+                const amountToPay = (balanceDue > 0 ? balanceDue : totalAmount).toFixed(2);
+                const note = encodeURIComponent(`Invoice ${safeText(data.invoice_number)}`);
+                const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${payeeName}&am=${amountToPay}&cu=INR&tn=${note}`;
+                const dataUrl = await QRCode.toDataURL(upiUri, {
+                    errorCorrectionLevel: 'M',
+                    margin: 1,
+                    width: 300,
+                    color: { dark: '#000000', light: '#ffffff' }
+                });
+                upiQrBase64 = { dataUrl, width: 300, height: 300 };
+            } catch (err) {
+                console.warn("Failed to generate UPI QR code for invoice:", err);
+            }
+        }
 
         let taxRateVal = Number(data.tax_rate) || 0;
         if (taxRateVal === 0 && data.tax_amount && data.tax_amount > 0) {
@@ -729,28 +765,60 @@ export const generateInvoicePDF = async (
             doc.text(splitWords, tallyMarginX + 2, footerStartY + 8.5);
             let leftCurrentY = footerStartY + 8.5 + (splitWords.length * 3.4);
 
-            // Real Bank details (only rendered if user has added a real bank account and setting is enabled)
-            if (resolvedBank) {
+            // Real Bank details and UPI QR Code
+            if (resolvedBank || upiQrBase64) {
                 doc.line(tallyMarginX, leftCurrentY + 1.5, splitX, leftCurrentY + 1.5);
-                leftCurrentY += 5;
-                doc.setFont(fontStyle, "bold");
-                doc.setFontSize(7.5);
-                doc.text("Company's Bank Details:", tallyMarginX + 2, leftCurrentY);
-                leftCurrentY += 3.6;
-                doc.setFont(fontStyle, "normal");
-                doc.setFontSize(7);
-                doc.text(`Bank Name : ${resolvedBank.bankName}`, tallyMarginX + 2, leftCurrentY);
-                leftCurrentY += 3.2;
-                doc.text(`A/c No.   : ${resolvedBank.accountNumber}`, tallyMarginX + 2, leftCurrentY);
-                leftCurrentY += 3.2;
-                const branchIfsc = [
-                    resolvedBank.branchName ? `Branch: ${resolvedBank.branchName}` : '',
-                    resolvedBank.ifscCode ? `IFSC: ${resolvedBank.ifscCode}` : ''
-                ].filter(Boolean).join("  |  ");
-                if (branchIfsc) {
-                    doc.text(branchIfsc, tallyMarginX + 2, leftCurrentY);
-                    leftCurrentY += 3.2;
+                leftCurrentY += 4.5;
+
+                const qrSize = upiQrBase64 ? 22 * scale : 0;
+                const qrX = splitX - qrSize - 3 * scale;
+                const qrY = leftCurrentY;
+
+                if (upiQrBase64) {
+                    doc.addImage(upiQrBase64.dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+                    doc.setFontSize(5.5);
+                    doc.setFont(fontStyle, "bold");
+                    doc.text("SCAN TO PAY (UPI)", qrX + qrSize / 2, qrY + qrSize + 2.5, { align: "center" });
                 }
+
+                const maxBankWidth = upiQrBase64 ? (qrX - tallyMarginX - 4) : (splitX - tallyMarginX - 4);
+                let textY = leftCurrentY;
+
+                if (resolvedBank) {
+                    doc.setFont(fontStyle, "bold");
+                    doc.setFontSize(7.5);
+                    doc.text("Company's Bank Details:", tallyMarginX + 2, textY);
+                    textY += 3.6;
+                    doc.setFont(fontStyle, "normal");
+                    doc.setFontSize(7);
+                    doc.text(`Bank Name : ${resolvedBank.bankName}`, tallyMarginX + 2, textY);
+                    textY += 3.2;
+                    doc.text(`A/c No.   : ${resolvedBank.accountNumber}`, tallyMarginX + 2, textY);
+                    textY += 3.2;
+                    const branchIfsc = [
+                        resolvedBank.branchName ? `Branch: ${resolvedBank.branchName}` : '',
+                        resolvedBank.ifscCode ? `IFSC: ${resolvedBank.ifscCode}` : ''
+                    ].filter(Boolean).join("  |  ");
+                    if (branchIfsc) {
+                        doc.text(branchIfsc, tallyMarginX + 2, textY);
+                        textY += 3.2;
+                    }
+                } else if (upiQrBase64) {
+                    doc.setFont(fontStyle, "bold");
+                    doc.setFontSize(7.5);
+                    doc.text("Instant Payment via UPI:", tallyMarginX + 2, textY);
+                    textY += 3.6;
+                    doc.setFont(fontStyle, "normal");
+                    doc.setFontSize(7);
+                    doc.text(`UPI ID / VPA : ${resolvedUpiId}`, tallyMarginX + 2, textY);
+                    textY += 3.2;
+                    doc.text(`Payee Name   : ${bizName.slice(0, 30)}`, tallyMarginX + 2, textY);
+                    textY += 3.2;
+                    doc.text(`Amount       : ${formatCurrencySafe(balanceDue > 0 ? balanceDue : totalAmount)}`, tallyMarginX + 2, textY);
+                    textY += 3.2;
+                }
+
+                leftCurrentY = Math.max(textY, upiQrBase64 ? (qrY + qrSize + 4) : textY);
             }
 
             // Horizontal line above declaration
@@ -1010,6 +1078,65 @@ export const generateInvoicePDF = async (
             
             const totalBlockX = pageWidth - 90;
             const vAlignX = pageWidth - 14;
+
+            // --- LEFT COLUMN OF SUMMARY: Bank Details & UPI QR Code ---
+            let leftPayY = finalY;
+            if (resolvedBank || upiQrBase64) {
+                if (upiQrBase64) {
+                    const qrSize = 24 * scale;
+                    const qrX = 14;
+                    const qrY = leftPayY;
+                    doc.setFillColor(255, 255, 255);
+                    doc.setDrawColor(226, 232, 240);
+                    doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1.5, 1.5, "FD");
+                    doc.addImage(upiQrBase64.dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+                    const textStartX = qrX + qrSize + 4;
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(8);
+                    doc.setTextColor(...indigoColor);
+                    doc.text("Scan & Pay via UPI", textStartX, qrY + 4);
+
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(6.8);
+                    doc.setTextColor(...textLight);
+                    doc.text("GPay • PhonePe • Paytm • BHIM", textStartX, qrY + 8);
+
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(7);
+                    doc.setTextColor(...textDark);
+                    doc.text(`UPI: ${resolvedUpiId}`, textStartX, qrY + 12.5);
+
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(6.8);
+                    doc.setTextColor(...textLight);
+                    const payAmt = balanceDue > 0 ? balanceDue : totalAmount;
+                    doc.text(`Amount: ${formatCurrencySafe(payAmt)}`, textStartX, qrY + 16.5);
+
+                    leftPayY = Math.max(leftPayY + qrSize + 5, leftPayY + 20);
+                }
+
+                if (resolvedBank) {
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(8);
+                    doc.setTextColor(...textDark);
+                    doc.text("Bank Transfer Details:", 14, leftPayY);
+                    leftPayY += 3.8;
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(7);
+                    doc.setTextColor(...textLight);
+                    doc.text(`Bank: ${resolvedBank.bankName}  |  A/c: ${resolvedBank.accountNumber}`, 14, leftPayY);
+                    leftPayY += 3.2;
+                    const branchIfsc = [
+                        resolvedBank.ifscCode ? `IFSC: ${resolvedBank.ifscCode}` : '',
+                        resolvedBank.branchName ? `Branch: ${resolvedBank.branchName}` : ''
+                    ].filter(Boolean).join("  |  ");
+                    if (branchIfsc) {
+                        doc.text(branchIfsc, 14, leftPayY);
+                        leftPayY += 3.2;
+                    }
+                }
+            }
 
             doc.setFontSize(10);
             doc.setTextColor(...textLight);

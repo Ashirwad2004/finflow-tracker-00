@@ -18,12 +18,16 @@ import {
     TrendingUp,
     TrendingDown,
     HelpCircle,
-    BadgeAlert
+    BadgeAlert,
+    QrCode
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { cn } from "@/core/lib/utils";
+import { useAuth } from "@/core/lib/auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/core/integrations/supabase/client";
 import {
     Dialog,
     DialogContent,
@@ -124,10 +128,66 @@ export interface MockStatementRecord {
 // ─── Component Implementation ─────────────────────────────────────────────────
 
 const BankDetailsPage = () => {
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+
     // State
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
     const [transactions, setTransactions] = useState<BankTransaction[]>([]);
     const [mockStatement, setMockStatement] = useState<MockStatementRecord[]>([]);
+
+    // UPI Payment State
+    const [upiId, setUpiId] = useState<string>(() => localStorage.getItem("rupeebill_upi_id") || "");
+    const [isEditingUpi, setIsEditingUpi] = useState(false);
+    const [upiInputVal, setUpiInputVal] = useState(upiId);
+
+    const { data: profile } = useQuery({
+        queryKey: ["profile_bank_page", user?.id],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from("profiles")
+                .select("upi_id")
+                .eq("user_id", user?.id || "")
+                .single();
+            if (error) return null;
+            return data;
+        },
+        enabled: !!user,
+    });
+
+    useEffect(() => {
+        if (profile?.upi_id) {
+            setUpiId(profile.upi_id);
+            setUpiInputVal(profile.upi_id);
+            localStorage.setItem("rupeebill_upi_id", profile.upi_id);
+        }
+    }, [profile?.upi_id]);
+
+    const handleSaveUpi = async () => {
+        const val = upiInputVal.trim();
+        setUpiId(val);
+        setIsEditingUpi(false);
+        if (val) {
+            localStorage.setItem("rupeebill_upi_id", val);
+        } else {
+            localStorage.removeItem("rupeebill_upi_id");
+        }
+        if (user?.id) {
+            try {
+                await (supabase as any)
+                    .from("profiles")
+                    .update({ upi_id: val || null })
+                    .eq("user_id", user.id);
+                queryClient.invalidateQueries({ queryKey: ["profile"] });
+                queryClient.invalidateQueries({ queryKey: ["profile_bank_page"] });
+                toast.success("Merchant UPI ID saved!");
+            } catch (err) {
+                console.error("Failed to save UPI ID", err);
+            }
+        } else {
+            toast.success("Merchant UPI ID saved!");
+        }
+    };
 
     // Dialog Controls
     const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -945,6 +1005,64 @@ const BankDetailsPage = () => {
 
                     {/* ACCOUNTS REGISTER TAB */}
                     <TabsContent value="accounts" className="space-y-4 outline-none">
+                        {/* UPI Payment Configuration Banner */}
+                        <div className="bg-card border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                    <QrCode className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-sm text-foreground">Merchant UPI & Scan-to-Pay QR</h3>
+                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-primary border-primary/20 bg-primary/5">
+                                            Printed on Invoices
+                                        </Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        {upiId ? (
+                                            <span>Active UPI ID: <span className="font-mono font-bold text-foreground">{upiId}</span></span>
+                                        ) : (
+                                            "No UPI ID set. Add your UPI ID to generate scan-and-pay QR codes on customer bills."
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {isEditingUpi ? (
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <Input 
+                                        value={upiInputVal}
+                                        onChange={(e) => setUpiInputVal(e.target.value)}
+                                        placeholder="e.g. shopname@upi"
+                                        className="h-8 text-xs font-mono w-full sm:w-60"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveUpi();
+                                            if (e.key === 'Escape') setIsEditingUpi(false);
+                                        }}
+                                        autoFocus
+                                    />
+                                    <Button size="sm" onClick={handleSaveUpi} className="h-8 text-xs px-3">
+                                        Save
+                                    </Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setIsEditingUpi(false)} className="h-8 text-xs px-2">
+                                        Cancel
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => {
+                                        setUpiInputVal(upiId);
+                                        setIsEditingUpi(true);
+                                    }}
+                                    className="h-8 text-xs rounded-xl font-semibold gap-1.5 shrink-0"
+                                >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    {upiId ? "Change UPI ID" : "Set UPI ID"}
+                                </Button>
+                            )}
+                        </div>
                         {accounts.length === 0 ? (
                             <div className="border border-dashed rounded-3xl p-12 text-center flex flex-col items-center justify-center space-y-3 bg-card/50">
                                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">

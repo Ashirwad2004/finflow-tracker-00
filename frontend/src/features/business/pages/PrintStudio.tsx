@@ -20,9 +20,11 @@ import {
     Eye,
     TrendingUp,
     FileCheck,
-    Landmark
+    Landmark,
+    QrCode
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
     Select,
@@ -32,10 +34,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { format } from "date-fns";
+import { QRCodeSVG } from "qrcode.react";
 import { 
     generateInvoicePDF, 
     InvoiceDetails, 
@@ -111,7 +114,9 @@ const InvoiceMockPreview = ({
     pageSize,
     customTerms,
     printBankDetails,
-    bankAccount
+    bankAccount,
+    printUpiQr,
+    upiId
 }: { 
     sale: any; 
     profile: any; 
@@ -121,6 +126,8 @@ const InvoiceMockPreview = ({
     customTerms: string;
     printBankDetails?: boolean;
     bankAccount?: BankDetailsInfo | null;
+    printUpiQr?: boolean;
+    upiId?: string;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
     const dateToParse = sale.date || sale.created_at;
@@ -141,6 +148,12 @@ const InvoiceMockPreview = ({
         ? Number(sale.balance_due) 
         : Math.max(0, totalAmount - amountPaid);
     const isPartial = sale.status === 'partial' || (amountPaid > 0 && balanceDue > 0);
+
+    const effectiveUpi = (upiId || profile?.upi_id || localStorage.getItem("rupeebill_upi_id") || "").trim();
+    const amountToPay = balanceDue > 0 ? balanceDue : totalAmount;
+    const upiUri = effectiveUpi 
+        ? `upi://pay?pa=${encodeURIComponent(effectiveUpi)}&pn=${encodeURIComponent(bizName.slice(0, 50))}&am=${amountToPay.toFixed(2)}&cu=INR&tn=Invoice-${encodeURIComponent(sale.invoice_number || 'INV')}`
+        : "";
 
     let taxRate = Number(sale.tax_rate) || 0;
     if (taxRate === 0 && taxAmount > 0) {
@@ -272,13 +285,31 @@ const InvoiceMockPreview = ({
                             <span className="font-bold text-[9.5px] uppercase">{convertAmountToIndianWords(totalAmount)}</span>
                         </div>
 
-                        {printBankDetails && bankAccount?.bankName && (
-                            <div className="border-t border-black/10 pt-2 space-y-0.5 text-[9px] text-slate-700">
-                                <p className="font-bold text-[9.5px] text-slate-900">Company's Bank Details</p>
-                                <p>Bank Name: {bankAccount.bankName}</p>
-                                <p>A/c No: {bankAccount.accountNumber} {bankAccount.ifscCode ? ` | IFSC: ${bankAccount.ifscCode}` : ''} {bankAccount.branchName ? ` | Branch: ${bankAccount.branchName}` : ''}</p>
+                        {(printBankDetails && bankAccount?.bankName) || (printUpiQr && effectiveUpi) ? (
+                            <div className="border-t border-black/10 pt-2 flex items-center justify-between gap-3 text-[9px] text-slate-700">
+                                <div className="space-y-0.5 min-w-0">
+                                    {printBankDetails && bankAccount?.bankName && (
+                                        <>
+                                            <p className="font-bold text-[9.5px] text-slate-900">Company's Bank Details</p>
+                                            <p>Bank Name: {bankAccount.bankName}</p>
+                                            <p>A/c No: {bankAccount.accountNumber} {bankAccount.ifscCode ? ` | IFSC: ${bankAccount.ifscCode}` : ''} {bankAccount.branchName ? ` | Branch: ${bankAccount.branchName}` : ''}</p>
+                                        </>
+                                    )}
+                                    {printUpiQr && effectiveUpi && (
+                                        <div className="pt-0.5">
+                                            <span className="font-bold text-[9px] text-slate-900">Instant UPI: </span>
+                                            <span className="font-mono text-slate-800">{effectiveUpi}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {printUpiQr && effectiveUpi && (
+                                    <div className="flex flex-col items-center flex-shrink-0 bg-white p-1 border border-black/20 rounded shadow-2xs">
+                                        <QRCodeSVG value={upiUri} size={52} level="M" />
+                                        <span className="text-[6.5px] font-bold mt-0.5 tracking-tight text-slate-800">SCAN TO PAY</span>
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        ) : null}
 
                         <div className="border-t border-black/10 pt-2 text-[8px] text-slate-500">
                             <span className="font-bold text-[9px] text-slate-700 block mb-0.5">Declaration</span>
@@ -414,22 +445,32 @@ const InvoiceMockPreview = ({
                     <p>PLEASE VISIT AGAIN</p>
                 </div>
                 
-                {/* CSS Barcode Mock */}
-                <div className="flex flex-col items-center justify-center opacity-85 mt-4">
-                    <div className="flex h-8 w-36 mb-1 items-end justify-center mix-blend-multiply">
-                        {[...Array(24)].map((_, i) => (
-                            <div
-                                key={i}
-                                className="bg-black h-full"
-                                style={{
-                                    width: `${Math.max(1, (i % 3 === 0) ? 2 : 1)}px`,
-                                    marginRight: `${Math.max(1, (i % 4 === 0) ? 2 : 1)}px`
-                                }}
-                            />
-                        ))}
+                {/* Thermal UPI QR Code or Barcode */}
+                {printUpiQr && effectiveUpi ? (
+                    <div className="flex flex-col items-center justify-center mt-4">
+                        <div className="p-1.5 bg-white border border-black rounded shadow-2xs">
+                            <QRCodeSVG value={upiUri} size={68} level="M" />
+                        </div>
+                        <p className="text-[9px] font-bold mt-1 tracking-tight">SCAN TO PAY VIA UPI</p>
+                        <p className="text-[8px] opacity-75 font-mono">{effectiveUpi}</p>
                     </div>
-                    <p className="text-[9px] tracking-widest">{sale.invoice_number}</p>
-                </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center opacity-85 mt-4">
+                        <div className="flex h-8 w-36 mb-1 items-end justify-center mix-blend-multiply">
+                            {[...Array(24)].map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="bg-black h-full"
+                                    style={{
+                                        width: `${Math.max(1, (i % 3 === 0) ? 2 : 1)}px`,
+                                        marginRight: `${Math.max(1, (i % 4 === 0) ? 2 : 1)}px`
+                                    }}
+                                />
+                            ))}
+                        </div>
+                        <p className="text-[9px] tracking-widest">{sale.invoice_number}</p>
+                    </div>
+                )}
             </div>
         );
     }
@@ -561,10 +602,38 @@ const InvoiceMockPreview = ({
             {/* TOTALS & SIGNATURE */}
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-100 bg-slate-50/40 rounded-b-xl">
                 {/* Payment & Terms Note */}
-                <div className="text-[11px] text-slate-500 space-y-1.5 flex flex-col justify-end">
-                    <p className="font-bold text-slate-700 uppercase tracking-wider">Terms & Declarations</p>
-                    <p className="leading-relaxed">1. All claims and returns must refer to the Invoice Number.</p>
-                    <p className="leading-relaxed">2. Computer generated ledger statement, signature only required where applicable.</p>
+                <div className="text-[11px] text-slate-500 space-y-2.5 flex flex-col justify-end">
+                    {printUpiQr && effectiveUpi && (
+                        <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-white shadow-xs">
+                            <div className="p-1 rounded bg-slate-50 border flex-shrink-0">
+                                <QRCodeSVG value={upiUri} size={56} level="M" />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                                <div className="text-[11px] font-bold text-primary flex items-center gap-1">
+                                    <QrCode className="w-3.5 h-3.5" />
+                                    Scan & Pay via UPI
+                                </div>
+                                <div className="text-[9px] text-muted-foreground">Google Pay • PhonePe • Paytm • BHIM</div>
+                                <div className="text-[10px] font-mono font-semibold text-slate-800 truncate">
+                                    {effectiveUpi}
+                                </div>
+                                <div className="text-[10px] font-bold text-emerald-700">
+                                    Amount: {formatCurrency(balanceDue > 0 ? balanceDue : totalAmount)}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {printBankDetails && bankAccount?.bankName && (
+                        <div className="p-2 rounded-lg border bg-slate-50/80 text-[10px] space-y-0.5">
+                            <div className="font-bold text-slate-800">Bank Transfer</div>
+                            <div>{bankAccount.bankName} • A/c: {bankAccount.accountNumber}</div>
+                            <div className="text-slate-500">IFSC: {bankAccount.ifscCode}</div>
+                        </div>
+                    )}
+                    <div className="space-y-0.5">
+                        <p className="font-bold text-slate-700 uppercase tracking-wider">Terms & Declarations</p>
+                        <p className="leading-relaxed">{customTerms || "1. All claims and returns must refer to the Invoice Number."}</p>
+                    </div>
                 </div>
                 
                 {/* Financial Summary */}
@@ -622,6 +691,7 @@ const InvoiceMockPreview = ({
 
 const PrintStudioPage = () => {
     const { user } = useAuth();
+    const queryClient = useQueryClient();
     const [selectedTheme, setSelectedTheme] = useState<InvoiceTheme>("startup-gradient");
     const [selectedSale, setSelectedSale] = useState<any>(null);
     const [pageSize, setPageSize] = useState<PageSize>(() => {
@@ -662,6 +732,44 @@ const PrintStudioPage = () => {
         setPrintBankDetails(checked);
         localStorage.setItem("rupeebill_print_bank_details", checked ? "true" : "false");
         toast.success(checked ? "Bank details enabled on invoices" : "Bank details hidden from invoices");
+    };
+
+    // UPI Payment QR Preferences
+    const [printUpiQr, setPrintUpiQr] = useState<boolean>(() => {
+        const saved = localStorage.getItem("rupeebill_print_upi_qr");
+        return saved !== "false";
+    });
+
+    const handlePrintUpiToggle = (checked: boolean) => {
+        setPrintUpiQr(checked);
+        localStorage.setItem("rupeebill_print_upi_qr", checked ? "true" : "false");
+        toast.success(checked ? "UPI QR code enabled on invoices" : "UPI QR code hidden from invoices");
+    };
+
+    const [upiIdInput, setUpiIdInput] = useState<string>(() => {
+        return localStorage.getItem("rupeebill_upi_id") || "";
+    });
+
+    const handleSaveUpiId = async (newUpi: string) => {
+        const trimmed = newUpi.trim();
+        setUpiIdInput(trimmed);
+        if (trimmed) {
+            localStorage.setItem("rupeebill_upi_id", trimmed);
+        } else {
+            localStorage.removeItem("rupeebill_upi_id");
+        }
+        if (user?.id) {
+            try {
+                await (supabase as any)
+                    .from("profiles")
+                    .update({ upi_id: trimmed || null })
+                    .eq("user_id", user.id);
+                queryClient.invalidateQueries({ queryKey: ["profile"] });
+                toast.success("UPI ID updated successfully");
+            } catch (err) {
+                console.error("Failed to update UPI in profile:", err);
+            }
+        }
     };
 
     const [bankAccounts, setBankAccounts] = useState<any[]>(() => getStoredBankAccounts());
@@ -729,6 +837,13 @@ const PrintStudioPage = () => {
         enabled: !!user,
     });
 
+    useEffect(() => {
+        if (profile?.upi_id && !upiIdInput) {
+            setUpiIdInput(profile.upi_id);
+            localStorage.setItem("rupeebill_upi_id", profile.upi_id);
+        }
+    }, [profile?.upi_id]);
+
     const activeBankAccount: BankDetailsInfo | null = useMemo(() => {
         return resolveInvoiceBankDetails({
             printBankDetails,
@@ -777,7 +892,8 @@ const PrintStudioPage = () => {
                 bank_name: activeBankAccount?.bankName,
                 bank_account_no: activeBankAccount?.accountNumber,
                 bank_ifsc: activeBankAccount?.ifscCode,
-                bank_branch: activeBankAccount?.branchName
+                bank_branch: activeBankAccount?.branchName,
+                upi_id: printUpiQr ? (upiIdInput || profile?.upi_id || undefined) : undefined
             } : undefined
         };
 
@@ -794,7 +910,9 @@ const PrintStudioPage = () => {
                 fontSizeFactor,
                 printBankDetails,
                 bankDetails: activeBankAccount || undefined,
-                selectedBankAccountId: selectedBankId
+                selectedBankAccountId: selectedBankId,
+                printUpiQr,
+                upiId: upiIdInput || profile?.upi_id
             });
         }
     };
@@ -1055,11 +1173,66 @@ const PrintStudioPage = () => {
                             )}
                         </div>
 
-                        {/* 5. Terms & Conditions Card */}
+                        {/* 5. UPI Payment QR Code Card */}
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <div className="flex items-center justify-between border-b pb-2">
+                                <h2 className="text-sm font-bold flex items-center gap-2">
+                                    <QrCode className="w-3.5 h-3.5 text-primary" />
+                                    5. UPI Payment QR Code
+                                </h2>
+                                <Switch 
+                                    checked={printUpiQr}
+                                    onCheckedChange={handlePrintUpiToggle}
+                                />
+                            </div>
+
+                            {printUpiQr ? (
+                                <div className="space-y-2.5 animate-fade-in">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-muted-foreground block">
+                                            Merchant UPI ID / VPA
+                                        </label>
+                                        <div className="flex gap-1.5">
+                                            <Input
+                                                value={upiIdInput}
+                                                onChange={(e) => setUpiIdInput(e.target.value)}
+                                                onBlur={(e) => handleSaveUpiId(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleSaveUpiId(upiIdInput);
+                                                    }
+                                                }}
+                                                placeholder="e.g. yourshop@upi, 9876543210@paytm"
+                                                className="h-8 text-xs font-mono"
+                                            />
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleSaveUpiId(upiIdInput)}
+                                                className="h-8 text-xs px-2.5 shrink-0"
+                                            >
+                                                Save
+                                            </Button>
+                                        </div>
+                                        <p className="text-[9px] text-muted-foreground">
+                                            Dynamic QR code encodes invoice balance due. Customers can scan using Google Pay, PhonePe, Paytm, or BHIM.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-[10px] text-muted-foreground italic">
+                                    UPI QR code will not be printed on downloaded or printed invoices.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* 6. Terms & Conditions Card */}
                         <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
                             <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
                                 <FileCheck className="w-3.5 h-3.5 text-primary" />
-                                5. Terms & Conditions
+                                6. Terms & Conditions
                             </h2>
                             <textarea
                                 value={customTerms}
@@ -1127,7 +1300,8 @@ const PrintStudioPage = () => {
                                                         bank_name: activeBankAccount?.bankName,
                                                         bank_account_no: activeBankAccount?.accountNumber,
                                                         bank_ifsc: activeBankAccount?.ifscCode,
-                                                        bank_branch: activeBankAccount?.branchName
+                                                        bank_branch: activeBankAccount?.branchName,
+                                                        upi_id: printUpiQr ? (upiIdInput || profile?.upi_id || undefined) : undefined
                                                     } : undefined
                                                 }, 
                                                 { 
@@ -1138,7 +1312,9 @@ const PrintStudioPage = () => {
                                                     fontSizeFactor,
                                                     printBankDetails,
                                                     bankDetails: activeBankAccount || undefined,
-                                                    selectedBankAccountId: selectedBankId
+                                                    selectedBankAccountId: selectedBankId,
+                                                    printUpiQr,
+                                                    upiId: upiIdInput || profile?.upi_id
                                                 }
                                             );
                                         }}
@@ -1202,6 +1378,8 @@ const PrintStudioPage = () => {
                                             customTerms={customTerms}
                                             printBankDetails={printBankDetails}
                                             bankAccount={activeBankAccount}
+                                            printUpiQr={printUpiQr}
+                                            upiId={upiIdInput || profile?.upi_id}
                                         />
                                     </div>
                                 </div>
