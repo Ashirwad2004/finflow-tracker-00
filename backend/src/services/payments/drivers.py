@@ -76,16 +76,19 @@ class StripeGateway:
     async def create_order(self, order_id: str, amount: float, currency: str = "USD", customer: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         import stripe
         self.ensure_client()
-        subunit_amount = int(round(amount * 100))
+        subunit_amount = round(amount * 100)
         metadata = {"orderId": order_id}
         
-        payment_intent = stripe.PaymentIntent.create(
-            amount=subunit_amount,
-            currency=currency.lower(),
-            description=f"FinFlow Storefront Order #{order_id}",
-            metadata=metadata,
-            receipt_email=customer.get("email") if customer else None
-        )
+        create_kwargs: Dict[str, Any] = {
+            "amount": subunit_amount,
+            "currency": currency.lower(),
+            "description": f"FinFlow Storefront Order #{order_id}",
+            "metadata": metadata,
+        }
+        if customer and customer.get("email"):
+            create_kwargs["receipt_email"] = str(customer["email"])
+
+        payment_intent = stripe.PaymentIntent.create(**create_kwargs)
         return {
             "success": True,
             "gatewayOrderId": payment_intent.id,
@@ -100,21 +103,33 @@ class StripeGateway:
         import stripe
         self.ensure_client()
         payment_intent = stripe.PaymentIntent.retrieve(gateway_order_id)
-        if expected_amount is not None and payment_intent.amount != int(round(expected_amount * 100)):
+        if expected_amount is not None and payment_intent.amount != round(expected_amount * 100):
             raise ValueError("Payment amount does not match the order")
         if expected_currency and payment_intent.currency.lower() != expected_currency.lower():
             raise ValueError("Payment currency does not match the order")
         if payment_intent.status == "succeeded":
-            latest_charge = payment_intent.latest_charge
-            charge = None
+            latest_charge = getattr(payment_intent, "latest_charge", None)
+            charge: Any = None
             if latest_charge:
-                charge = stripe.Charge.retrieve(latest_charge)
+                if isinstance(latest_charge, str):
+                    charge = stripe.Charge.retrieve(latest_charge)
+                elif hasattr(latest_charge, "payment_method_details"):
+                    charge = latest_charge
+                elif hasattr(latest_charge, "id") and isinstance(latest_charge.id, str):
+                    charge = stripe.Charge.retrieve(latest_charge.id)
             
             method = "card"
-            details = {}
-            if charge and charge.payment_method_details:
-                method = charge.payment_method_details.type
-                details = charge.payment_method_details.to_dict() if hasattr(charge.payment_method_details, "to_dict") else dict(charge.payment_method_details)
+            details: Dict[str, Any] = {}
+            if charge:
+                pmd = getattr(charge, "payment_method_details", None)
+                if pmd:
+                    method = getattr(pmd, "type", "card") or "card"
+                    if hasattr(pmd, "to_dict") and callable(pmd.to_dict):
+                        res = pmd.to_dict()
+                        if isinstance(res, dict):
+                            details = res
+                    elif hasattr(pmd, "__dict__"):
+                        details = {k: v for k, v in pmd.__dict__.items() if not k.startswith("_")}
             return {
                 "success": True,
                 "paymentMethod": method,
@@ -125,12 +140,14 @@ class StripeGateway:
     async def refund(self, gateway_payment_id: str, amount: Optional[float] = None, reason: Optional[str] = None) -> Dict[str, Any]:
         import stripe
         self.ensure_client()
-        refund_params = {
+        valid_reasons = {"duplicate", "fraudulent", "requested_by_customer"}
+        selected_reason = reason if reason in valid_reasons else "requested_by_customer"
+        refund_params: Dict[str, Any] = {
             "payment_intent": gateway_payment_id,
-            "reason": "requested_by_customer"
+            "reason": selected_reason
         }
         if amount:
-            refund_params["amount"] = int(round(amount * 100))
+            refund_params["amount"] = round(amount * 100)
         
         refund_obj = stripe.Refund.create(**refund_params)
         return {
@@ -158,6 +175,7 @@ class StripeGateway:
 
 class RazorpayGateway:
     name = "razorpay"
+    client: Any
 
     def __init__(self):
         self.key_id = settings.RAZORPAY_KEY_ID
@@ -167,7 +185,7 @@ class RazorpayGateway:
             import razorpay
             self.client = razorpay.Client(auth=(self.key_id, self.key_secret))
 
-    def ensure_client(self):
+    def ensure_client(self) -> Any:
         import razorpay
         if not self.client:
             self.key_id = settings.RAZORPAY_KEY_ID
@@ -175,12 +193,13 @@ class RazorpayGateway:
             if not self.key_id or not self.key_secret:
                 raise ValueError("RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET environment variables are not defined.")
             self.client = razorpay.Client(auth=(self.key_id, self.key_secret))
+        return self.client
 
     async def create_order(self, order_id: str, amount: float, currency: str = "INR", customer: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        self.ensure_client()
-        subunit_amount = int(round(amount * 100))
+        client: Any = self.ensure_client()
+        subunit_amount = round(amount * 100)
         
-        rzp_order = self.client.order.create({
+        rzp_order = client.order.create({
             "amount": subunit_amount,
             "currency": currency.upper(),
             "receipt": f"receipt_order_{order_id[:16]}",
@@ -201,7 +220,7 @@ class RazorpayGateway:
         }
 
     async def verify_payment(self, gateway_order_id: str, gateway_payment_id: str, gateway_signature: Optional[str] = None, expected_amount: Optional[float] = None, expected_currency: Optional[str] = None) -> Dict[str, Any]:
-        self.ensure_client()
+        client: Any = self.ensure_client()
         if not gateway_signature:
             raise ValueError("Razorpay payment requires gatewaySignature for verification.")
             
@@ -215,17 +234,17 @@ class RazorpayGateway:
         if not hmac.compare_digest(expected_signature, gateway_signature):
             raise ValueError("Razorpay signature verification failed.")
             
-        order_details = self.client.order.fetch(gateway_order_id)
-        payment_details = self.client.payment.fetch(gateway_payment_id)
+        order_details = client.order.fetch(gateway_order_id)
+        payment_details = client.payment.fetch(gateway_payment_id)
         if payment_details.get("status") not in ("captured", "authorized"):
             raise ValueError(f"Payment is not in captured/authorized state (status: {payment_details.get('status')})")
         if payment_details.get("status") == "authorized":
             try:
-                capture_amount = int(round(expected_amount * 100)) if expected_amount is not None else payment_details.get("amount")
-                payment_details = self.client.payment.capture(gateway_payment_id, capture_amount)
+                capture_amount = round(expected_amount * 100) if expected_amount is not None else payment_details.get("amount")
+                payment_details = client.payment.capture(gateway_payment_id, capture_amount)
             except Exception:
                 pass
-        if expected_amount is not None and payment_details.get("amount") != int(round(expected_amount * 100)):
+        if expected_amount is not None and payment_details.get("amount") != round(expected_amount * 100):
             raise ValueError("Payment amount does not match the order")
         if expected_currency and order_details.get("currency") != expected_currency.upper():
             raise ValueError("Payment currency does not match the order")
@@ -243,13 +262,13 @@ class RazorpayGateway:
         }
 
     async def refund(self, gateway_payment_id: str, amount: Optional[float] = None, reason: Optional[str] = None) -> Dict[str, Any]:
-        self.ensure_client()
-        refund_params = {}
+        client: Any = self.ensure_client()
+        refund_params: Dict[str, Any] = {}
         if amount:
-            refund_params["amount"] = int(round(amount * 100))
+            refund_params["amount"] = round(amount * 100)
         refund_params["notes"] = {"reason": reason or "Merchant refund"}
         
-        refund_obj = self.client.payment.refund(gateway_payment_id, refund_params)
+        refund_obj = client.payment.refund(gateway_payment_id, refund_params)
         return {
             "success": True,
             "refundId": refund_obj["id"]

@@ -421,11 +421,11 @@ const Groups = () => {
       const code = rawCode.trim().toUpperCase();
       if (!code) throw new Error("Enter an invite code.");
 
-      const { data: group, error: findErr } = await (supabase as any)
-        .from("groups")
-        .select("*")
-        .eq("invite_code", code)
-        .maybeSingle();
+      const { data: groupList, error: findErr } = await (supabase as any)
+        .rpc("get_group_by_invite_code", {
+          p_invite_code: code,
+        });
+      const group = Array.isArray(groupList) && groupList.length > 0 ? groupList[0] : null;
       if (findErr || !group) throw new Error("No group matches that code.");
 
       const { data: existing } = await (supabase as any)

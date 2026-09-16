@@ -45,19 +45,22 @@ class InsightService:
     async def generate_finance_insight(
         self, payload: FinanceInsightRequest
     ) -> FinanceInsightResponse:
-        categories_by_id = {category.id: category.name for category in payload.categories}
-        compact_expenses = [
-            {
-                "amount": float(expense.get("amount") or 0),
-                "description": expense.get("description"),
-                "date": expense.get("date"),
-                "category": (
-                    (expense.get("categories") or {}).get("name")
-                    or categories_by_id.get(expense.get("category_id"), "Uncategorized")
-                ),
-            }
-            for expense in payload.expenses[:30]
-        ]
+        categories_by_id: dict[str, str] = {str(category.id): str(category.name) for category in payload.categories}
+        compact_expenses = []
+        for expense in payload.expenses[:30]:
+            nested_cat = expense.get("categories")
+            cat_name = nested_cat.get("name") if isinstance(nested_cat, dict) else None
+            if not cat_name:
+                cat_id = str(expense.get("category_id") or "")
+                cat_name = categories_by_id.get(cat_id, "Uncategorized")
+            compact_expenses.append(
+                {
+                    "amount": float(expense.get("amount") or 0),
+                    "description": expense.get("description"),
+                    "date": expense.get("date"),
+                    "category": cat_name or "Uncategorized",
+                }
+            )
 
         total_expenses = sum(float(expense.get("amount") or 0) for expense in payload.expenses)
         total_sales = sum(

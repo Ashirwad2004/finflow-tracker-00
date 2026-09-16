@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 
 from src.core.config import settings
 from src.core.supabase import supabase_client
+from src.core.limiter import limiter
 from src.api.deps import get_current_user, get_optional_user
 from src.services.payments import get_gateway_driver
 from src.schemas.payments import (
@@ -20,7 +21,6 @@ from src.schemas.payments import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", tags=["Payments"])
-PROCESSED_WEBHOOK_EVENTS: set[str] = set()
 
 
 def first_row(data: Any) -> Optional[Dict[str, Any]]:
@@ -85,7 +85,9 @@ async def health_check():
 
 
 @router.post("/create-order")
+@limiter.limit("30/minute")
 async def create_order(
+    request: Request,
     payload: OrderCreate,
     current_user: dict | None = Depends(get_optional_user),
 ):
@@ -106,11 +108,18 @@ async def create_order(
         if payload.amount is not None:
             if current_user is None:
                 raise HTTPException(status_code=401, detail="Authentication required")
-            amount_in_paise = float(payload.amount)
-            if amount_in_paise < 100:
+            try:
+                amount_in_paise = float(payload.amount)
+            except (ValueError, TypeError):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid amount. Minimum amount must be at least 100 paise (₹1)."
+                    detail="Invalid amount format."
+                )
+
+            if amount_in_paise < 100 or amount_in_paise > 100_000_000:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid amount. Amount must be between ₹1 and ₹1,000,000 (100 to 100,000,000 paise)."
                 )
 
             currency = (payload.currency or "INR").upper()
@@ -286,7 +295,9 @@ async def cancel_order(
 
 
 @router.post("/create-subscription-order")
+@limiter.limit("15/minute")
 async def create_subscription_order(
+    request: Request,
     payload: SubscriptionOrderCreate,
     current_user: dict = Depends(get_current_user),
 ):
@@ -370,6 +381,7 @@ async def create_subscription_order(
 
 
 @router.post("/verify-payment")
+@limiter.limit("30/minute")
 async def verify_payment(
     payload: PaymentVerify,
     request: Request,
@@ -512,6 +524,7 @@ async def verify_payment(
 
 
 @router.post("/webhook")
+@limiter.limit("120/minute")
 async def webhook(request: Request):
     try:
         req_body = await request.body()
@@ -525,12 +538,15 @@ async def webhook(request: Request):
 
         event_id = webhook_event.get("eventId")
         if event_id:
-            if event_id in PROCESSED_WEBHOOK_EVENTS:
-                logger.info("Duplicate webhook event ignored: %s", event_id)
+            try:
+                supabase_client.table("processed_webhook_events").insert({
+                    "event_id": event_id,
+                    "event_type": webhook_event.get("type") or "unknown",
+                    "provider": driver.name,
+                }).execute()
+            except Exception as dup_err:
+                logger.info("Duplicate webhook event ignored (DB idempotency): %s (%s)", event_id, dup_err)
                 return {"received": True, "duplicate": True}
-            PROCESSED_WEBHOOK_EVENTS.add(event_id)
-            if len(PROCESSED_WEBHOOK_EVENTS) > 10000:
-                PROCESSED_WEBHOOK_EVENTS.pop()
 
         event_type = webhook_event.get("type")
         data = webhook_event.get("data")
@@ -667,6 +683,7 @@ async def webhook(request: Request):
 
 
 @router.post("/refund")
+@limiter.limit("10/minute")
 async def refund_payment(payload: PaymentRefund, request: Request, current_user: dict = Depends(get_current_user)):
     try:
         # Fetch payment
