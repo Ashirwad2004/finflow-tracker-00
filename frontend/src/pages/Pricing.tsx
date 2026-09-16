@@ -37,13 +37,14 @@ import {
 
 // Suppress Canvas2D willReadFrequently browser warning globally
 if (typeof window !== "undefined" && typeof HTMLCanvasElement !== "undefined") {
-  const originalGetContext = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function (type: string, attributes?: any) {
+  const canvasProto = HTMLCanvasElement.prototype as any;
+  const originalGetContext = canvasProto.getContext;
+  canvasProto.getContext = function (this: unknown, type: string, attributes?: any) {
     if (type === "2d") {
       return originalGetContext.call(this, type, { willReadFrequently: true, ...attributes });
     }
     return originalGetContext.call(this, type, attributes);
-  } as any;
+  };
 }
 
 // Convert Razorpay third-party preload links to prefetch to eliminate Chromium's unused preload warning
