@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { cn } from "@/core/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export interface PartyItem {
     address?: string;
     gst_number?: string;
     opening_balance?: number;
+    opening_balance_type?: "to_receive" | "to_pay";
 }
 
 interface SupplierSectionProps {
@@ -129,6 +131,7 @@ export const SupplierSection = ({
                 address: newPartyData.address || null,
                 gst_number: newPartyData.gst_number || null,
                 opening_balance: Number(newPartyData.opening_balance) || 0,
+                opening_balance_type: newPartyData.opening_balance_type || "to_pay",
             };
 
             await offlineMutate({
@@ -299,9 +302,15 @@ export const SupplierSection = ({
                                                 {party.opening_balance !== undefined && Number(party.opening_balance) !== 0 && (
                                                     <Badge
                                                         variant="outline"
-                                                        className="text-[9px] shrink-0 font-mono px-1.5 py-0 h-4 bg-muted text-muted-foreground"
+                                                        className={cn(
+                                                            "text-[9px] shrink-0 font-mono px-1.5 py-0 h-4 border",
+                                                            party.opening_balance_type === "to_receive"
+                                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400"
+                                                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400"
+                                                        )}
                                                     >
-                                                        Bal: {formatCurrency(Number(party.opening_balance))}
+                                                        {party.opening_balance_type === "to_receive" ? "Rec: " : "Pay: "}
+                                                        {formatCurrency(Number(party.opening_balance))}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -403,12 +412,13 @@ export const SupplierSection = ({
                     user_id: userId || "",
                     name: vendorName.trim(),
                     type: "vendor",
-                    phone: vendorPhone,
-                    email: "",
-                    address: "",
-                    gst_number: vendorGstin,
-                    created_at: "",
-                    updated_at: "",
+                    phone: vendorPhone || null,
+                    email: null,
+                    address: null,
+                    gst_number: vendorGstin || null,
+                    opening_balance: 0,
+                    opening_balance_type: "to_pay",
+                    created_at: new Date().toISOString(),
                 }}
             />
         </div>

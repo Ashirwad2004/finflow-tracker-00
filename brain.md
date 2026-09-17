@@ -48,7 +48,7 @@
 | `products` | `id`, `user_id` (tenant isolation; query with `.eq("user_id", uid)`) |
 | `sales` | `id`, `store_id`, `party_id`, `total_amount`, `amount_paid`, `balance_due`, `status`, `notes`, `date` |
 | `purchases` | `id`, `store_id`, `party_id`, `total_amount`, `amount_paid`, `balance_due`, `status`, `notes`, `date` |
-| `parties` | `id`, `store_id`, `name`, `type` (`customer`\|`vendor`\|`both`), `opening_balance` |
+| `parties` | `id`, `store_id`, `name`, `type` (`customer`\|`vendor`\|`both`), `opening_balance`, `opening_balance_type` (`to_receive`\|`to_pay`) |
 
 ---
 
@@ -57,9 +57,9 @@
 1. **Trigger Variable Naming**: In PL/pgSQL triggers, prefix local variables with `v_` (e.g. `v_norm_email`) to avoid `ERROR 42702: column reference is ambiguous` in `ON CONFLICT` clauses.
 2. **Nullable `payments.order_id`**: Subscriptions have no storefront order; `order_id` must remain nullable. Pass subscription info in `notes`.
 3. **Party Auto-Linking & Balance**:
-   - In `CreateInvoiceDialog.tsx`, auto-link or auto-create parties by case-insensitive name (`opening_balance: 0`). Promote vendor to `'both'` if making a sale.
-   - **Customer Receivable**: $\sum \text{balance\_due (sales)} + (\text{opening\_balance if not vendor})$.
-   - **Vendor Payable**: $\sum \text{balance\_due (purchases)} + (\text{opening\_balance if vendor})$.
+   - In `CreateInvoiceDialog.tsx`, auto-link or auto-create parties by case-insensitive name (`opening_balance: 0`, `opening_balance_type: 'to_receive'`). Promote vendor to `'both'` if making a sale.
+   - **Customer Receivable**: $\sum \text{balance\_due (sales)} + (\text{opening\_balance if to\_receive (or not vendor)})$.
+   - **Vendor Payable**: $\sum \text{balance\_due (purchases)} + (\text{opening\_balance if to\_pay (or vendor)})$.
 4. **Partial Payment Status & Formulas**:
    - Statuses: `'paid'`, `'partial'`, `'pending'`, `'cancelled'`, `'overdue'`.
    - `amount_paid >= total_amount`: status `'paid'`, `balance_due = 0`.

@@ -20,6 +20,7 @@ export interface PartyExportItem {
     address?: string | null;
     gst_number?: string | null;
     opening_balance?: number;
+    opening_balance_type?: "to_receive" | "to_pay";
     created_at?: string;
 }
 
@@ -137,10 +138,18 @@ export const exportPartiesToExcel = (
         grandPurchasesPaid += m.totalPurchasesPaid;
         grandPayable += m.payable;
 
+        const isOpeningReceivable = party.opening_balance_type
+            ? party.opening_balance_type === 'to_receive'
+            : party.type !== 'vendor';
         const netBalance = m.receivable - m.payable;
         let statusLabel = "Settled";
         if (netBalance > 0) statusLabel = "To Collect (Receivable)";
         else if (netBalance < 0) statusLabel = "To Pay (Payable)";
+
+        const openBalNumber = Number(party.opening_balance || 0);
+        const openBalDisplay = openBalNumber > 0
+            ? `${openBalNumber} (${isOpeningReceivable ? 'Dr' : 'Cr'})`
+            : 0;
 
         return [
             party.name || "",
@@ -148,7 +157,7 @@ export const exportPartiesToExcel = (
             party.phone || "",
             party.email || "",
             party.gst_number || "",
-            Number(party.opening_balance || 0),
+            openBalDisplay,
             m.totalSalesAmount,
             m.totalSalesPaid,
             m.receivable,
@@ -555,9 +564,13 @@ export const exportSinglePartyStatementToExcel = (
     ]);
 
     const openingBal = Number(party.opening_balance) || 0;
+    const isOpeningReceivable = party.opening_balance_type
+        ? party.opening_balance_type === 'to_receive'
+        : party.type !== 'vendor';
+    const openingBalLabel = `Opening Balance (${isOpeningReceivable ? 'Receivable / Dr' : 'Payable / Cr'})`;
     const summaryRows = [
         emptyRow,
-        ["Opening Balance", "", "", "", openingBal, "", ""],
+        [openingBalLabel, "", "", "", openingBal, "", ""],
         ["Total Billed", "", "", "", metrics.totalSalesAmount + metrics.totalPurchasesAmount, "", ""],
         ["Total Collected / Paid", "", "", "", metrics.totalSalesPaid + metrics.totalPurchasesPaid, "", ""],
         ["Total Outstanding Receivable (Dr)", "", "", "", metrics.receivable, "", ""],
@@ -660,11 +673,18 @@ export const exportSinglePartyStatementToPDF = (
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
+    const isOpeningReceivable = party.opening_balance_type
+        ? party.opening_balance_type === 'to_receive'
+        : party.type !== 'vendor';
+
     const partyInfo = [
         `Account Type: ${(party.type || "customer").toUpperCase()}`,
         party.phone ? `Phone: ${party.phone}` : null,
         party.email ? `Email: ${party.email}` : null,
         party.gst_number ? `GSTIN: ${party.gst_number}` : null,
+        Number(party.opening_balance) > 0
+            ? `Opening Bal: Rs. ${formatCurrencyNumber(Number(party.opening_balance))} (${isOpeningReceivable ? 'Receivable/Dr' : 'Payable/Cr'})`
+            : null,
     ].filter(Boolean);
     doc.text(sanitizeText(partyInfo.join("  •  ")), startX + 4, currentY + 12);
 
@@ -678,6 +698,10 @@ export const exportSinglePartyStatementToPDF = (
     const cardWidth = (pageWidth - startX * 2 - 10) / 3;
     const cardHeight = 16;
 
+    const isPayableDominant = (party.type === "vendor" && metrics.payable >= metrics.receivable) || (metrics.payable > 0 && metrics.receivable === 0);
+    const balanceAmount = isPayableDominant ? metrics.payable : metrics.receivable;
+    const balanceLabel = isPayableDominant ? "BALANCE PAYABLE (CR)" : "BALANCE RECEIVABLE (DR)";
+
     const summaryCards = [
         {
             label: "TOTAL BILLED",
@@ -690,11 +714,9 @@ export const exportSinglePartyStatementToPDF = (
             color: [5, 150, 105],
         },
         {
-            label: party.type === "vendor" ? "BALANCE PAYABLE (CR)" : "BALANCE RECEIVABLE (DR)",
-            value: `Rs. ${formatCurrencyNumber(
-                party.type === "vendor" ? metrics.payable : metrics.receivable
-            )}`,
-            color: (party.type === "vendor" ? metrics.payable : metrics.receivable) > 0
+            label: balanceLabel,
+            value: `Rs. ${formatCurrencyNumber(balanceAmount)}`,
+            color: balanceAmount > 0
                 ? [225, 29, 72]
                 : [5, 150, 105],
         },

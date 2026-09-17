@@ -23,6 +23,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
     const [address, setAddress] = useState("");
     const [gstNumber, setGstNumber] = useState("");
     const [openingBalance, setOpeningBalance] = useState<string>("0");
+    const [openingBalanceType, setOpeningBalanceType] = useState<"to_receive" | "to_pay">("to_receive");
 
     useEffect(() => {
         if (open) {
@@ -34,6 +35,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
                 setAddress(party.address || "");
                 setGstNumber(party.gst_number || "");
                 setOpeningBalance(String((party as any).opening_balance || 0));
+                setOpeningBalanceType((party as any).opening_balance_type || (party.type === "vendor" ? "to_pay" : "to_receive"));
             } else {
                 setName("");
                 setType("customer");
@@ -42,9 +44,17 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
                 setAddress("");
                 setGstNumber("");
                 setOpeningBalance("0");
+                setOpeningBalanceType("to_receive");
             }
         }
     }, [open, party, isEditing]);
+
+    const handleTypeChange = (val: "customer" | "vendor" | "both") => {
+        setType(val);
+        if (!isEditing || !(party as any)?.opening_balance_type) {
+            setOpeningBalanceType(val === "vendor" ? "to_pay" : "to_receive");
+        }
+    };
 
     const handleSave = () => {
         if (!name.trim()) return;
@@ -57,6 +67,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
             address: address.trim() || null,
             gst_number: gstNumber.trim() || null,
             opening_balance: Number(openingBalance) || 0,
+            opening_balance_type: openingBalanceType,
         } as any);
         // Do not close dialog here, wait for mutation success
     };
@@ -86,7 +97,7 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
 
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="type" className="text-right font-medium">Type</Label>
-                        <Select value={type} onValueChange={(val: any) => setType(val)}>
+                        <Select value={type} onValueChange={(val: any) => handleTypeChange(val)}>
                             <SelectTrigger className="col-span-3">
                                 <SelectValue placeholder="Select type" />
                             </SelectTrigger>
@@ -143,18 +154,61 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
                         />
                     </div>
 
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="opening_balance" className="text-right font-medium">Opening Bal (₹)</Label>
-                        <Input
-                            id="opening_balance"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={openingBalance}
-                            onChange={(e) => setOpeningBalance(e.target.value)}
-                            className="col-span-3 font-semibold"
-                            placeholder="0.00"
-                        />
+                    {/* Financial Opening Balance: Amount + Receivable (To Receive) vs Payable (To Pay) */}
+                    <div className="grid grid-cols-4 items-start gap-4 pt-1">
+                        <Label htmlFor="opening_balance" className="text-right font-medium pt-2 text-xs sm:text-sm">
+                            Opening Bal
+                        </Label>
+                        <div className="col-span-3 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                                    <Input
+                                        id="opening_balance"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={openingBalance}
+                                        onChange={(e) => setOpeningBalance(e.target.value)}
+                                        className="pl-6 font-semibold h-9 text-sm"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <Select value={openingBalanceType} onValueChange={(val: "to_receive" | "to_pay") => setOpeningBalanceType(val)}>
+                                    <SelectTrigger className={`w-[135px] h-9 font-bold text-xs shrink-0 ${
+                                        openingBalanceType === "to_receive" 
+                                            ? "text-emerald-700 bg-emerald-50 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800" 
+                                            : "text-rose-700 bg-rose-50 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
+                                    }`}>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="to_receive" className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                                <span>To Receive (Dr)</span>
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="to_pay" className="text-xs font-bold text-rose-700 dark:text-rose-400">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                                                <span>To Pay (Cr)</span>
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {Number(openingBalance) > 0 && (
+                                <p className={`text-[11px] font-medium leading-tight ${
+                                    openingBalanceType === "to_receive" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                }`}>
+                                    {openingBalanceType === "to_receive" 
+                                        ? `Party owes you ₹${Number(openingBalance).toLocaleString('en-IN')} (Receivable)`
+                                        : `You owe party ₹${Number(openingBalance).toLocaleString('en-IN')} (Payable)`
+                                    }
+                                </p>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <DialogFooter>
