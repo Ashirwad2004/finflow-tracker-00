@@ -57,7 +57,7 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("parties")
-                .select("id, name, phone, type, opening_balance")
+                .select("id, name, phone, type, opening_balance, opening_balance_type")
                 .eq("user_id", user?.id || "");
             if (error) return [];
             return data as any[];
@@ -104,14 +104,19 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
             const name = (p.name || "").trim();
             if (!name) return;
             const norm = name.toLowerCase();
+            const openBal = Number(p.opening_balance) || 0;
+            const isOpeningReceivable = p.opening_balance_type
+                ? p.opening_balance_type === 'to_receive'
+                : p.type !== 'vendor';
+
             partyMap.set(norm, {
                 name,
                 phone: p.phone || undefined,
                 type: p.type === 'vendor' ? 'vendor' : p.type === 'both' ? 'both' : 'customer',
                 totalSales: 0,
                 totalPurchases: 0,
-                receivable: 0,
-                payable: 0,
+                receivable: isOpeningReceivable ? openBal : 0,
+                payable: !isOpeningReceivable ? openBal : 0,
                 netBalance: 0,
                 salesCount: 0,
                 purchasesCount: 0,

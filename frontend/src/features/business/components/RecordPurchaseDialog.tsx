@@ -625,6 +625,8 @@ export const RecordPurchaseDialog = ({
                             type: "vendor",
                             phone: values.vendor_phone || null,
                             gst_number: values.vendor_gstin || null,
+                            opening_balance: 0,
+                            opening_balance_type: "to_pay",
                         },
                         userId: user.id,
                     });

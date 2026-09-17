@@ -1236,6 +1236,7 @@ export const CreateInvoiceDialog = ({
                             address: values.place_of_supply?.trim() || null,
                             gst_number: values.customer_gstin?.trim()?.toUpperCase() || null,
                             opening_balance: 0,
+                            opening_balance_type: "to_receive",
                             created_at: new Date().toISOString()
                         };
 

@@ -97,7 +97,9 @@ export interface Party {
     address: string | null;
     gst_number: string | null;
     opening_balance?: number;
+    opening_balance_type?: "to_receive" | "to_pay";
     created_at: string;
+    updated_at?: string;
 }
 
 const getPartiesTable = () => (supabase as any).from("parties");
@@ -111,6 +113,7 @@ const buildPartyUpdatePayload = (updatedParty: Partial<Party>): Record<string, a
     if (updatedParty.address !== undefined) updatePayload.address = updatedParty.address;
     if (updatedParty.gst_number !== undefined) updatePayload.gst_number = updatedParty.gst_number;
     if (updatedParty.opening_balance !== undefined) updatePayload.opening_balance = Number(updatedParty.opening_balance) || 0;
+    if (updatedParty.opening_balance_type !== undefined) updatePayload.opening_balance_type = updatedParty.opening_balance_type;
     return updatePayload;
 };
 
@@ -259,8 +262,11 @@ const PartiesPage = () => {
             }, 0);
 
             const openingBal = Number(party.opening_balance) || 0;
-            const receivable = salesBalanceDue + (party.type !== 'vendor' ? openingBal : 0);
-            const payable = purchasesBalanceDue + (party.type === 'vendor' ? openingBal : 0);
+            const isOpeningReceivable = party.opening_balance_type
+                ? party.opening_balance_type === 'to_receive'
+                : party.type !== 'vendor';
+            const receivable = salesBalanceDue + (isOpeningReceivable ? openingBal : 0);
+            const payable = purchasesBalanceDue + (!isOpeningReceivable ? openingBal : 0);
 
             map.set(party.id, {
                 partySales,
@@ -273,7 +279,7 @@ const PartiesPage = () => {
                 purchasesBalanceDue,
                 receivable,
                 payable,
-                totalRecords: partySales.length + partyPurchases.length
+                totalRecords: partySales.length + partyPurchases.length + (openingBal > 0 ? 1 : 0)
             });
         }
 
@@ -345,7 +351,7 @@ const PartiesPage = () => {
 
     // Unified transactions for active party
     const activePartyTransactions = useMemo(() => {
-        if (!activePartyMetrics) return [];
+        if (!activePartyMetrics || !activeParty) return [];
         const list: any[] = [];
 
         activePartyMetrics.partySales.forEach((s: any) => {
@@ -380,12 +386,31 @@ const PartiesPage = () => {
             });
         });
 
+        const openBal = Number(activeParty.opening_balance) || 0;
+        if (openBal > 0) {
+            const isOpeningReceivable = activeParty.opening_balance_type
+                ? activeParty.opening_balance_type === 'to_receive'
+                : activeParty.type !== 'vendor';
+            list.push({
+                id: 'opening-balance-' + activeParty.id,
+                docType: 'opening_balance',
+                docNumber: 'OPENING',
+                date: activeParty.created_at,
+                total: openBal,
+                paid: 0,
+                balanceDue: openBal,
+                status: isOpeningReceivable ? 'to_receive' : 'to_pay',
+                isReceivable: isOpeningReceivable,
+                raw: null
+            });
+        }
+
         list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        if (activeTab === "sales") return list.filter(t => t.docType === 'sale');
-        if (activeTab === "purchases") return list.filter(t => t.docType === 'purchase');
+        if (activeTab === "sales") return list.filter(t => t.docType === 'sale' || (t.docType === 'opening_balance' && t.isReceivable));
+        if (activeTab === "purchases") return list.filter(t => t.docType === 'purchase' || (t.docType === 'opening_balance' && !t.isReceivable));
         return list;
-    }, [activePartyMetrics, activeTab]);
+    }, [activeParty, activePartyMetrics, activeTab]);
 
     // Mutations
     const createMutation = useMutation({
@@ -413,6 +438,7 @@ const PartiesPage = () => {
                 address: newParty.address || null,
                 gst_number: newParty.gst_number || null,
                 opening_balance: Number(newParty.opening_balance) || 0,
+                opening_balance_type: newParty.opening_balance_type || (newParty.type === 'vendor' ? 'to_pay' : 'to_receive'),
                 created_at: new Date().toISOString()
             } as Party;
 
@@ -1192,36 +1218,28 @@ const PartiesPage = () => {
 
                                             {/* Balance Tag */}
                                             <div className="text-right shrink-0">
-                                                {party.type !== 'vendor' ? (
-                                                    receivable > 0 ? (
-                                                        <div>
-                                                            <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 block">
-                                                                {formatCurrency(receivable)}
-                                                            </span>
-                                                            <span className="text-[8px] font-bold text-amber-500 uppercase tracking-wider">
-                                                                To Collect
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded">
-                                                            Settled
+                                                {receivable > 0 ? (
+                                                    <div>
+                                                        <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 block">
+                                                            {formatCurrency(receivable)}
                                                         </span>
-                                                    )
+                                                        <span className="text-[8px] font-bold text-amber-500 uppercase tracking-wider">
+                                                            To Collect
+                                                        </span>
+                                                    </div>
+                                                ) : payable > 0 ? (
+                                                    <div>
+                                                        <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 block">
+                                                            {formatCurrency(payable)}
+                                                        </span>
+                                                        <span className="text-[8px] font-bold text-rose-500 uppercase tracking-wider">
+                                                            To Pay
+                                                        </span>
+                                                    </div>
                                                 ) : (
-                                                    payable > 0 ? (
-                                                        <div>
-                                                            <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 block">
-                                                                {formatCurrency(payable)}
-                                                            </span>
-                                                            <span className="text-[8px] font-bold text-rose-500 uppercase tracking-wider">
-                                                                To Pay
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded">
-                                                            Settled
-                                                        </span>
-                                                    )
+                                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded">
+                                                        Settled
+                                                    </span>
                                                 )}
                                             </div>
                                         </div>
@@ -1297,6 +1315,15 @@ const PartiesPage = () => {
                                                     {activeParty.gst_number && (
                                                         <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded text-[10px] font-medium text-slate-700 dark:text-slate-300">
                                                             GST: {activeParty.gst_number}
+                                                        </span>
+                                                    )}
+                                                    {activeParty.opening_balance !== undefined && Number(activeParty.opening_balance) > 0 && (
+                                                        <span className={`inline-flex items-center gap-1 font-mono px-1.5 py-0.2 rounded text-[10px] font-bold border ${
+                                                            (activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor')
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                                : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
+                                                        }`}>
+                                                            Opening: {formatCurrency(Number(activeParty.opening_balance))} ({(activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor') ? 'To Receive / Dr' : 'To Pay / Cr'})
                                                         </span>
                                                     )}
                                                     {activeParty.address && (
@@ -1420,25 +1447,35 @@ const PartiesPage = () => {
                                         </div>
 
                                         <div className={`p-2.5 rounded-xl border shadow-2xs ${
-                                            (activeParty.type !== 'vendor' ? activePartyMetrics.receivable : activePartyMetrics.payable) > 0
-                                                ? activeParty.type !== 'vendor'
-                                                    ? 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80'
-                                                    : 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80'
+                                            activePartyMetrics.receivable > activePartyMetrics.payable
+                                                ? 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80'
+                                                : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80'
                                                 : 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/80'
                                         }`}>
                                             <p className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate block ${
-                                                (activeParty.type !== 'vendor' ? activePartyMetrics.receivable : activePartyMetrics.payable) > 0
-                                                    ? activeParty.type !== 'vendor' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                                                activePartyMetrics.receivable > activePartyMetrics.payable
+                                                    ? 'text-amber-600 dark:text-amber-400'
+                                                    : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                    ? 'text-rose-600 dark:text-rose-400'
                                                     : 'text-emerald-600 dark:text-emerald-400'
                                             }`}>
-                                                {activeParty.type !== 'vendor' ? "Balance to Collect" : "Balance to Pay"}
+                                                {activePartyMetrics.receivable > activePartyMetrics.payable
+                                                    ? "Balance to Collect (Dr)"
+                                                    : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                    ? "Balance to Pay (Cr)"
+                                                    : "Settled / Cleared"}
                                             </p>
                                             <p className={`text-sm sm:text-base font-black mt-0.5 truncate block ${
-                                                (activeParty.type !== 'vendor' ? activePartyMetrics.receivable : activePartyMetrics.payable) > 0
-                                                    ? activeParty.type !== 'vendor' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
+                                                activePartyMetrics.receivable > activePartyMetrics.payable
+                                                    ? 'text-amber-700 dark:text-amber-300'
+                                                    : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                    ? 'text-rose-700 dark:text-rose-300'
                                                     : 'text-emerald-700 dark:text-emerald-300'
                                             }`}>
-                                                {formatCurrency(activeParty.type !== 'vendor' ? activePartyMetrics.receivable : activePartyMetrics.payable)}
+                                                {formatCurrency(
+                                                    Math.abs(activePartyMetrics.receivable - activePartyMetrics.payable)
+                                                )}
                                             </p>
                                         </div>
                                     </div>
@@ -1519,8 +1556,9 @@ const PartiesPage = () => {
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                                                         {activePartyTransactions.map((txn: any) => {
                                                             const isSale = txn.docType === 'sale';
-                                                            const isFullyPaid = txn.status === 'paid' || txn.balanceDue <= 0;
-                                                            const isPartial = txn.status === 'partial' || (txn.paid > 0 && txn.balanceDue > 0);
+                                                            const isOpening = txn.docType === 'opening_balance';
+                                                            const isFullyPaid = isOpening ? false : (txn.status === 'paid' || txn.balanceDue <= 0);
+                                                            const isPartial = isOpening ? false : (txn.status === 'partial' || (txn.paid > 0 && txn.balanceDue > 0));
 
                                                             return (
                                                                 <tr key={txn.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
@@ -1528,22 +1566,24 @@ const PartiesPage = () => {
                                                                         {txn.date ? (isNaN(new Date(txn.date).getTime()) ? txn.date : format(new Date(txn.date), "dd MMM yyyy")) : "-"}
                                                                     </td>
                                                                     <td className="px-2.5 sm:px-3 py-2 font-bold text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
-                                                                        #{txn.docNumber}
+                                                                        {isOpening ? "OPENING" : `#${txn.docNumber}`}
                                                                     </td>
                                                                     <td className="px-2 sm:px-2.5 py-2 whitespace-nowrap">
                                                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${
-                                                                            isSale
+                                                                            isOpening
+                                                                                ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                                                                : isSale
                                                                                 ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
                                                                                 : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                                                                         }`}>
-                                                                            {isSale ? 'Sale' : 'Purchase'}
+                                                                            {isOpening ? 'Opening' : isSale ? 'Sale' : 'Purchase'}
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-2.5 sm:px-3 py-2 font-black text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
                                                                         {formatCurrency(txn.total)}
                                                                     </td>
                                                                     <td className="px-2.5 sm:px-3 py-2 font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[11px] sm:text-xs">
-                                                                        {formatCurrency(txn.paid)}
+                                                                        {isOpening ? "-" : formatCurrency(txn.paid)}
                                                                     </td>
                                                                     <td className="px-2.5 sm:px-3 py-2 whitespace-nowrap">
                                                                         {txn.balanceDue > 0 ? (
@@ -1555,18 +1595,42 @@ const PartiesPage = () => {
                                                                         )}
                                                                     </td>
                                                                     <td className="px-2 sm:px-2.5 py-2 whitespace-nowrap">
-                                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
-                                                                            isFullyPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900' :
-                                                                            isPartial ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900' :
-                                                                            'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
-                                                                        }`}>
-                                                                            {isFullyPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
-                                                                        </span>
+                                                                        {isOpening ? (
+                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
+                                                                                txn.isReceivable
+                                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
+                                                                                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
+                                                                            }`}>
+                                                                                {txn.isReceivable ? 'To Collect (Dr)' : 'To Pay (Cr)'}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
+                                                                                isFullyPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900' :
+                                                                                isPartial ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900' :
+                                                                                'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
+                                                                            }`}>
+                                                                                {isFullyPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
+                                                                            </span>
+                                                                        )}
                                                                     </td>
                                                                     <td className="px-2.5 sm:px-3 py-2 text-right whitespace-nowrap">
                                                                         <div className="flex items-center justify-end gap-1">
+                                                                            {/* Opening Balance row: Quick edit */}
+                                                                            {isOpening && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="outline"
+                                                                                    onClick={() => handleEditClick(activeParty)}
+                                                                                    className="h-6 sm:h-7 px-2 text-[10px] sm:text-[11px] font-semibold flex items-center gap-1"
+                                                                                    title="Edit party opening balance"
+                                                                                >
+                                                                                    <Edit className="w-3 h-3" />
+                                                                                    <span>Edit</span>
+                                                                                </Button>
+                                                                            )}
+
                                                                             {/* Customer Sale: We COLLECT money -> "Receive" */}
-                                                                            {isSale && txn.balanceDue > 0 && (
+                                                                            {!isOpening && isSale && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
                                                                                     onClick={() => handleOpenSettlement(txn.raw, "sale")}
@@ -1579,7 +1643,7 @@ const PartiesPage = () => {
                                                                             )}
 
                                                                             {/* Vendor Purchase: We PAY money -> "Pay" */}
-                                                                            {!isSale && txn.balanceDue > 0 && (
+                                                                            {!isOpening && !isSale && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
                                                                                     onClick={() => handleOpenSettlement(txn.raw, "purchase")}
@@ -1592,24 +1656,28 @@ const PartiesPage = () => {
                                                                             )}
 
                                                                             {/* Preview and Download for both Sales and Purchases */}
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="outline"
-                                                                                onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
-                                                                                className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                                                                title={isSale ? "Preview Invoice" : "Preview Purchase Bill"}
-                                                                            >
-                                                                                <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="outline"
-                                                                                onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
-                                                                                className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                                                                title={isSale ? "Download PDF" : "Download Purchase PDF"}
-                                                                            >
-                                                                                <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                                                            </Button>
+                                                                            {!isOpening && (
+                                                                                <>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant="outline"
+                                                                                        onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
+                                                                                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                                                                        title={isSale ? "Preview Invoice" : "Preview Purchase Bill"}
+                                                                                    >
+                                                                                        <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant="outline"
+                                                                                        onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
+                                                                                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                                                                        title={isSale ? "Download PDF" : "Download Purchase PDF"}
+                                                                                    >
+                                                                                        <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                                                                    </Button>
+                                                                                </>
+                                                                            )}
                                                                         </div>
                                                                     </td>
                                                                 </tr>
