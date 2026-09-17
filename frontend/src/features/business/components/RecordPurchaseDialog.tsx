@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -300,19 +300,93 @@ export const RecordPurchaseDialog = ({
         enabled: open && !!user?.id,
     });
 
-    // Fetch Products for Item Autocomplete
-    const { data: products = [] } = useQuery({
+    // Fetch Products for Item Autocomplete (Scoped to User with Cache Fallback)
+    const { data: dbProducts = [] } = useQuery({
         queryKey: ["products", user?.id],
         queryFn: async () => {
             if (!user?.id) return [];
-            const { data } = await (supabase as any)
-                .from("products")
-                .select("*")
-                .eq("user_id", user.id);
-            return data || [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("products")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (err) {
+                console.warn("Failed to fetch products from Supabase, falling back to cache", err);
+            }
+            const cached = queryClient.getQueryData<any[]>(["products", user.id]);
+            return cached || [];
         },
         enabled: open && !!user?.id,
     });
+
+    // Fetch Recent Purchases to Auto-Learn & Suggest Any Historically Purchased Raw Materials
+    const { data: historicalPurchases = [] } = useQuery({
+        queryKey: ["purchases-history-items", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("purchases")
+                    .select("items")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false })
+                    .limit(50);
+                if (!error && data) return data;
+            } catch (err) {
+                console.warn("Failed to fetch historical purchases items", err);
+            }
+            return [];
+        },
+        enabled: open && !!user?.id,
+    });
+
+    // Merge Catalog Products and Historical Items into a Single Rich Autocomplete Pool
+    const products: ProductItem[] = useMemo(() => {
+        const productMap = new Map<string, ProductItem>();
+
+        // 1. Inventory Products (Highest priority)
+        (dbProducts as any[]).forEach((p: any) => {
+            if (p?.name?.trim()) {
+                const key = p.name.trim().toLowerCase();
+                productMap.set(key, {
+                    id: p.id,
+                    name: p.name.trim(),
+                    cost_price: Number(p.cost_price ?? p.price ?? 0),
+                    price: Number(p.price ?? 0),
+                    stock_quantity: Number(p.stock_quantity ?? 0),
+                    unit: p.unit || "pc",
+                    hsn_code: p.hsn_code || "",
+                });
+            }
+        });
+
+        // 2. Previously Purchased Items (Supplements items not yet registered in inventory)
+        (historicalPurchases as any[]).forEach((pur: any) => {
+            if (Array.isArray(pur.items)) {
+                pur.items.forEach((it: any) => {
+                    const itemName = (it.description || it.name || "").trim();
+                    if (itemName) {
+                        const key = itemName.toLowerCase();
+                        if (!productMap.has(key)) {
+                            productMap.set(key, {
+                                id: `hist_${itemName}`,
+                                name: itemName,
+                                cost_price: Number(it.price || 0),
+                                price: Number(it.price || 0),
+                                stock_quantity: 0,
+                                unit: it.unit || "pc",
+                                hsn_code: it.hsn_code || "",
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        return Array.from(productMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [dbProducts, historicalPurchases]);
 
     const vendorParties = parties.filter(
         (party: any) => party.type === "vendor" || party.type === "both" || !party.type
@@ -359,6 +433,23 @@ export const RecordPurchaseDialog = ({
                 shouldDirty: true,
             });
         }
+        if (product.hsn_code) {
+            setValue(`items.${index}.hsn_code` as any, product.hsn_code, {
+                shouldValidate: true,
+                shouldDirty: true,
+            });
+        }
+
+        // Recalculate row total with selected product values
+        const qty = Number(watchItems[index]?.quantity || 1);
+        const rate = cost > 0 ? cost : Number(watchItems[index]?.price || 0);
+        const discPercent = Number(watchItems[index]?.discount || 0);
+        const taxRate = Number(watchItems[index]?.tax_rate ?? watchDefaultTaxRate ?? 0);
+        const lineTotal = Math.max(
+            0,
+            qty * rate * (1 - discPercent / 100) * (1 + taxRate / 100)
+        );
+        setValue(`items.${index}.total`, lineTotal);
 
         // Auto append next item row if selecting on the last item
         if (index === fields.length - 1) {
@@ -371,6 +462,47 @@ export const RecordPurchaseDialog = ({
                 tax_rate: watchDefaultTaxRate,
                 total: 0,
             });
+        }
+    };
+
+    const handleQuickAddProduct = async (newProd: ProductItem) => {
+        if (!user?.id) return;
+        try {
+            const recordId = newProd.id.startsWith("hist_") || !newProd.id ? uuidv4() : newProd.id;
+            const newRecord = {
+                id: recordId,
+                user_id: user.id,
+                name: newProd.name.trim(),
+                cost_price: Number(newProd.cost_price || 0),
+                price: Number(newProd.price || newProd.cost_price || 0),
+                stock_quantity: Number(newProd.stock_quantity || 0),
+                unit: newProd.unit || "pc",
+                hsn_code: newProd.hsn_code || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+
+            await offlineMutate({
+                table: "products",
+                action: "insert",
+                recordId,
+                payload: newRecord,
+                userId: user.id,
+            });
+
+            // Optimistically update React Query cache
+            queryClient.setQueryData(["products", user.id], (old: any) => {
+                const list = old ? [...old] : [];
+                return [newRecord, ...list];
+            });
+            queryClient.invalidateQueries({ queryKey: ["products"] });
+
+            toast({
+                title: "Product Added to Inventory",
+                description: `"${newProd.name}" is now saved in your product catalog.`,
+            });
+        } catch (e: any) {
+            console.error("Failed to add product to inventory:", e);
         }
     };
 
@@ -1011,6 +1143,7 @@ export const RecordPurchaseDialog = ({
                             onProductSelect={handleProductSelect}
                             onAddItem={handleAddItem}
                             onRemoveItem={handleRemoveItem}
+                            onQuickAddProduct={handleQuickAddProduct}
                         />
 
                         {/* Additional Details & Supplier Notes */}

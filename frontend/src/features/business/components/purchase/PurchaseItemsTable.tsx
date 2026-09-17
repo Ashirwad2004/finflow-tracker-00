@@ -31,6 +31,7 @@ interface PurchaseItemsTableProps {
     onProductSelect: (index: number, product: ProductItem) => void;
     onAddItem: () => void;
     onRemoveItem: (index: number) => void;
+    onQuickAddProduct?: (product: ProductItem) => void;
 }
 
 const COMMON_UNITS = ["pc", "box", "kg", "g", "ltr", "ml", "bag", "bundle", "meter", "pair"];
@@ -43,6 +44,7 @@ export const PurchaseItemsTable = ({
     onProductSelect,
     onAddItem,
     onRemoveItem,
+    onQuickAddProduct,
 }: PurchaseItemsTableProps) => {
     const { formatCurrency } = useCurrency();
     const productInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -115,7 +117,7 @@ export const PurchaseItemsTable = ({
             {/* ============================================================ */}
             {/* DESKTOP TABLE VIEW (>= 768px)                                */}
             {/* ============================================================ */}
-            <div className="hidden md:block border border-border/80 rounded-lg overflow-hidden bg-background">
+            <div className="hidden md:block border border-border/80 rounded-lg bg-background">
                 {/* Table Header */}
                 <div className="grid grid-cols-[36px_1fr_90px_80px_110px_80px_90px_110px_40px] items-center bg-muted/50 border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-2">
                     <div className="text-center">#</div>
@@ -137,7 +139,8 @@ export const PurchaseItemsTable = ({
                         return (
                             <div
                                 key={index}
-                                className="grid grid-cols-[36px_1fr_90px_80px_110px_80px_90px_110px_40px] items-center px-2 py-1.5 hover:bg-muted/30 transition-colors"
+                                style={{ zIndex: items.length - index + 20 }}
+                                className="relative grid grid-cols-[36px_1fr_90px_80px_110px_80px_90px_110px_40px] items-center px-2 py-1.5 hover:bg-muted/30 transition-colors"
                             >
                                 {/* Row Index */}
                                 <div className="text-center text-xs font-mono text-muted-foreground font-semibold">
@@ -151,6 +154,7 @@ export const PurchaseItemsTable = ({
                                         products={products}
                                         onChange={(val) => onItemChange(index, "description", val)}
                                         onSelectProduct={(p) => onProductSelect(index, p)}
+                                        onQuickAddProduct={onQuickAddProduct}
                                         inputRef={(el) => {
                                             productInputRefs.current[index] = el;
                                         }}
@@ -281,7 +285,8 @@ export const PurchaseItemsTable = ({
                     return (
                         <div
                             key={index}
-                            className="bg-background border border-border rounded-lg p-3 space-y-3 shadow-xs"
+                            style={{ zIndex: items.length - index + 20 }}
+                            className="relative bg-background border border-border rounded-lg p-3 space-y-3 shadow-xs"
                         >
                             {/* Card Top: Item # and Delete */}
                             <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
@@ -317,6 +322,7 @@ export const PurchaseItemsTable = ({
                                     products={products}
                                     onChange={(val) => onItemChange(index, "description", val)}
                                     onSelectProduct={(p) => onProductSelect(index, p)}
+                                    onQuickAddProduct={onQuickAddProduct}
                                     placeholder="Search or enter product..."
                                     className="h-9"
                                 />
