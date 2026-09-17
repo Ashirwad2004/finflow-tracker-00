@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.core.supabase import supabase_client
 from src.schemas.feature_requests import (
@@ -53,7 +53,7 @@ async def create_request(
 
 @router.get("", response_model=List[FeatureRequestResponse])
 async def list_requests(
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     _: dict = Depends(require_admin),
 ):
     if supabase_client is None:
@@ -63,8 +63,8 @@ async def list_requests(
         )
     try:
         query = supabase_client.table("feature_requests").select("*").order("submitted_at", desc=True)
-        if status and status != "all":
-            query = query.eq("status", status)
+        if status_filter and status_filter != "all":
+            query = query.eq("status", status_filter)
         res = query.execute()
         return res.data or []
     except HTTPException:
