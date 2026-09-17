@@ -72,7 +72,20 @@ import {
 import { useToast } from "@/core/hooks/use-toast";
 import { PartyDialog } from "../components/PartyDialog";
 import { CreateInvoiceDialog } from "../components/CreateInvoiceDialog";
+import { RecordPurchaseDialog } from "../components/RecordPurchaseDialog";
 import { TableLoadingRows } from "@/components/shared/PageStates";
+
+export type SettlementType = "sale" | "purchase";
+
+export interface SettlementTarget {
+    type: SettlementType;
+    record: any;
+    partyName: string;
+    docNumber: string;
+    totalAmount: number;
+    amountPaid: number;
+    balanceDue: number;
+}
 
 export interface Party {
     id: string;
@@ -118,12 +131,14 @@ const PartiesPage = () => {
     const [selectedParty, setSelectedParty] = useState<Party | null>(null);
     const [isEditing, setIsEditing] = useState(false);
 
-    // Create Invoice for Party State
+    // Create Invoice / Purchase for Party State
     const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
     const [partyForNewInvoice, setPartyForNewInvoice] = useState<Party | null>(null);
+    const [isRecordPurchaseOpen, setIsRecordPurchaseOpen] = useState(false);
+    const [partyForNewPurchase, setPartyForNewPurchase] = useState<Party | null>(null);
 
-    // Record Payment Dialog State
-    const [paymentInvoice, setPaymentInvoice] = useState<any | null>(null);
+    // Settlement / Payment Dialog State (Unified for Sales Collections & Purchase Settlements)
+    const [settlementTarget, setSettlementTarget] = useState<SettlementTarget | null>(null);
     const [paymentAmount, setPaymentAmount] = useState<string>("");
     const [paymentMethod, setPaymentMethod] = useState<string>("cash");
     const [paymentNotes, setPaymentNotes] = useState<string>("");
@@ -538,74 +553,140 @@ const PartiesPage = () => {
         }
     });
 
-    // Payment recording inside Party Statement
-    const handleOpenPaymentForInvoice = (inv: any) => {
-        const currentPaid = Number(inv.amount_paid || 0);
-        const balDue = Number(inv.balance_due != null ? inv.balance_due : Math.max(0, inv.total_amount - currentPaid));
-        setPaymentInvoice(inv);
-        setPaymentAmount(balDue > 0 ? String(balDue) : String(inv.total_amount));
+    // Unified Settlement recording inside Party Statement (Receive Collections & Pay Bills)
+    const handleOpenSettlement = (item: any, type: SettlementType) => {
+        const isSale = type === "sale";
+        const currentPaid = Number(item.amount_paid || (item.status === 'paid' ? item.total_amount : 0));
+        const total = Number(item.total_amount) || 0;
+        const balDue = Number(item.balance_due != null ? item.balance_due : (item.status === 'paid' ? 0 : Math.max(0, total - currentPaid)));
+        const docNumber = isSale ? (item.invoice_number || 'INV') : (item.bill_number || 'BILL');
+        const partyName = isSale ? (item.customer_name || activeParty?.name || "Customer") : (item.vendor_name || activeParty?.name || "Vendor");
+
+        setSettlementTarget({
+            type,
+            record: item,
+            partyName,
+            docNumber,
+            totalAmount: total,
+            amountPaid: currentPaid,
+            balanceDue: balDue
+        });
+        setPaymentAmount(balDue > 0 ? String(balDue) : String(total));
         setPaymentMethod("cash");
         setPaymentNotes("");
         setPaymentDate(new Date().toISOString().split("T")[0]);
     };
 
-    const handleSaveInvoicePayment = async () => {
-        if (!paymentInvoice || !user?.id) return;
+    // Fast Header Action: Instant Receive Payment from active customer
+    const handleQuickReceivePartyPayment = () => {
+        if (!activePartyMetrics || activePartyMetrics.receivable <= 0) return;
+        const pendingSales = activePartyMetrics.partySales
+            .filter((s: any) => {
+                const paid = Number(s.amount_paid || (s.status === 'paid' ? s.total_amount : 0));
+                const due = Number(s.balance_due != null ? s.balance_due : (s.status === 'paid' ? 0 : Math.max(0, (Number(s.total_amount) || 0) - paid)));
+                return due > 0;
+            })
+            .sort((a: any, b: any) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
+
+        if (pendingSales.length > 0) {
+            handleOpenSettlement(pendingSales[0], "sale");
+        } else {
+            toast({
+                title: "Opening Balance Receivable",
+                description: `This party has an opening receivable balance of ${formatCurrency(activePartyMetrics.receivable)}. Record an invoice or ledger adjustment to settle.`
+            });
+        }
+    };
+
+    // Fast Header Action: Instant Pay Vendor for active supplier
+    const handleQuickPayVendor = () => {
+        if (!activePartyMetrics || activePartyMetrics.payable <= 0) return;
+        const pendingPurchases = activePartyMetrics.partyPurchases
+            .filter((p: any) => {
+                const paid = Number(p.amount_paid || (p.status === 'paid' ? p.total_amount : 0));
+                const due = Number(p.balance_due != null ? p.balance_due : (p.status === 'paid' ? 0 : Math.max(0, (Number(p.total_amount) || 0) - paid)));
+                return due > 0;
+            })
+            .sort((a: any, b: any) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
+
+        if (pendingPurchases.length > 0) {
+            handleOpenSettlement(pendingPurchases[0], "purchase");
+        } else {
+            toast({
+                title: "Opening Balance Payable",
+                description: `This vendor has an opening payable balance of ${formatCurrency(activePartyMetrics.payable)}. Record a purchase bill to settle.`
+            });
+        }
+    };
+
+    const handleSaveSettlement = async () => {
+        if (!settlementTarget || !user?.id) return;
         const addAmount = Number(paymentAmount) || 0;
         if (addAmount <= 0) {
-            toast({ title: "Invalid Amount", description: "Please enter a payment amount greater than 0.", variant: "destructive" });
+            toast({ title: "Invalid Amount", description: "Please enter an amount greater than 0.", variant: "destructive" });
             return;
         }
 
-        const currentPaid = Number(paymentInvoice.amount_paid || 0);
-        const newAmountPaid = Math.min(paymentInvoice.total_amount, currentPaid + addAmount);
-        const newBalanceDue = Math.max(0, Math.round((paymentInvoice.total_amount - newAmountPaid) * 100) / 100);
+        const { type, record, docNumber, partyName, totalAmount } = settlementTarget;
+        const isSale = type === "sale";
+        const currentPaid = Number(record.amount_paid || 0);
+        const newAmountPaid = Math.min(totalAmount, Math.round((currentPaid + addAmount) * 100) / 100);
+        const newBalanceDue = Math.max(0, Math.round((totalAmount - newAmountPaid) * 100) / 100);
         const newStatus: 'paid' | 'partial' = newBalanceDue <= 0 ? 'paid' : 'partial';
 
         setIsSubmittingPayment(true);
         try {
-            const updatePayload = {
-                ...paymentInvoice,
+            const actionVerb = isSale ? "Received" : "Paid";
+            const auditNote = `${actionVerb} ${formatCurrency(addAmount)} via ${paymentMethod} on ${paymentDate}${paymentNotes ? `: ${paymentNotes}` : ""}`;
+            const mergedNotes = record.notes ? `${record.notes} | ${auditNote}` : auditNote;
+
+            const table = isSale ? "sales" : "purchases";
+            const updatePayload: any = {
+                ...record,
                 amount_paid: newAmountPaid,
                 balance_due: newBalanceDue,
                 status: newStatus,
-                payment_method: paymentMethod || "cash",
-                notes: paymentNotes
-                    ? `${paymentInvoice.notes ? paymentInvoice.notes + " | " : ""}Paid ${formatCurrency(addAmount)} via ${paymentMethod} on ${paymentDate}: ${paymentNotes}`
-                    : paymentInvoice.notes || null
+                notes: mergedNotes
             };
 
+            if (isSale) {
+                updatePayload.payment_method = paymentMethod || "cash";
+            }
+
             const { error } = await offlineMutate({
-                table: "sales",
+                table,
                 action: "update",
-                recordId: paymentInvoice.id,
+                recordId: record.id,
                 payload: updatePayload,
                 userId: user.id
             });
 
             if (error) throw error;
 
-            queryClient.setQueryData(["sales", user.id], (old: any) => {
+            const queryKey = isSale ? ["sales", user.id] : ["purchases", user.id];
+            queryClient.setQueryData(queryKey, (old: any) => {
                 if (!old) return [];
-                return old.map((inv: any) => inv.id === paymentInvoice.id ? { ...inv, ...updatePayload } : inv);
+                return old.map((item: any) => item.id === record.id ? { ...item, ...updatePayload } : item);
             });
 
             if (navigator.onLine) {
-                queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
+                queryClient.invalidateQueries({ queryKey });
                 queryClient.invalidateQueries({ queryKey: ["parties"] });
+                if (isSale) queryClient.invalidateQueries({ queryKey: ["invoice-parties"] });
+                else queryClient.invalidateQueries({ queryKey: ["purchase-parties"] });
             }
 
             toast({
-                title: "Payment Recorded",
+                title: isSale ? "Payment Received" : "Payment Recorded",
                 description: newStatus === 'paid'
-                    ? `Invoice ${paymentInvoice.invoice_number} is now fully settled.`
-                    : `Recorded ${formatCurrency(addAmount)}. Balance remaining is ${formatCurrency(newBalanceDue)}.`
+                    ? `${isSale ? 'Invoice' : 'Bill'} ${docNumber} is now fully settled.`
+                    : `Recorded ${formatCurrency(addAmount)} ${isSale ? 'from' : 'to'} ${partyName}. Remaining balance is ${formatCurrency(newBalanceDue)}.`
             });
 
-            setPaymentInvoice(null);
+            setSettlementTarget(null);
         } catch (err: any) {
-            console.error("Error saving payment:", err);
-            toast({ title: "Payment Error", description: err?.message || "Failed to record payment.", variant: "destructive" });
+            console.error("Error saving settlement:", err);
+            toast({ title: "Settlement Error", description: err?.message || "Failed to record transaction.", variant: "destructive" });
         } finally {
             setIsSubmittingPayment(false);
         }
@@ -637,6 +718,11 @@ const PartiesPage = () => {
     const handleCreateInvoiceForParty = (party: Party) => {
         setPartyForNewInvoice(party);
         setIsCreateInvoiceOpen(true);
+    };
+
+    const handleCreatePurchaseForParty = (party: Party) => {
+        setPartyForNewPurchase(party);
+        setIsRecordPurchaseOpen(true);
     };
 
     const handleSaveParty = (partyData: Partial<Party>) => {
@@ -722,6 +808,84 @@ const PartiesPage = () => {
             irn: invoice.irn,
             eway_bill_number: invoice.eway_bill_number,
             qr_code: invoice.qr_code,
+            business_details: profile ? {
+                name: (profile as any).business_name,
+                address: (profile as any).business_address,
+                phone: (profile as any).business_phone,
+                gst: (profile as any).gst_number,
+                logo_url: (profile as any).business_logo,
+                signature_url: (profile as any).signature_url
+            } : undefined
+        }, { action: 'preview' });
+
+        if (url) {
+            window.open(String(url), '_blank');
+        }
+    };
+
+    const handleDownloadPurchasePDF = (purchase: any) => {
+        generateInvoicePDF({
+            invoice_number: purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`,
+            date: purchase.date || purchase.created_at,
+            due_date: purchase.due_date,
+            status: purchase.status,
+            amount_paid: purchase.amount_paid,
+            balance_due: purchase.balance_due,
+            payment_method: "cash",
+            customer_name: purchase.vendor_name || activeParty?.name || "Vendor",
+            customer_phone: purchase.vendor_phone || activeParty?.phone,
+            customer_email: purchase.vendor_email || activeParty?.email,
+            customer_gstin: purchase.vendor_gstin || activeParty?.gst_number,
+            items: (purchase.items || []).map((item: any) => ({
+                description: item.description || item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.total ?? item.amount ?? (item.quantity * item.price),
+                hsn_code: item.hsn_code,
+                unit: item.unit,
+            })),
+            subtotal: purchase.subtotal || purchase.total_amount,
+            discount_amount: purchase.discount_amount || 0,
+            tax_amount: purchase.tax_amount || 0,
+            total_amount: purchase.total_amount,
+            tax_rate: purchase.tax_rate || 0,
+            business_details: profile ? {
+                name: (profile as any).business_name,
+                address: (profile as any).business_address,
+                phone: (profile as any).business_phone,
+                gst: (profile as any).gst_number,
+                logo_url: (profile as any).business_logo,
+                signature_url: (profile as any).signature_url
+            } : undefined
+        }, { action: 'download' });
+    };
+
+    const handlePreviewPurchasePDF = async (purchase: any) => {
+        const url = await generateInvoicePDF({
+            invoice_number: purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`,
+            date: purchase.date || purchase.created_at,
+            due_date: purchase.due_date,
+            status: purchase.status,
+            amount_paid: purchase.amount_paid,
+            balance_due: purchase.balance_due,
+            payment_method: "cash",
+            customer_name: purchase.vendor_name || activeParty?.name || "Vendor",
+            customer_phone: purchase.vendor_phone || activeParty?.phone,
+            customer_email: purchase.vendor_email || activeParty?.email,
+            customer_gstin: purchase.vendor_gstin || activeParty?.gst_number,
+            items: (purchase.items || []).map((item: any) => ({
+                description: item.description || item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.total ?? item.amount ?? (item.quantity * item.price),
+                hsn_code: item.hsn_code,
+                unit: item.unit,
+            })),
+            subtotal: purchase.subtotal || purchase.total_amount,
+            discount_amount: purchase.discount_amount || 0,
+            tax_amount: purchase.tax_amount || 0,
+            total_amount: purchase.total_amount,
+            tax_rate: purchase.tax_rate || 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -1146,15 +1310,56 @@ const PartiesPage = () => {
                                         </div>
 
                                         {/* Action Buttons */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleCreateInvoiceForParty(activeParty)}
-                                                className="bg-primary hover:bg-primary/90 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2.5 flex items-center gap-1"
-                                            >
-                                                <Plus className="w-3.5 h-3.5" />
-                                                <span>New Invoice</span>
-                                            </Button>
+                                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
+                                            {/* Quick Settlement: Receive Money from Customer */}
+                                            {activePartyMetrics.receivable > 0 && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={handleQuickReceivePartyPayment}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                    title={`Receive Payment from ${activeParty.name}`}
+                                                >
+                                                    <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-100" />
+                                                    <span>Receive Money</span>
+                                                </Button>
+                                            )}
+
+                                            {/* Quick Settlement: Pay Vendor */}
+                                            {activePartyMetrics.payable > 0 && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={handleQuickPayVendor}
+                                                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                    title={`Pay Vendor ${activeParty.name}`}
+                                                >
+                                                    <ArrowUpRight className="w-3.5 h-3.5 text-rose-100" />
+                                                    <span>Pay Vendor</span>
+                                                </Button>
+                                            )}
+
+                                            {/* New Invoice (for Customer or Both) */}
+                                            {activeParty.type !== 'vendor' && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleCreateInvoiceForParty(activeParty)}
+                                                    className="bg-primary hover:bg-primary/90 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    <span>New Invoice</span>
+                                                </Button>
+                                            )}
+
+                                            {/* New Purchase (for Vendor or Both) */}
+                                            {activeParty.type !== 'customer' && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleCreatePurchaseForParty(activeParty)}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    <span>New Purchase</span>
+                                                </Button>
+                                            )}
 
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -1360,37 +1565,51 @@ const PartiesPage = () => {
                                                                     </td>
                                                                     <td className="px-2.5 sm:px-3 py-2 text-right whitespace-nowrap">
                                                                         <div className="flex items-center justify-end gap-1">
+                                                                            {/* Customer Sale: We COLLECT money -> "Receive" */}
                                                                             {isSale && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
-                                                                                    onClick={() => handleOpenPaymentForInvoice(txn.raw)}
-                                                                                    className="h-6 sm:h-7 px-1.5 sm:px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs shrink-0"
+                                                                                    onClick={() => handleOpenSettlement(txn.raw, "sale")}
+                                                                                    className="h-6 sm:h-7 px-1.5 sm:px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs shrink-0 flex items-center gap-0.5"
+                                                                                    title={`Receive payment from ${activeParty?.name || 'Customer'}`}
                                                                                 >
-                                                                                    <ReceiptIndianRupee className="w-3 h-3 mr-0.5" /> Pay
+                                                                                    <ArrowDownLeft className="w-3 h-3 text-emerald-100 shrink-0" />
+                                                                                    <span>Receive</span>
                                                                                 </Button>
                                                                             )}
-                                                                            {isSale && (
-                                                                                <>
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="outline"
-                                                                                        onClick={() => handlePreviewInvoicePDF(txn.raw)}
-                                                                                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                                                                        title="Preview Invoice"
-                                                                                    >
-                                                                                        <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                                                                    </Button>
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="outline"
-                                                                                        onClick={() => handleDownloadInvoicePDF(txn.raw)}
-                                                                                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                                                                        title="Download PDF"
-                                                                                    >
-                                                                                        <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                                                                    </Button>
-                                                                                </>
+
+                                                                            {/* Vendor Purchase: We PAY money -> "Pay" */}
+                                                                            {!isSale && txn.balanceDue > 0 && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    onClick={() => handleOpenSettlement(txn.raw, "purchase")}
+                                                                                    className="h-6 sm:h-7 px-1.5 sm:px-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs shrink-0 flex items-center gap-0.5"
+                                                                                    title={`Pay vendor ${activeParty?.name || 'Supplier'}`}
+                                                                                >
+                                                                                    <ArrowUpRight className="w-3 h-3 text-rose-100 shrink-0" />
+                                                                                    <span>Pay</span>
+                                                                                </Button>
                                                                             )}
+
+                                                                            {/* Preview and Download for both Sales and Purchases */}
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
+                                                                                className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                                                                title={isSale ? "Preview Invoice" : "Preview Purchase Bill"}
+                                                                            >
+                                                                                <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
+                                                                                className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                                                                title={isSale ? "Download PDF" : "Download Purchase PDF"}
+                                                                            >
+                                                                                <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                                                            </Button>
                                                                         </div>
                                                                     </td>
                                                                 </tr>
@@ -1432,128 +1651,183 @@ const PartiesPage = () => {
                     initialParty={partyForNewInvoice}
                 />
 
-                {/* Record Payment Dialog for an Invoice */}
-                <Dialog open={!!paymentInvoice} onOpenChange={(open) => { if (!open) setPaymentInvoice(null); }}>
-                    <DialogContent className="sm:max-w-[480px]">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <ReceiptIndianRupee className="w-5 h-5 text-emerald-600" />
-                                Record Invoice Payment
-                            </DialogTitle>
-                            <DialogDescription>
-                                Add a payment towards invoice <strong className="text-foreground">{paymentInvoice?.invoice_number}</strong> for {activeParty?.name}.
-                            </DialogDescription>
-                        </DialogHeader>
+                {/* Create Purchase Dialog (Pre-populated for Party) */}
+                <RecordPurchaseDialog
+                    open={isRecordPurchaseOpen}
+                    onOpenChange={setIsRecordPurchaseOpen}
+                    initialParty={partyForNewPurchase}
+                />
 
-                        {paymentInvoice && (() => {
-                            const currentPaid = Number(paymentInvoice.amount_paid || 0);
-                            const currentBal = Number(paymentInvoice.balance_due != null ? paymentInvoice.balance_due : Math.max(0, paymentInvoice.total_amount - currentPaid));
+                {/* Unified Settlement Dialog (Receive Collections for Sales & Record Payments for Purchases) */}
+                <Dialog open={!!settlementTarget} onOpenChange={(open) => { if (!open) setSettlementTarget(null); }}>
+                    <DialogContent className="sm:max-w-[480px]">
+                        {settlementTarget && (() => {
+                            const isSale = settlementTarget.type === "sale";
+                            const currentPaid = Number(settlementTarget.amountPaid || 0);
+                            const currentBal = Number(settlementTarget.balanceDue != null ? settlementTarget.balanceDue : Math.max(0, settlementTarget.totalAmount - currentPaid));
                             const enteredAmount = Number(paymentAmount) || 0;
                             const projectedBal = Math.max(0, Math.round((currentBal - enteredAmount) * 100) / 100);
-                            const isFullyPaid = enteredAmount >= currentBal;
+                            const isFullySettled = enteredAmount >= currentBal;
 
                             return (
-                                <div className="space-y-4 py-2">
-                                    <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</p>
-                                            <p className="text-sm font-bold text-slate-800 dark:text-white mt-0.5">{formatCurrency(paymentInvoice.total_amount)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Paid</p>
-                                            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(currentPaid)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Due</p>
-                                            <p className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-0.5">{formatCurrency(currentBal)}</p>
-                                        </div>
-                                    </div>
+                                <>
+                                    <DialogHeader>
+                                        <DialogTitle className="flex items-center gap-2">
+                                            {isSale ? (
+                                                <>
+                                                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                                                        <ArrowDownLeft className="w-4 h-4" />
+                                                    </div>
+                                                    <span>Receive Payment (Customer Collection)</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                                                        <ArrowUpRight className="w-4 h-4" />
+                                                    </div>
+                                                    <span>Pay Supplier / Vendor</span>
+                                                </>
+                                            )}
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                            {isSale ? (
+                                                <>
+                                                    Record collection received from <strong className="text-foreground">{settlementTarget.partyName}</strong> for invoice <strong className="text-foreground">{settlementTarget.docNumber}</strong>.
+                                                </>
+                                            ) : (
+                                                <>
+                                                    Record payment made to <strong className="text-foreground">{settlementTarget.partyName}</strong> for purchase bill <strong className="text-foreground">{settlementTarget.docNumber}</strong>.
+                                                </>
+                                            )}
+                                        </DialogDescription>
+                                    </DialogHeader>
 
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Payment Amount</label>
-                                            <button
-                                                type="button"
-                                                onClick={() => setPaymentAmount(String(currentBal))}
-                                                className="text-xs font-semibold text-primary hover:underline"
-                                            >
-                                                Pay Full Due ({formatCurrency(currentBal)})
-                                            </button>
+                                    <div className="space-y-4 py-2">
+                                        {/* Financial Metric Cards */}
+                                        <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    {isSale ? "Total Invoice" : "Total Bill"}
+                                                </p>
+                                                <p className="text-sm font-bold text-slate-800 dark:text-white mt-0.5 truncate">
+                                                    {formatCurrency(settlementTarget.totalAmount)}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">
+                                                    {isSale ? "Received" : "Paid"}
+                                                </p>
+                                                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
+                                                    {formatCurrency(currentPaid)}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isSale ? "text-amber-500" : "text-rose-500"}`}>
+                                                    {isSale ? "To Collect" : "To Pay"}
+                                                </p>
+                                                <p className={`text-sm font-bold mt-0.5 truncate ${isSale ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                                    {formatCurrency(currentBal)}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <input
-                                            type="number"
-                                            min="0.01"
-                                            max={currentBal}
-                                            step="0.01"
-                                            value={paymentAmount}
-                                            onChange={(e) => setPaymentAmount(e.target.value)}
-                                            placeholder="0.00"
-                                            className="w-full h-10 px-3 text-base font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                        />
-                                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                                            <span>Remaining Balance:</span>
-                                            <span className={`font-semibold ${projectedBal === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                {formatCurrency(projectedBal)} {isFullyPaid ? '(Settled)' : '(Partial)'}
-                                            </span>
-                                        </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                        {/* Amount Input */}
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Payment Method</label>
-                                            <select
-                                                value={paymentMethod}
-                                                onChange={(e) => setPaymentMethod(e.target.value)}
-                                                className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                            >
-                                                <option value="cash">Cash</option>
-                                                <option value="upi">UPI / QR</option>
-                                                <option value="bank_transfer">Bank Transfer / NEFT</option>
-                                                <option value="card">Debit / Credit Card</option>
-                                                <option value="cheque">Cheque</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Payment Date</label>
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                    {isSale ? "Amount Received / Collected" : "Amount Paid"}
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPaymentAmount(String(currentBal))}
+                                                    className="text-xs font-semibold text-primary hover:underline"
+                                                >
+                                                    {isSale ? "Receive Full Due" : "Pay Full Due"} ({formatCurrency(currentBal)})
+                                                </button>
+                                            </div>
                                             <input
-                                                type="date"
-                                                value={paymentDate}
-                                                onChange={(e) => setPaymentDate(e.target.value)}
+                                                type="number"
+                                                min="0.01"
+                                                max={currentBal}
+                                                step="0.01"
+                                                value={paymentAmount}
+                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                placeholder="0.00"
+                                                className="w-full h-10 px-3 text-base font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
+                                            />
+                                            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                                                <span>{isSale ? "Remaining to Collect:" : "Remaining to Pay:"}</span>
+                                                <span className={`font-semibold ${projectedBal === 0 ? 'text-emerald-600' : isSale ? 'text-amber-600' : 'text-rose-600'}`}>
+                                                    {formatCurrency(projectedBal)} {isFullySettled ? '(Fully Settled)' : '(Partial)'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Payment Method & Date */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                    Payment Method
+                                                </label>
+                                                <select
+                                                    value={paymentMethod}
+                                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                                    className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
+                                                >
+                                                    <option value="cash">Cash</option>
+                                                    <option value="upi">UPI / QR</option>
+                                                    <option value="bank_transfer">Bank Transfer / NEFT</option>
+                                                    <option value="card">Debit / Credit Card</option>
+                                                    <option value="cheque">Cheque</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                    Payment Date
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    value={paymentDate}
+                                                    onChange={(e) => setPaymentDate(e.target.value)}
+                                                    className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Notes / Reference */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                {isSale ? "Collection Reference / Notes" : "Payment Reference / Notes"}
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={paymentNotes}
+                                                onChange={(e) => setPaymentNotes(e.target.value)}
+                                                placeholder={isSale ? "e.g. UPI txn ID, Cheque #, or receipt note" : "e.g. Bank IMPS/NEFT UTR, Cheque #, or payment note"}
                                                 className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Reference / Notes</label>
-                                        <input
-                                            type="text"
-                                            value={paymentNotes}
-                                            onChange={(e) => setPaymentNotes(e.target.value)}
-                                            placeholder="e.g. UPI txn ID, Cheque #, or note"
-                                            className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                        />
-                                    </div>
-                                </div>
+                                    <DialogFooter className="gap-2 sm:gap-0">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setSettlementTarget(null)}
+                                            disabled={isSubmittingPayment}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleSaveSettlement}
+                                            disabled={isSubmittingPayment || !paymentAmount || Number(paymentAmount) <= 0}
+                                            className={isSale ? "bg-emerald-600 hover:bg-emerald-700 text-white font-bold" : "bg-rose-600 hover:bg-rose-700 text-white font-bold"}
+                                        >
+                                            {isSubmittingPayment ? "Recording..." : isSale ? `Receive ${paymentAmount ? formatCurrency(Number(paymentAmount)) : ""}` : `Pay ${paymentAmount ? formatCurrency(Number(paymentAmount)) : ""}`}
+                                        </Button>
+                                    </DialogFooter>
+                                </>
                             );
                         })()}
-
-                        <DialogFooter className="gap-2 sm:gap-0">
-                            <Button
-                                variant="outline"
-                                onClick={() => setPaymentInvoice(null)}
-                                disabled={isSubmittingPayment}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleSaveInvoicePayment}
-                                disabled={isSubmittingPayment || !paymentAmount || Number(paymentAmount) <= 0}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                                {isSubmittingPayment ? "Recording..." : "Save Payment"}
-                            </Button>
-                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
 
