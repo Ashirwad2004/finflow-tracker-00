@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { RecordPurchaseDialog } from "@/features/business/components/RecordPurchaseDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -204,26 +205,27 @@ export default function PurchasesPage() {
     };
 
     const handleDelete = async (purchase: Purchase) => {
-        if (window.confirm("Are you sure you want to delete this purchase? It will be moved to History & Bin.")) {
+        if (!user?.id) return;
+        if (window.confirm(`Are you sure you want to delete purchase bill ${purchase.bill_number}? It will be moved to Recycle Bin.`)) {
             // 1. Move to local storage recycle bin
             try {
-                const storageKey = `recently_deleted_purchases_${user?.id}`;
+                const storageKey = `recently_deleted_purchases_${user.id}`;
                 const existing = localStorage.getItem(storageKey);
                 const deletedItems = existing ? JSON.parse(existing) : [];
 
-                deletedItems.push({
+                const filtered = deletedItems.filter((i: any) => i.id !== purchase.id);
+                filtered.unshift({
                     ...purchase,
                     type: "purchase",
                     deleted_at: new Date().toISOString()
                 });
 
-                localStorage.setItem(storageKey, JSON.stringify(deletedItems));
+                localStorage.setItem(storageKey, JSON.stringify(filtered));
             } catch (e) {
                 console.warn("Failed to save to local recycle bin", e);
             }
 
             // 2. Remove from Supabase/Queue
-            if (!user?.id) return;
             try {
                 await offlineMutate({
                     table: "purchases",
@@ -239,10 +241,13 @@ export default function PurchasesPage() {
 
                 if (navigator.onLine) {
                     queryClient.invalidateQueries({ queryKey: ["purchases", user.id] });
+                    queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
                 }
+
+                toast.success(`Purchase bill ${purchase.bill_number} moved to Recycle Bin.`);
             } catch (err: any) {
                 console.error("Error deleting purchase:", err);
-                alert("Failed to delete purchase.");
+                toast.error("Failed to delete purchase. Please try again.");
             }
         }
     };

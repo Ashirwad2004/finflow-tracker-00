@@ -23,6 +23,7 @@ import {
   HandCoins,
   Wallet,
   Package,
+  ShoppingBag,
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import {
@@ -44,7 +45,7 @@ import { CategoryIcon } from "@/components/shared/CategoryIcon";
 
 /* ---------------- TYPES ---------------- */
 
-type ItemType = "expense" | "lent_money" | "group" | "borrowed_money" | "party" | "product" | "sale";
+type ItemType = "expense" | "lent_money" | "group" | "borrowed_money" | "party" | "product" | "sale" | "purchase";
 
 interface BaseDeletedItem {
   id: string;
@@ -123,7 +124,36 @@ interface DeletedSale extends BaseDeletedItem {
   items: any[];
 }
 
-type DeletedItem = DeletedExpense | DeletedLentMoney | DeletedGroup | DeletedBorrowedMoney | DeletedParty | DeletedProduct | DeletedSale;
+interface DeletedPurchase extends BaseDeletedItem {
+  type: "purchase";
+  user_id: string;
+  vendor_name: string;
+  bill_number: string;
+  status: string;
+  total_amount: number;
+  subtotal?: number;
+  tax_amount?: number;
+  tax_rate?: number;
+  discount_amount?: number;
+  amount_paid?: number;
+  balance_due?: number;
+  date: string;
+  due_date?: string;
+  items: any[];
+  notes?: string;
+  payment_mode?: string;
+  place_of_supply?: string;
+  party_id?: string;
+  vendor_phone?: string;
+  vendor_email?: string;
+  vendor_gstin?: string;
+  attachment_url?: string;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+}
+
+type DeletedItem = DeletedExpense | DeletedLentMoney | DeletedGroup | DeletedBorrowedMoney | DeletedParty | DeletedProduct | DeletedSale | DeletedPurchase;
 
 /* ---------------- UTILS ---------------- */
 
@@ -150,6 +180,7 @@ const useTrashStorage = (userId: string) => {
       party: `recently_deleted_parties_${userId}`,
       product: `recently_deleted_products_${userId}`,
       sale: `recently_deleted_sales_${userId}`,
+      purchase: `recently_deleted_purchases_${userId}`,
     };
     return keys[type];
   }, [userId]);
@@ -174,6 +205,7 @@ const useTrashStorage = (userId: string) => {
       ...load<DeletedParty>("party"),
       ...load<DeletedProduct>("product"),
       ...load<DeletedSale>("sale"),
+      ...load<DeletedPurchase>("purchase"),
     ];
 
     // Sort by most recently deleted
@@ -183,7 +215,7 @@ const useTrashStorage = (userId: string) => {
   }, [userId, getStorageKey]);
 
   const removePermanently = useCallback((itemsToRemove: { id: string; type: ItemType }[]) => {
-    const types: ItemType[] = ["expense", "lent_money", "borrowed_money", "group", "party", "product", "sale"];
+    const types: ItemType[] = ["expense", "lent_money", "borrowed_money", "group", "party", "product", "sale", "purchase"];
 
     types.forEach((type) => {
       const idsToRemove = itemsToRemove
@@ -386,6 +418,40 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
         queryClient.invalidateQueries({ queryKey: ["sales", userId] });
       }
 
+      else if (item.type === "purchase") {
+        const payload: any = {
+          id: item.id,
+          user_id: item.user_id || userId,
+          party_id: item.party_id || null,
+          vendor_name: item.vendor_name || "Unknown Vendor",
+          bill_number: item.bill_number || "BILL",
+          status: item.status || "pending",
+          total_amount: Number(item.total_amount) || 0,
+          subtotal: item.subtotal != null ? Number(item.subtotal) : Number(item.total_amount) || 0,
+          tax_amount: Number(item.tax_amount) || 0,
+          tax_rate: Number(item.tax_rate) || 0,
+          discount_amount: Number(item.discount_amount) || 0,
+          amount_paid: Number(item.amount_paid) || 0,
+          balance_due: item.balance_due != null ? Number(item.balance_due) : Number(item.total_amount) || 0,
+          date: item.date ? String(item.date).split("T")[0] : new Date().toISOString().split("T")[0],
+          due_date: item.due_date ? String(item.due_date).split("T")[0] : null,
+          items: Array.isArray(item.items) ? item.items : [],
+          place_of_supply: item.place_of_supply || null,
+          notes: item.notes || (item.payment_mode ? `Payment: ${item.payment_mode}` : null),
+          vendor_phone: item.vendor_phone || null,
+          vendor_email: item.vendor_email || null,
+          vendor_gstin: item.vendor_gstin || null,
+          attachment_url: item.attachment_url || null,
+          cgst: Number(item.cgst) || 0,
+          sgst: Number(item.sgst) || 0,
+          igst: Number(item.igst) || 0,
+        };
+        const { error: err } = await (supabase as any).from("purchases").insert(payload);
+        if (err) throw err;
+        queryClient.invalidateQueries({ queryKey: ["purchases", userId] });
+        queryClient.invalidateQueries({ queryKey: ["parties", userId] });
+      }
+
       // Success
       removePermanently([{ id: item.id, type: item.type }]);
       refreshList();
@@ -582,6 +648,14 @@ const DeletedItemRow = ({
           amount: item.total_amount,
           icon: <Receipt className="w-4 h-4" />,
           color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+        };
+      case "purchase":
+        return {
+          title: `Bill ${item.bill_number || "N/A"}`,
+          subtitle: `Purchase • ${item.vendor_name || "Vendor"}`,
+          amount: item.total_amount,
+          icon: <ShoppingBag className="w-4 h-4" />,
+          color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
         };
       default:
         return { title: "Item", subtitle: "", amount: 0, icon: <AlertCircle />, color: "bg-gray-100" };
