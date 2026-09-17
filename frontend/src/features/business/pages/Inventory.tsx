@@ -203,19 +203,25 @@ export default function Inventory() {
 
     useProductsRealtime(user?.id);
 
-    // Fetch products strictly scoped to current user
+    // Fetch products strictly scoped to current user with Offline Fallback
     const { data: products = [], isLoading } = useQuery({
         queryKey: ["products", userId],
         queryFn: async () => {
             if (!userId) return [];
-            const { data, error } = await (supabase as any)
-                .from("products")
-                .select("*")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false });
-
-            if (error) throw error;
-            return (data as Product[]) ?? [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("products")
+                    .select("*")
+                    .eq("user_id", userId)
+                    .order("created_at", { ascending: false });
+                if (!error && data) return (data as Product[]) ?? [];
+            } catch (e) {
+                console.warn("[Inventory] Products fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<Product[]>(["products", userId]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<Product>("products", userId);
+            return localData || [];
         },
         enabled: !!user && !!userId
     });

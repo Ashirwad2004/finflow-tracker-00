@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { isRecordOverdue, getOverdueDaysThreshold } from "@/core/utils/overdue";
 import { format, isSameMonth } from "date-fns";
@@ -22,16 +23,17 @@ import { TableLoadingRows } from "@/components/shared/PageStates";
 
 
 export default function PurchasesPage() {
+    const queryClient = useQueryClient();
     const [isRecordOpen, setIsRecordOpen] = useState(false);
     const [startWithScanner, setStartWithScanner] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingPurchase, setEditingPurchase] = useState<any>(null);
     
+    // Virtualizer table scroll container ref
     const tableContainerRef = useRef<HTMLDivElement>(null);
-    const { user } = useAuth();
     const { formatCurrency } = useCurrency();
-    const queryClient = useQueryClient();
+    const { user } = useAuth();
 
     // Fetch Profile for Business Details
     const { data: profile } = useQuery({
@@ -72,13 +74,21 @@ export default function PurchasesPage() {
     const { data: purchases = [], isLoading } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("purchases")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-            if (error) throw error;
-            return data as any as Purchase[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("purchases")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) return data as any as Purchase[];
+            } catch (e) {
+                console.warn("[Purchases] Supabase fetch failed offline, falling back to local cache:", e);
+            }
+            const cached = queryClient.getQueryData<Purchase[]>(["purchases", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<Purchase>("purchases", user.id);
+            return localData || [];
         },
         enabled: !!user
     });

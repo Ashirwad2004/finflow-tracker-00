@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { format, isSameMonth } from "date-fns";
 import {
@@ -56,6 +57,7 @@ interface Sale {
     date: string;
     due_date?: string | null;
     items: SaleItem[];
+    notes?: string | null;
 }
 
 export default function SalesPage() {
@@ -83,13 +85,20 @@ export default function SalesPage() {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("profiles")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .single();
-            if (error) throw error;
-            return data;
+            if (!user?.id) return null;
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("profiles")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .single();
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[Sales] Profile fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any>(["profile", user.id]);
+            if (cached) return cached;
+            return await sqliteService.getById<any>(user.id);
         },
         enabled: !!user
     });
@@ -97,15 +106,32 @@ export default function SalesPage() {
     const { data: invoices = [], isLoading } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("sales")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-            if (error) throw error;
+            if (!user?.id) return [];
+            let salesData: any[] = [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("sales")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) {
+                    salesData = data;
+                }
+            } catch (e) {
+                console.warn("[Sales] Sales fetch failed offline, falling back to cache:", e);
+            }
+
+            if (!salesData || salesData.length === 0) {
+                const cached = queryClient.getQueryData<any[]>(["sales", user.id]);
+                if (cached && cached.length > 0) {
+                    salesData = cached;
+                } else {
+                    salesData = await sqliteService.getAll<any>("sales", user.id);
+                }
+            }
             
             const today = new Date().toISOString().split("T")[0];
-            return (data as any[]).map(inv => {
+            return (salesData || []).map(inv => {
                 if (inv.status === 'pending' && inv.due_date && inv.due_date < today) {
                     return { ...inv, status: 'overdue' };
                 }

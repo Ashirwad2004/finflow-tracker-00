@@ -1,7 +1,8 @@
 import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { format, subMonths, isSameMonth } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
@@ -30,58 +31,83 @@ const parseValidDate = (value: string | null | undefined): Date | null => {
 export default function BusinessDashboard() {
     const { formatCurrency } = useCurrency();
     const { user } = useAuth();
+    const queryClient = useQueryClient();
     const navigate = useNavigate();
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
-    // Fetch Sales
+    // Fetch Sales with Offline Fallback
     const { data: sales = [] } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("sales" as any)
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-            if (error) throw error;
-            return data as any[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("sales" as any)
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) return data as any[];
+            } catch (e) {
+                console.warn("[BusinessDashboard] Sales fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any[]>(["sales", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<any>("sales", user.id);
+            return localData || [];
         },
         enabled: !!user
     });
 
-    // Fetch Expenses
+    // Fetch Expenses with Offline Fallback
     const { data: expenses = [] } = useQuery({
         queryKey: ["expenses", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("expenses")
-                .select(`
-                    *,
-                    categories (
-                        id,
-                        name,
-                        color,
-                        icon
-                    )
-                `)
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-            if (error) throw error;
-            return data as any[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("expenses")
+                    .select(`
+                        *,
+                        categories (
+                            id,
+                            name,
+                            color,
+                            icon
+                        )
+                    `)
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) return data as any[];
+            } catch (e) {
+                console.warn("[BusinessDashboard] Expenses fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any[]>(["expenses", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<any>("expenses", user.id);
+            return localData || [];
         },
         enabled: !!user
     });
 
-    // Fetch Purchases (COGS)
+    // Fetch Purchases (COGS) with Offline Fallback
     const { data: purchases = [] } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("purchases")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-            if (error) throw error;
-            return data as any[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("purchases")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) return data as any[];
+            } catch (e) {
+                console.warn("[BusinessDashboard] Purchases fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any[]>(["purchases", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<any>("purchases", user.id);
+            return localData || [];
         },
         enabled: !!user
     });

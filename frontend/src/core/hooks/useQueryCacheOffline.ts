@@ -22,7 +22,9 @@ const PERSIST_KEYS = [
   "group-expenses",
   "all-group-members",
   "online_orders",
-  "online_orders_pending_count"
+  "online_orders_pending_count",
+  "subscription_status",
+  "profile-is-admin"
 ];
 
 // Global module state for debounced Dexie persistence (keeps memory lightweight)

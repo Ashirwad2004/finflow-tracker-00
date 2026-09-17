@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { format } from "date-fns";
@@ -156,59 +157,87 @@ const PartiesPage = () => {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("profiles")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .single();
-            if (error) throw error;
-            return data;
+            if (!user?.id) return null;
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("profiles")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .single();
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[Parties] Profile fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any>(["profile", user.id]);
+            if (cached) return cached;
+            return await sqliteService.getById<any>(user.id);
         },
         enabled: !!user
     });
 
-    // Fetch Parties
+    // Fetch Parties with Offline Fallback
     const { data: parties = [], isLoading: isLoadingParties } = useQuery({
         queryKey: ["parties", user?.id],
         queryFn: async () => {
-            const { data, error } = await getPartiesTable()
-                .select("*")
-                .order("name");
-
-            if (error) throw error;
-            return data as Party[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await getPartiesTable()
+                    .select("*")
+                    .order("name");
+                if (!error && data) return data as Party[];
+            } catch (e) {
+                console.warn("[Parties] Parties fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<Party[]>(["parties", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<Party>("parties", user.id);
+            return localData || [];
         },
         enabled: !!user
     });
 
-    // Fetch Sales (Invoices) for Customer Ledger
+    // Fetch Sales (Invoices) for Customer Ledger with Offline Fallback
     const { data: sales = [], isLoading: isLoadingSales } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("sales")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-
-            if (error) throw error;
-            return data || [];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("sales")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) return data || [];
+            } catch (e) {
+                console.warn("[Parties] Sales fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any[]>(["sales", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<any>("sales", user.id);
+            return localData || [];
         },
         enabled: !!user
     });
 
-    // Fetch Purchases for Vendor Ledger
+    // Fetch Purchases for Vendor Ledger with Offline Fallback
     const { data: purchases = [], isLoading: isLoadingPurchases } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("purchases")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-
-            if (error) throw error;
-            return data || [];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("purchases")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) return data || [];
+            } catch (e) {
+                console.warn("[Parties] Purchases fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any[]>(["purchases", user.id]);
+            if (cached && cached.length > 0) return cached;
+            const localData = await sqliteService.getAll<any>("purchases", user.id);
+            return localData || [];
         },
         enabled: !!user
     });
