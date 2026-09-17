@@ -30,6 +30,7 @@ interface RecordPurchaseDialogProps {
     onOpenChange: (open: boolean) => void;
     purchaseToEdit?: any;
     startWithScanner?: boolean;
+    initialParty?: any;
 }
 
 interface PurchaseFormValues {
@@ -54,6 +55,7 @@ export const RecordPurchaseDialog = ({
     onOpenChange,
     purchaseToEdit,
     startWithScanner = false,
+    initialParty,
 }: RecordPurchaseDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -255,10 +257,10 @@ export const RecordPurchaseDialog = ({
         } else if (open && !purchaseToEdit) {
             const todayStr = new Date().toISOString().split("T")[0];
             reset({
-                vendor_name: "",
-                vendor_phone: "",
-                vendor_gstin: "",
-                place_of_supply: "",
+                vendor_name: initialParty?.name || "",
+                vendor_phone: initialParty?.phone || "",
+                vendor_gstin: initialParty?.gst_number || "",
+                place_of_supply: initialParty?.address || "",
                 bill_number: `BILL-${Date.now().toString().slice(-6)}`,
                 date: todayStr,
                 due_date: getDefaultDueDate(todayStr),
@@ -282,7 +284,7 @@ export const RecordPurchaseDialog = ({
             });
             setIsAiFillOpen(false);
         }
-    }, [open, purchaseToEdit, reset]);
+    }, [open, purchaseToEdit, initialParty, reset]);
 
     // Fetch Parties for Vendor Autocomplete
     const { data: parties = [] } = useQuery({
