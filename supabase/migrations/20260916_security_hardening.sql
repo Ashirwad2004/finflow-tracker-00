@@ -514,6 +514,7 @@ DROP POLICY IF EXISTS "Anon INSERT order items" ON public.online_order_items;
 -- 7. Secure delivery_tracking & order_returns RLS
 DROP POLICY IF EXISTS "Public can update delivery tracking" ON public.delivery_tracking;
 DROP POLICY IF EXISTS "Public can view delivery tracking" ON public.delivery_tracking;
+DROP POLICY IF EXISTS "Store staff can manage delivery tracking" ON public.delivery_tracking;
 
 CREATE POLICY "Store staff can manage delivery tracking" ON public.delivery_tracking
 FOR ALL TO authenticated
@@ -548,6 +549,7 @@ WITH CHECK (
     )
 );
 
+DROP POLICY IF EXISTS "Customers can view tracking for their order" ON public.delivery_tracking;
 CREATE POLICY "Customers can view tracking for their order" ON public.delivery_tracking
 FOR SELECT TO anon, authenticated
 USING (
@@ -566,7 +568,8 @@ CREATE POLICY "Users can view own invoice items" ON public.invoice_items
 FOR SELECT TO authenticated
 USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can manage own invoice items" ON public.invoice_items
+DROP POLICY IF EXISTS "Users can manage own invoice items" ON public.invoice_items;
+CREATE POLICY "Users can manage own invoice items" ON public.invoice_items
 FOR ALL TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
@@ -577,7 +580,8 @@ CREATE POLICY "Users can view own tax periods" ON public.tax_periods
 FOR SELECT TO authenticated
 USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can manage own tax periods" ON public.tax_periods
+DROP POLICY IF EXISTS "Users can manage own tax periods" ON public.tax_periods;
+CREATE POLICY "Users can manage own tax periods" ON public.tax_periods
 FOR ALL TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
@@ -588,7 +592,8 @@ CREATE POLICY "Users can view own audit logs" ON public.audit_logs
 FOR SELECT TO authenticated
 USING (auth.uid() = user_id OR is_admin_user(auth.uid()));
 
-DROP POLICY IF EXISTS "Users can insert own audit logs" ON public.audit_logs
+DROP POLICY IF EXISTS "Users can insert own audit logs" ON public.audit_logs;
+CREATE POLICY "Users can insert own audit logs" ON public.audit_logs
 FOR INSERT TO authenticated
 WITH CHECK (auth.uid() = user_id);
 
@@ -645,6 +650,9 @@ WHERE id = 'business_assets';
 -- Storage RLS policies for business_assets (scoped to user folder)
 DROP POLICY IF EXISTS "Authenticated users can upload" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can update" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload own business assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update own business assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete own business assets" ON storage.objects;
 
 CREATE POLICY "Authenticated users can upload own business assets" ON storage.objects
 FOR INSERT TO authenticated
