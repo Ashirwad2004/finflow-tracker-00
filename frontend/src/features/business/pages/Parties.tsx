@@ -883,7 +883,7 @@ const PartiesPage = () => {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download' });
+        }, { action: 'download', documentTitle: 'PURCHASE BILL' });
     };
 
     const handlePreviewPurchasePDF = async (purchase: any) => {
@@ -920,7 +920,7 @@ const PartiesPage = () => {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview' });
+        }, { action: 'preview', documentTitle: 'PURCHASE BILL' });
 
         if (url) {
             window.open(String(url), '_blank');

@@ -90,8 +90,9 @@ export default function PurchasesPage() {
 
     const handlePreview = async (purchase: Purchase) => {
         // Map purchase fields to invoice generator
+        const billNumber = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
         const url = await generateInvoicePDF({
-            invoice_number: purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`,
+            invoice_number: billNumber,
             date: purchase.date || (purchase as any).created_at,
             due_date: purchase.due_date,
             status: purchase.status,
@@ -115,7 +116,7 @@ export default function PurchasesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview', documentTitle: 'PURCHASE ORDER' });
+        }, { action: 'preview', documentTitle: 'PURCHASE BILL' });
 
         if (url) {
             window.open(String(url), '_blank');
@@ -123,8 +124,9 @@ export default function PurchasesPage() {
     };
 
     const handleDownload = (purchase: Purchase) => {
+        const billNumber = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
         generateInvoicePDF({
-            invoice_number: purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`,
+            invoice_number: billNumber,
             date: purchase.date || (purchase as any).created_at,
             due_date: purchase.due_date,
             status: purchase.status,
@@ -148,12 +150,12 @@ export default function PurchasesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download', documentTitle: 'PURCHASE ORDER' });
+        }, { action: 'download', documentTitle: 'PURCHASE BILL' });
     };
 
     const handleShare = async (purchase: Purchase) => {
         try {
-            const billString = purchase.bill_number || `PO-${purchase.id.substring(0, 6).toUpperCase()}`;
+            const billString = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
             const url = await generateInvoicePDF({
                 invoice_number: billString,
                 date: purchase.date || (purchase as any).created_at,
@@ -179,23 +181,23 @@ export default function PurchasesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'preview', documentTitle: 'PURCHASE ORDER' });
+            }, { action: 'preview', documentTitle: 'PURCHASE BILL' });
 
             if (url) {
                 const response = await fetch(String(url));
                 const blob = await response.blob();
-                const file = new File([blob], `Purchase_${billString}.pdf`, { type: 'application/pdf' });
+                const file = new File([blob], `PurchaseBill_${billString}.pdf`, { type: 'application/pdf' });
 
                 if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
                         files: [file],
-                        title: `Purchase Order ${billString}`,
-                        text: `Here is the purchase detail for ${purchase.vendor_name}`
+                        title: `Purchase Bill ${billString}`,
+                        text: `Here is the purchase bill detail for ${purchase.vendor_name}`
                     });
                 } else {
-                    const shareText = `Purchase ${billString} from ${purchase.vendor_name}. Total: ${formatCurrency(purchase.total_amount)}`;
+                    const shareText = `Purchase Bill ${billString} from ${purchase.vendor_name}. Total: ${formatCurrency(purchase.total_amount)}`;
                     await navigator.clipboard.writeText(shareText);
-                    alert("Purchase details copied to clipboard (Sharing PDF files directly is not supported on this device/browser).");
+                    alert("Purchase bill details copied to clipboard (Sharing PDF files directly is not supported on this device/browser).");
                 }
             }
         } catch (error) {
