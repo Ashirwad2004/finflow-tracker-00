@@ -26,10 +26,11 @@ export const sanitizePayloadForTable = (table: string, action: string, payload: 
   }
 
   if (table === 'purchases') {
-    const { id, user_id, bill_number, vendor_name, vendor_phone, vendor_email, vendor_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, items, place_of_supply, notes } = clean;
+    const { id, user_id, party_id, bill_number, vendor_name, vendor_phone, vendor_email, vendor_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, items, place_of_supply, notes } = clean;
     return {
       id,
       user_id,
+      party_id: party_id || null,
       bill_number,
       vendor_name,
       vendor_phone: vendor_phone || null,
