@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap } from "lucide-react";
 import { RecordPurchaseDialog } from "@/features/business/components/RecordPurchaseDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -22,6 +22,7 @@ import { TableLoadingRows } from "@/components/shared/PageStates";
 
 export default function PurchasesPage() {
     const [isRecordOpen, setIsRecordOpen] = useState(false);
+    const [startWithScanner, setStartWithScanner] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingPurchase, setEditingPurchase] = useState<any>(null);
@@ -319,12 +320,26 @@ export default function PurchasesPage() {
                         <button
                             onClick={() => {
                                 setEditingPurchase(null);
+                                setStartWithScanner(true);
+                                setIsRecordOpen(true);
+                            }}
+                            className="flex items-center whitespace-nowrap gap-2 px-3.5 py-2 text-sm font-bold text-violet-700 dark:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg shadow-xs transition-all"
+                        >
+                            <Zap className="w-4 h-4 text-violet-500 animate-pulse" />
+                            <span className="hidden sm:inline">⚡ Scan & Auto-Save</span>
+                            <span className="sm:hidden">Scan</span>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setEditingPurchase(null);
+                                setStartWithScanner(false);
                                 setIsRecordOpen(true);
                             }}
                             className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all"
                         >
                             <Plus className="w-5 h-5" />
-                            Record Purchase
+                            <span>Record Purchase</span>
                         </button>
                     </div>
                 </div>
@@ -525,9 +540,13 @@ export default function PurchasesPage() {
                     open={isRecordOpen}
                     onOpenChange={(open) => {
                         setIsRecordOpen(open);
-                        if (!open) setEditingPurchase(null);
+                        if (!open) {
+                            setEditingPurchase(null);
+                            setStartWithScanner(false);
+                        }
                     }}
                     purchaseToEdit={editingPurchase}
+                    startWithScanner={startWithScanner}
                 />
             </div>
         </AppLayout>
