@@ -97,8 +97,8 @@ export const BusinessDetailsDialog = ({ open, onOpenChange, onSuccess }: Busines
         }
 
         const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
-        const fileName = `${pathPrefix}-${user?.id}-${Math.random()}.${fileExt}`;
-        const filePath = `${fileName}`;
+        const fileName = `${pathPrefix}-${user?.id}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `${user?.id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('business_assets')

@@ -1,19 +1,20 @@
 import sys
 import asyncio
 import logging
+from typing import cast, Any
+from contextlib import asynccontextmanager
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-def win_proactor_loop():
-    return getattr(asyncio, "ProactorEventLoop")()
+if sys.platform.startswith('win') and sys.version_info < (3, 8):
+    set_policy = getattr(asyncio, "set_event_loop_policy", None)
+    policy_cls = getattr(asyncio, "WindowsProactorEventLoopPolicy", None)
+    if callable(set_policy) and policy_cls:
+        set_policy(policy_cls())
 
-if sys.platform.startswith('win'):
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -36,7 +37,7 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, cast(Any, _rate_limit_exceeded_handler))
 
 app.add_middleware(
     CORSMiddleware,

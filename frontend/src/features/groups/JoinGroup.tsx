@@ -43,19 +43,20 @@ const JoinGroup = () => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("groups")
-        .select("id, name, description")
-        .eq("invite_code", inviteCode.toUpperCase())
-        .single();
+      const { data, error } = await (supabase as any)
+        .rpc("get_group_by_invite_code", {
+          p_invite_code: inviteCode.trim().toUpperCase(),
+        });
 
-      if (error || !data) {
+      const groupRecord = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+      if (error || !groupRecord) {
         setError("Group not found or invite link is invalid");
         setLoading(false);
         return;
       }
 
-      setGroup(data);
+      setGroup(groupRecord);
       setLoading(false);
     };
 
