@@ -1,16 +1,22 @@
 import { useState, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { generateEInvoiceJSON, downloadJSON } from "@/core/utils/einvoiceGenerator";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle, ReceiptIndianRupee } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle, ReceiptIndianRupee, Receipt, ArrowDownLeft, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { dispatchJob, subscribeToJob, JobEvent } from "@/core/utils/jobQueue";
 import { CreateInvoiceDialog } from "@/features/business/components/CreateInvoiceDialog";
+import { RecordBillPaymentDialog, BillPaymentTarget } from "@/features/business/components/RecordBillPaymentDialog";
+import { UniversalPaymentDialog } from "@/features/business/components/UniversalPaymentDialog";
+import { PaymentInRegister } from "@/features/business/components/PaymentInRegister";
+import { BillPaymentTranscriptDialog } from "@/features/business/components/BillPaymentTranscriptDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { format, isSameMonth } from "date-fns";
 import {
@@ -56,6 +62,7 @@ interface Sale {
     date: string;
     due_date?: string | null;
     items: SaleItem[];
+    notes?: string | null;
 }
 
 export default function SalesPage() {
@@ -66,12 +73,32 @@ export default function SalesPage() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
 
-    const [paymentInvoice, setPaymentInvoice] = useState<Sale | null>(null);
-    const [paymentAmount, setPaymentAmount] = useState<string>("");
-    const [paymentMethod, setPaymentMethod] = useState<string>("cash");
-    const [paymentNotes, setPaymentNotes] = useState<string>("");
-    const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
-    const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+    const [paymentTarget, setPaymentTarget] = useState<BillPaymentTarget | null>(null);
+    const [transcriptTarget, setTranscriptTarget] = useState<BillPaymentTarget | null>(null);
+    const [isPaymentInOpen, setIsPaymentInOpen] = useState(false);
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const currentTab = searchParams.get("tab");
+    const activeTab: "invoices" | "payment-in" | "sales-order" = 
+        currentTab === "payment-in"
+            ? "payment-in"
+            : currentTab === "sales-order"
+            ? "sales-order"
+            : "invoices";
+
+    const setActiveTab = (tab: "invoices" | "payment-in" | "sales-order") => {
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            if (tab === "payment-in") {
+                next.set("tab", "payment-in");
+            } else if (tab === "sales-order") {
+                next.set("tab", "sales-order");
+            } else {
+                next.delete("tab");
+            }
+            return next;
+        });
+    };
     
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
@@ -83,13 +110,39 @@ export default function SalesPage() {
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("profiles")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .single();
-            if (error) throw error;
-            return data;
+            if (!user?.id) return null;
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("profiles")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .single();
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[Sales] Profile fetch failed offline, falling back to cache:", e);
+            }
+            const cached = queryClient.getQueryData<any>(["profile", user.id]);
+            if (cached) return cached;
+            return await sqliteService.getById<any>(user.id);
+        },
+        enabled: !!user
+    });
+
+    const { data: parties = [] } = useQuery({
+        queryKey: ["parties", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("parties")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[Sales] Parties fetch fallback:", e);
+            }
+            return (await sqliteService.getAll<any>("parties", user.id)) || [];
         },
         enabled: !!user
     });
@@ -97,15 +150,32 @@ export default function SalesPage() {
     const { data: invoices = [], isLoading } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("sales")
-                .select("*")
-                .eq("user_id", user?.id || "")
-                .order("date", { ascending: false });
-            if (error) throw error;
+            if (!user?.id) return [];
+            let salesData: any[] = [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("sales")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+                if (!error && data) {
+                    salesData = data;
+                }
+            } catch (e) {
+                console.warn("[Sales] Sales fetch failed offline, falling back to cache:", e);
+            }
+
+            if (!salesData || salesData.length === 0) {
+                const cached = queryClient.getQueryData<any[]>(["sales", user.id]);
+                if (cached && cached.length > 0) {
+                    salesData = cached;
+                } else {
+                    salesData = await sqliteService.getAll<any>("sales", user.id);
+                }
+            }
             
             const today = new Date().toISOString().split("T")[0];
-            return (data as any[]).map(inv => {
+            return (salesData || []).map(inv => {
                 if (inv.status === 'pending' && inv.due_date && inv.due_date < today) {
                     return { ...inv, status: 'overdue' };
                 }
@@ -120,74 +190,37 @@ export default function SalesPage() {
         setIsCreateOpen(true);
     };
 
-    const handleOpenRecordPayment = (invoice: Sale) => {
+    const getSalePaymentTarget = (invoice: Sale): BillPaymentTarget => {
         const currentPaid = Number(invoice.amount_paid || 0);
-        const balDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, invoice.total_amount - currentPaid));
-        setPaymentInvoice(invoice);
-        setPaymentAmount(balDue > 0 ? String(balDue) : String(invoice.total_amount));
-        setPaymentMethod("cash");
-        setPaymentNotes("");
-        setPaymentDate(new Date().toISOString().split("T")[0]);
+        const balDue = Number(
+            invoice.balance_due != null
+                ? invoice.balance_due
+                : Math.max(0, invoice.total_amount - currentPaid)
+        );
+        return {
+            id: invoice.id,
+            billNumber: invoice.invoice_number,
+            partyName: invoice.customer_name,
+            partyGstin: invoice.customer_gstin,
+            partyPhone: invoice.customer_phone,
+            totalAmount: invoice.total_amount,
+            amountPaid: currentPaid,
+            balanceDue: balDue,
+            date: invoice.date,
+            dueDate: invoice.due_date,
+            notes: invoice.notes,
+            paymentMethod: (invoice as any).payment_method || "cash",
+            type: "sale",
+            rawRecord: invoice,
+        };
     };
 
-    const handleSavePayment = async () => {
-        if (!paymentInvoice || !user?.id) return;
-        const addAmount = Number(paymentAmount) || 0;
-        if (addAmount <= 0) {
-            toast.error("Please enter a valid payment amount greater than 0.");
-            return;
-        }
+    const handleOpenRecordPayment = (invoice: Sale) => {
+        setPaymentTarget(getSalePaymentTarget(invoice));
+    };
 
-        const currentPaid = Number(paymentInvoice.amount_paid || 0);
-        const newAmountPaid = Math.min(paymentInvoice.total_amount, currentPaid + addAmount);
-        const newBalanceDue = Math.max(0, Math.round((paymentInvoice.total_amount - newAmountPaid) * 100) / 100);
-        const newStatus: 'paid' | 'partial' = newBalanceDue <= 0 ? 'paid' : 'partial';
-
-        setIsSubmittingPayment(true);
-        try {
-            const updatePayload = {
-                ...paymentInvoice,
-                amount_paid: newAmountPaid,
-                balance_due: newBalanceDue,
-                status: newStatus,
-                payment_method: paymentMethod || "cash",
-                notes: paymentNotes
-                    ? `${paymentInvoice.notes ? paymentInvoice.notes + " | " : ""}Paid ${formatCurrency(addAmount)} via ${paymentMethod} on ${paymentDate}: ${paymentNotes}`
-                    : paymentInvoice.notes || null
-            };
-
-            const { error } = await offlineMutate({
-                table: "sales",
-                action: "update",
-                recordId: paymentInvoice.id,
-                payload: updatePayload,
-                userId: user.id
-            });
-
-            if (error) throw error;
-
-            queryClient.setQueryData(["sales", user.id], (old: any) => {
-                if (!old) return [];
-                return old.map((inv: Sale) => inv.id === paymentInvoice.id ? { ...inv, ...updatePayload } : inv);
-            });
-
-            if (navigator.onLine) {
-                queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
-            }
-
-            toast.success(
-                newStatus === 'paid'
-                    ? `Payment recorded! Invoice ${paymentInvoice.invoice_number} is now Fully Paid.`
-                    : `Payment recorded! Remaining balance on ${paymentInvoice.invoice_number} is ${formatCurrency(newBalanceDue)}.`
-            );
-
-            setPaymentInvoice(null);
-        } catch (err: any) {
-            console.error("Error recording payment:", err);
-            toast.error(err?.message || "Failed to record payment.");
-        } finally {
-            setIsSubmittingPayment(false);
-        }
+    const handleOpenTranscript = (invoice: Sale) => {
+        setTranscriptTarget(getSalePaymentTarget(invoice));
     };
 
     const handlePreview = async (invoice: Sale) => {
@@ -566,6 +599,17 @@ export default function SalesPage() {
                             </DropdownMenu>
                             <button
                                 onClick={() => {
+                                    setPaymentTarget(null);
+                                    setIsPaymentInOpen(true);
+                                }}
+                                className="flex items-center justify-center whitespace-nowrap gap-1.5 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all flex-1 sm:flex-initial"
+                                title="Record Payment In (With or Without Bill)"
+                            >
+                                <ReceiptIndianRupee className="w-4 h-4" />
+                                <span>+ Payment In</span>
+                            </button>
+                            <button
+                                onClick={() => {
                                     setEditingInvoice(null);
                                     setIsCreateOpen(true);
                                 }}
@@ -577,6 +621,107 @@ export default function SalesPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Vyapar Tab Switcher */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit mb-4">
+                    <button
+                        onClick={() => setActiveTab("invoices")}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                            activeTab === "invoices"
+                                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                    >
+                        <FileText className="w-4 h-4" />
+                        <span>Sales</span>
+                        <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700">
+                            {invoices.filter(i => (i as any).document_type !== 'receipt' && !i.invoice_number?.startsWith('REC-')).length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("payment-in")}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                            activeTab === "payment-in"
+                                ? "bg-emerald-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+                        }`}
+                    >
+                        <ArrowDownLeft className="w-4 h-4" />
+                        <span>Payment In</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("sales-order")}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                            activeTab === "sales-order"
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                        }`}
+                    >
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>Sales Order</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                            Soon
+                        </span>
+                    </button>
+                </div>
+
+                {activeTab === "sales-order" ? (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 sm:p-12 text-center shadow-sm">
+                        <div className="max-w-lg mx-auto flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 shadow-inner">
+                                <ShoppingBag className="w-8 h-8" />
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mb-3">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Planned Module • Ready for Later Implementation</span>
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                                Sales Order Management
+                            </h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                                Book customer advance orders, track fulfillment stages, and convert confirmed orders to GST Tax Invoices in 1-click. You can implement this module whenever you are ready!
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left mb-6">
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">1. Advance Bookings</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Record customer orders prior to physical delivery or dispatch.</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">2. Convert to Invoice</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Generate final Sale Invoices directly from the order.</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">3. Advance Payments</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Track token or partial advance payment linked to orders.</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">4. Order Fulfillment</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Status tracking: Open, Partial, Completed, Cancelled.</p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => toast.info("Sales Order creation will be implemented in the next phase as planned.")}
+                                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-all shadow-sm"
+                            >
+                                + Create Sales Order (Preview)
+                            </button>
+                        </div>
+                    </div>
+                ) : activeTab === "payment-in" ? (
+                    <PaymentInRegister
+                        sales={invoices}
+                        parties={parties}
+                        onOpenRecordPaymentIn={() => {
+                            setPaymentTarget(null);
+                            setIsPaymentInOpen(true);
+                        }}
+                        onOpenTranscript={handleOpenTranscript}
+                        onPreviewInvoice={handlePreview}
+                    />
+                ) : (
+                    <>
 
 
 
@@ -655,36 +800,53 @@ export default function SalesPage() {
                         className="overflow-auto flex-1 min-h-0 w-full"
                         ref={tableContainerRef}
                     >
-                        <table className="w-full text-left border-collapse min-w-[1000px] relative">
+                        <table className="w-full text-left border-collapse min-w-[1050px] relative">
                             <thead className="sticky top-0 z-10 shadow-sm">
                                 <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                     <th className="px-4 py-2.5">Invoice</th>
                                     <th className="px-4 py-2.5">Customer</th>
                                     <th className="px-4 py-2.5">Issue Date</th>
                                     <th className="px-4 py-2.5 text-right">Tax</th>
-                                    <th className="px-4 py-2.5 text-right">Amount</th>
+                                    <th className="px-4 py-2.5 text-right">Total Amount</th>
+                                    <th className="px-4 py-2.5 text-right">Paid</th>
+                                    <th className="px-4 py-2.5 text-right">Balance Due</th>
                                     <th className="px-4 py-2.5 text-center">Status</th>
                                     <th className="px-4 py-2.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
-                                    <TableLoadingRows cols={7} rows={6} />
+                                    <TableLoadingRows cols={9} rows={6} />
                                 ) : sortedAndFilteredInvoices.length === 0 ? (
-                                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No invoices matching your criteria.</td></tr>
+                                    <tr><td colSpan={9} className="px-6 py-12 text-center text-slate-500">No invoices matching your criteria.</td></tr>
                                 ) : (
                                     <>
                                         {rowVirtualizer.getVirtualItems().length > 0 && (
                                             <tr>
-                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }} />
+                                                <td colSpan={9} style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }} />
                                             </tr>
                                         )}
                                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                                             const invoice = sortedAndFilteredInvoices[virtualRow.index];
+                                            const currentPaid = Number(invoice.amount_paid || 0);
+                                            const balDue = Number(
+                                                invoice.balance_due != null
+                                                    ? invoice.balance_due
+                                                    : Math.max(0, invoice.total_amount - currentPaid)
+                                            );
+                                            const isFullyPaid = balDue <= 0.001 && invoice.total_amount > 0;
+
                                             return (
                                         <tr key={invoice.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
                                             <td className="px-4 py-2.5">
-                                                <p className="text-xs font-bold text-slate-900 dark:text-white">{invoice.invoice_number}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs font-bold text-slate-900 dark:text-white">{invoice.invoice_number}</p>
+                                                    {((invoice as any).document_type === 'receipt' || invoice.invoice_number?.startsWith('REC-')) && (
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 uppercase tracking-wider">
+                                                            Receipt
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-[10px] text-slate-400 mt-0.5">{invoice.items?.length || 0} items</p>
                                             </td>
                                             <td className="px-4 py-2.5">
@@ -709,52 +871,134 @@ export default function SalesPage() {
                                             <td className="px-4 py-2.5 text-xs font-extrabold text-slate-900 dark:text-white text-right">
                                                 {formatCurrency(invoice.total_amount)}
                                             </td>
-                                            <td className="px-4 py-2.5 text-center">
-                                                {invoice.status === 'paid' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">Paid</span>}
-                                                {invoice.status === 'pending' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">Pending</span>}
-                                                {invoice.status === 'partial' && (
+                                            <td className="px-4 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 text-right">
+                                                {formatCurrency(currentPaid)}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-xs text-right">
+                                                {balDue > 0 ? (
                                                     <button
                                                         type="button"
-                                                        onClick={(e) => { e.stopPropagation(); handleOpenRecordPayment(invoice); }}
-                                                        className="flex flex-col items-center gap-0.5 hover:scale-105 transition-transform cursor-pointer"
-                                                        title="Click to Record Payment"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenRecordPayment(invoice);
+                                                        }}
+                                                        className="font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:underline transition-colors block ml-auto"
+                                                        title="Click to Record Payment In"
+                                                    >
+                                                        {formatCurrency(balDue)}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 font-semibold">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-center">
+                                                {isFullyPaid || invoice.status === 'paid' ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenTranscript(invoice);
+                                                        }}
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:scale-105 transition-transform"
+                                                        title="Paid — Click to view Payment Ledger"
+                                                    >
+                                                        Paid
+                                                    </button>
+                                                ) : invoice.status === 'partial' || (currentPaid > 0 && currentPaid < invoice.total_amount) ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenRecordPayment(invoice);
+                                                        }}
+                                                        className="flex flex-col items-center gap-0.5 hover:scale-105 transition-transform cursor-pointer mx-auto"
+                                                        title="Click to Receive Payment"
                                                     >
                                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">Partial</span>
-                                                        {invoice.balance_due != null && (
-                                                            <span className="text-[9px] text-rose-500 font-semibold">
-                                                                Due: {formatCurrency(invoice.balance_due)}
-                                                            </span>
-                                                        )}
                                                     </button>
+                                                ) : invoice.status === 'overdue' ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenRecordPayment(invoice);
+                                                        }}
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 hover:scale-105 transition-transform"
+                                                        title="Overdue — Click to Receive Payment"
+                                                    >
+                                                        Overdue
+                                                    </button>
+                                                ) : invoice.status === 'pending' ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenRecordPayment(invoice);
+                                                        }}
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 hover:scale-105 transition-transform"
+                                                        title="Pending — Click to Receive Payment"
+                                                    >
+                                                        Pending
+                                                    </button>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">Draft</span>
                                                 )}
-                                                {invoice.status === 'overdue' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50">Overdue</span>}
-                                                {invoice.status === 'draft' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">Draft</span>}
                                             </td>
                                             <td className="px-4 py-2.5 text-right">
-                                                <div className="flex justify-end gap-1 opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity">
+                                                    {balDue > 0 && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenRecordPayment(invoice);
+                                                            }}
+                                                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold flex items-center gap-1 shadow-2xs transition-all mr-1"
+                                                            title="Record Payment In"
+                                                        >
+                                                            <ReceiptIndianRupee className="w-3.5 h-3.5" />
+                                                            <span>Payment In</span>
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenTranscript(invoice);
+                                                        }}
+                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                                                        title="Payment Transcript / Ledger"
+                                                    >
+                                                        <Receipt className="w-4 h-4" />
+                                                    </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handlePreview(invoice); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"
                                                         title="Preview PDF"
                                                     >
-                                                        <FileText className="w-5 h-5" />
+                                                        <FileText className="w-4 h-4" />
                                                     </button>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                                             <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all">
-                                                                <MoreHorizontal className="w-5 h-5" />
+                                                                <MoreHorizontal className="w-4 h-4" />
                                                             </button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                                                            {invoice.status !== 'paid' && (
+                                                            {balDue > 0 && (
                                                                 <DropdownMenuItem
                                                                     onClick={() => handleOpenRecordPayment(invoice)}
                                                                     className="text-emerald-600 dark:text-emerald-400 font-semibold cursor-pointer"
                                                                 >
                                                                     <ReceiptIndianRupee className="w-4 h-4 mr-2 text-emerald-500" />
-                                                                    Record Payment
+                                                                    Receive Payment
                                                                 </DropdownMenuItem>
                                                             )}
+                                                            <DropdownMenuItem
+                                                                onClick={() => handleOpenTranscript(invoice)}
+                                                                className="cursor-pointer"
+                                                            >
+                                                                <Receipt className="w-4 h-4 mr-2 text-slate-500" />
+                                                                Payment Transcript / Ledger
+                                                            </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handlePreview(invoice)}>
                                                                 <Eye className="w-4 h-4 mr-2" />
                                                                 Preview PDF
@@ -790,7 +1034,7 @@ export default function SalesPage() {
                                         })}
                                         {rowVirtualizer.getVirtualItems().length > 0 && (
                                             <tr>
-                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }} />
+                                                <td colSpan={9} style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }} />
                                             </tr>
                                         )}
                                     </>
@@ -799,6 +1043,8 @@ export default function SalesPage() {
                         </table>
                     </div>
                 </div>
+                </>
+                )}
 
                 <CreateInvoiceDialog
                     open={isCreateOpen}
@@ -810,136 +1056,26 @@ export default function SalesPage() {
                     salesSettings={settings}
                 />
 
-                {/* Record Payment Dialog */}
-                <Dialog open={!!paymentInvoice} onOpenChange={(open) => { if (!open) setPaymentInvoice(null); }}>
-                    <DialogContent className="sm:max-w-[480px]">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <ReceiptIndianRupee className="w-5 h-5 text-emerald-600" />
-                                Record Invoice Payment
-                            </DialogTitle>
-                            <DialogDescription>
-                                Add a partial or full payment for invoice <strong className="text-foreground">{paymentInvoice?.invoice_number}</strong> ({paymentInvoice?.customer_name}).
-                            </DialogDescription>
-                        </DialogHeader>
+                {/* Universal Payment In (Receipt) Dialog */}
+                <UniversalPaymentDialog
+                    open={isPaymentInOpen || !!paymentTarget}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setIsPaymentInOpen(false);
+                            setPaymentTarget(null);
+                        }
+                    }}
+                    mode="payment_in"
+                    initialBill={paymentTarget}
+                />
 
-                        {paymentInvoice && (() => {
-                            const currentPaid = Number(paymentInvoice.amount_paid || 0);
-                            const currentBal = Number(paymentInvoice.balance_due != null ? paymentInvoice.balance_due : Math.max(0, paymentInvoice.total_amount - currentPaid));
-                            const enteredAmount = Number(paymentAmount) || 0;
-                            const projectedBal = Math.max(0, Math.round((currentBal - enteredAmount) * 100) / 100);
-                            const isFullyPaid = enteredAmount >= currentBal;
-
-                            return (
-                                <div className="space-y-4 py-2">
-                                    {/* Invoice Balance Summary Cards */}
-                                    <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</p>
-                                            <p className="text-sm font-bold text-slate-800 dark:text-white mt-0.5">{formatCurrency(paymentInvoice.total_amount)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Already Paid</p>
-                                            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(currentPaid)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Balance Due</p>
-                                            <p className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-0.5">{formatCurrency(currentBal)}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Amount Input */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Payment Amount</label>
-                                            <button
-                                                type="button"
-                                                onClick={() => setPaymentAmount(String(currentBal))}
-                                                className="text-xs font-semibold text-primary hover:underline"
-                                            >
-                                                Pay Full Balance ({formatCurrency(currentBal)})
-                                            </button>
-                                        </div>
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                min="0.01"
-                                                max={currentBal}
-                                                step="0.01"
-                                                value={paymentAmount}
-                                                onChange={(e) => setPaymentAmount(e.target.value)}
-                                                placeholder="0.00"
-                                                className="w-full h-10 px-3 text-base font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                                            <span>Projected Remaining Balance:</span>
-                                            <span className={`font-semibold ${projectedBal === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                                                {formatCurrency(projectedBal)} {isFullyPaid ? '(Fully Paid)' : '(Partial)'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Payment Method & Date */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Payment Method</label>
-                                            <select
-                                                value={paymentMethod}
-                                                onChange={(e) => setPaymentMethod(e.target.value)}
-                                                className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                            >
-                                                <option value="cash">Cash</option>
-                                                <option value="upi">UPI / QR</option>
-                                                <option value="bank_transfer">Bank Transfer / NEFT</option>
-                                                <option value="card">Debit / Credit Card</option>
-                                                <option value="cheque">Cheque</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Payment Date</label>
-                                            <input
-                                                type="date"
-                                                value={paymentDate}
-                                                onChange={(e) => setPaymentDate(e.target.value)}
-                                                className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Notes / Reference */}
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Reference / Notes (Optional)</label>
-                                        <input
-                                            type="text"
-                                            value={paymentNotes}
-                                            onChange={(e) => setPaymentNotes(e.target.value)}
-                                            placeholder="e.g. UPI txn ID, Cheque #, or note"
-                                            className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        <DialogFooter className="gap-2 sm:gap-0">
-                            <Button
-                                variant="outline"
-                                onClick={() => setPaymentInvoice(null)}
-                                disabled={isSubmittingPayment}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleSavePayment}
-                                disabled={isSubmittingPayment || !paymentAmount || Number(paymentAmount) <= 0}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                                {isSubmittingPayment ? "Recording..." : "Save Payment"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                {/* CA Bill Payment Transcript / Ledger Audit Dialog */}
+                <BillPaymentTranscriptDialog
+                    open={!!transcriptTarget}
+                    onOpenChange={(open) => !open && setTranscriptTarget(null)}
+                    bill={transcriptTarget}
+                    onOpenRecordPayment={(target) => setPaymentTarget(target)}
+                />
 
                 {/* Sales Settings Dialog */}
                 <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>

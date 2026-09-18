@@ -13,6 +13,7 @@ export interface ProductItem {
     stock_quantity?: number;
     unit?: string;
     hsn_code?: string;
+    tax_rate?: number;
 }
 
 interface ProductComboboxProps {
@@ -26,6 +27,7 @@ interface ProductComboboxProps {
     onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     autoFocus?: boolean;
     onQuickAddProduct?: (product: ProductItem) => void;
+    mode?: "purchase" | "sale";
 }
 
 export const ProductCombobox = ({
@@ -39,6 +41,7 @@ export const ProductCombobox = ({
     onKeyDown,
     autoFocus = false,
     onQuickAddProduct,
+    mode = "purchase",
 }: ProductComboboxProps) => {
     const { formatCurrency } = useCurrency();
     const [isOpen, setIsOpen] = useState(false);
@@ -184,7 +187,12 @@ export const ProductCombobox = ({
                             filteredProducts.map((p, idx) => {
                                 const isSelected = exactMatch?.id === p.id;
                                 const isHighlighted = highlightedIndex === idx;
-                                const cost = Number(p.cost_price ?? p.price ?? 0);
+                                const displayPrice = mode === "sale"
+                                    ? Number(p.price ?? p.cost_price ?? 0)
+                                    : Number(p.cost_price ?? p.price ?? 0);
+                                const secondaryPrice = mode === "sale"
+                                    ? (p.cost_price && p.price && p.price !== p.cost_price ? Number(p.cost_price) : null)
+                                    : (p.price && p.cost_price && p.price !== p.cost_price ? Number(p.price) : null);
                                 const stock = Number(p.stock_quantity ?? 0);
 
                                 return (
@@ -215,8 +223,10 @@ export const ProductCombobox = ({
                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
                                                     <span>Unit: <strong className="text-foreground/80">{p.unit || "pc"}</strong></span>
                                                     {p.hsn_code && <span>• HSN: {p.hsn_code}</span>}
-                                                    {p.price && p.cost_price && p.price !== p.cost_price && (
-                                                        <span>• Sell: {formatCurrency(Number(p.price))}</span>
+                                                    {secondaryPrice !== null && (
+                                                        <span>
+                                                            • {mode === "sale" ? "Cost:" : "Sell:"} {formatCurrency(secondaryPrice)}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -224,17 +234,23 @@ export const ProductCombobox = ({
 
                                         <div className="flex flex-col items-end shrink-0 gap-0.5">
                                             <span className="font-extrabold text-foreground font-mono">
-                                                {formatCurrency(cost)}
+                                                {formatCurrency(displayPrice)}
                                             </span>
                                             <Badge
                                                 variant="outline"
                                                 className={`text-[9px] px-1.5 py-0 h-4 border font-mono ${
                                                     stock > 0
                                                         ? "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+                                                        : mode === "sale"
+                                                        ? "text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800"
                                                         : "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"
                                                 }`}
                                             >
-                                                {stock > 0 ? `Stock: ${stock}` : "Stock: 0"}
+                                                {stock > 0
+                                                    ? `Stock: ${stock}`
+                                                    : mode === "sale"
+                                                    ? "Out of Stock"
+                                                    : "Stock: 0"}
                                             </Badge>
                                         </div>
                                     </div>
