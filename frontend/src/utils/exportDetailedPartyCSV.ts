@@ -20,6 +20,19 @@ const parseSafeDate = (d: any): Date => {
     return isNaN(dt.getTime()) ? new Date() : dt;
 };
 
+const getVoucherTypeLabel = (type: string): string => {
+    switch (type) {
+        case 'sale': return 'Sales Invoice';
+        case 'purchase': return 'Purchase Bill';
+        case 'payment_received': return 'Payment In';
+        case 'payment_made': return 'Payment Out';
+        case 'credit_note': return 'Credit Note';
+        case 'debit_note': return 'Debit Note';
+        case 'opening_balance': return 'Opening Balance';
+        default: return type.replace(/_/g, ' ');
+    }
+};
+
 export const exportDetailedPartyCSV = (
     data: LedgerTransaction[],
     partyName: string,
@@ -37,14 +50,16 @@ export const exportDetailedPartyCSV = (
             ? `${businessDetails.name} ${businessDetails.phone ? `| Ph: ${businessDetails.phone}` : ""} ${
                   businessDetails.gst ? `| GSTIN: ${businessDetails.gst}` : ""
               }`
-            : "FinFlow Business Tracker",
+            : "FinFlow Business Ledger",
     ];
 
-    let rangeStr = "All Time";
+    let rangeStr = "All Time (Complete History)";
     if (dateRange?.from && dateRange?.to) {
         rangeStr = `${format(dateRange.from, "dd MMM yyyy")} to ${format(dateRange.to, "dd MMM yyyy")}`;
     } else if (dateRange?.from) {
         rangeStr = `Since ${format(dateRange.from, "dd MMM yyyy")}`;
+    } else if (dateRange?.to) {
+        rangeStr = `Up to ${format(dateRange.to, "dd MMM yyyy")}`;
     }
     const dateRow = [`Period: ${rangeStr} | Generated: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`];
     const emptyRow: any[] = [];
@@ -52,11 +67,12 @@ export const exportDetailedPartyCSV = (
     // Define Headers
     const headers = [
         "Date",
-        "Transaction Type",
-        "Invoice / Voucher Ref",
-        "Debit / Receivable (₹)",
-        "Credit / Payable (₹)",
+        "Particulars / Voucher Reference",
+        "Voucher Type",
+        "Debit (Dr) (₹)",
+        "Credit (Cr) (₹)",
         "Running Balance (₹)",
+        "Dr / Cr",
         "Status",
     ];
 
@@ -65,36 +81,36 @@ export const exportDetailedPartyCSV = (
 
     // Process Data
     const dataRows = data.map((tx) => {
-        const debit = tx.debit != null ? tx.debit : tx.type === "sale" ? tx.amount : 0;
-        const credit = tx.credit != null ? tx.credit : tx.type === "purchase" ? tx.amount : 0;
+        const debit = Number(tx.debit || 0);
+        const credit = Number(tx.credit || 0);
         totalDebit += debit;
         totalCredit += credit;
 
-        let typeLabel = "Sale Invoice";
-        if (tx.type === "purchase") typeLabel = "Purchase Bill";
-        else if (tx.type === "payment_received") typeLabel = "Payment Received";
-        else if (tx.type === "payment_made") typeLabel = "Payment Made";
+        const bal = tx.runningBalance;
+        const balSuffix = bal > 0 ? "Dr" : bal < 0 ? "Cr" : "Nil";
 
         return [
             format(parseSafeDate(tx.date), "dd/MM/yyyy"),
-            typeLabel,
             tx.ref || "-",
-            debit,
-            credit,
-            tx.runningBalance || 0,
+            getVoucherTypeLabel(tx.type),
+            debit > 0 ? debit : 0,
+            credit > 0 ? credit : 0,
+            Math.abs(bal),
+            balSuffix,
             (tx.status || "settled").toUpperCase(),
         ];
     });
 
-    const netClosing = totalDebit - totalCredit;
+    const finalBalance = data[data.length - 1]?.runningBalance ?? (totalDebit - totalCredit);
     const totalsRow = [
         "TOTAL",
-        "",
+        "Closing Position",
         "",
         totalDebit,
         totalCredit,
-        netClosing,
-        netClosing > 0 ? "Net Dr (Receivable)" : netClosing < 0 ? "Net Cr (Payable)" : "Settled",
+        Math.abs(finalBalance),
+        finalBalance > 0 ? "Dr (Receivable)" : finalBalance < 0 ? "Cr (Payable)" : "Nil (Settled)",
+        "",
     ];
 
     const wsData = [
@@ -113,12 +129,13 @@ export const exportDetailedPartyCSV = (
 
     ws["!cols"] = [
         { wch: 14 }, // Date
-        { wch: 20 }, // Transaction Type
-        { wch: 22 }, // Invoice Ref
-        { wch: 22 }, // Debit
-        { wch: 22 }, // Credit
-        { wch: 22 }, // Running Balance
-        { wch: 22 }, // Status
+        { wch: 38 }, // Particulars
+        { wch: 18 }, // Type
+        { wch: 18 }, // Debit
+        { wch: 18 }, // Credit
+        { wch: 20 }, // Running Balance
+        { wch: 16 }, // Dr / Cr
+        { wch: 14 }, // Status
     ];
 
     const sanitizedFileName = (partyName || "Party").replace(/[^a-zA-Z0-9]/g, "_");

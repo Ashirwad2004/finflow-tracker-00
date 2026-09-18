@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PartyReport } from "@/features/business/components/PartyReport";
@@ -8,6 +10,47 @@ import { BusinessAiInsights } from "@/features/business/components/BusinessAiIns
 import { FileBarChart, ShieldCheck, Users, BookOpen, ShoppingBag, Sparkles } from "lucide-react";
 
 const ReportsPage = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    
+    // Tab and selected party state
+    const urlTab = searchParams.get("tab") || "party-report";
+    const urlParty = searchParams.get("party") || null;
+
+    const [activeTab, setActiveTab] = useState<string>(urlTab);
+    const [selectedPartyForLedger, setSelectedPartyForLedger] = useState<string | null>(urlParty);
+
+    // Sync state if URL changes externally
+    useEffect(() => {
+        const tab = searchParams.get("tab");
+        const party = searchParams.get("party");
+        if (tab && tab !== activeTab) {
+            setActiveTab(tab);
+        }
+        if (party && party !== selectedPartyForLedger) {
+            setSelectedPartyForLedger(party);
+        }
+    }, [searchParams]);
+
+    const handleTabChange = (newTab: string) => {
+        setActiveTab(newTab);
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set("tab", newTab);
+            return next;
+        }, { replace: true });
+    };
+
+    const handleSelectPartyForLedger = (partyName: string) => {
+        setSelectedPartyForLedger(partyName);
+        setActiveTab("detailed-ledger");
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set("tab", "detailed-ledger");
+            next.set("party", partyName);
+            return next;
+        }, { replace: true });
+    };
+
     return (
         <AppLayout>
             <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6 animate-fade-in">
@@ -25,7 +68,7 @@ const ReportsPage = () => {
                 </div>
 
                 {/* Clean, Simple Navigation Tabs */}
-                <Tabs defaultValue="party-report" className="space-y-6">
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                     <div className="bg-card w-full sm:w-auto inline-block p-1 rounded-xl border shadow-xs">
                         <TabsList className="flex flex-wrap sm:flex-nowrap h-auto p-0 bg-transparent gap-1">
                             <TabsTrigger
@@ -67,11 +110,11 @@ const ReportsPage = () => {
                     </div>
 
                     <TabsContent value="party-report" className="mt-0 outline-none">
-                        <PartyReport />
+                        <PartyReport onSelectPartyForLedger={handleSelectPartyForLedger} />
                     </TabsContent>
 
                     <TabsContent value="detailed-ledger" className="mt-0 outline-none">
-                        <DetailedPartyReport />
+                        <DetailedPartyReport initialPartyName={selectedPartyForLedger} />
                     </TabsContent>
 
                     <TabsContent value="gst-hub" className="mt-0 outline-none">

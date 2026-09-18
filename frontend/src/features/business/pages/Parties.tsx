@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -119,6 +120,7 @@ const buildPartyUpdatePayload = (updatedParty: Partial<Party>): Record<string, a
 };
 
 const PartiesPage = () => {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const { toast } = useToast();
     const { formatCurrency } = useCurrency();
@@ -267,28 +269,59 @@ const PartiesPage = () => {
             );
 
             const partyPurchases = purchases.filter((p: any) =>
+                (p.party_id && p.party_id === party.id) ||
                 (p.vendor_name && p.vendor_name.trim().toLowerCase() === pName)
             );
 
-            const totalSalesAmount = partySales.reduce((sum: number, s: any) => sum + (Number(s.total_amount) || 0), 0);
-            const totalSalesPaid = partySales.reduce((sum: number, s: any) => {
-                if (s.status === 'paid') return sum + (Number(s.total_amount) || 0);
-                return sum + (Number(s.amount_paid) || 0);
-            }, 0);
-            const salesBalanceDue = partySales.reduce((sum: number, s: any) => {
-                if (s.status === 'paid') return sum;
-                return sum + (Number(s.balance_due != null ? s.balance_due : (Number(s.total_amount) || 0) - (Number(s.amount_paid) || 0)));
-            }, 0);
+            let totalSalesAmount = 0;
+            let totalSalesPaid = 0;
+            let salesBalanceDue = 0;
 
-            const totalPurchasesAmount = partyPurchases.reduce((sum: number, p: any) => sum + (Number(p.total_amount) || 0), 0);
-            const totalPurchasesPaid = partyPurchases.reduce((sum: number, p: any) => {
-                if (p.status === 'paid') return sum + (Number(p.total_amount) || 0);
-                return sum + (Number(p.amount_paid) || 0);
-            }, 0);
-            const purchasesBalanceDue = partyPurchases.reduce((sum: number, p: any) => {
-                if (p.status === 'paid') return sum;
-                return sum + (Number(p.balance_due != null ? p.balance_due : (Number(p.total_amount) || 0) - (Number(p.amount_paid) || 0)));
-            }, 0);
+            partySales.forEach((s: any) => {
+                const total = Number(s.total_amount) || 0;
+                const paid = Number(s.amount_paid != null ? s.amount_paid : (s.status === 'paid' ? total : 0));
+                const due = Number(s.balance_due != null ? s.balance_due : Math.max(0, total - paid));
+                const docType = (s.document_type || 'invoice').toLowerCase();
+
+                if (docType === 'receipt') {
+                    // Standalone Payment In reduces receivable
+                    salesBalanceDue = Math.max(0, salesBalanceDue - (total || paid));
+                } else if (docType === 'credit_note') {
+                    salesBalanceDue = Math.max(0, salesBalanceDue - total);
+                } else if (docType === 'debit_note') {
+                    totalSalesAmount += total;
+                    salesBalanceDue += total;
+                } else {
+                    totalSalesAmount += total;
+                    totalSalesPaid += paid;
+                    salesBalanceDue += due;
+                }
+            });
+
+            let totalPurchasesAmount = 0;
+            let totalPurchasesPaid = 0;
+            let purchasesBalanceDue = 0;
+
+            partyPurchases.forEach((p: any) => {
+                const total = Number(p.total_amount) || 0;
+                const paid = Number(p.amount_paid != null ? p.amount_paid : (p.status === 'paid' ? total : 0));
+                const due = Number(p.balance_due != null ? p.balance_due : Math.max(0, total - paid));
+                const docType = (p.document_type || 'bill').toLowerCase();
+
+                if (docType === 'payment') {
+                    // Standalone Payment Out reduces payable
+                    purchasesBalanceDue = Math.max(0, purchasesBalanceDue - (total || paid));
+                } else if (docType === 'debit_note') {
+                    purchasesBalanceDue = Math.max(0, purchasesBalanceDue - total);
+                } else if (docType === 'credit_note') {
+                    totalPurchasesAmount += total;
+                    purchasesBalanceDue += total;
+                } else {
+                    totalPurchasesAmount += total;
+                    totalPurchasesPaid += paid;
+                    purchasesBalanceDue += due;
+                }
+            });
 
             const openingBal = Number(party.opening_balance) || 0;
             const isOpeningReceivable = party.opening_balance_type
@@ -1435,6 +1468,17 @@ const PartiesPage = () => {
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
+
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => navigate(`/reports?tab=detailed-ledger&party=${encodeURIComponent(activeParty.name)}`)}
+                                                className="h-7 sm:h-8 px-2 text-xs font-semibold flex items-center gap-1 text-primary hover:text-primary hover:bg-primary/5"
+                                                title="View verified CA detailed ledger"
+                                            >
+                                                <Eye className="w-3.5 h-3.5" />
+                                                <span className="hidden sm:inline">Detailed Ledger</span>
+                                            </Button>
 
                                             <Button
                                                 size="sm"
