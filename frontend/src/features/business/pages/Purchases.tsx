@@ -25,6 +25,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TableLoadingRows } from "@/components/shared/PageStates";
+import { PurchaseOrderRegister } from "@/features/business/components/orders/PurchaseOrderRegister";
 
 
 export default function PurchasesPage() {
@@ -98,6 +99,25 @@ export default function PurchasesPage() {
             return (await sqliteService.getAll<any>("parties", user.id)) || [];
         },
         enabled: !!user
+    });
+
+    const { data: products = [] } = useQuery({
+        queryKey: ["products", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("products")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[Purchases] Products fetch fallback:", e);
+            }
+            return (await sqliteService.getAll<any>("products", user.id)) || [];
+        },
+        enabled: !!user,
     });
 
     interface Purchase {
@@ -489,56 +509,15 @@ export default function PurchasesPage() {
                     >
                         <ShoppingBag className="w-4 h-4" />
                         <span>Purchase Order</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
-                            Soon
-                        </span>
                     </button>
                 </div>
 
                 {activeTab === "purchase-order" ? (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 sm:p-12 text-center shadow-sm">
-                        <div className="max-w-lg mx-auto flex flex-col items-center">
-                            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 shadow-inner">
-                                <ShoppingBag className="w-8 h-8" />
-                            </div>
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mb-3">
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Planned Module • Ready for Later Implementation</span>
-                            </div>
-                            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                                Purchase Order Management
-                            </h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                                Place vendor procurement orders, track expected deliveries, and convert received goods directly into Purchase Bills in 1-click.
-                            </p>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left mb-6">
-                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">1. Vendor PO Generation</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Issue formal purchase orders to suppliers with agreed pricing.</p>
-                                </div>
-                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">2. Convert to Purchase Bill</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Convert confirmed vendor shipments directly into bills.</p>
-                                </div>
-                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">3. Advance Payments Out</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Record advance disbursement against purchase order numbers.</p>
-                                </div>
-                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">4. Delivery Tracking</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Monitor dispatch, partial receipts, and overdue deliveries.</p>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => toast.info("Purchase Order creation will be enabled in the upcoming update!")}
-                                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-all shadow-sm"
-                            >
-                                + Create Purchase Order (Preview)
-                            </button>
-                        </div>
-                    </div>
+                    <PurchaseOrderRegister
+                        userId={user?.id || ""}
+                        parties={parties}
+                        products={products}
+                    />
                 ) : activeTab === "payment-out" ? (
                     <PaymentOutRegister
                         purchases={purchases}
