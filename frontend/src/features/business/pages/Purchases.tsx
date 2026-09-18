@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap, ReceiptIndianRupee, Receipt, ArrowUpRight } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap, ReceiptIndianRupee, ScrollText, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { RecordPurchaseDialog } from "@/features/business/components/RecordPurchaseDialog";
 import { RecordBillPaymentDialog, BillPaymentTarget } from "@/features/business/components/RecordBillPaymentDialog";
@@ -773,16 +773,6 @@ export default function PurchasesPage() {
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setTranscriptPurchase(getPurchasePaymentTarget(purchase));
-                                                        }}
-                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all"
-                                                        title="Payment Transcript / Ledger"
-                                                    >
-                                                        <Receipt className="w-4 h-4" />
-                                                    </button>
-                                                    <button
                                                         onClick={(e) => { e.stopPropagation(); handlePreview(purchase); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"
                                                         title="Preview PDF"
@@ -809,7 +799,7 @@ export default function PurchasesPage() {
                                                                 onClick={() => setTranscriptPurchase(getPurchasePaymentTarget(purchase))}
                                                                 className="cursor-pointer"
                                                             >
-                                                                <Receipt className="w-4 h-4 mr-2 text-slate-500" />
+                                                                <ScrollText className="w-4 h-4 mr-2 text-slate-500" />
                                                                 Payment Transcript / Ledger
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handlePreview(purchase)}>
