@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/core/hooks/use-toast";
 import { PartyDialog } from "../components/PartyDialog";
+import { PartyImportExportDialog } from "../components/PartyImportExportDialog";
 import { CreateInvoiceDialog } from "../components/CreateInvoiceDialog";
 import { RecordPurchaseDialog } from "../components/RecordPurchaseDialog";
 import { TableLoadingRows } from "@/components/shared/PageStates";
@@ -136,6 +137,7 @@ const PartiesPage = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedParty, setSelectedParty] = useState<Party | null>(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [isImportExportOpen, setIsImportExportOpen] = useState(false);
 
     // Create Invoice / Purchase for Party State
     const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
@@ -1128,6 +1130,18 @@ const PartiesPage = () => {
                         </div>
 
                         <div className="flex items-center gap-1.5 ml-auto">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsImportExportOpen(true)}
+                                className="h-8 px-2.5 text-xs font-semibold shadow-xs flex items-center gap-1.5 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                title="Import or Export Parties via Excel / CSV"
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span className="hidden sm:inline">Import / Export</span>
+                                <span className="sm:hidden">Excel</span>
+                            </Button>
+
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button
@@ -1225,14 +1239,24 @@ const PartiesPage = () => {
                                 <div className="p-6 text-center flex flex-col items-center justify-center">
                                     <Users className="w-8 h-8 mb-2 text-slate-300 dark:text-slate-700" />
                                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No parties found</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">Try a different search or add a party.</p>
-                                    <Button
-                                        size="sm"
-                                        onClick={handleAddClick}
-                                        className="mt-2.5 text-xs h-7 bg-primary text-white"
-                                    >
-                                        <Plus className="w-3 h-3 mr-1" /> Add Party
-                                    </Button>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Try a different search, add a party or import from Excel.</p>
+                                    <div className="flex items-center gap-2 mt-2.5">
+                                        <Button
+                                            size="sm"
+                                            onClick={handleAddClick}
+                                            className="text-xs h-7 bg-primary text-white"
+                                        >
+                                            <Plus className="w-3 h-3 mr-1" /> Add Party
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setIsImportExportOpen(true)}
+                                            className="text-xs h-7 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                        >
+                                            <FileSpreadsheet className="w-3 h-3 mr-1 text-emerald-600" /> Import
+                                        </Button>
+                                    </div>
                                 </div>
                             ) : (
                                 filteredParties.map((party) => {
@@ -1820,6 +1844,16 @@ const PartiesPage = () => {
                     open={isRecordPurchaseOpen}
                     onOpenChange={setIsRecordPurchaseOpen}
                     initialParty={partyForNewPurchase}
+                />
+
+                {/* Party Import / Export Dialog */}
+                <PartyImportExportDialog
+                    open={isImportExportOpen}
+                    onClose={() => setIsImportExportOpen(false)}
+                    userId={user?.id || ""}
+                    existingParties={parties}
+                    partyLedgerMap={partyLedgerMap}
+                    profile={profile}
                 />
 
                 {/* Unified Settlement Dialog (Receive Collections for Sales & Record Payments for Purchases) */}
