@@ -51,45 +51,60 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
         enabled: !!user
     });
 
-    // Fetch Parties Directory
+    // Fetch Parties Directory with Offline Fallback
     const { data: partiesDirectory = [] } = useQuery({
         queryKey: ["parties", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("parties")
-                .select("id, name, phone, type, opening_balance, opening_balance_type")
-                .eq("user_id", user?.id || "");
-            if (error) return [];
-            return data as any[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("parties")
+                    .select("id, name, phone, type, opening_balance, opening_balance_type")
+                    .eq("user_id", user.id);
+                if (!error && data) return data as any[];
+            } catch (e) {
+                console.warn("[PartyReport] Parties fetch failed offline:", e);
+            }
+            return (await sqliteService.getAll<any>("parties", user.id)) || [];
         },
         enabled: !!user
     });
 
-    // Fetch all sales (with real payment & balance tracking)
+    // Fetch all sales (with real payment, document_type & party_id tracking)
     const { data: sales = [], isLoading: salesLoading } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("sales")
-                .select("id, customer_name, total_amount, amount_paid, balance_due, status, date, customer_phone")
-                .eq("user_id", user?.id || "")
-                .neq("status", "draft");
-            if (error) throw error;
-            return data as any[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("sales")
+                    .select("id, customer_name, total_amount, amount_paid, balance_due, status, date, customer_phone, document_type, party_id")
+                    .eq("user_id", user.id)
+                    .neq("status", "draft");
+                if (!error && data) return data as any[];
+            } catch (e) {
+                console.warn("[PartyReport] Sales fetch failed offline:", e);
+            }
+            return (await sqliteService.getAll<any>("sales", user.id)) || [];
         },
         enabled: !!user
     });
 
-    // Fetch all purchases (with real payment & balance tracking)
+    // Fetch all purchases (with real payment, document_type & party_id tracking)
     const { data: purchases = [], isLoading: purchasesLoading } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("purchases")
-                .select("id, vendor_name, total_amount, amount_paid, balance_due, status, date")
-                .eq("user_id", user?.id || "");
-            if (error) throw error;
-            return data as any[];
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("purchases")
+                    .select("id, vendor_name, total_amount, amount_paid, balance_due, status, date, document_type, party_id")
+                    .eq("user_id", user.id);
+                if (!error && data) return data as any[];
+            } catch (e) {
+                console.warn("[PartyReport] Purchases fetch failed offline:", e);
+            }
+            return (await sqliteService.getAll<any>("purchases", user.id)) || [];
         },
         enabled: !!user
     });
@@ -97,6 +112,7 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
     // CA-Compliant Ledger Aggregation
     const aggregatedData = useMemo(() => {
         const partyMap = new Map<string, EnrichedPartyItem>();
+        const idToNorm = new Map<string, string>();
         const now = new Date();
 
         // Initialize from parties directory if available
@@ -104,6 +120,8 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
             const name = (p.name || "").trim();
             if (!name) return;
             const norm = name.toLowerCase();
+            if (p.id) idToNorm.set(p.id, norm);
+
             const openBal = Number(p.opening_balance) || 0;
             const isOpeningReceivable = p.opening_balance_type
                 ? p.opening_balance_type === 'to_receive'
@@ -126,14 +144,17 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
         });
 
         // Process Sales (Receivables)
-        sales.forEach(sale => {
-            const name = sale.customer_name?.trim();
-            if (!name) return;
-            const norm = name.toLowerCase();
+        sales.forEach((sale: any) => {
+            const rawName = (sale.customer_name || "").trim();
+            let norm = rawName.toLowerCase();
+            if (sale.party_id && idToNorm.has(sale.party_id)) {
+                norm = idToNorm.get(sale.party_id)!;
+            }
+            if (!norm) return;
 
             if (!partyMap.has(norm)) {
                 partyMap.set(norm, {
-                    name,
+                    name: rawName || norm,
                     phone: sale.customer_phone || undefined,
                     type: 'customer',
                     totalSales: 0,
@@ -152,34 +173,51 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
             const total = Number(sale.total_amount) || 0;
             const paid = sale.amount_paid != null ? Number(sale.amount_paid) : (sale.status === 'paid' ? total : 0);
             const due = sale.balance_due != null ? Number(sale.balance_due) : Math.max(0, total - paid);
+            const docType = (sale.document_type || 'invoice').toLowerCase();
 
-            p.totalSales += total;
-            p.salesCount += 1;
-            p.receivable += due;
+            if (docType === 'receipt') {
+                // Standalone Payment In reduces receivable
+                const rcptAmt = total || paid;
+                p.receivable = Math.max(0, p.receivable - rcptAmt);
+            } else if (docType === 'credit_note') {
+                // Customer credit note reduces receivable
+                p.receivable = Math.max(0, p.receivable - total);
+            } else if (docType === 'debit_note') {
+                // Customer debit note increases receivable
+                p.receivable += total;
+                p.totalSales += total;
+            } else {
+                p.totalSales += total;
+                p.salesCount += 1;
+                p.receivable += due;
 
-            if (due > 0 && sale.date) {
-                const saleDate = new Date(sale.date);
-                if (!isNaN(saleDate.getTime())) {
-                    const days = Math.max(0, differenceInDays(now, saleDate));
-                    if (days > p.overdueDaysMax) {
-                        p.overdueDaysMax = days;
-                        if (days > 90) p.ageCategory = '90+';
-                        else if (days > 60 && p.ageCategory !== '90+') p.ageCategory = '61-90';
-                        else if (days > 30 && p.ageCategory !== '90+' && p.ageCategory !== '61-90') p.ageCategory = '31-60';
+                if (due > 0 && sale.date) {
+                    const saleDate = new Date(sale.date);
+                    if (!isNaN(saleDate.getTime())) {
+                        const days = Math.max(0, differenceInDays(now, saleDate));
+                        if (days > p.overdueDaysMax) {
+                            p.overdueDaysMax = days;
+                            if (days > 90) p.ageCategory = '90+';
+                            else if (days > 60 && p.ageCategory !== '90+') p.ageCategory = '61-90';
+                            else if (days > 30 && p.ageCategory !== '90+' && p.ageCategory !== '61-90') p.ageCategory = '31-60';
+                        }
                     }
                 }
             }
         });
 
         // Process Purchases (Payables)
-        purchases.forEach(purchase => {
-            const name = purchase.vendor_name?.trim();
-            if (!name) return;
-            const norm = name.toLowerCase();
+        purchases.forEach((purchase: any) => {
+            const rawName = (purchase.vendor_name || "").trim();
+            let norm = rawName.toLowerCase();
+            if (purchase.party_id && idToNorm.has(purchase.party_id)) {
+                norm = idToNorm.get(purchase.party_id)!;
+            }
+            if (!norm) return;
 
             if (!partyMap.has(norm)) {
                 partyMap.set(norm, {
-                    name,
+                    name: rawName || norm,
                     type: 'vendor',
                     totalSales: 0,
                     totalPurchases: 0,
@@ -202,10 +240,24 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
             const total = Number(purchase.total_amount) || 0;
             const paid = purchase.amount_paid != null ? Number(purchase.amount_paid) : (purchase.status === 'paid' ? total : 0);
             const due = purchase.balance_due != null ? Number(purchase.balance_due) : Math.max(0, total - paid);
+            const docType = (purchase.document_type || 'bill').toLowerCase();
 
-            p.totalPurchases += total;
-            p.purchasesCount += 1;
-            p.payable += due;
+            if (docType === 'payment') {
+                // Standalone Payment Out reduces payable
+                const pmtAmt = total || paid;
+                p.payable = Math.max(0, p.payable - pmtAmt);
+            } else if (docType === 'debit_note') {
+                // Purchase debit note reduces payable
+                p.payable = Math.max(0, p.payable - total);
+            } else if (docType === 'credit_note') {
+                // Purchase credit note increases payable
+                p.payable += total;
+                p.totalPurchases += total;
+            } else {
+                p.totalPurchases += total;
+                p.purchasesCount += 1;
+                p.payable += due;
+            }
         });
 
         // Finalize Net Position for each party:
