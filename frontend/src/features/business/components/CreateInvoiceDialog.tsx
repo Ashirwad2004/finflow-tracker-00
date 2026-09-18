@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
     Dialog,
@@ -15,8 +15,11 @@ import {
     Percent,
     FileText,
     Wand2,
+    Plus,
 } from "lucide-react";
 import { SmartSaleInput } from "./SmartSaleInput";
+import { CustomerSection } from "./CustomerSection";
+import { ProductCombobox, ProductItem } from "./purchase/ProductCombobox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
@@ -24,6 +27,8 @@ import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
 import { SalesSettings } from "@/core/hooks/use-sales-settings";
 import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
+import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
 import { v4 as uuidv4 } from "uuid";
 import { useAuth } from "@/core/lib/auth";
 
@@ -52,6 +57,8 @@ interface InvoiceFormValues {
     customer_email: string;
     customer_gstin: string;
     place_of_supply?: string;
+    billing_address?: string;
+    shipping_address?: string;
     is_reverse_charge?: boolean;
     document_type?: "invoice" | "credit_note" | "debit_note";
     original_invoice_id?: string;
@@ -87,6 +94,7 @@ export const CreateInvoiceDialog = ({
     const currentUserId = authUser?.id;
 
     const { settings } = useItemSettings(currentUserId);
+    useProductsRealtime(currentUserId);
 
     const [isQuickBilling, setIsQuickBilling] = useState(
         salesSettings?.enableQuickBilling ?? false
@@ -199,6 +207,11 @@ export const CreateInvoiceDialog = ({
     const watchOverallDiscount = watch("overall_discount");
     const watchQuickItemName = watch("quick_item_name");
     const watchQuickTotalAmount = watch("quick_total_amount");
+    const watchCustomerName = watch("customer_name") || "";
+    const watchCustomerPhone = watch("customer_phone") || "";
+    const watchCustomerEmail = watch("customer_email") || "";
+    const watchCustomerGstin = watch("customer_gstin") || "";
+    const watchPlaceOfSupply = watch("place_of_supply") || "";
 
     // ============================================================
     // QUICK BILLING
@@ -257,35 +270,37 @@ export const CreateInvoiceDialog = ({
     // ============================================================
 
     const { data: parties = [] } = useQuery({
-        queryKey: ["invoice-parties"],
+        queryKey: ["parties", currentUserId],
         queryFn: async () => {
-            const user = authUser;
-
-            if (!user) return [];
+            if (!currentUserId) return [];
 
             try {
                 const { data } = await supabase
                     .from("parties" as any)
                     .select("*")
-                    .eq("user_id", user.id)
-                    .in("type", ["customer", "both"]);
+                    .eq("user_id", currentUserId)
+                    .order("name", { ascending: true });
 
-                if (data) return data;
+                if (data && data.length > 0) {
+                    sqliteService.upsertBatch("parties", currentUserId, data).catch(() => {});
+                    return data;
+                }
             } catch {
-                // Fall back to React Query cache.
+                // Fall back to React Query cache or SQLite
             }
 
             const cachedParties =
-                (queryClient.getQueryData([
-                    "parties",
-                    user.id,
-                ]) as any[]) || [];
+                (queryClient.getQueryData(["parties", currentUserId]) as any[]) ||
+                (queryClient.getQueryData(["parties", authUser?.id]) as any[]) ||
+                (queryClient.getQueryData(["parties"]) as any[]) ||
+                [];
 
-            return cachedParties.filter((p: any) =>
-                ["customer", "both"].includes(p.type)
-            );
+            if (cachedParties.length > 0) return cachedParties;
+
+            const localParties = await sqliteService.getAll<any>("parties", currentUserId);
+            return localParties || [];
         },
-        enabled: open,
+        enabled: !!currentUserId,
     });
 
     const handleCustomerSelect = (customerName: string) => {
@@ -506,7 +521,9 @@ export const CreateInvoiceDialog = ({
                 customer_phone: initialParty?.phone || "",
                 customer_email: initialParty?.email || "",
                 customer_gstin: initialParty?.gst_number || "",
-                place_of_supply: initialParty?.address || "",
+                place_of_supply: initialParty?.gst_number ? initialParty.gst_number.trim().substring(0, 2) : "",
+                billing_address: initialParty?.address || "",
+                shipping_address: initialParty?.address || "",
                 is_reverse_charge: false,
                 document_type: "invoice",
                 original_invoice_id: "",
@@ -646,37 +663,120 @@ export const CreateInvoiceDialog = ({
     ]);
 
     // ============================================================
-    // FETCH PRODUCTS
+    // FETCH PRODUCTS & HISTORICAL SALES FOR AUTOCOMPLETE POOL
     // ============================================================
 
-    const { data: products = [] } = useQuery({
-        queryKey: [
-            "products-invoice-picker",
-            currentUserId,
-        ],
+    const { data: dbProducts = [] } = useQuery({
+        queryKey: ["products", currentUserId],
         queryFn: async () => {
             if (!currentUserId) return [];
-
             try {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from("products" as any)
                     .select("*")
-                    .eq("user_id", currentUserId);
+                    .eq("user_id", currentUserId)
+                    .order("name", { ascending: true });
 
-                if (data) return data || [];
-            } catch {
-                // Fall back to cache.
+                if (!error && data && data.length > 0) {
+                    sqliteService.upsertBatch("products", currentUserId, data).catch(() => {});
+                    return data;
+                }
+            } catch (err) {
+                console.warn("Failed to fetch products from Supabase, falling back to cache and sqlite", err);
             }
 
-            return (
-                (queryClient.getQueryData([
-                    "products",
-                    currentUserId,
-                ]) as any[]) || []
-            );
+            const cached =
+                queryClient.getQueryData<any[]>(["products", currentUserId]) ||
+                queryClient.getQueryData<any[]>(["products", authUser?.id]) ||
+                queryClient.getQueryData<any[]>(["products"]);
+
+            if (cached && cached.length > 0) return cached;
+
+            const localProducts = await sqliteService.getAll<any>("products", currentUserId);
+            if (localProducts && localProducts.length > 0) return localProducts;
+
+            if (authUser?.id && authUser.id !== currentUserId) {
+                const altLocal = await sqliteService.getAll<any>("products", authUser.id);
+                if (altLocal && altLocal.length > 0) return altLocal;
+            }
+
+            return [];
         },
-        enabled: open && !!currentUserId,
+        enabled: !!currentUserId,
     });
+
+    // Fetch Recent Sales to Auto-Learn & Suggest Historically Billed Items
+    const { data: historicalSales = [] } = useQuery({
+        queryKey: ["sales-history-items", currentUserId],
+        queryFn: async () => {
+            if (!currentUserId) return [];
+            try {
+                const { data, error } = await supabase
+                    .from("sales" as any)
+                    .select("items")
+                    .eq("user_id", currentUserId)
+                    .order("date", { ascending: false })
+                    .limit(50);
+                if (!error && data) return data;
+            } catch (err) {
+                console.warn("Failed to fetch historical sales items", err);
+            }
+
+            try {
+                const localSales = await sqliteService.getAll<any>("sales", currentUserId);
+                return localSales || [];
+            } catch {
+                return [];
+            }
+        },
+        enabled: !!currentUserId,
+    });
+
+    // Merge Catalog Products and Historical Items into a Single Rich Autocomplete Pool
+    const products: ProductItem[] = useMemo(() => {
+        const productMap = new Map<string, ProductItem>();
+
+        // 1. Inventory Products (Highest priority)
+        (dbProducts as any[]).forEach((p: any) => {
+            if (!p || !p.name || typeof p.name !== "string" || !p.name.trim()) return;
+            const key = p.name.toLowerCase().trim();
+            productMap.set(key, {
+                id: p.id || `prod-${key}`,
+                name: p.name.trim(),
+                cost_price: Number(p.cost_price ?? p.price ?? 0),
+                price: Number(p.price ?? p.cost_price ?? 0),
+                stock_quantity: Number(p.stock_quantity ?? 0),
+                unit: p.unit || "pc",
+                hsn_code: p.hsn_code || "",
+                tax_rate: p.tax_rate !== undefined ? Number(p.tax_rate) : (p.tax !== undefined ? Number(p.tax) : undefined),
+            });
+        });
+
+        // 2. Historical Items (Auto-learned items not yet in catalog)
+        (historicalSales as any[]).forEach((record: any) => {
+            if (Array.isArray(record?.items)) {
+                record.items.forEach((it: any) => {
+                    const desc = it?.description || it?.name;
+                    if (!desc || typeof desc !== "string" || !desc.trim()) return;
+                    const key = desc.toLowerCase().trim();
+                    if (!productMap.has(key)) {
+                        productMap.set(key, {
+                            id: `history-${key}`,
+                            name: desc.trim(),
+                            price: Number(it.price || it.cost_price || 0),
+                            cost_price: Number(it.cost_price || it.price || 0),
+                            stock_quantity: undefined,
+                            unit: it.unit || "pc",
+                            hsn_code: it.hsn_code || "",
+                            tax_rate: it.tax_rate !== undefined ? Number(it.tax_rate) : undefined,
+                        });
+                    }
+                });
+            }
+        });
+
+        return Array.from(productMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [dbProducts, historicalSales]);
 
     // ============================================================
     // PRODUCT SELECTION
@@ -684,24 +784,25 @@ export const CreateInvoiceDialog = ({
 
     const handleProductSelect = (
         index: number,
-        productName: string
+        product: ProductItem
     ) => {
-        const product = (products as any[]).find(
-            (p: any) => p.name === productName
-        );
-
-        // IMPORTANT:
-        // Do nothing when typed value doesn't exactly match
-        // an existing product.
-        //
-        // This prevents typing the first letter from changing
-        // or creating rows.
         if (!product) return;
 
         setValue(
-            `items.${index}.price`,
-            Number(product.price) || 0,
+            `items.${index}.description`,
+            product.name,
             {
+                shouldValidate: true,
+                shouldDirty: true,
+            }
+        );
+
+        const selPrice = Number(product.price ?? product.cost_price ?? 0);
+        setValue(
+            `items.${index}.price`,
+            selPrice,
+            {
+                shouldValidate: true,
                 shouldDirty: true,
             }
         );
@@ -726,15 +827,11 @@ export const CreateInvoiceDialog = ({
             );
         }
 
-        if (
-            product.tax_rate !== undefined ||
-            product.tax !== undefined
-        ) {
+        if (product.tax_rate !== undefined) {
             setValue(
                 `items.${index}.tax_rate`,
                 Number(
                     product.tax_rate ??
-                    product.tax ??
                     salesSettings?.defaultTaxRate ??
                     0
                 ),
@@ -742,6 +839,67 @@ export const CreateInvoiceDialog = ({
                     shouldDirty: true,
                 }
             );
+        }
+
+        // Recalculate line total
+        const qty = Number(watch(`items.${index}.quantity`) || 1);
+        const disc = Number(watch(`items.${index}.discount`) || 0);
+        const lineTotal = Math.max(0, qty * selPrice * (1 - disc / 100));
+        setValue(`items.${index}.total`, lineTotal, { shouldDirty: true });
+
+        // Auto append next item row if selecting on the last item
+        if (index === fields.length - 1) {
+            append({
+                description: "",
+                quantity: 1,
+                price: 0,
+                discount: 0,
+                tax_rate: salesSettings?.defaultTaxRate ?? 0,
+                total: 0,
+                hsn_code: "",
+                unit: product.unit || "pc",
+            });
+        }
+    };
+
+    const handleQuickAddProduct = async (newProd: ProductItem) => {
+        if (!currentUserId) return;
+        try {
+            const isValidUUID = (id: any) =>
+                typeof id === "string" &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            const recordId = isValidUUID(newProd.id) ? newProd.id : uuidv4();
+            const newRecord = {
+                id: recordId,
+                user_id: currentUserId,
+                name: newProd.name.trim(),
+                cost_price: Number(newProd.cost_price || 0),
+                price: Number(newProd.price || newProd.cost_price || 0),
+                stock_quantity: Number(newProd.stock_quantity || 0),
+                unit: newProd.unit || "pc",
+                hsn_code: newProd.hsn_code || null,
+            };
+
+            await offlineMutate({
+                table: "products",
+                action: "insert",
+                recordId,
+                payload: newRecord,
+                userId: currentUserId,
+            });
+
+            // Update React Query cache immediately for instant dropdown inclusion
+            queryClient.setQueryData(["products", currentUserId], (old: any) => {
+                return old ? [newRecord, ...old] : [newRecord];
+            });
+
+            queryClient.invalidateQueries({ queryKey: ["products"] });
+            toast({
+                title: "Product saved",
+                description: `"${newProd.name}" added to product catalog.`,
+            });
+        } catch (e) {
+            console.error("Failed to quick-add product", e);
         }
     };
 
@@ -1275,18 +1433,16 @@ export const CreateInvoiceDialog = ({
                             ?.trim()
                             .toUpperCase() ||
                         null,
-                    place_of_supply:
-                        values.place_of_supply ||
-                        (
-                            values.customer_gstin
-                                ? values.customer_gstin
-                                    .trim()
-                                    .substring(
-                                        0,
-                                        2
-                                    )
-                                : null
-                        ),
+                    place_of_supply: (() => {
+                        const rawPos = (values.place_of_supply || "").trim();
+                        const gstinPos = (values.customer_gstin || "").trim().substring(0, 2);
+                        if (rawPos) {
+                            const digitMatch = rawPos.match(/^\d{2}/);
+                            if (digitMatch) return digitMatch[0];
+                            return rawPos;
+                        }
+                        return gstinPos || null;
+                    })(),
                     is_reverse_charge:
                         values.is_reverse_charge ||
                         false,
@@ -1493,75 +1649,62 @@ export const CreateInvoiceDialog = ({
                             : true;
 
                     if (shouldDeduct) {
-                        for (const item of values.items) {
-                            const product =
-                                (
-                                    products as any[]
-                                ).find(
-                                    (p: any) =>
-                                        p.name ===
-                                        item.description
-                                );
+                        const isValidUUID = (id: any) =>
+                            typeof id === "string" &&
+                            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-                            if (product) {
+                        for (const item of values.items) {
+                            if (!item.description?.trim()) continue;
+
+                            // Only look up in real inventory catalog (dbProducts) with a valid database UUID
+                            const product = (dbProducts as any[]).find(
+                                (p: any) =>
+                                    isValidUUID(p.id) &&
+                                    p.name?.trim().toLowerCase() === item.description?.trim().toLowerCase()
+                            );
+
+                            if (product && isValidUUID(product.id)) {
                                 const qtySold =
-                                    Number(
-                                        item.quantity
-                                    ) || 0;
+                                    Number(item.quantity) || 0;
 
                                 const currentStock =
-                                    Number(
-                                        product.stock_quantity
-                                    ) || 0;
+                                    Number(product.stock_quantity) || 0;
 
                                 const updatedStock =
-                                    currentStock -
-                                    qtySold;
+                                    currentStock - qtySold;
 
-                                await offlineMutate(
-                                    {
+                                try {
+                                    await offlineMutate({
                                         table: "products",
                                         action: "update",
-                                        recordId:
-                                            product.id,
+                                        recordId: product.id,
                                         payload: {
                                             ...product,
-                                            stock_quantity:
-                                                updatedStock,
+                                            stock_quantity: updatedStock,
                                         },
-                                        userId:
-                                            user.id,
-                                    }
-                                );
+                                        userId: user.id,
+                                    });
 
-                                queryClient.setQueryData(
-                                    [
-                                        "products",
-                                        user.id,
-                                    ],
-                                    (
-                                        old:
-                                            | any[]
-                                            | undefined
-                                    ) => {
-                                        if (!old)
-                                            return [];
-
-                                        return old.map(
-                                            (
-                                                p: any
-                                            ) =>
-                                                p.id ===
-                                                    product.id
+                                    queryClient.setQueryData(
+                                        ["products", user.id],
+                                        (old: any[] | undefined) => {
+                                            if (!old) return [];
+                                            return old.map((p: any) =>
+                                                p.id === product.id
                                                     ? {
                                                         ...p,
-                                                        stock_quantity:
-                                                            updatedStock,
+                                                        stock_quantity: updatedStock,
                                                     }
                                                     : p
-                                        );
-                                    }
-                                );
+                                            );
+                                        }
+                                    );
+                                } catch (stockErr) {
+                                    console.warn(
+                                        `[CreateInvoiceDialog] Failed to deduct stock for ${product.name}:`,
+                                        stockErr
+                                    );
+                                }
                             }
                         }
                     }
@@ -1922,76 +2065,63 @@ export const CreateInvoiceDialog = ({
                     {isQuickBilling ? (
                         <div className="flex-1 px-8 py-6 max-w-xl mx-auto w-full space-y-6">
                             <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-5 shadow-sm">
-                                {/* Customer */}
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                        Customer Name{" "}
-                                        <span className="text-destructive">
-                                            *
-                                        </span>
-                                    </Label>
-
-                                    <Input
-                                        className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950"
-                                        {...register(
-                                            "customer_name",
-                                            {
-                                                required:
-                                                    "Customer name is required",
+                                {/* Customer Section */}
+                                <CustomerSection
+                                    customerName={watchCustomerName}
+                                    customerPhone={watchCustomerPhone}
+                                    customerEmail={watchCustomerEmail}
+                                    customerGstin={watchCustomerGstin}
+                                    placeOfSupply={watchPlaceOfSupply}
+                                    onCustomerNameChange={(val) => {
+                                        setValue("customer_name", val, {
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                        });
+                                        handleCustomerSelect(val);
+                                    }}
+                                    onCustomerPhoneChange={(val) =>
+                                        setValue("customer_phone", val, {
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                        })
+                                    }
+                                    onCustomerEmailChange={(val) =>
+                                        setValue("customer_email", val, {
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                        })
+                                    }
+                                    onCustomerGstinChange={(val) =>
+                                        setValue("customer_gstin", val, {
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                        })
+                                    }
+                                    onPlaceOfSupplyChange={(val) =>
+                                        setValue("place_of_supply", val, {
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                        })
+                                    }
+                                    parties={parties}
+                                    userId={currentUserId}
+                                    error={errors.customer_name?.message}
+                                    onPartySelected={(party) => {
+                                        if (party.phone) setValue("customer_phone", party.phone, { shouldDirty: true });
+                                        if (party.email) setValue("customer_email", party.email, { shouldDirty: true });
+                                        const gst = party.gst_number || party.gstin;
+                                        if (gst) {
+                                            setValue("customer_gstin", gst, { shouldDirty: true });
+                                            if (!watchPlaceOfSupply && gst.length >= 2) {
+                                                setValue("place_of_supply", gst.slice(0, 2), { shouldDirty: true });
                                             }
-                                        )}
-                                        placeholder="Select or enter customer"
-                                        list="quick-customer-list"
-                                        onChange={(
-                                            e
-                                        ) => {
-                                            setValue(
-                                                "customer_name",
-                                                e.target
-                                                    .value,
-                                                {
-                                                    shouldValidate:
-                                                        true,
-                                                    shouldDirty:
-                                                        true,
-                                                }
-                                            );
-
-                                            handleCustomerSelect(
-                                                e
-                                                    .target
-                                                    .value
-                                            );
-                                        }}
-                                    />
-
-                                    <datalist id="quick-customer-list">
-                                        {parties.map(
-                                            (
-                                                party: any
-                                            ) => (
-                                                <option
-                                                    key={
-                                                        party.id
-                                                    }
-                                                    value={
-                                                        party.name
-                                                    }
-                                                />
-                                            )
-                                        )}
-                                    </datalist>
-
-                                    {errors.customer_name && (
-                                        <span className="text-destructive text-xs block">
-                                            {
-                                                errors
-                                                    .customer_name
-                                                    .message
-                                            }
-                                        </span>
-                                    )}
-                                </div>
+                                        }
+                                        if (party.address) {
+                                            setValue("billing_address", party.address, { shouldDirty: true });
+                                            setValue("shipping_address", party.address, { shouldDirty: true });
+                                        }
+                                    }}
+                                />
 
                                 {/* Product */}
                                 <div className="space-y-1.5">
@@ -1999,50 +2129,43 @@ export const CreateInvoiceDialog = ({
                                         Product / Service Description
                                     </Label>
 
-                                    <Input
-                                        className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950"
-                                        {...register(
-                                            "quick_item_name"
-                                        )}
-                                        placeholder="e.g. General Sale, Service Charge"
-                                        list="quick-product-list"
-                                        onChange={(
-                                            e
-                                        ) => {
-                                            setValue(
-                                                "quick_item_name",
-                                                e.target
-                                                    .value,
-                                                {
-                                                    shouldDirty:
-                                                        true,
-                                                }
-                                            );
-
-                                            handleQuickProductSelect(
-                                                e
-                                                    .target
-                                                    .value
-                                            );
+                                    <ProductCombobox
+                                        value={watchQuickItemName || ""}
+                                        products={products}
+                                        onChange={(val) => {
+                                            setValue("quick_item_name", val, {
+                                                shouldDirty: true,
+                                            });
                                         }}
+                                        onSelectProduct={(p) => {
+                                            setValue("quick_item_name", p.name, {
+                                                shouldDirty: true,
+                                            });
+                                            if (p.price) {
+                                                setValue(
+                                                    "quick_total_amount",
+                                                    Number(p.price),
+                                                    {
+                                                        shouldDirty: true,
+                                                        shouldValidate: true,
+                                                    }
+                                                );
+                                            }
+                                            if (p.tax_rate !== undefined) {
+                                                setValue(
+                                                    "tax_rate",
+                                                    Number(p.tax_rate),
+                                                    {
+                                                        shouldDirty: true,
+                                                    }
+                                                );
+                                            }
+                                        }}
+                                        onQuickAddProduct={handleQuickAddProduct}
+                                        placeholder="Search or select product/service..."
+                                        mode="sale"
+                                        className="h-10 rounded-md border-slate-300 bg-white dark:bg-slate-950"
                                     />
-
-                                    <datalist id="quick-product-list">
-                                        {products.map(
-                                            (
-                                                p: any
-                                            ) => (
-                                                <option
-                                                    key={
-                                                        p.id
-                                                    }
-                                                    value={
-                                                        p.name
-                                                    }
-                                                />
-                                            )
-                                        )}
-                                    </datalist>
                                 </div>
 
                                 {/* Amount / Tax */}
@@ -2254,9 +2377,10 @@ export const CreateInvoiceDialog = ({
                                         onParse={
                                             handleSmartParse
                                         }
-                                        products={
-                                            products
-                                        }
+                                        products={products.map((p) => ({
+                                            name: p.name,
+                                            price: Number(p.price ?? p.cost_price ?? 0),
+                                        }))}
                                     />
 
                                     <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
@@ -2270,256 +2394,100 @@ export const CreateInvoiceDialog = ({
                             ================================================== */}
 
                             <div className="flex flex-col md:flex-row justify-between gap-8 md:gap-16">
-                                <div className="flex-1 max-w-md space-y-4">
-                                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 border-b border-slate-100 pb-2">
-                                        Bill To
-                                    </h3>
-
-                                    <div className="space-y-3">
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Customer Name{" "}
-                                                <span className="text-destructive">
-                                                    *
-                                                </span>
-                                            </Label>
-
-                                            <Input
-                                                className="h-9 rounded-sm border-slate-300 bg-white"
-                                                {...register(
-                                                    "customer_name",
-                                                    {
-                                                        required:
-                                                            "Customer name is required",
-                                                    }
-                                                )}
-                                                placeholder="Select or enter customer"
-                                                list="customer-list"
-                                                onChange={(
-                                                    e
-                                                ) => {
-                                                    setValue(
-                                                        "customer_name",
-                                                        e.target
-                                                            .value,
-                                                        {
-                                                            shouldValidate:
-                                                                true,
-                                                            shouldDirty:
-                                                                true,
-                                                        }
-                                                    );
-
-                                                    handleCustomerSelect(
-                                                        e
-                                                            .target
-                                                            .value
-                                                    );
-                                                }}
-                                            />
-
-                                            <datalist id="customer-list">
-                                                {parties.map(
-                                                    (
-                                                        party: any
-                                                    ) => (
-                                                        <option
-                                                            key={
-                                                                party.id
-                                                            }
-                                                            value={
-                                                                party.name
-                                                            }
-                                                        />
-                                                    )
-                                                )}
-                                            </datalist>
-
-                                            {errors.customer_name && (
-                                                <span className="text-destructive text-xs block">
-                                                    {
-                                                        errors
-                                                            .customer_name
-                                                            .message
-                                                    }
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1.5">
-                                                <Label className="text-xs font-medium">
-                                                    Phone
-                                                </Label>
-
-                                                <Input
-                                                    className="h-9 rounded-sm border-slate-300 bg-white"
-                                                    {...register(
-                                                        "customer_phone"
-                                                    )}
-                                                    placeholder="Phone number"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                                <Label className="text-xs font-medium">
-                                                    Email
-                                                </Label>
-
-                                                <Input
-                                                    className="h-9 rounded-sm border-slate-300 bg-white"
-                                                    {...register(
-                                                        "customer_email"
-                                                    )}
-                                                    placeholder="Email address"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* GSTIN */}
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                                <Label className="text-xs font-medium">
-                                                    Customer GSTIN
-                                                </Label>
-
-                                                {watch(
-                                                    "customer_gstin"
-                                                )?.length ===
-                                                    15 ? (
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
-                                                        ✓ B2B Invoice
-                                                    </span>
-                                                ) : watch(
-                                                    "customer_gstin"
-                                                )?.length >
-                                                    0 ? (
-                                                    <span className="text-[10px] text-amber-600">
-                                                        {
-                                                            watch(
-                                                                "customer_gstin"
-                                                            )
-                                                                .length
-                                                        }
-                                                        /15 chars
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-400">
-                                                        B2C — leave blank if unregistered
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <Input
-                                                className="h-9 rounded-sm border-slate-300 bg-white font-mono uppercase tracking-widest text-sm"
-                                                {...register(
-                                                    "customer_gstin",
-                                                    {
-                                                        validate:
-                                                            (
-                                                                v
-                                                            ) =>
-                                                                !v ||
-                                                                v.length ===
-                                                                0 ||
-                                                                /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(
-                                                                    v
-                                                                ) ||
-                                                                "Invalid GSTIN format or checksum",
-                                                    }
-                                                )}
-                                                placeholder="e.g. 29AABCD1234E1Z5"
-                                                maxLength={
-                                                    15
+                                {/* Customer / Bill To Section */}
+                                <div className="flex-1 space-y-4">
+                                    <CustomerSection
+                                        customerName={watchCustomerName}
+                                        customerPhone={watchCustomerPhone}
+                                        customerEmail={watchCustomerEmail}
+                                        customerGstin={watchCustomerGstin}
+                                        placeOfSupply={watchPlaceOfSupply}
+                                        onCustomerNameChange={(val) => {
+                                            setValue("customer_name", val, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            });
+                                            handleCustomerSelect(val);
+                                        }}
+                                        onCustomerPhoneChange={(val) =>
+                                            setValue("customer_phone", val, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            })
+                                        }
+                                        onCustomerEmailChange={(val) =>
+                                            setValue("customer_email", val, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            })
+                                        }
+                                        onCustomerGstinChange={(val) =>
+                                            setValue("customer_gstin", val, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            })
+                                        }
+                                        onPlaceOfSupplyChange={(val) =>
+                                            setValue("place_of_supply", val, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            })
+                                        }
+                                        parties={parties}
+                                        userId={currentUserId}
+                                        error={errors.customer_name?.message}
+                                        onPartySelected={(party) => {
+                                            if (party.phone) setValue("customer_phone", party.phone, { shouldDirty: true });
+                                            if (party.email) setValue("customer_email", party.email, { shouldDirty: true });
+                                            const gst = party.gst_number || party.gstin;
+                                            if (gst) {
+                                                setValue("customer_gstin", gst, { shouldDirty: true });
+                                                if (!watchPlaceOfSupply && gst.length >= 2) {
+                                                    setValue("place_of_supply", gst.slice(0, 2), { shouldDirty: true });
                                                 }
-                                                onChange={(
-                                                    e
-                                                ) => {
-                                                    setValue(
-                                                        "customer_gstin",
-                                                        e.target
-                                                            .value
-                                                            .toUpperCase(),
-                                                        {
-                                                            shouldValidate:
-                                                                true,
-                                                            shouldDirty:
-                                                                true,
-                                                        }
-                                                    );
-                                                }}
+                                            }
+                                            if (party.address) {
+                                                setValue("billing_address", party.address, { shouldDirty: true });
+                                                setValue("shipping_address", party.address, { shouldDirty: true });
+                                            }
+                                        }}
+                                    />
+
+                                    {/* Optional addresses collapsible / extra fields */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                        <div className="space-y-1">
+                                            <Label className="text-[11px] font-medium text-slate-500">
+                                                Billing Address (Optional)
+                                            </Label>
+                                            <Input
+                                                {...register("billing_address")}
+                                                placeholder="Street address, city, pin code"
+                                                className="h-8 text-xs"
                                             />
-
-                                            {errors.customer_gstin && (
-                                                <span className="text-destructive text-xs block">
-                                                    {
-                                                        errors
-                                                            .customer_gstin
-                                                            .message
-                                                    }
-                                                </span>
-                                            )}
                                         </div>
-
-                                        {/* POS / RCM */}
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1.5">
-                                                <Label className="text-xs font-medium">
-                                                    Place of Supply (POS)
-                                                </Label>
-
-                                                <select
-                                                    {...register(
-                                                        "place_of_supply"
-                                                    )}
-                                                    className="flex h-9 w-full rounded-sm border border-slate-300 bg-white px-3 py-1 text-sm"
-                                                >
-                                                    <option value="">
-                                                        Default (Auto)
-                                                    </option>
-                                                    <option value="27">
-                                                        27 - Maharashtra
-                                                    </option>
-                                                    <option value="29">
-                                                        29 - Karnataka
-                                                    </option>
-                                                    <option value="07">
-                                                        07 - Delhi
-                                                    </option>
-                                                    <option value="09">
-                                                        09 - Uttar Pradesh
-                                                    </option>
-                                                    <option value="33">
-                                                        33 - Tamil Nadu
-                                                    </option>
-                                                    <option value="24">
-                                                        24 - Gujarat
-                                                    </option>
-                                                    <option value="08">
-                                                        08 - Rajasthan
-                                                    </option>
-                                                    <option value="19">
-                                                        19 - West Bengal
-                                                    </option>
-                                                </select>
-                                            </div>
-
-                                            <div className="space-y-1.5 flex flex-col justify-end">
-                                                <label className="flex items-center space-x-2 h-9 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        {...register(
-                                                            "is_reverse_charge"
-                                                        )}
-                                                        className="w-4 h-4 rounded border-slate-300"
-                                                    />
-
-                                                    <span className="text-xs font-medium">
-                                                        Reverse Charge (RCM)
-                                                    </span>
-                                                </label>
-                                            </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-[11px] font-medium text-slate-500">
+                                                Shipping Address (Optional)
+                                            </Label>
+                                            <Input
+                                                {...register("shipping_address")}
+                                                placeholder="Leave blank if same as billing"
+                                                className="h-8 text-xs"
+                                            />
                                         </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                                            <input
+                                                type="checkbox"
+                                                {...register("is_reverse_charge")}
+                                                className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                                            />
+                                            <span className="text-xs font-medium">
+                                                Reverse Charge (RCM)
+                                            </span>
+                                        </label>
                                     </div>
                                 </div>
 
@@ -2772,7 +2740,7 @@ export const CreateInvoiceDialog = ({
                                         </p>
                                     )}
 
-                                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                <div className="border border-slate-200 rounded-lg">
                                     {/* Header */}
                                     <div
                                         className={`hidden sm:grid ${
@@ -2784,7 +2752,7 @@ export const CreateInvoiceDialog = ({
                                                     : (salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill)
                                                         ? "grid-cols-[1fr_80px_100px_80px_80px_100px_40px]"
                                                         : "grid-cols-[1fr_100px_120px_100px_120px_40px]"
-                                        } gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider`}
+                                        } gap-0 border-b border-slate-200 bg-slate-100/50 text-xs font-semibold text-slate-600 uppercase tracking-wider rounded-t-lg`}
                                     >
                                         <div className="py-2.5 px-3">
                                              Item Description
@@ -2859,23 +2827,13 @@ export const CreateInvoiceDialog = ({
                                                 const itemTaxEnabled =
                                                     !!(salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill);
 
-                                                // IMPORTANT:
-                                                // Destructure RHF's ref so we can
-                                                // combine it with our own ref.
-                                                const {
-                                                    ref: descRhfRef,
-                                                    ...descRegister
-                                                } =
-                                                    register(
-                                                        `items.${index}.description` as const
-                                                    );
-
                                                 return (
                                                     <div
                                                         key={
                                                             field.id
                                                         }
-                                                        className={`grid grid-cols-1 ${
+                                                        style={{ zIndex: fields.length - index + 20 }}
+                                                        className={`relative grid grid-cols-1 ${
                                                             hsnEnabled &&
                                                             itemTaxEnabled
                                                                 ? "sm:grid-cols-[1fr_90px_80px_90px_80px_80px_100px_40px]"
@@ -2887,13 +2845,47 @@ export const CreateInvoiceDialog = ({
                                                         } gap-1 sm:gap-0 p-3 sm:p-0 items-start sm:items-stretch bg-white`}
                                                     >
                                                         {/* DESCRIPTION */}
-                                                        <div className="sm:p-0">
+                                                        <div className="sm:p-0 relative">
                                                             <div className="sm:hidden text-xs font-semibold text-slate-500 uppercase mt-2 mb-1">
                                                                 Item Description
                                                             </div>
 
-                                                            <Input
-                                                                className={`h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 bg-transparent focus-visible:ring-1 focus-visible:ring-inset ${
+                                                            <ProductCombobox
+                                                                value={watch(`items.${index}.description`) ?? watchItems?.[index]?.description ?? ""}
+                                                                products={products}
+                                                                onChange={(val) => {
+                                                                    setValue(
+                                                                        `items.${index}.description`,
+                                                                        val,
+                                                                        {
+                                                                            shouldValidate: true,
+                                                                            shouldDirty: true,
+                                                                        }
+                                                                    );
+                                                                }}
+                                                                onSelectProduct={(p) =>
+                                                                    handleProductSelect(
+                                                                        index,
+                                                                        p
+                                                                    )
+                                                                }
+                                                                onQuickAddProduct={
+                                                                    handleQuickAddProduct
+                                                                }
+                                                                inputRef={(el) => {
+                                                                    descriptionRefs.current[
+                                                                        index
+                                                                    ] = el;
+                                                                }}
+                                                                onKeyDown={(e) =>
+                                                                    handleItemKeyDown(
+                                                                        e,
+                                                                        index
+                                                                    )
+                                                                }
+                                                                placeholder="Type or select product..."
+                                                                mode="sale"
+                                                                className={`h-9 sm:h-auto sm:border-0 sm:border-r border-slate-200 rounded-sm sm:rounded-none px-3 bg-transparent ${
                                                                     errors
                                                                         .items?.[
                                                                         index
@@ -2902,70 +2894,7 @@ export const CreateInvoiceDialog = ({
                                                                         ? "border-destructive sm:border-destructive"
                                                                         : ""
                                                                 }`}
-                                                                {...descRegister}
-                                                                ref={(
-                                                                    el
-                                                                ) => {
-                                                                    descRhfRef(
-                                                                        el
-                                                                    );
-
-                                                                    descriptionRefs.current[
-                                                                        index
-                                                                    ] =
-                                                                        el;
-                                                                }}
-                                                                placeholder="Enter item Name"
-                                                                list={`products-list-${index}`}
-                                                                onChange={(
-                                                                    e
-                                                                ) => {
-                                                                    descRegister.onChange(
-                                                                        e
-                                                                    );
-
-                                                                    handleProductSelect(
-                                                                        index,
-                                                                        e
-                                                                            .target
-                                                                            .value
-                                                                    );
-                                                                }}
-                                                                onKeyDown={(
-                                                                    e
-                                                                ) =>
-                                                                    handleItemKeyDown(
-                                                                        e,
-                                                                        index
-                                                                    )
-                                                                }
                                                             />
-
-                                                            <datalist
-                                                                id={`products-list-${index}`}
-                                                            >
-                                                                {(
-                                                                    products as any[]
-                                                                ).map(
-                                                                    (
-                                                                        p: any
-                                                                    ) => (
-                                                                        <option
-                                                                            key={
-                                                                                p.id
-                                                                            }
-                                                                            value={
-                                                                                p.name
-                                                                            }
-                                                                            label={
-                                                                                settings.showStockInItemPicker
-                                                                                    ? `Stock: ${p.stock_quantity} ${p.unit || ""}`.trim()
-                                                                                    : undefined
-                                                                            }
-                                                                        />
-                                                                    )
-                                                                )}
-                                                            </datalist>
                                                         </div>
 
                                                         {/* HSN */}
@@ -3148,6 +3077,22 @@ export const CreateInvoiceDialog = ({
                                             }
                                         )}
                                     </div>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addEmptyItemRow}
+                                        className="text-xs flex items-center gap-1.5 border-dashed border-slate-300 text-slate-700 hover:text-slate-900 hover:border-slate-400 bg-white shadow-none h-8"
+                                    >
+                                        <Plus className="w-3.5 h-3.5 text-primary" />
+                                        Add Line Item
+                                    </Button>
+                                    <span className="text-[11px] text-slate-400">
+                                        Press <kbd className="px-1.5 py-0.5 text-[10px] bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Enter</kbd> to add next row or jump fields
+                                    </span>
                                 </div>
                             </div>
 

@@ -1,10 +1,15 @@
 import { useState, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap, ReceiptIndianRupee, Receipt, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { RecordPurchaseDialog } from "@/features/business/components/RecordPurchaseDialog";
+import { RecordBillPaymentDialog, BillPaymentTarget } from "@/features/business/components/RecordBillPaymentDialog";
+import { UniversalPaymentDialog } from "@/features/business/components/UniversalPaymentDialog";
+import { PaymentOutRegister } from "@/features/business/components/PaymentOutRegister";
+import { BillPaymentTranscriptDialog } from "@/features/business/components/BillPaymentTranscriptDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -29,6 +34,32 @@ export default function PurchasesPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
     const [editingPurchase, setEditingPurchase] = useState<any>(null);
+    const [paymentPurchase, setPaymentPurchase] = useState<BillPaymentTarget | null>(null);
+    const [transcriptPurchase, setTranscriptPurchase] = useState<BillPaymentTarget | null>(null);
+    const [isPaymentOutOpen, setIsPaymentOutOpen] = useState(false);
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const currentTab = searchParams.get("tab");
+    const activeTab: "bills" | "payment-out" | "purchase-order" = 
+        currentTab === "payment-out"
+            ? "payment-out"
+            : currentTab === "purchase-order"
+            ? "purchase-order"
+            : "bills";
+
+    const setActiveTab = (tab: "bills" | "payment-out" | "purchase-order") => {
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            if (tab === "payment-out") {
+                next.set("tab", "payment-out");
+            } else if (tab === "purchase-order") {
+                next.set("tab", "purchase-order");
+            } else {
+                next.delete("tab");
+            }
+            return next;
+        });
+    };
     
     // Virtualizer table scroll container ref
     const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -46,6 +77,25 @@ export default function PurchasesPage() {
                 .single();
             if (error) throw error;
             return data;
+        },
+        enabled: !!user
+    });
+
+    const { data: parties = [] } = useQuery({
+        queryKey: ["parties", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("parties")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[Purchases] Parties fetch fallback:", e);
+            }
+            return (await sqliteService.getAll<any>("parties", user.id)) || [];
         },
         enabled: !!user
     });
@@ -69,6 +119,10 @@ export default function PurchasesPage() {
         date: string;
         due_date?: string;
         items: any[];
+        notes?: string;
+        payment_method?: string;
+        place_of_supply?: string;
+        attachment_url?: string;
     }
 
     const { data: purchases = [], isLoading } = useQuery({
@@ -92,6 +146,31 @@ export default function PurchasesPage() {
         },
         enabled: !!user
     });
+
+    const getPurchasePaymentTarget = (purchase: Purchase): BillPaymentTarget => {
+        const amtPaid = Number(purchase.amount_paid || 0);
+        const balDue = Number(
+            purchase.balance_due != null
+                ? purchase.balance_due
+                : Math.max(0, purchase.total_amount - amtPaid)
+        );
+        return {
+            id: purchase.id,
+            billNumber: purchase.bill_number || `#${purchase.id.substring(0, 6).toUpperCase()}`,
+            partyName: purchase.vendor_name,
+            partyGstin: purchase.vendor_gstin,
+            partyPhone: purchase.vendor_phone,
+            totalAmount: purchase.total_amount,
+            amountPaid: amtPaid,
+            balanceDue: balDue,
+            date: purchase.date || (purchase as any).created_at,
+            dueDate: purchase.due_date,
+            notes: purchase.notes,
+            paymentMethod: "cash",
+            type: "purchase",
+            rawRecord: purchase,
+        };
+    };
 
     const handleEdit = (purchase: Purchase) => {
         setEditingPurchase(purchase);
@@ -318,7 +397,7 @@ export default function PurchasesPage() {
             <div className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-8 animate-fade-in text-slate-900 dark:text-slate-100 font-display">
 
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
                     <div>
                         <h2 className="text-3xl font-extrabold tracking-tight">Purchases & Bills</h2>
                         <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">Track and manage your vendor expenses and incoming bills.</p>
@@ -349,6 +428,18 @@ export default function PurchasesPage() {
 
                         <button
                             onClick={() => {
+                                setPaymentPurchase(null);
+                                setIsPaymentOutOpen(true);
+                            }}
+                            className="flex items-center whitespace-nowrap gap-1.5 px-3.5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-all"
+                            title="Record Payment Out (With or Without Bill)"
+                        >
+                            <ReceiptIndianRupee className="w-4 h-4" />
+                            <span>+ Payment Out</span>
+                        </button>
+
+                        <button
+                            onClick={() => {
                                 setEditingPurchase(null);
                                 setStartWithScanner(false);
                                 setIsRecordOpen(true);
@@ -360,6 +451,107 @@ export default function PurchasesPage() {
                         </button>
                     </div>
                 </div>
+
+                {/* Vyapar Tab Switcher */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit mb-6">
+                    <button
+                        onClick={() => setActiveTab("bills")}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                            activeTab === "bills"
+                                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                    >
+                        <FileText className="w-4 h-4" />
+                        <span>Purchases</span>
+                        <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700">
+                            {purchases.filter(p => !p.bill_number?.startsWith("PAY-")).length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("payment-out")}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                            activeTab === "payment-out"
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                        }`}
+                    >
+                        <ArrowUpRight className="w-4 h-4" />
+                        <span>Payment Out</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("purchase-order")}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                            activeTab === "purchase-order"
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                        }`}
+                    >
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>Purchase Order</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                            Soon
+                        </span>
+                    </button>
+                </div>
+
+                {activeTab === "purchase-order" ? (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 sm:p-12 text-center shadow-sm">
+                        <div className="max-w-lg mx-auto flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 shadow-inner">
+                                <ShoppingBag className="w-8 h-8" />
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mb-3">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Planned Module • Ready for Later Implementation</span>
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                                Purchase Order Management
+                            </h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                                Place vendor procurement orders, track expected deliveries, and convert received goods directly into Purchase Bills in 1-click.
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left mb-6">
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">1. Vendor PO Generation</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Issue formal purchase orders to suppliers with agreed pricing.</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">2. Convert to Purchase Bill</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Convert confirmed vendor shipments directly into bills.</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">3. Advance Payments Out</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Record advance disbursement against purchase order numbers.</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">4. Delivery Tracking</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Monitor dispatch, partial receipts, and overdue deliveries.</p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => toast.info("Purchase Order creation will be enabled in the upcoming update!")}
+                                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-all shadow-sm"
+                            >
+                                + Create Purchase Order (Preview)
+                            </button>
+                        </div>
+                    </div>
+                ) : activeTab === "payment-out" ? (
+                    <PaymentOutRegister
+                        purchases={purchases}
+                        parties={parties}
+                        onOpenRecordPaymentOut={() => {
+                            setPaymentPurchase(null);
+                            setIsPaymentOutOpen(true);
+                        }}
+                        onOpenTranscript={(rawRecord) => setTranscriptPurchase(getPurchasePaymentTarget(rawRecord))}
+                        onPreviewPurchase={handlePreview}
+                    />
+                ) : (
+                    <>
 
                 {/* Top Metrics Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -423,97 +615,203 @@ export default function PurchasesPage() {
                         className="overflow-auto max-h-[65vh] w-full"
                         ref={tableContainerRef}
                     >
-                        <table className="w-full text-left border-collapse min-w-[1000px] relative">
+                        <table className="w-full text-left border-collapse min-w-[1050px] relative">
                             <thead className="sticky top-0 z-10 shadow-sm">
                                 <tr className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                                    <th className="px-6 py-4">Bill Ref</th>
-                                    <th className="px-6 py-4">Vendor</th>
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4 text-right">Tax</th>
-                                    <th className="px-6 py-4 text-right">Amount</th>
-                                    <th className="px-6 py-4 text-center">Status</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-5 py-3.5">Bill Ref</th>
+                                    <th className="px-5 py-3.5">Vendor</th>
+                                    <th className="px-5 py-3.5">Date</th>
+                                    <th className="px-5 py-3.5 text-right">Tax</th>
+                                    <th className="px-5 py-3.5 text-right">Total Amount</th>
+                                    <th className="px-5 py-3.5 text-right">Paid</th>
+                                    <th className="px-5 py-3.5 text-right">Balance Due</th>
+                                    <th className="px-5 py-3.5 text-center">Status</th>
+                                    <th className="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
-                                    <TableLoadingRows cols={7} rows={5} />
+                                    <TableLoadingRows cols={9} rows={5} />
                                 ) : filteredPurchases.length === 0 ? (
-                                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No purchases matching your criteria.</td></tr>
+                                    <tr><td colSpan={9} className="px-6 py-12 text-center text-slate-500">No purchases matching your criteria.</td></tr>
                                 ) : (
                                     <>
                                         {rowVirtualizer.getVirtualItems().length > 0 && (
                                             <tr>
-                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }} />
+                                                <td colSpan={9} style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }} />
                                             </tr>
                                         )}
                                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                                             const purchase = filteredPurchases[virtualRow.index];
+                                            const amtPaid = Number(purchase.amount_paid || 0);
+                                            const balDue = Number(
+                                                purchase.balance_due != null
+                                                    ? purchase.balance_due
+                                                    : Math.max(0, purchase.total_amount - amtPaid)
+                                            );
+                                            const isSettled = balDue <= 0.001 && purchase.total_amount > 0;
+
                                             return (
                                         <tr key={purchase.id} onClick={() => handleEdit(purchase)} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{purchase.bill_number ? purchase.bill_number : `#${purchase.id.substring(0, 6)}`}</p>
+                                            <td className="px-5 py-3.5">
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{purchase.bill_number ? purchase.bill_number : `#${purchase.id.substring(0, 6)}`}</p>
+                                                    {purchase.bill_number?.startsWith("PAY-") && (
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 uppercase tracking-wider">
+                                                            Payment Out
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-[10px] text-slate-400 mt-0.5">{purchase.items?.length || 0} items</p>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                                            <td className="px-5 py-3.5">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-primary flex items-center justify-center font-bold text-xs shrink-0">
                                                         {purchase.vendor_name?.substring(0, 2).toUpperCase() || 'NA'}
                                                     </div>
-                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
                                                         {purchase.vendor_name}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                                {formatDateSafe(purchase.date, "MMM dd, yyyy")}
+                                            <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400">
+                                                <div>{formatDateSafe(purchase.date, "MMM dd, yyyy")}</div>
+                                                {purchase.due_date && (
+                                                    <div className="text-[10px] text-slate-400 mt-0.5">Due: {formatDateSafe(purchase.due_date, "MMM dd")}</div>
+                                                )}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 text-right">
+                                            <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 text-right">
                                                 {purchase.tax_amount ? formatCurrency(purchase.tax_amount) : formatCurrency(0)}
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-extrabold text-slate-900 dark:text-white text-right">
+                                            <td className="px-5 py-3.5 text-sm font-extrabold text-slate-900 dark:text-white text-right">
                                                 {formatCurrency(purchase.total_amount)}
                                             </td>
-                                             <td className="px-6 py-4 text-center">
-                                                 {(() => {
-                                                     const amtPaid = Number(purchase.amount_paid || 0);
-                                                     const balDue = Number(purchase.balance_due || (purchase.total_amount - amtPaid));
-
-                                                     if (purchase.status === 'paid') {
-                                                         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">Paid</span>;
-                                                     }
-                                                     if (amtPaid > 0 && amtPaid < purchase.total_amount) {
-                                                         return (
-                                                             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50" title={`Paid ${formatCurrency(amtPaid)}`}>
-                                                                 Partial ({formatCurrency(balDue)})
-                                                             </span>
-                                                         );
-                                                     }
-                                                     if (isRecordOverdue(purchase) && amtPaid === 0) {
-                                                         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50" title={`Overdue (Threshold: ${overdueDaysThreshold} days)`}>Overdue</span>;
-                                                     }
-                                                     if (purchase.status === 'pending' && amtPaid === 0 && !isRecordOverdue(purchase)) {
-                                                         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">Unpaid</span>;
-                                                     }
-                                                     return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">Draft</span>;
-                                                 })()}
-                                             </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex justify-end gap-1 opacity-100 transition-opacity">
+                                            <td className="px-5 py-3.5 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">
+                                                {formatCurrency(amtPaid)}
+                                            </td>
+                                            <td className="px-5 py-3.5 text-sm text-right">
+                                                {balDue > 0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPaymentPurchase(getPurchasePaymentTarget(purchase));
+                                                        }}
+                                                        className="font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:underline transition-colors block ml-auto"
+                                                        title="Click to Record Payment Out"
+                                                    >
+                                                        {formatCurrency(balDue)}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 font-semibold">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-3.5 text-center">
+                                                {isSettled || purchase.status === 'paid' ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setTranscriptPurchase(getPurchasePaymentTarget(purchase));
+                                                        }}
+                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:scale-105 transition-transform"
+                                                        title="Paid — Click to view Payment Ledger"
+                                                    >
+                                                        Paid
+                                                    </button>
+                                                ) : amtPaid > 0 && amtPaid < purchase.total_amount ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPaymentPurchase(getPurchasePaymentTarget(purchase));
+                                                        }}
+                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 hover:scale-105 transition-transform"
+                                                        title={`Partial (Due: ${formatCurrency(balDue)}) — Click to Pay`}
+                                                    >
+                                                        Partial
+                                                    </button>
+                                                ) : isRecordOverdue(purchase) && amtPaid === 0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPaymentPurchase(getPurchasePaymentTarget(purchase));
+                                                        }}
+                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 hover:scale-105 transition-transform"
+                                                        title="Overdue — Click to Pay"
+                                                    >
+                                                        Overdue
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPaymentPurchase(getPurchasePaymentTarget(purchase));
+                                                        }}
+                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 hover:scale-105 transition-transform"
+                                                        title="Unpaid — Click to Pay"
+                                                    >
+                                                        Unpaid
+                                                    </button>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-3.5 text-right">
+                                                <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity">
+                                                    {balDue > 0 && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setPaymentPurchase(getPurchasePaymentTarget(purchase));
+                                                            }}
+                                                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-bold flex items-center gap-1 shadow-2xs transition-all mr-1"
+                                                            title="Record Payment Out"
+                                                        >
+                                                            <ReceiptIndianRupee className="w-3.5 h-3.5" />
+                                                            <span>Payment Out</span>
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setTranscriptPurchase(getPurchasePaymentTarget(purchase));
+                                                        }}
+                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all"
+                                                        title="Payment Transcript / Ledger"
+                                                    >
+                                                        <Receipt className="w-4 h-4" />
+                                                    </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handlePreview(purchase); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"
                                                         title="Preview PDF"
                                                     >
-                                                        <FileText className="w-5 h-5" />
+                                                        <FileText className="w-4 h-4" />
                                                     </button>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                                             <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all">
-                                                                <MoreHorizontal className="w-5 h-5" />
+                                                                <MoreHorizontal className="w-4 h-4" />
                                                             </button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                                            {balDue > 0 && (
+                                                                <DropdownMenuItem
+                                                                    onClick={() => setPaymentPurchase(getPurchasePaymentTarget(purchase))}
+                                                                    className="text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer"
+                                                                >
+                                                                    <ReceiptIndianRupee className="w-4 h-4 mr-2 text-indigo-500" />
+                                                                    Record Payment Out
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                            <DropdownMenuItem
+                                                                onClick={() => setTranscriptPurchase(getPurchasePaymentTarget(purchase))}
+                                                                className="cursor-pointer"
+                                                            >
+                                                                <Receipt className="w-4 h-4 mr-2 text-slate-500" />
+                                                                Payment Transcript / Ledger
+                                                            </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handlePreview(purchase)}>
                                                                 <Eye className="w-4 h-4 mr-2" />
                                                                 Preview PDF
@@ -543,7 +841,7 @@ export default function PurchasesPage() {
                                         })}
                                         {rowVirtualizer.getVirtualItems().length > 0 && (
                                             <tr>
-                                                <td colSpan={7} style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }} />
+                                                <td colSpan={9} style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }} />
                                             </tr>
                                         )}
                                     </>
@@ -552,6 +850,8 @@ export default function PurchasesPage() {
                         </table>
                     </div>
                 </div>
+                </>
+                )}
 
                 <RecordPurchaseDialog
                     open={isRecordOpen}
@@ -564,6 +864,27 @@ export default function PurchasesPage() {
                     }}
                     purchaseToEdit={editingPurchase}
                     startWithScanner={startWithScanner}
+                />
+
+                {/* Universal Payment Out (Voucher) Dialog */}
+                <UniversalPaymentDialog
+                    open={isPaymentOutOpen || !!paymentPurchase}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setIsPaymentOutOpen(false);
+                            setPaymentPurchase(null);
+                        }
+                    }}
+                    mode="payment_out"
+                    initialBill={paymentPurchase}
+                />
+
+                {/* CA Bill Payment Transcript / Ledger Audit Dialog */}
+                <BillPaymentTranscriptDialog
+                    open={!!transcriptPurchase}
+                    onOpenChange={(open) => !open && setTranscriptPurchase(null)}
+                    bill={transcriptPurchase}
+                    onOpenRecordPayment={(target) => setPaymentPurchase(target)}
                 />
             </div>
         </AppLayout>
