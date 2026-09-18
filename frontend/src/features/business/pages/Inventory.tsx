@@ -4,6 +4,7 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { getPathFromPublicUrl } from "@/core/utils/image";
 import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { v4 as uuidv4 } from "uuid";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,9 @@ import {
     DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe, Sparkles, Loader2, FileSpreadsheet } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, AlertCircle, Settings2, Info, Globe, Sparkles, Loader2, FileSpreadsheet, Barcode, QrCode } from "lucide-react";
+import { Link } from "react-router-dom";
+import apiClient from "@/core/api/apiClient";
 import { useToast } from "@/core/hooks/use-toast";
 import { useForm, Controller } from "react-hook-form";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -67,6 +70,13 @@ interface Product {
     stock_quantity: number;
     unit: string;
     hsn_code?: string;
+    barcode?: string | null;
+    barcode_type?: string;
+    barcode_source?: string;
+    sku?: string | null;
+    category?: string | null;
+    mrp?: number | null;
+    tax_rate?: number;
     created_at: string;
     updated_at?: string;
     is_listed_online?: boolean;
@@ -82,6 +92,13 @@ interface ProductFormValues {
     stock_quantity: number;
     unit: string;
     hsn_code?: string;
+    barcode?: string;
+    barcode_type?: string;
+    barcode_source?: string;
+    sku?: string;
+    category?: string;
+    mrp?: number;
+    tax_rate?: number;
     is_listed_online?: boolean;
     online_description?: string;
     image_url?: string;
@@ -194,12 +211,45 @@ export default function Inventory() {
             stock_quantity: 0,
             unit: "pc",
             hsn_code: "",
+            barcode: "",
+            barcode_type: "code128",
+            barcode_source: "manufacturer",
+            sku: "",
+            category: "",
+            mrp: 0,
+            tax_rate: 0,
             is_listed_online: true,
             online_description: "",
             image_url: "",
             rack_location: ""
         }
     });
+
+    const [isGeneratingBarcode, setIsGeneratingBarcode] = useState(false);
+    const handleGenerateFormBarcode = async () => {
+        setIsGeneratingBarcode(true);
+        try {
+            const res = await apiClient.post("/api/v1/pos/barcodes/generate", {
+                barcode_type: "code128",
+                prefix: "FF",
+            });
+            setValue("barcode", res.data.barcode, { shouldDirty: true, shouldValidate: true });
+            setValue("barcode_type", res.data.barcode_type, { shouldDirty: true });
+            setValue("barcode_source", res.data.barcode_source, { shouldDirty: true });
+            toast({
+                title: "Barcode Generated",
+                description: `Generated internal barcode ${res.data.barcode}`,
+            });
+        } catch (err: any) {
+            toast({
+                title: "Generation Failed",
+                description: err.response?.data?.detail || "Could not generate barcode",
+                variant: "destructive",
+            });
+        } finally {
+            setIsGeneratingBarcode(false);
+        }
+    };
 
     useProductsRealtime(user?.id);
 
@@ -403,6 +453,13 @@ export default function Inventory() {
             stock_quantity: product.stock_quantity,
             unit: product.unit,
             hsn_code: product.hsn_code || "",
+            barcode: product.barcode || "",
+            barcode_type: product.barcode_type || "code128",
+            barcode_source: product.barcode_source || "manufacturer",
+            sku: product.sku || "",
+            category: product.category || "",
+            mrp: product.mrp ?? undefined,
+            tax_rate: product.tax_rate ?? 0,
             is_listed_online: product.is_listed_online || false,
             online_description: product.online_description || "",
             image_url: product.image_url || "",
@@ -509,6 +566,12 @@ export default function Inventory() {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <Link to="/inventory/barcodes">
+                            <Button variant="outline" className="gap-2 border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/20 text-blue-600 dark:text-blue-400 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
+                                <Barcode className="w-4 h-4" />
+                                Barcodes & Labels
+                            </Button>
+                        </Link>
                         <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="gap-2 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
                             <Settings2 className="w-4 h-4" />
                             Item Settings
@@ -619,11 +682,18 @@ export default function Inventory() {
                                     <TableRow key={product.id}>
                                         <TableCell className="font-medium">
                                             <div className="flex items-center gap-2">
-                                                {product.name}
+                                                <span>{product.name}</span>
                                                 {product.is_listed_online && (
                                                     <Globe className="w-4 h-4 text-blue-500" />
                                                 )}
                                             </div>
+                                            {product.barcode && (
+                                                <div className="text-[11px] font-mono text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                                                    <Barcode className="w-3 h-3 text-blue-500" />
+                                                    <span>{product.barcode}</span>
+                                                    {product.sku && <span className="text-slate-400">• SKU: {product.sku}</span>}
+                                                </div>
+                                            )}
                                         </TableCell>
                                         {settings.showRackLocations && (
                                             <TableCell>
@@ -913,6 +983,80 @@ export default function Inventory() {
                                 </div>
                             )}
 
+                            {/* Barcode, SKU, Category, MRP, Tax Rate */}
+                            <div className="space-y-4 pt-4 border-t mt-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="barcode" className="flex items-center gap-1.5 text-xs font-semibold">
+                                            <Barcode className="w-3.5 h-3.5 text-blue-500" /> Barcode (Code 128 / EAN-13)
+                                        </Label>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isGeneratingBarcode}
+                                            onClick={handleGenerateFormBarcode}
+                                            className="h-7 text-xs gap-1 border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
+                                        >
+                                            <Sparkles className="w-3 h-3" />
+                                            {isGeneratingBarcode ? "Generating..." : "Generate Barcode"}
+                                        </Button>
+                                    </div>
+                                    <Input
+                                        id="barcode"
+                                        {...register("barcode")}
+                                        placeholder="Scan or generate product barcode..."
+                                        className="font-mono text-xs"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="sku" className="text-xs">SKU / Item Code</Label>
+                                        <Input
+                                            id="sku"
+                                            {...register("sku")}
+                                            placeholder="e.g. BEV-001"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="category" className="text-xs">Category</Label>
+                                        <Input
+                                            id="category"
+                                            {...register("category")}
+                                            placeholder="e.g. Grocery, Snacks"
+                                            className="text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="mrp" className="text-xs">MRP (Maximum Retail Price)</Label>
+                                        <Input
+                                            id="mrp"
+                                            type="number"
+                                            step="0.01"
+                                            {...register("mrp")}
+                                            placeholder="0.00"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="tax_rate" className="text-xs">GST / Tax Rate (%)</Label>
+                                        <Input
+                                            id="tax_rate"
+                                            type="number"
+                                            step="0.01"
+                                            {...register("tax_rate")}
+                                            placeholder="0, 5, 12, 18, 28"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="space-y-4 pt-4 border-t mt-4">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
@@ -1078,6 +1222,80 @@ export default function Inventory() {
                                     />
                                 </div>
                             )}
+
+                            {/* Barcode, SKU, Category, MRP, Tax Rate */}
+                            <div className="space-y-4 pt-4 border-t mt-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="edit_barcode" className="flex items-center gap-1.5 text-xs font-semibold">
+                                            <Barcode className="w-3.5 h-3.5 text-blue-500" /> Barcode (Code 128 / EAN-13)
+                                        </Label>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isGeneratingBarcode}
+                                            onClick={handleGenerateFormBarcode}
+                                            className="h-7 text-xs gap-1 border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
+                                        >
+                                            <Sparkles className="w-3 h-3" />
+                                            {isGeneratingBarcode ? "Generating..." : "Generate Barcode"}
+                                        </Button>
+                                    </div>
+                                    <Input
+                                        id="edit_barcode"
+                                        {...register("barcode")}
+                                        placeholder="Scan or generate product barcode..."
+                                        className="font-mono text-xs"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit_sku" className="text-xs">SKU / Item Code</Label>
+                                        <Input
+                                            id="edit_sku"
+                                            {...register("sku")}
+                                            placeholder="e.g. BEV-001"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit_category" className="text-xs">Category</Label>
+                                        <Input
+                                            id="edit_category"
+                                            {...register("category")}
+                                            placeholder="e.g. Grocery, Snacks"
+                                            className="text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit_mrp" className="text-xs">MRP (Maximum Retail Price)</Label>
+                                        <Input
+                                            id="edit_mrp"
+                                            type="number"
+                                            step="0.01"
+                                            {...register("mrp")}
+                                            placeholder="0.00"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit_tax_rate" className="text-xs">GST / Tax Rate (%)</Label>
+                                        <Input
+                                            id="edit_tax_rate"
+                                            type="number"
+                                            step="0.01"
+                                            {...register("tax_rate")}
+                                            placeholder="0, 5, 12, 18, 28"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="space-y-4 pt-4 border-t mt-4">
                                 <div className="flex items-center justify-between">

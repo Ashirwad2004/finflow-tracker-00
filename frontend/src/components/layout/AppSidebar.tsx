@@ -24,7 +24,9 @@ import {
   ChevronDown,
   ArrowDown,
   FileText,
-  ShoppingBag
+  ShoppingBag,
+  Store,
+  Barcode,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/core/lib/utils";
@@ -107,6 +109,13 @@ export const businessMenuItems: any[] = [
     description: "Business Analytics"
   },
   {
+    title: "Retail POS",
+    path: "/pos",
+    icon: Store,
+    description: "Counter Billing & Barcode",
+    badge: "New"
+  },
+  {
     title: "Sales & Invoices",
     path: "/sales",
     icon: TrendingUp,
@@ -134,7 +143,19 @@ export const businessMenuItems: any[] = [
     title: "Inventory",
     path: "/inventory",
     icon: Package,
-    description: "Manage Products"
+    description: "Manage Products",
+    children: [
+      {
+        title: "Products & Stock",
+        path: "/inventory",
+        icon: Package,
+      },
+      {
+        title: "Barcode Management",
+        path: "/inventory/barcodes",
+        icon: Barcode,
+      },
+    ],
   },
   {
     title: "Purchases",

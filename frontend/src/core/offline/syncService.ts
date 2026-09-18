@@ -53,7 +53,7 @@ export const sanitizePayloadForTable = (table: string, action: string, payload: 
   }
   
   if (table === 'sales') {
-    const { id, user_id, party_id, invoice_number, customer_name, customer_phone, customer_email, customer_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, payment_method, items, notes, place_of_supply, is_reverse_charge, document_type, irn, eway_bill_number, qr_code } = clean;
+    const { id, user_id, party_id, invoice_number, customer_name, customer_phone, customer_email, customer_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, payment_method, items, notes, place_of_supply, is_reverse_charge, document_type, original_invoice_id, return_id, pos_terminal_id, pos_shift_id, idempotency_key, offline_invoice_number, irn, eway_bill_number, qr_code } = clean;
     return {
       id,
       user_id,
@@ -79,6 +79,12 @@ export const sanitizePayloadForTable = (table: string, action: string, payload: 
       place_of_supply: place_of_supply || null,
       is_reverse_charge: !!is_reverse_charge,
       document_type: document_type || 'invoice',
+      original_invoice_id: original_invoice_id || null,
+      return_id: return_id || null,
+      pos_terminal_id: pos_terminal_id || null,
+      pos_shift_id: pos_shift_id || null,
+      idempotency_key: idempotency_key || null,
+      offline_invoice_number: offline_invoice_number || null,
       irn: irn || null,
       eway_bill_number: eway_bill_number || null,
       qr_code: qr_code || null
