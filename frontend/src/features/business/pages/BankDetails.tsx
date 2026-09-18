@@ -28,6 +28,7 @@ import { cn } from "@/core/lib/utils";
 import { useAuth } from "@/core/lib/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
+import { offlineMutate } from "@/core/offline/apiService";
 import {
     Dialog,
     DialogContent,
@@ -68,13 +69,7 @@ import {
 } from "recharts";
 import { format, subDays, isAfter, parseISO } from "date-fns";
 
-// ─── Storage Keys Constants ───────────────────────────────────────────────────
-
-const STORAGE_KEYS = {
-    ACCOUNTS: "rupeebill_bank_accounts",
-    TRANSACTIONS: "rupeebill_bank_transactions",
-    STATEMENT: "rupeebill_mock_statement",
-} as const;
+// ─── Bank Accounts & Ledger Persistence ──────────────────────────────────────
 
 // ─── Interfaces & Schemas ───────────────────────────────────────────────────
 
@@ -131,10 +126,113 @@ const BankDetailsPage = () => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
-    // State
-    const [accounts, setAccounts] = useState<BankAccount[]>([]);
-    const [transactions, setTransactions] = useState<BankTransaction[]>([]);
-    const [mockStatement, setMockStatement] = useState<MockStatementRecord[]>([]);
+    // State & Database Queries
+    const { data: accounts = [], isLoading: isLoadingAccounts } = useQuery<BankAccount[]>({
+        queryKey: ["bank_accounts", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("bank_accounts")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("created_at", { ascending: true });
+
+                if (!error && Array.isArray(data)) {
+                    // Auto-seed: If database table is empty, check if profile has bank details to auto-migrate
+                    if (data.length === 0) {
+                        const { data: profData } = await (supabase as any)
+                            .from("profiles")
+                            .select("bank_name, bank_account_no, bank_ifsc, bank_branch")
+                            .eq("user_id", user.id)
+                            .maybeSingle();
+
+                        if (profData?.bank_name && profData?.bank_account_no) {
+                            const newId = crypto.randomUUID();
+                            const newAccRow = {
+                                id: newId,
+                                user_id: user.id,
+                                bank_name: profData.bank_name,
+                                account_number: profData.bank_account_no,
+                                ifsc_code: profData.bank_ifsc || "",
+                                branch_name: profData.bank_branch || "",
+                                account_type: "checking",
+                                is_default: true,
+                                initial_balance: 0,
+                                od_limit: 0,
+                            };
+                            await (supabase as any).from("bank_accounts").insert(newAccRow);
+                            return [{
+                                id: newId,
+                                bankName: newAccRow.bank_name,
+                                accountNumber: newAccRow.account_number,
+                                ifscCode: newAccRow.ifsc_code,
+                                branchName: newAccRow.branch_name,
+                                isDefault: true,
+                                accountType: "checking" as AccountType,
+                                initialBalance: 0,
+                                odLimit: 0,
+                            }];
+                        }
+                    }
+
+                    const mapped: BankAccount[] = data.map((row: any) => ({
+                        id: row.id,
+                        bankName: row.bank_name || "",
+                        accountNumber: row.account_number || "",
+                        ifscCode: row.ifsc_code || "",
+                        branchName: row.branch_name || "",
+                        isDefault: Boolean(row.is_default),
+                        accountType: (row.account_type as AccountType) || "checking",
+                        initialBalance: Number(row.initial_balance) || 0,
+                        odLimit: row.od_limit ? Number(row.od_limit) : 0,
+                    }));
+                    try {
+                        localStorage.setItem(`finflow_bank_accounts_${user.id}`, JSON.stringify(mapped));
+                    } catch {}
+                    return mapped;
+                }
+            } catch (err) {
+                console.error("[BankDetails] Error fetching bank accounts from Supabase:", err);
+            }
+
+            // Fallback to tenant local cache if offline
+            try {
+                const localKey = `finflow_bank_accounts_${user.id}`;
+                const cached = localStorage.getItem(localKey);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch {}
+            return [];
+        },
+        enabled: !!user?.id,
+    });
+
+    const [transactions, setTransactions] = useState<BankTransaction[]>(() => {
+        if (!user?.id) return [];
+        try {
+            const saved = localStorage.getItem(`finflow_txs_${user.id}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch {}
+        return [];
+    });
+
+    const [mockStatement, setMockStatement] = useState<MockStatementRecord[]>(() => {
+        if (!user?.id) return [];
+        try {
+            const saved = localStorage.getItem(`finflow_statements_${user.id}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch {}
+        return [];
+    });
 
     // UPI Payment State
     const [upiId, setUpiId] = useState<string>(() => localStorage.getItem("rupeebill_upi_id") || "");
@@ -146,7 +244,7 @@ const BankDetailsPage = () => {
         queryFn: async () => {
             const { data, error } = await (supabase as any)
                 .from("profiles")
-                .select("upi_id")
+                .select("upi_id, bank_name, bank_account_no, bank_ifsc, bank_branch")
                 .eq("user_id", user?.id || "")
                 .single();
             if (error) return null;
@@ -228,196 +326,67 @@ const BankDetailsPage = () => {
     const [ledgerAccountFilter, setLedgerAccountFilter] = useState("all");
     const [ledgerTypeFilter, setLedgerTypeFilter] = useState("all");
 
-    // Persistence Helpers
-    const saveAccounts = useCallback((list: BankAccount[]) => {
-        setAccounts(list);
-        localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(list));
-    }, []);
-
+    // Persistence Helpers for Transactions & Bank Statements
     const saveTransactions = useCallback((list: BankTransaction[]) => {
         setTransactions(list);
-        localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(list));
-    }, []);
+        if (user?.id) {
+            try {
+                localStorage.setItem(`finflow_txs_${user.id}`, JSON.stringify(list));
+            } catch {}
+        }
+    }, [user?.id]);
 
     const saveStatement = useCallback((list: MockStatementRecord[]) => {
         setMockStatement(list);
-        localStorage.setItem(STORAGE_KEYS.STATEMENT, JSON.stringify(list));
-    }, []);
+        if (user?.id) {
+            try {
+                localStorage.setItem(`finflow_statements_${user.id}`, JSON.stringify(list));
+            } catch {}
+        }
+    }, [user?.id]);
 
-    const seedDefaultData = useCallback(() => {
-        const defaultAccounts: BankAccount[] = [
-            {
-                id: "acc-sbi",
-                bankName: "State Bank of India",
-                accountNumber: "332405891234",
-                ifscCode: "SBIN0001609",
-                branchName: "Main Branch, CP",
-                isDefault: true,
-                accountType: "checking",
-                initialBalance: 250000
-            },
-            {
-                id: "acc-hdfc",
-                bankName: "HDFC Bank",
-                accountNumber: "501004891234",
-                ifscCode: "HDFC0000003",
-                branchName: "Vasant Kunj",
-                isDefault: false,
-                accountType: "savings",
-                initialBalance: 75000
-            },
-            {
-                id: "acc-icici",
-                bankName: "ICICI Business Account",
-                accountNumber: "000405001234",
-                ifscCode: "ICIC0000004",
-                branchName: "Saket District Centre",
-                isDefault: false,
-                accountType: "overdraft",
-                initialBalance: 0,
-                odLimit: 500000
+    // Keep transactions and statements in sync with active user
+    useEffect(() => {
+        if (user?.id) {
+            try {
+                const savedTx = localStorage.getItem(`finflow_txs_${user.id}`);
+                setTransactions(savedTx ? JSON.parse(savedTx) : []);
+                const savedStmt = localStorage.getItem(`finflow_statements_${user.id}`);
+                setMockStatement(savedStmt ? JSON.parse(savedStmt) : []);
+            } catch {
+                setTransactions([]);
+                setMockStatement([]);
             }
-        ];
+        }
+    }, [user?.id]);
 
-        const today = new Date();
-        const defaultTransactions: BankTransaction[] = [
-            {
-                id: "tx-1",
-                accountId: "acc-sbi",
-                date: format(subDays(today, 5), "yyyy-MM-dd"),
-                type: "deposit",
-                amount: 120000,
-                category: "Sales",
-                referenceId: "UTR9834212984",
-                description: "Invoice #1024 Settlement",
-                isReconciled: true,
-                reconciledAt: format(subDays(today, 4), "yyyy-MM-dd")
-            },
-            {
-                id: "tx-2",
-                accountId: "acc-sbi",
-                date: format(subDays(today, 4), "yyyy-MM-dd"),
-                type: "withdrawal",
-                amount: 45000,
-                category: "Vendor Payment",
-                referenceId: "UTR9382103982",
-                description: "Raw Material procurement",
-                isReconciled: true,
-                reconciledAt: format(subDays(today, 3), "yyyy-MM-dd")
-            },
-            {
-                id: "tx-3",
-                accountId: "acc-hdfc",
-                date: format(subDays(today, 3), "yyyy-MM-dd"),
-                type: "deposit",
-                amount: 1250,
-                category: "Other",
-                referenceId: "UTR1029302919",
-                description: "Quarterly Savings Interest Credit",
-                isReconciled: true,
-                reconciledAt: format(subDays(today, 2), "yyyy-MM-dd")
-            },
-            {
-                id: "tx-4",
-                accountId: "acc-icici",
-                date: format(subDays(today, 2), "yyyy-MM-dd"),
-                type: "withdrawal",
-                amount: 65000,
-                category: "Rent",
-                referenceId: "UTR2930491029",
-                description: "Corporate Office Rent",
-                isReconciled: false
-            },
-            {
-                id: "tx-5",
-                accountId: "acc-sbi",
-                date: format(subDays(today, 1), "yyyy-MM-dd"),
-                type: "deposit",
-                amount: 42000,
-                category: "Sales",
-                referenceId: "UTR9082312093",
-                description: "UPI Client Receivables",
-                isReconciled: false
-            }
-        ];
+    // Sync default bank account with Supabase profile for cloud backup and invoice printing
+    const syncDefaultToProfile = useCallback(async (defaultAcc: BankAccount | null) => {
+        if (!user?.id) return;
+        try {
+            await (supabase as any)
+                .from("profiles")
+                .update({
+                    bank_name: defaultAcc?.bankName || null,
+                    bank_account_no: defaultAcc?.accountNumber || null,
+                    bank_ifsc: defaultAcc?.ifscCode || null,
+                    bank_branch: defaultAcc?.branchName || null
+                })
+                .eq("user_id", user.id);
+            queryClient.invalidateQueries({ queryKey: ["profile"] });
+            queryClient.invalidateQueries({ queryKey: ["profile_bank_page"] });
+        } catch (e) {
+            console.error("Failed to sync bank details to profile", e);
+        }
+    }, [user?.id, queryClient]);
 
-        const defaultStatement: MockStatementRecord[] = [
-            {
-                id: "st-1",
-                date: format(subDays(today, 5), "yyyy-MM-dd"),
-                description: "STATE BANK OF INDIA INWARD CR UTR9834212984",
-                amount: 120000,
-                referenceId: "UTR9834212984",
-                matchedTransactionId: "tx-1"
-            },
-            {
-                id: "st-2",
-                date: format(subDays(today, 4), "yyyy-MM-dd"),
-                description: "STATE BANK OF INDIA OUTWARD DR UTR9382103982",
-                amount: -45000,
-                referenceId: "UTR9382103982",
-                matchedTransactionId: "tx-2"
-            },
-            {
-                id: "st-3",
-                date: format(subDays(today, 3), "yyyy-MM-dd"),
-                description: "HDFC BANK INTEREST CR UTR1029302919",
-                amount: 1250,
-                referenceId: "UTR1029302919",
-                matchedTransactionId: "tx-3"
-            },
-            {
-                id: "st-4",
-                date: format(subDays(today, 2), "yyyy-MM-dd"),
-                description: "ICICI BANK CHQ DEBIT DR UTR2930491029",
-                amount: -65000,
-                referenceId: "UTR2930491029"
-            },
-            {
-                id: "st-5",
-                date: format(subDays(today, 1), "yyyy-MM-dd"),
-                description: "UPI INWARD CREDIT PAYMENT UTR9082312093",
-                amount: 42000,
-                referenceId: "UTR9082312093"
-            },
-            {
-                id: "st-6",
-                date: format(today, "yyyy-MM-dd"),
-                description: "BANK CHARGES DR TAX REF CHARGES",
-                amount: -250,
-                referenceId: "MOCKCHG992"
-            }
-        ];
-
-        saveAccounts(defaultAccounts);
-        saveTransactions(defaultTransactions);
-        saveStatement(defaultStatement);
-        toast.success("Accountant Workspace initialized with sample bank books!");
-    }, [saveAccounts, saveTransactions, saveStatement]);
-
-    // Data Load
+    // One-time purge of legacy mock storage keys
     useEffect(() => {
         try {
-            const savedAccounts = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-            const savedTransactions = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-            const savedStatement = localStorage.getItem(STORAGE_KEYS.STATEMENT);
-
-            if (savedAccounts) {
-                setAccounts(JSON.parse(savedAccounts));
-            } else {
-                setAccounts([]);
-            }
-
-            if (savedTransactions) {
-                setTransactions(JSON.parse(savedTransactions));
-            }
-            if (savedStatement) {
-                setMockStatement(JSON.parse(savedStatement));
-            }
-        } catch (e) {
-            console.error("Failed to parse banking records", e);
-            setAccounts([]);
-        }
+            localStorage.removeItem("rupeebill_bank_accounts");
+            localStorage.removeItem("rupeebill_bank_transactions");
+            localStorage.removeItem("rupeebill_mock_statement");
+        } catch {}
     }, []);
 
     // Ledger Calculations
@@ -487,7 +456,7 @@ const BankDetailsPage = () => {
         setIsAccountOpen(true);
     };
 
-    const handleAccountSubmit = (e: React.FormEvent) => {
+    const handleAccountSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!bankName.trim() || !accountNumber.trim() || !ifscCode.trim() || !branchName.trim()) {
@@ -500,75 +469,180 @@ const BankDetailsPage = () => {
             return;
         }
 
-        let updated: BankAccount[];
-
-        if (editingAccount) {
-            updated = accounts.map(a => 
-                a.id === editingAccount.id 
-                    ? { 
-                        ...a, 
-                        bankName, 
-                        accountNumber, 
-                        ifscCode: ifscCode.toUpperCase(), 
-                        branchName,
-                        accountType,
-                        initialBalance: Number(initialBalance) || 0,
-                        odLimit: accountType === "overdraft" ? Number(odLimit) || 0 : undefined
-                      } 
-                    : a
-            );
-            toast.success("Bank details updated successfully!");
-        } else {
-            const newAcc: BankAccount = {
-                id: crypto.randomUUID(),
-                bankName,
-                accountNumber,
-                ifscCode: ifscCode.toUpperCase(),
-                branchName,
-                accountType,
-                isDefault: accounts.length === 0,
-                initialBalance: Number(initialBalance) || 0,
-                odLimit: accountType === "overdraft" ? Number(odLimit) || 0 : undefined
-            };
-            updated = [...accounts, newAcc];
-            toast.success("New bank book created!");
+        if (!user?.id) {
+            toast.error("Please login to manage your bank accounts.");
+            return;
         }
 
-        saveAccounts(updated);
-        setIsAccountOpen(false);
+        const isOverdraft = accountType === "overdraft";
+        const balanceNum = Number(initialBalance) || 0;
+        const odNum = isOverdraft ? (Number(odLimit) || 0) : 0;
+
+        try {
+            if (editingAccount) {
+                const payload = {
+                    bank_name: bankName.trim(),
+                    account_number: accountNumber.trim(),
+                    ifsc_code: ifscCode.trim().toUpperCase(),
+                    branch_name: branchName.trim(),
+                    account_type: accountType,
+                    initial_balance: balanceNum,
+                    od_limit: odNum,
+                    updated_at: new Date().toISOString()
+                };
+
+                const { error } = await offlineMutate({
+                    table: "bank_accounts",
+                    action: "update",
+                    recordId: editingAccount.id,
+                    payload,
+                    userId: user.id
+                });
+
+                if (error) throw error;
+
+                if (editingAccount.isDefault) {
+                    await syncDefaultToProfile({
+                        ...editingAccount,
+                        bankName: payload.bank_name,
+                        accountNumber: payload.account_number,
+                        ifscCode: payload.ifsc_code,
+                        branchName: payload.branch_name,
+                    });
+                }
+                toast.success("Bank details updated successfully!");
+            } else {
+                const newId = crypto.randomUUID();
+                const isFirst = accounts.length === 0;
+                const newAcc: BankAccount = {
+                    id: newId,
+                    bankName: bankName.trim(),
+                    accountNumber: accountNumber.trim(),
+                    ifscCode: ifscCode.trim().toUpperCase(),
+                    branchName: branchName.trim(),
+                    accountType,
+                    isDefault: isFirst,
+                    initialBalance: balanceNum,
+                    odLimit: odNum
+                };
+
+                const payload = {
+                    id: newId,
+                    user_id: user.id,
+                    bank_name: newAcc.bankName,
+                    account_number: newAcc.accountNumber,
+                    ifsc_code: newAcc.ifscCode,
+                    branch_name: newAcc.branchName,
+                    account_type: newAcc.accountType,
+                    is_default: isFirst,
+                    initial_balance: balanceNum,
+                    od_limit: odNum,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+
+                const { error } = await offlineMutate({
+                    table: "bank_accounts",
+                    action: "insert",
+                    recordId: newId,
+                    payload,
+                    userId: user.id
+                });
+
+                if (error) throw error;
+
+                if (isFirst) {
+                    await syncDefaultToProfile(newAcc);
+                }
+                toast.success("New bank account created!");
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
+            setIsAccountOpen(false);
+        } catch (err: any) {
+            console.error("Failed to save bank account:", err);
+            toast.error(err?.message || "Failed to save bank account.");
+        }
     };
 
-    const handleDeleteAccount = (id: string) => {
+    const handleDeleteAccount = async (id: string) => {
+        if (!user?.id) return;
         const target = accounts.find(a => a.id === id);
         if (!target) return;
 
-        if (target.isDefault && accounts.length > 1) {
-            toast.error("Please set another account as default before removing this bank book.");
-            return;
-        }
+        try {
+            const { error } = await offlineMutate({
+                table: "bank_accounts",
+                action: "delete",
+                recordId: id,
+                userId: user.id
+            });
 
-        const hasTransactions = transactions.some(t => t.accountId === id);
-        if (hasTransactions) {
-            toast.error("Cannot delete a bank book with transaction records. Remove transactions first.");
-            return;
-        }
+            if (error) throw error;
 
-        const filtered = accounts.filter(a => a.id !== id);
-        if (target.isDefault && filtered.length > 0) {
-            filtered[0].isDefault = true;
-        }
+            const remaining = accounts.filter(a => a.id !== id);
 
-        saveAccounts(filtered);
-        toast.success("Bank book removed successfully.");
+            if (target.isDefault && remaining.length > 0) {
+                const nextDefault = remaining[0];
+                await offlineMutate({
+                    table: "bank_accounts",
+                    action: "update",
+                    recordId: nextDefault.id,
+                    payload: { is_default: true, updated_at: new Date().toISOString() },
+                    userId: user.id
+                });
+                await syncDefaultToProfile(nextDefault);
+            } else if (remaining.length === 0) {
+                await syncDefaultToProfile(null);
+            }
+
+            // Clean up any transactions linked to this removed account in local state
+            const updatedTxs = transactions.filter(t => t.accountId !== id);
+            if (updatedTxs.length !== transactions.length) {
+                saveTransactions(updatedTxs);
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
+            toast.success("Bank account removed successfully.");
+        } catch (err: any) {
+            console.error("Failed to delete bank account:", err);
+            toast.error(err?.message || "Failed to delete bank account.");
+        }
     };
 
-    const handleSetDefault = (id: string) => {
-        const updated = accounts.map(a => ({
-            ...a,
-            isDefault: a.id === id
-        }));
-        saveAccounts(updated);
-        toast.success("Default invoice bank account updated!");
+    const handleSetDefault = async (id: string) => {
+        if (!user?.id) return;
+        const selected = accounts.find(a => a.id === id);
+        if (!selected) return;
+
+        try {
+            for (const acc of accounts) {
+                if (acc.id !== id && acc.isDefault) {
+                    await offlineMutate({
+                        table: "bank_accounts",
+                        action: "update",
+                        recordId: acc.id,
+                        payload: { is_default: false, updated_at: new Date().toISOString() },
+                        userId: user.id
+                    });
+                }
+            }
+
+            await offlineMutate({
+                table: "bank_accounts",
+                action: "update",
+                recordId: id,
+                payload: { is_default: true, updated_at: new Date().toISOString() },
+                userId: user.id
+            });
+
+            await syncDefaultToProfile(selected);
+            await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
+            toast.success("Default invoice bank account updated!");
+        } catch (err: any) {
+            console.error("Failed to update default bank account:", err);
+            toast.error(err?.message || "Failed to update default account.");
+        }
     };
 
     const handleOpenTxDialog = (type: TransactionType, accountId?: string) => {
@@ -1260,7 +1334,7 @@ const BankDetailsPage = () => {
                                     {filteredTransactions.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={9} className="h-32 text-center text-xs text-muted-foreground">
-                                                No banking records match filters. Add a transaction or seed sample data.
+                                                No banking records found. Click "Receive (Credit)" or "Pay (Debit)" above to post a transaction.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -1630,7 +1704,7 @@ const BankDetailsPage = () => {
                                 <Input 
                                     value={accountNumber}
                                     onChange={e => setAccountNumber(e.target.value)}
-                                    placeholder="e.g. 332405891234"
+                                    placeholder="e.g. 100293848123"
                                     className="h-9 text-xs rounded-xl"
                                     required
                                 />

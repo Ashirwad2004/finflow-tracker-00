@@ -127,11 +127,12 @@ export function convertAmountToIndianWords(amount: number): string {
 }
 
 /**
- * Reads bank accounts from localStorage
+ * Reads bank accounts from tenant-isolated storage
  */
-export const getStoredBankAccounts = (): any[] => {
+export const getStoredBankAccounts = (userId?: string): any[] => {
     try {
-        const saved = localStorage.getItem("rupeebill_bank_accounts");
+        const storageKey = userId ? `finflow_bank_accounts_${userId}` : "rupeebill_bank_accounts";
+        const saved = localStorage.getItem(storageKey);
         if (saved) {
             const list = JSON.parse(saved);
             if (Array.isArray(list)) return list;
@@ -145,14 +146,15 @@ export const getStoredBankAccounts = (): any[] => {
 /**
  * Resolves the real bank account to print on the invoice.
  * Returns null if user turned off printing or if no real bank account is found.
- * Never returns hardcoded dummy accounts.
  */
 export const resolveInvoiceBankDetails = (options?: {
     printBankDetails?: boolean;
     bankDetails?: BankDetailsInfo;
     selectedBankAccountId?: string;
+    bankAccounts?: any[];
     profile?: any;
     businessDetails?: any;
+    userId?: string;
 }): BankDetailsInfo | null => {
     // 1. Check setting
     const printSetting = options?.printBankDetails !== undefined 
@@ -168,20 +170,20 @@ export const resolveInvoiceBankDetails = (options?: {
         return options.bankDetails;
     }
 
-    // 3. Check customer added bank accounts from localStorage
-    const accounts = getStoredBankAccounts();
+    // 3. User bank accounts list (from React Query / Supabase or tenant storage)
+    const accounts = options?.bankAccounts || getStoredBankAccounts(options?.userId);
     if (accounts.length > 0) {
         const preferredId = options?.selectedBankAccountId || localStorage.getItem("rupeebill_selected_bank_account_id");
         let target = accounts.find((a: any) => a.id === preferredId);
         if (!target) {
-            target = accounts.find((a: any) => a.isDefault) || accounts[0];
+            target = accounts.find((a: any) => a.isDefault || a.is_default) || accounts[0];
         }
-        if (target && target.bankName && target.accountNumber) {
+        if (target && (target.bankName || target.bank_name) && (target.accountNumber || target.account_number)) {
             return {
-                bankName: target.bankName,
-                accountNumber: target.accountNumber,
-                ifscCode: target.ifscCode || "",
-                branchName: target.branchName || ""
+                bankName: target.bankName || target.bank_name,
+                accountNumber: target.accountNumber || target.account_number,
+                ifscCode: target.ifscCode || target.ifsc_code || "",
+                branchName: target.branchName || target.branch_name || ""
             };
         }
     }
