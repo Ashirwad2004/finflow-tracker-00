@@ -4,7 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { generateEInvoiceJSON, downloadJSON } from "@/core/utils/einvoiceGenerator";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle, ReceiptIndianRupee, Receipt, ArrowDownLeft, ShoppingBag } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle, ReceiptIndianRupee, ScrollText, ArrowDownLeft, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { dispatchJob, subscribeToJob, JobEvent } from "@/core/utils/jobQueue";
 import { CreateInvoiceDialog } from "@/features/business/components/CreateInvoiceDialog";
@@ -960,16 +960,6 @@ export default function SalesPage() {
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleOpenTranscript(invoice);
-                                                        }}
-                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
-                                                        title="Payment Transcript / Ledger"
-                                                    >
-                                                        <Receipt className="w-4 h-4" />
-                                                    </button>
-                                                    <button
                                                         onClick={(e) => { e.stopPropagation(); handlePreview(invoice); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"
                                                         title="Preview PDF"
@@ -996,7 +986,7 @@ export default function SalesPage() {
                                                                 onClick={() => handleOpenTranscript(invoice)}
                                                                 className="cursor-pointer"
                                                             >
-                                                                <Receipt className="w-4 h-4 mr-2 text-slate-500" />
+                                                                <ScrollText className="w-4 h-4 mr-2 text-slate-500" />
                                                                 Payment Transcript / Ledger
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handlePreview(invoice)}>
