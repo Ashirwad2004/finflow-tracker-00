@@ -1315,9 +1315,9 @@ const PartiesPage = () => {
                     <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-0 ${!showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
                         {activeParty && activePartyMetrics ? (
                             <div className="flex flex-col h-full overflow-hidden">
-                                
-                                {/* Party Header Banner */}
-                                <div className="p-3 sm:p-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                                {/* Party Header Banner - Clean Professional Layout with Zero Overlap */}
+                                <div className="p-3 sm:p-3.5 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 space-y-2">
+                                    {/* Top Row: Identity & Clean Button Group */}
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             {/* Mobile Back Arrow */}
@@ -1330,7 +1330,7 @@ const PartiesPage = () => {
                                                 <ArrowLeft className="w-4 h-4" />
                                             </Button>
 
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${
+                                            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${
                                                 activeParty.type === 'customer' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' :
                                                 activeParty.type === 'vendor' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' :
                                                 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
@@ -1339,122 +1339,89 @@ const PartiesPage = () => {
                                             </div>
 
                                             <div className="min-w-0">
-                                                <div className="flex items-center gap-1.5">
-                                                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
                                                         {activeParty.name}
                                                     </h3>
-                                                    <span className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
                                                         activeParty.type === 'customer' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' :
                                                         activeParty.type === 'vendor' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' :
                                                         'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
                                                     }`}>
                                                         {activeParty.type}
                                                     </span>
-                                                </div>
 
-                                                {/* Contact Details row */}
-                                                <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                    {activeParty.phone && (
-                                                        <a
-                                                            href={`tel:${activeParty.phone}`}
-                                                            className="flex items-center gap-1 hover:text-primary transition-colors"
-                                                            title="Call party"
-                                                        >
-                                                            <Phone className="w-3 h-3 text-slate-400" />
-                                                            <span>{activeParty.phone}</span>
-                                                        </a>
-                                                    )}
-                                                    {activeParty.email && (
-                                                        <a
-                                                            href={`mailto:${activeParty.email}`}
-                                                            className="flex items-center gap-1 hover:text-primary transition-colors"
-                                                            title="Email party"
-                                                        >
-                                                            <Mail className="w-3 h-3 text-slate-400" />
-                                                            <span>{activeParty.email}</span>
-                                                        </a>
-                                                    )}
-                                                    {activeParty.gst_number && (
-                                                        <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded text-[10px] font-medium text-slate-700 dark:text-slate-300">
-                                                            GST: {activeParty.gst_number}
+                                                    {activePartyMetrics.receivable > activePartyMetrics.payable ? (
+                                                        <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 shrink-0">
+                                                            To Collect: {formatCurrency(activePartyMetrics.receivable - activePartyMetrics.payable)}
                                                         </span>
-                                                    )}
-                                                    {activeParty.opening_balance !== undefined && Number(activeParty.opening_balance) > 0 && (
-                                                        <span className={`inline-flex items-center gap-1 font-mono px-1.5 py-0.2 rounded text-[10px] font-bold border ${
-                                                            (activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor')
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                                                : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
-                                                        }`}>
-                                                            Opening: {formatCurrency(Number(activeParty.opening_balance))} ({(activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor') ? 'To Receive / Dr' : 'To Pay / Cr'})
+                                                    ) : activePartyMetrics.payable > activePartyMetrics.receivable ? (
+                                                        <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 shrink-0">
+                                                            To Pay: {formatCurrency(activePartyMetrics.payable - activePartyMetrics.receivable)}
                                                         </span>
-                                                    )}
-                                                    {activeParty.address && (
-                                                        <span className="flex items-center gap-1 text-slate-500" title={activeParty.address}>
-                                                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                                            <span className="truncate max-w-[140px] sm:max-w-[200px]">{activeParty.address}</span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 shrink-0">
+                                                            Settled
                                                         </span>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Action Buttons */}
-                                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
-                                            {/* Quick Settlement: Receive Money from Customer */}
+                                        {/* Action Buttons (Clean & Proportional - Never Overflowing) */}
+                                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                                            {/* Settlement Button */}
                                             {activePartyMetrics.receivable > 0 && (
                                                 <Button
                                                     size="sm"
                                                     onClick={handleQuickReceivePartyPayment}
-                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
                                                     title={`Receive Payment from ${activeParty.name}`}
                                                 >
-                                                    <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-100" />
+                                                    <ArrowDownLeft className="w-3.5 h-3.5" />
                                                     <span>Receive Money</span>
                                                 </Button>
                                             )}
 
-                                            {/* Quick Settlement: Pay Vendor */}
                                             {activePartyMetrics.payable > 0 && (
                                                 <Button
                                                     size="sm"
                                                     onClick={handleQuickPayVendor}
-                                                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
                                                     title={`Pay Vendor ${activeParty.name}`}
                                                 >
-                                                    <ArrowUpRight className="w-3.5 h-3.5 text-rose-100" />
+                                                    <ArrowUpRight className="w-3.5 h-3.5" />
                                                     <span>Pay Vendor</span>
                                                 </Button>
                                             )}
 
-                                            {/* New Invoice (for Customer or Both) */}
-                                            {activeParty.type !== 'vendor' && (
+                                            {/* Primary New Document */}
+                                            {activeParty.type !== 'vendor' ? (
                                                 <Button
                                                     size="sm"
                                                     onClick={() => handleCreateInvoiceForParty(activeParty)}
-                                                    className="bg-primary hover:bg-primary/90 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                    className="bg-primary hover:bg-primary/90 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
                                                 >
                                                     <Plus className="w-3.5 h-3.5" />
                                                     <span>New Invoice</span>
                                                 </Button>
-                                            )}
-
-                                            {/* New Purchase (for Vendor or Both) */}
-                                            {activeParty.type !== 'customer' && (
+                                            ) : (
                                                 <Button
                                                     size="sm"
                                                     onClick={() => handleCreatePurchaseForParty(activeParty)}
-                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1"
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
                                                 >
                                                     <Plus className="w-3.5 h-3.5" />
                                                     <span>New Purchase</span>
                                                 </Button>
                                             )}
 
+                                            {/* Statement Dropdown */}
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button size="sm" variant="outline" className="h-7 sm:h-8 px-2 text-xs font-semibold flex items-center gap-1">
+                                                    <Button size="sm" variant="outline" className="h-8 px-2 text-xs font-semibold flex items-center gap-1">
                                                         <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                                                        <span className="hidden sm:inline">Statement</span>
+                                                        <span>Statement</span>
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="w-48 shadow-lg">
@@ -1469,95 +1436,144 @@ const PartiesPage = () => {
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
 
+                                            {/* Detailed Ledger Direct Link */}
                                             <Button
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() => navigate(`/reports?tab=detailed-ledger&party=${encodeURIComponent(activeParty.name)}`)}
-                                                className="h-7 sm:h-8 px-2 text-xs font-semibold flex items-center gap-1 text-primary hover:text-primary hover:bg-primary/5"
+                                                className="h-8 px-2.5 text-xs font-semibold flex items-center gap-1 text-primary border-primary/30 hover:bg-primary/5"
                                                 title="View verified CA detailed ledger"
                                             >
                                                 <Eye className="w-3.5 h-3.5" />
-                                                <span className="hidden sm:inline">Detailed Ledger</span>
+                                                <span>Ledger</span>
                                             </Button>
 
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleEditClick(activeParty)}
-                                                className="h-7 sm:h-8 px-2 text-xs font-semibold"
-                                                title="Edit party"
-                                            >
-                                                <Edit className="w-3.5 h-3.5 sm:mr-1" />
-                                                <span className="hidden sm:inline">Edit</span>
-                                            </Button>
-
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleDeleteClick(activeParty)}
-                                                className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                                                title="Delete party"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
+                                            {/* More Menu for Edit, Secondary Actions, Delete */}
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0" title="More options">
+                                                        <MoreVertical className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-44 shadow-lg text-xs">
+                                                    {activeParty.type === 'both' && (
+                                                        <DropdownMenuItem onClick={() => handleCreatePurchaseForParty(activeParty)} className="cursor-pointer py-2">
+                                                            <Plus className="w-3.5 h-3.5 mr-2 text-indigo-600" />
+                                                            <span>New Purchase Bill</span>
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    <DropdownMenuItem onClick={() => handleEditClick(activeParty)} className="cursor-pointer py-2">
+                                                        <Edit className="w-3.5 h-3.5 mr-2 text-slate-600" />
+                                                        <span>Edit Party</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDeleteClick(activeParty)} className="cursor-pointer py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40">
+                                                        <Trash2 className="w-3.5 h-3.5 mr-2 text-rose-600" />
+                                                        <span>Delete Party</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </div>
                                     </div>
 
-                                    {/* Balance Summary Cards */}
-                                    <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-3">
-                                        <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
-                                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate block">Total Invoiced / Billed</p>
-                                            <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-0.5 truncate block">
-                                                {formatCurrency(activePartyMetrics.totalSalesAmount + activePartyMetrics.totalPurchasesAmount)}
-                                            </p>
-                                        </div>
-
-                                        <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
-                                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-500 truncate block">Total Collected / Paid</p>
-                                            <p className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate block">
-                                                {formatCurrency(activePartyMetrics.totalSalesPaid + activePartyMetrics.totalPurchasesPaid)}
-                                            </p>
-                                        </div>
-
-                                        <div className={`p-2.5 rounded-xl border shadow-2xs ${
-                                            activePartyMetrics.receivable > activePartyMetrics.payable
-                                                ? 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80'
-                                                : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80'
-                                                : 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/80'
-                                        }`}>
-                                            <p className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate block ${
-                                                activePartyMetrics.receivable > activePartyMetrics.payable
-                                                    ? 'text-amber-600 dark:text-amber-400'
-                                                    : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                    ? 'text-rose-600 dark:text-rose-400'
-                                                    : 'text-emerald-600 dark:text-emerald-400'
+                                    {/* Sub-Bar: Clean Contact Chips & Opening Balance */}
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                                        {activeParty.phone && (
+                                            <a
+                                                href={`tel:${activeParty.phone}`}
+                                                className="flex items-center gap-1 hover:text-primary transition-colors text-[11px]"
+                                                title="Call party"
+                                            >
+                                                <Phone className="w-3 h-3 text-slate-400" />
+                                                <span>{activeParty.phone}</span>
+                                            </a>
+                                        )}
+                                        {activeParty.email && (
+                                            <a
+                                                href={`mailto:${activeParty.email}`}
+                                                className="flex items-center gap-1 hover:text-primary transition-colors text-[11px]"
+                                                title="Email party"
+                                            >
+                                                <Mail className="w-3 h-3 text-slate-400" />
+                                                <span className="truncate max-w-[150px]">{activeParty.email}</span>
+                                            </a>
+                                        )}
+                                        {activeParty.gst_number && (
+                                            <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-700 dark:text-slate-300">
+                                                GSTIN: {activeParty.gst_number}
+                                            </span>
+                                        )}
+                                        {activeParty.opening_balance !== undefined && Number(activeParty.opening_balance) > 0 && (
+                                            <span className={`inline-flex items-center gap-1 font-mono px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                                (activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor')
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
                                             }`}>
-                                                {activePartyMetrics.receivable > activePartyMetrics.payable
-                                                    ? "Balance to Collect (Dr)"
-                                                    : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                    ? "Balance to Pay (Cr)"
-                                                    : "Settled / Cleared"}
-                                            </p>
-                                            <p className={`text-sm sm:text-base font-black mt-0.5 truncate block ${
-                                                activePartyMetrics.receivable > activePartyMetrics.payable
-                                                    ? 'text-amber-700 dark:text-amber-300'
-                                                    : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                    ? 'text-rose-700 dark:text-rose-300'
-                                                    : 'text-emerald-700 dark:text-emerald-300'
-                                            }`}>
-                                                {formatCurrency(
-                                                    Math.abs(activePartyMetrics.receivable - activePartyMetrics.payable)
-                                                )}
-                                            </p>
-                                        </div>
+                                                Opening: {formatCurrency(Number(activeParty.opening_balance))} ({(activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor') ? 'To Receive / Dr' : 'To Pay / Cr'})
+                                            </span>
+                                        )}
+                                        {activeParty.address && (
+                                            <span className="flex items-center gap-1 text-slate-500 text-[11px]" title={activeParty.address}>
+                                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                                <span className="truncate max-w-[180px] sm:max-w-[240px]">{activeParty.address}</span>
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
-                                {/* Transaction History & Ledger Table (All on same screen, perfectly fitted at 100% zoom) */}
-                                <div className="flex-1 flex flex-col min-h-0 p-2.5 sm:p-3 md:p-4 overflow-hidden">
+                                {/* Balance Summary Cards - Responsive & Clean */}
+                                <div className="grid grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-4 pb-0 shrink-0">
+                                    <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs overflow-hidden">
+                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate block">Total Invoiced / Billed</p>
+                                        <p className="text-xs sm:text-sm lg:text-base font-black font-mono text-slate-900 dark:text-white mt-0.5 truncate block" title={formatCurrency(activePartyMetrics.totalSalesAmount + activePartyMetrics.totalPurchasesAmount)}>
+                                            {formatCurrency(activePartyMetrics.totalSalesAmount + activePartyMetrics.totalPurchasesAmount)}
+                                        </p>
+                                    </div>
+
+                                    <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs overflow-hidden">
+                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate block">Total Collected / Paid</p>
+                                        <p className="text-xs sm:text-sm lg:text-base font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 truncate block" title={formatCurrency(activePartyMetrics.totalSalesPaid + activePartyMetrics.totalPurchasesPaid)}>
+                                            {formatCurrency(activePartyMetrics.totalSalesPaid + activePartyMetrics.totalPurchasesPaid)}
+                                        </p>
+                                    </div>
+
+                                    <div className={`p-2.5 sm:p-3 rounded-xl border shadow-2xs overflow-hidden ${
+                                        activePartyMetrics.receivable > activePartyMetrics.payable
+                                            ? 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80'
+                                            : activePartyMetrics.payable > activePartyMetrics.receivable
+                                            ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80'
+                                            : 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/80'
+                                    }`}>
+                                        <p className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate block ${
+                                            activePartyMetrics.receivable > activePartyMetrics.payable
+                                                ? 'text-amber-600 dark:text-amber-400'
+                                                : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                ? 'text-rose-600 dark:text-rose-400'
+                                                : 'text-emerald-600 dark:text-emerald-400'
+                                        }`}>
+                                            {activePartyMetrics.receivable > activePartyMetrics.payable
+                                                ? "Balance to Collect (Dr)"
+                                                : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                ? "Balance to Pay (Cr)"
+                                                : "Settled / Cleared"}
+                                        </p>
+                                        <p className={`text-xs sm:text-sm lg:text-base font-black font-mono mt-0.5 truncate block ${
+                                            activePartyMetrics.receivable > activePartyMetrics.payable
+                                                ? 'text-amber-700 dark:text-amber-300'
+                                                : activePartyMetrics.payable > activePartyMetrics.receivable
+                                                ? 'text-rose-700 dark:text-rose-300'
+                                                : 'text-emerald-700 dark:text-emerald-300'
+                                        }`} title={formatCurrency(Math.abs(activePartyMetrics.receivable - activePartyMetrics.payable))}>
+                                            {formatCurrency(
+                                                Math.abs(activePartyMetrics.receivable - activePartyMetrics.payable)
+                                            )}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Transaction History & Ledger Table (All on same screen with zero clipping) */}
+                                <div className="flex-1 flex flex-col min-h-0 p-3 sm:p-4 overflow-hidden">
                                     {/* Tabs */}
-                                    <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
                                         <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
                                             <button
                                                 onClick={() => setActiveTab("all")}
@@ -1596,8 +1612,8 @@ const PartiesPage = () => {
                                         </span>
                                     </div>
 
-                                    {/* Scrollable Transactions List / Table with right padding buffer */}
-                                    <div className="flex-1 overflow-y-auto min-h-0 pt-2 pr-1 custom-scrollbar">
+                                    {/* Scrollable Transactions List / Table */}
+                                    <div className="flex-1 overflow-y-auto min-h-0 pt-2 custom-scrollbar">
                                         {activePartyTransactions.length === 0 ? (
                                             <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col items-center justify-center">
                                                 <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-1.5" />
@@ -1613,17 +1629,17 @@ const PartiesPage = () => {
                                             </div>
                                         ) : (
                                             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto shadow-2xs">
-                                                <table className="w-full text-left border-collapse min-w-[560px]">
+                                                <table className="w-full text-left border-collapse min-w-[620px]">
                                                     <thead>
                                                         <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                                            <th className="px-2.5 sm:px-3 py-2.5 whitespace-nowrap">Date</th>
-                                                            <th className="px-2.5 sm:px-3 py-2.5 whitespace-nowrap">Document #</th>
-                                                            <th className="px-2 sm:px-2.5 py-2.5 whitespace-nowrap">Type</th>
-                                                            <th className="px-2.5 sm:px-3 py-2.5 whitespace-nowrap">Total Amount</th>
-                                                            <th className="px-2.5 sm:px-3 py-2.5 whitespace-nowrap">Paid Amount</th>
-                                                            <th className="px-2.5 sm:px-3 py-2.5 whitespace-nowrap">Balance Due</th>
-                                                            <th className="px-2 sm:px-2.5 py-2.5 whitespace-nowrap">Status</th>
-                                                            <th className="px-2.5 sm:px-3 py-2.5 text-right whitespace-nowrap">Actions</th>
+                                                            <th className="px-2.5 py-2 whitespace-nowrap">Date</th>
+                                                            <th className="px-2.5 py-2 whitespace-nowrap">Document #</th>
+                                                            <th className="px-2 py-2 whitespace-nowrap">Type</th>
+                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Total Amount</th>
+                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Paid Amount</th>
+                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Balance Due</th>
+                                                            <th className="px-2 py-2 text-center whitespace-nowrap">Status</th>
+                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Actions</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -1635,13 +1651,13 @@ const PartiesPage = () => {
 
                                                             return (
                                                                 <tr key={txn.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                                                                    <td className="px-2.5 sm:px-3 py-2 font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">
+                                                                    <td className="px-2.5 py-2 font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">
                                                                         {txn.date ? (isNaN(new Date(txn.date).getTime()) ? txn.date : format(new Date(txn.date), "dd MMM yyyy")) : "-"}
                                                                     </td>
-                                                                    <td className="px-2.5 sm:px-3 py-2 font-bold text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
+                                                                    <td className="px-2.5 py-2 font-bold text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
                                                                         {isOpening ? "OPENING" : `#${txn.docNumber}`}
                                                                     </td>
-                                                                    <td className="px-2 sm:px-2.5 py-2 whitespace-nowrap">
+                                                                    <td className="px-2 py-2 whitespace-nowrap">
                                                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${
                                                                             isOpening
                                                                                 ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
@@ -1652,29 +1668,29 @@ const PartiesPage = () => {
                                                                             {isOpening ? 'Opening' : isSale ? 'Sale' : 'Purchase'}
                                                                         </span>
                                                                     </td>
-                                                                    <td className="px-2.5 sm:px-3 py-2 font-black text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
+                                                                    <td className="px-2.5 py-2 text-right font-black font-mono text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
                                                                         {formatCurrency(txn.total)}
                                                                     </td>
-                                                                    <td className="px-2.5 sm:px-3 py-2 font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[11px] sm:text-xs">
+                                                                    <td className="px-2.5 py-2 text-right font-semibold font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[11px] sm:text-xs">
                                                                         {isOpening ? "-" : formatCurrency(txn.paid)}
                                                                     </td>
-                                                                    <td className="px-2.5 sm:px-3 py-2 whitespace-nowrap">
+                                                                    <td className="px-2.5 py-2 text-right whitespace-nowrap font-mono">
                                                                         {txn.balanceDue > 0 ? (
-                                                                            <span className="font-black text-amber-600 dark:text-amber-400 text-[11px] sm:text-xs">
+                                                                            <span className="font-bold text-amber-600 dark:text-amber-400 text-[11px] sm:text-xs">
                                                                                 {formatCurrency(txn.balanceDue)}
                                                                             </span>
                                                                         ) : (
                                                                             <span className="text-slate-400 font-medium text-[11px] sm:text-xs">₹0</span>
                                                                         )}
                                                                     </td>
-                                                                    <td className="px-2 sm:px-2.5 py-2 whitespace-nowrap">
+                                                                    <td className="px-2 py-2 text-center whitespace-nowrap">
                                                                         {isOpening ? (
                                                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
                                                                                 txn.isReceivable
                                                                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
                                                                                     : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
                                                                             }`}>
-                                                                                {txn.isReceivable ? 'To Collect (Dr)' : 'To Pay (Cr)'}
+                                                                                {txn.isReceivable ? 'To Collect' : 'To Pay'}
                                                                             </span>
                                                                         ) : (
                                                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
@@ -1686,7 +1702,7 @@ const PartiesPage = () => {
                                                                             </span>
                                                                         )}
                                                                     </td>
-                                                                    <td className="px-2.5 sm:px-3 py-2 text-right whitespace-nowrap">
+                                                                    <td className="px-2.5 py-2 text-right whitespace-nowrap">
                                                                         <div className="flex items-center justify-end gap-1">
                                                                             {/* Opening Balance row: Quick edit */}
                                                                             {isOpening && (
@@ -1702,54 +1718,61 @@ const PartiesPage = () => {
                                                                                 </Button>
                                                                             )}
 
-                                                                            {/* Customer Sale: We COLLECT money -> "Receive" */}
+                                                                            {/* Quick Settlement Button */}
                                                                             {!isOpening && isSale && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
                                                                                     onClick={() => handleOpenSettlement(txn.raw, "sale")}
-                                                                                    className="h-6 sm:h-7 px-1.5 sm:px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs shrink-0 flex items-center gap-0.5"
+                                                                                    className="h-6 sm:h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs flex items-center gap-0.5"
                                                                                     title={`Receive payment from ${activeParty?.name || 'Customer'}`}
                                                                                 >
-                                                                                    <ArrowDownLeft className="w-3 h-3 text-emerald-100 shrink-0" />
+                                                                                    <ArrowDownLeft className="w-3 h-3" />
                                                                                     <span>Receive</span>
                                                                                 </Button>
                                                                             )}
 
-                                                                            {/* Vendor Purchase: We PAY money -> "Pay" */}
                                                                             {!isOpening && !isSale && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
                                                                                     onClick={() => handleOpenSettlement(txn.raw, "purchase")}
-                                                                                    className="h-6 sm:h-7 px-1.5 sm:px-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs shrink-0 flex items-center gap-0.5"
+                                                                                    className="h-6 sm:h-7 px-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs flex items-center gap-0.5"
                                                                                     title={`Pay vendor ${activeParty?.name || 'Supplier'}`}
                                                                                 >
-                                                                                    <ArrowUpRight className="w-3 h-3 text-rose-100 shrink-0" />
+                                                                                    <ArrowUpRight className="w-3 h-3" />
                                                                                     <span>Pay</span>
                                                                                 </Button>
                                                                             )}
 
-                                                                            {/* Preview and Download for both Sales and Purchases */}
+                                                                            {/* Sleek Document Actions Menu */}
                                                                             {!isOpening && (
-                                                                                <>
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="outline"
-                                                                                        onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
-                                                                                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                                                                        title={isSale ? "Preview Invoice" : "Preview Purchase Bill"}
-                                                                                    >
-                                                                                        <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                                                                    </Button>
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="outline"
-                                                                                        onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
-                                                                                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                                                                        title={isSale ? "Download PDF" : "Download Purchase PDF"}
-                                                                                    >
-                                                                                        <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                                                                    </Button>
-                                                                                </>
+                                                                                <DropdownMenu>
+                                                                                    <DropdownMenuTrigger asChild>
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="ghost"
+                                                                                            className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                                                                            title="Document Actions"
+                                                                                        >
+                                                                                            <MoreVertical className="w-3.5 h-3.5" />
+                                                                                        </Button>
+                                                                                    </DropdownMenuTrigger>
+                                                                                    <DropdownMenuContent align="end" className="w-36 text-xs">
+                                                                                        <DropdownMenuItem
+                                                                                            onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
+                                                                                            className="cursor-pointer py-1.5"
+                                                                                        >
+                                                                                            <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                                                                            <span>View PDF</span>
+                                                                                        </DropdownMenuItem>
+                                                                                        <DropdownMenuItem
+                                                                                            onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
+                                                                                            className="cursor-pointer py-1.5"
+                                                                                        >
+                                                                                            <Download className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                                                                            <span>Download</span>
+                                                                                        </DropdownMenuItem>
+                                                                                    </DropdownMenuContent>
+                                                                                </DropdownMenu>
                                                                             )}
                                                                         </div>
                                                                     </td>
