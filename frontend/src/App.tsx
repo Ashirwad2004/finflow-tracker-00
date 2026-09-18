@@ -46,6 +46,8 @@ const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
 const LoyaltyCampaigns = lazy(() => import("@/features/business/pages/LoyaltyCampaigns"));
 const PricingPage = lazy(() => import("@/pages/Pricing"));
+const POSPage = lazy(() => import("@/features/pos/pages/POSPage"));
+const BarcodeManagementPage = lazy(() => import("@/features/pos/pages/BarcodeManagement"));
 
 // Optimize React Query: 
 // 1. Keep data fresh for 5 mins (reduces duplicate network requests)
@@ -265,6 +267,8 @@ const AppRoutes = () => {
         <Route path="/print-studio" element={<MerchantRoute><PrintStudioPage /></MerchantRoute>} />
         <Route path="/parties" element={<MerchantRoute><PartiesPage /></MerchantRoute>} />
         <Route path="/bank-details" element={<MerchantRoute><BankDetailsPage /></MerchantRoute>} />
+        <Route path="/pos" element={<MerchantRoute><POSPage /></MerchantRoute>} />
+        <Route path="/inventory/barcodes" element={<MerchantRoute><BarcodeManagementPage /></MerchantRoute>} />
         <Route path="/inventory" element={<MerchantRoute><InventoryPage /></MerchantRoute>} />
         <Route path="/online-store" element={<MerchantRoute><OnlineStorePage /></MerchantRoute>} />
         <Route path="/salesman-dashboard" element={<SalesmanRoute><SalesmanDashboard /></SalesmanRoute>} />

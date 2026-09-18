@@ -1,8 +1,14 @@
+import os
 import sys
 import asyncio
 import logging
 from typing import cast, Any
 from contextlib import asynccontextmanager
+
+# Ensure src directory is in sys.path for direct module resolution (api, core, services, schemas)
+src_dir = os.path.dirname(os.path.abspath(__file__))
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
 
 logging.basicConfig(
     level=logging.INFO,

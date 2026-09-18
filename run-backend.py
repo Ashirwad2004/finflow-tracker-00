@@ -23,9 +23,13 @@ def main():
     
     cmd = [python_path, '-m', 'uvicorn', 'src.main:app', '--reload', '--port', '8000', '--host', '0.0.0.0']
     
+    env = os.environ.copy()
+    src_dir = os.path.join(backend_dir, 'src')
+    env['PYTHONPATH'] = src_dir + os.pathsep + backend_dir + (os.pathsep + env['PYTHONPATH'] if 'PYTHONPATH' in env else '')
+
     # Run uvicorn
     try:
-        subprocess.run(cmd, cwd=backend_dir, check=True)
+        subprocess.run(cmd, cwd=backend_dir, env=env, check=True)
     except KeyboardInterrupt:
         print("\n[Backend Runner] Stopping FastAPI backend...")
     except Exception as e:
