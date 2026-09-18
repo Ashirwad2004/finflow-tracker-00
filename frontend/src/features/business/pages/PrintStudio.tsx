@@ -798,7 +798,7 @@ const PrintStudioPage = () => {
         }
     };
 
-    const [bankAccounts, setBankAccounts] = useState<any[]>(() => getStoredBankAccounts());
+    const [bankAccounts, setBankAccounts] = useState<any[]>(() => getStoredBankAccounts(user?.id));
     const [selectedBankId, setSelectedBankId] = useState<string>(() => {
         return localStorage.getItem("rupeebill_selected_bank_account_id") || "";
     });
@@ -811,13 +811,13 @@ const PrintStudioPage = () => {
 
     useEffect(() => {
         const updateAccounts = () => {
-            const accounts = getStoredBankAccounts();
+            const accounts = getStoredBankAccounts(user?.id);
             setBankAccounts(accounts);
         };
         updateAccounts();
         window.addEventListener("focus", updateAccounts);
         return () => window.removeEventListener("focus", updateAccounts);
-    }, []);
+    }, [user?.id]);
 
     useEffect(() => {
         const savedTheme = localStorage.getItem("rupeebill_invoice_theme") as InvoiceTheme;
@@ -874,9 +874,11 @@ const PrintStudioPage = () => {
         return resolveInvoiceBankDetails({
             printBankDetails,
             selectedBankAccountId: selectedBankId,
-            profile
+            bankAccounts,
+            profile,
+            userId: user?.id
         });
-    }, [printBankDetails, selectedBankId, profile, bankAccounts]);
+    }, [printBankDetails, selectedBankId, profile, bankAccounts, user?.id]);
 
     // Auto-select latest sale for live preview once recentSales load
     useEffect(() => {
