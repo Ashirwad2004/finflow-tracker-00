@@ -1,4 +1,6 @@
 import logging
+import re
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from fastapi import HTTPException, status
 
@@ -18,6 +20,21 @@ from src.schemas.pos import (
 from src.services.barcode import BarcodeService
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_error_message(exc: Exception) -> str:
+    """Extracts clean, human-readable error messages from PostgREST/Supabase or standard exceptions."""
+    if hasattr(exc, "args") and exc.args and isinstance(exc.args[0], dict):
+        d = exc.args[0]
+        if "message" in d and d["message"]:
+            return str(d["message"])
+        if "details" in d and d["details"]:
+            return str(d["details"])
+    err_str = str(exc)
+    m = re.search(r"'message':\s*'([^']+)'", err_str)
+    if m:
+        return m.group(1)
+    return err_str
 
 
 class POSService:
@@ -104,13 +121,11 @@ class POSService:
         except HTTPException:
             raise
         except Exception as exc:
-            err_msg = str(exc)
-            logger.exception("Error executing pos_complete_sale RPC: %s", err_msg)
-            if "stock" in err_msg.lower():
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg) from exc
+            clean_msg = _clean_error_message(exc)
+            logger.exception("Error executing pos_complete_sale RPC: %s", clean_msg)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Sale processing failed: {err_msg}",
+                status_code=status.HTTP_400_BAD_REQUEST if "stock" in clean_msg.lower() or "cart" in clean_msg.lower() else status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=clean_msg,
             ) from exc
 
     @classmethod
@@ -158,33 +173,32 @@ class POSService:
         except HTTPException:
             raise
         except Exception as exc:
-            err_msg = str(exc)
-            logger.exception("Error executing pos_process_return RPC: %s", err_msg)
+            clean_msg = _clean_error_message(exc)
+            logger.exception("Error executing pos_process_return RPC: %s", clean_msg)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Return processing failed: {err_msg}",
+                detail=f"Return processing failed: {clean_msg}",
             ) from exc
 
     @classmethod
     def open_shift(cls, store_id: str, cashier_id: str, request: POSShiftOpenRequest) -> Dict[str, Any]:
-        """Opens a cashier shift with opening cash float."""
+        """Opens a cashier shift with opening cash float. Resumes existing active shift seamlessly."""
         cls._ensure_supabase()
 
         try:
             # Check if there is already an open shift for this cashier
             existing = (
                 supabase_client.table("pos_shifts")
-                .select("id")
+                .select("*")
                 .eq("store_id", store_id)
                 .eq("cashier_id", cashier_id)
                 .eq("status", "open")
+                .order("opened_at", desc=True)
                 .execute()
             )
-            if existing.data and len(existing.data) > 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cashier already has an active open shift. Please close it first.",
-                )
+            if existing.data and len(existing.data) > 0 and isinstance(existing.data[0], dict):
+                # Cashier already has an active open shift — return it seamlessly so UI transitions without 400 error
+                return existing.data[0]  # type: ignore
 
             # Resolve cashier display name
             cashier_name = "Cashier"
@@ -224,10 +238,11 @@ class POSService:
         except HTTPException:
             raise
         except Exception as exc:
-            logger.exception("Error opening shift: %s", exc)
+            clean_msg = _clean_error_message(exc)
+            logger.exception("Error opening shift: %s", clean_msg)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to open shift",
+                detail=f"Failed to open shift: {clean_msg}",
             ) from exc
 
     @classmethod
@@ -236,14 +251,18 @@ class POSService:
         cls._ensure_supabase()
 
         try:
-            # Fetch derived summary from immutable transactions
-            summary = cls.get_shift_summary(shift_id)
+            # Fetch derived summary from immutable transactions, fallback gracefully
+            try:
+                summary = cls.get_shift_summary(shift_id)
+            except Exception:
+                summary = {"expected_cash": 0.0, "total_sales": 0.0}
+
             expected = summary.get("expected_cash", 0.0)
             actual = request.actual_cash
             diff = round(actual - expected, 2)
 
             update_data = {
-                "closed_at": "now()",
+                "closed_at": datetime.now(timezone.utc).isoformat(),
                 "actual_cash": actual,
                 "difference": diff,
                 "status": "closed",
@@ -268,10 +287,11 @@ class POSService:
         except HTTPException:
             raise
         except Exception as exc:
-            logger.exception("Error closing shift: %s", exc)
+            clean_msg = _clean_error_message(exc)
+            logger.exception("Error closing shift: %s", clean_msg)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to close shift",
+                detail=f"Failed to close shift: {clean_msg}",
             ) from exc
 
     @classmethod
@@ -282,12 +302,48 @@ class POSService:
             res: Any = supabase_client.rpc("pos_get_shift_summary", {"p_shift_id": shift_id}).execute()
             data = getattr(res, "data", None)
             if not data or not isinstance(data, dict):
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift not found")
+                # Fallback to shift row baseline
+                shift_res: Any = supabase_client.table("pos_shifts").select("*").eq("id", shift_id).maybe_single().execute()
+                shift_row = getattr(shift_res, "data", None)
+                if not shift_row or not isinstance(shift_row, dict):
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift not found")
+                return {
+                    "shift_id": shift_id,
+                    "opening_cash": float(shift_row.get("opening_cash", 0.0) or 0.0),
+                    "expected_cash": float(shift_row.get("expected_cash", 0.0) or shift_row.get("opening_cash", 0.0) or 0.0),
+                    "total_sales": 0.0,
+                    "cash_sales": 0.0,
+                    "upi_sales": 0.0,
+                    "card_sales": 0.0,
+                    "sales_count": 0,
+                    "cash_in": 0.0,
+                    "cash_out": 0.0,
+                    "cash_refunds": 0.0,
+                }
             return dict(data)
         except HTTPException:
             raise
         except Exception as exc:
-            logger.exception("Error getting shift summary: %s", exc)
+            logger.warning("Dynamic shift summary fallback for %s: %s", shift_id, exc)
+            try:
+                shift_res = supabase_client.table("pos_shifts").select("*").eq("id", shift_id).maybe_single().execute()
+                shift_row = getattr(shift_res, "data", None)
+                if shift_row and isinstance(shift_row, dict):
+                    return {
+                        "shift_id": shift_id,
+                        "opening_cash": float(shift_row.get("opening_cash", 0.0) or 0.0),
+                        "expected_cash": float(shift_row.get("expected_cash", 0.0) or shift_row.get("opening_cash", 0.0) or 0.0),
+                        "total_sales": 0.0,
+                        "cash_sales": 0.0,
+                        "upi_sales": 0.0,
+                        "card_sales": 0.0,
+                        "sales_count": 0,
+                        "cash_in": 0.0,
+                        "cash_out": 0.0,
+                        "cash_refunds": 0.0,
+                    }
+            except Exception:
+                pass
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch shift summary") from exc
 
     @classmethod

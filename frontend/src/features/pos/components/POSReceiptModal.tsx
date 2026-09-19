@@ -58,13 +58,7 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
 
   const handleDownloadPDF = async () => {
     try {
-      await generateInvoicePDF({
-        invoice: {
-          ...saleData,
-          items: saleData.items || [],
-        },
-        profile: profileData,
-      });
+      await generateInvoicePDF(receiptPayload, { action: "download" });
       toast.success("Invoice PDF downloaded");
     } catch (err) {
       console.warn("PDF generation fallback:", err);
@@ -93,7 +87,7 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl p-0 overflow-hidden bg-card border-border text-foreground max-h-[92vh] flex flex-col rounded-2xl shadow-2xl">
-        <DialogHeader className="p-4 sm:p-5 border-b border-border/80 bg-muted/30 flex flex-row items-center justify-between">
+        <DialogHeader className="p-4 sm:p-5 pr-14 sm:pr-16 border-b border-border/80 bg-muted/30 flex flex-row items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shadow-2xs">
               <CheckCircle2 className="w-5 h-5" />

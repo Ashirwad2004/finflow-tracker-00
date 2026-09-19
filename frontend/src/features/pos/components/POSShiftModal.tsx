@@ -56,10 +56,9 @@ export const POSShiftModal: React.FC<POSShiftModalProps> = ({
     setIsSubmitting(true);
     try {
       await onOpenShift(openingFloat, openNotes);
-      toast.success("Shift opened successfully");
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to open shift");
+    } catch (_err: any) {
+      // Notification already handled with detailed message in parent
     } finally {
       setIsSubmitting(false);
     }
@@ -79,12 +78,11 @@ export const POSShiftModal: React.FC<POSShiftModalProps> = ({
     setIsSubmitting(true);
     try {
       await onRecordCashMovement(activeShift.id, type, movementAmount, movementReason.trim());
-      toast.success(`${type === "cash_in" ? "Cash In" : "Cash Out"} recorded`);
       setMovementAmount(0);
       setMovementReason("");
       setActiveTab("summary");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to record movement");
+    } catch (_err: any) {
+      // Notification already handled with detailed message in parent
     } finally {
       setIsSubmitting(false);
     }
@@ -95,10 +93,9 @@ export const POSShiftModal: React.FC<POSShiftModalProps> = ({
     setIsSubmitting(true);
     try {
       await onCloseShift(activeShift.id, actualCash, closeNotes);
-      toast.success("Shift closed and reconciled successfully");
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to close shift");
+    } catch (_err: any) {
+      // Notification already handled with detailed message in parent
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +104,7 @@ export const POSShiftModal: React.FC<POSShiftModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-card border-border text-foreground rounded-2xl shadow-2xl">
-        <DialogHeader className="p-4 sm:p-5 border-b border-border/80 bg-muted/30">
+        <DialogHeader className="p-4 sm:p-5 pr-14 sm:pr-16 border-b border-border/80 bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold shadow-2xs">
