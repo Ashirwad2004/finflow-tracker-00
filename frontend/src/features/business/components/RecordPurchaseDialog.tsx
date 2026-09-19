@@ -23,7 +23,7 @@ import { PurchaseItemsTable, PurchaseItemRowData } from "./purchase/PurchaseItem
 import { PurchaseAdditionalDetails } from "./purchase/PurchaseAdditionalDetails";
 import { PurchaseSummarySection } from "./purchase/PurchaseSummarySection";
 import { PurchaseStickyFooter } from "./purchase/PurchaseStickyFooter";
-import { ProductItem } from "./purchase/ProductCombobox";
+import { ProductCombobox, ProductItem } from "./purchase/ProductCombobox";
 import { PurchaseBillScanner, ExtractedPurchaseBill } from "./purchase/PurchaseBillScanner";
 
 interface RecordPurchaseDialogProps {
@@ -62,7 +62,7 @@ export const RecordPurchaseDialog = ({
 }: RecordPurchaseDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency, currency } = useCurrency();
     const { user } = useAuth();
 
     const overdueThresholdDays = getOverdueDaysThreshold();

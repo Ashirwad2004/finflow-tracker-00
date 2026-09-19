@@ -149,7 +149,7 @@ export default function PurchasesPage() {
         vendor_email?: string;
         vendor_gstin?: string;
         bill_number: string;
-        status: 'paid' | 'pending' | 'overdue' | 'draft';
+        status: 'paid' | 'partial' | 'pending' | 'overdue' | 'draft';
         total_amount: number;
         subtotal?: number;
         tax_amount?: number;
