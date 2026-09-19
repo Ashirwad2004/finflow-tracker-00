@@ -32,6 +32,8 @@ export interface InvoiceDetails {
     igst?: number;
     total_amount: number;
     customer_gstin?: string;
+    previous_balance?: number;
+    total_due_balance?: number;
     notes?: string;
     irn?: string;
     eway_bill_number?: string;
@@ -66,6 +68,8 @@ export interface TotalRow {
     bold?: boolean;
     isPaid?: boolean;
     isDue?: boolean;
+    isPrevBal?: boolean;
+    isNetDue?: boolean;
 }
 
 /**
@@ -403,7 +407,8 @@ export const generateInvoicePDF = async (
         selectedBankAccountId?: string,
         printUpiQr?: boolean,
         upiId?: string,
-        showItemTaxRateOnBill?: boolean
+        showItemTaxRateOnBill?: boolean,
+        showPartyPreviousBalance?: boolean
     }
 ) => {
     try {
@@ -505,6 +510,14 @@ export const generateInvoicePDF = async (
             ? options.showItemTaxRateOnBill
             : (localStorage.getItem("rupeebill_show_item_tax_rate_on_bill") === "true");
 
+        const showPartyPreviousBalance = options?.showPartyPreviousBalance !== undefined
+            ? options.showPartyPreviousBalance
+            : (localStorage.getItem("rupeebill_show_party_previous_balance") !== "false");
+
+        const hasPrevBalance = showPartyPreviousBalance && data.previous_balance !== undefined && Number(data.previous_balance) !== 0;
+        const prevBalanceVal = Number(data.previous_balance) || 0;
+        const closingNetDueVal = data.total_due_balance !== undefined ? Number(data.total_due_balance) : (prevBalanceVal + balanceDue);
+
         let taxRateVal = Number(data.tax_rate) || 0;
         if (taxRateVal === 0 && data.tax_amount && data.tax_amount > 0) {
             const taxableAmount = Math.max(1, Number(data.subtotal || 0) - Number(data.discount_amount || 0));
@@ -535,7 +548,20 @@ export const generateInvoicePDF = async (
             ...getTaxRows("at"),
             { label: "Grand Total", value: data.total_amount, bold: true },
             { label: "Amount Paid", value: amountPaid, isPaid: true },
-            { label: "Balance Due (Pending)", value: balanceDue, isDue: true, bold: balanceDue > 0 }
+            { label: "Balance Due (Pending)", value: balanceDue, isDue: true, bold: balanceDue > 0 },
+            ...(hasPrevBalance ? [
+                { 
+                    label: prevBalanceVal >= 0 ? "Previous Balance (Dr)" : "Previous Balance (Cr)", 
+                    value: prevBalanceVal, 
+                    isPrevBal: true 
+                },
+                { 
+                    label: closingNetDueVal >= 0 ? "Total Net Due (Closing)" : "Total Net Advance (Closing)", 
+                    value: closingNetDueVal, 
+                    isNetDue: true, 
+                    bold: true 
+                }
+            ] : [])
         ];
 
         if (theme === 'tally-accounting') {
@@ -985,6 +1011,37 @@ export const generateInvoicePDF = async (
             doc.setTextColor(...textDark);
             rightY += 5.2 * scale;
 
+            // CA-Grade Party Previous Due & Net Balance Breakdown (Vyapar / Busy / Tally Style)
+            if (hasPrevBalance) {
+                doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
+                doc.setFont(fontStyle, "normal");
+                doc.setFontSize(7.5);
+                doc.setTextColor(70, 70, 70);
+                const prevBalLabel = prevBalanceVal >= 0 ? "Previous Balance (Dr):" : "Previous Balance (Cr):";
+                doc.text(prevBalLabel, splitX + 2, rightY + 3.2 * scale);
+                const prevBalFormatted = (prevBalanceVal < 0 ? "-" : "") + formatCurrencySafe(Math.abs(prevBalanceVal));
+                doc.text(prevBalFormatted, pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
+                rightY += 4.5 * scale;
+
+                doc.setFont(fontStyle, "bold");
+                doc.setFontSize(8);
+                if (closingNetDueVal > 0) {
+                    doc.setTextColor(185, 28, 28); // Crimson red
+                    doc.text("Total Net Due:", splitX + 2, rightY + 3.2 * scale);
+                    doc.text(`${formatCurrencySafe(closingNetDueVal)} Dr`, pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
+                } else if (closingNetDueVal < 0) {
+                    doc.setTextColor(22, 101, 52); // Forest green
+                    doc.text("Total Advance (Cr):", splitX + 2, rightY + 3.2 * scale);
+                    doc.text(`${formatCurrencySafe(Math.abs(closingNetDueVal))} Cr`, pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
+                } else {
+                    doc.setTextColor(22, 101, 52);
+                    doc.text("Total Net Due:", splitX + 2, rightY + 3.2 * scale);
+                    doc.text("0.00 (SETTLED)", pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
+                }
+                doc.setTextColor(...textDark);
+                rightY += 5.2 * scale;
+            }
+
             doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
 
             // Signatory Box
@@ -1286,7 +1343,44 @@ export const generateInvoicePDF = async (
             let currentTotalY = finalY;
             totalRows.slice(1).forEach(row => {
                 currentTotalY += 7;
-                if (row.isPaid) {
+                if (row.isPrevBal) {
+                    doc.setFont("helvetica", "normal");
+                    doc.setTextColor(70, 70, 70);
+                    doc.text(row.label + ":", totalBlockX, currentTotalY);
+                    const prevText = (row.value < 0 ? "-" : "") + formatCurrencySafe(Math.abs(row.value));
+                    doc.text(prevText, vAlignX, currentTotalY, { align: "right" });
+                } else if (row.isNetDue) {
+                    currentTotalY += 2;
+                    const netBoxY = currentTotalY - 5;
+                    const isNetPositive = row.value > 0;
+                    const isNetNegative = row.value < 0;
+                    if (isNetPositive) {
+                        doc.setFillColor(254, 242, 242); // red-50
+                        doc.setDrawColor(220, 38, 38); // red-600
+                        doc.roundedRect(totalBlockX - 5, netBoxY, 87, 14, 2, 2, "FD");
+                        doc.setTextColor(185, 28, 28); // red-700
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Total Net Due (Closing):", totalBlockX, netBoxY + 9);
+                        doc.text(`${formatCurrencySafe(row.value)} Dr`, vAlignX, netBoxY + 9, { align: "right" });
+                    } else if (isNetNegative) {
+                        doc.setFillColor(240, 253, 244); // green-50
+                        doc.setDrawColor(22, 163, 74); // green-600
+                        doc.roundedRect(totalBlockX - 5, netBoxY, 87, 14, 2, 2, "FD");
+                        doc.setTextColor(22, 101, 52); // green-700
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Total Advance (Closing):", totalBlockX, netBoxY + 9);
+                        doc.text(`${formatCurrencySafe(Math.abs(row.value))} Cr`, vAlignX, netBoxY + 9, { align: "right" });
+                    } else {
+                        doc.setFillColor(248, 250, 252);
+                        doc.setDrawColor(203, 213, 225);
+                        doc.roundedRect(totalBlockX - 5, netBoxY, 87, 14, 2, 2, "FD");
+                        doc.setTextColor(51, 65, 85);
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Total Net Due:", totalBlockX, netBoxY + 9);
+                        doc.text("Rs. 0.00 (Settled)", vAlignX, netBoxY + 9, { align: "right" });
+                    }
+                    currentTotalY += 8;
+                } else if (row.isPaid) {
                     doc.setFont("helvetica", "normal");
                     doc.setTextColor(22, 101, 52); // Forest Green
                     doc.text(row.label + ":", totalBlockX, currentTotalY);

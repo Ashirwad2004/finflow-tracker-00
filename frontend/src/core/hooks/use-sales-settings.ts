@@ -61,6 +61,11 @@ export interface SalesSettings {
   enableItemWiseTax: boolean;
   /** Show individual product tax % column on bills and invoices. */
   showItemTaxRateOnBill: boolean;
+  /**
+   * Display customer's pending previous balance and total closing balance at the bottom
+   * of bills and printed invoices (standard practice in Vyapar, Busy, and Tally Prime).
+   */
+  showPartyPreviousBalance: boolean;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -79,6 +84,7 @@ const DEFAULTS: SalesSettings = {
   enableQuickBilling: false,
   enableItemWiseTax: false,
   showItemTaxRateOnBill: false,
+  showPartyPreviousBalance: true,
 };
 
 function getStorageKey(userId: string | undefined) {
@@ -89,25 +95,29 @@ function loadSettings(userId: string | undefined): SalesSettings {
   const key = getStorageKey(userId);
   const globalShowItemTax = localStorage.getItem("rupeebill_show_item_tax_rate_on_bill");
   const fallbackShowTax = globalShowItemTax !== null ? globalShowItemTax === "true" : DEFAULTS.showItemTaxRateOnBill;
+  const globalShowPartyBal = localStorage.getItem("rupeebill_show_party_previous_balance");
+  const fallbackShowPartyBal = globalShowPartyBal !== null ? globalShowPartyBal === "true" : DEFAULTS.showPartyPreviousBalance;
   
-  if (!key) return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax };
+  if (!key) return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax, showPartyPreviousBalance: fallbackShowPartyBal };
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax };
+    if (!raw) return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax, showPartyPreviousBalance: fallbackShowPartyBal };
     const parsed = JSON.parse(raw);
     return {
       ...DEFAULTS,
       ...parsed,
-      showItemTaxRateOnBill: parsed.showItemTaxRateOnBill !== undefined ? parsed.showItemTaxRateOnBill : fallbackShowTax
+      showItemTaxRateOnBill: parsed.showItemTaxRateOnBill !== undefined ? parsed.showItemTaxRateOnBill : fallbackShowTax,
+      showPartyPreviousBalance: parsed.showPartyPreviousBalance !== undefined ? parsed.showPartyPreviousBalance : fallbackShowPartyBal
     };
   } catch {
-    return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax };
+    return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax, showPartyPreviousBalance: fallbackShowPartyBal };
   }
 }
 
 function saveSettings(userId: string | undefined, settings: SalesSettings) {
   const key = getStorageKey(userId);
   localStorage.setItem("rupeebill_show_item_tax_rate_on_bill", String(Boolean(settings.showItemTaxRateOnBill)));
+  localStorage.setItem("rupeebill_show_party_previous_balance", String(Boolean(settings.showPartyPreviousBalance)));
   if (!key) return;
   localStorage.setItem(key, JSON.stringify(settings));
 }
