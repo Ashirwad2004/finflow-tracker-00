@@ -127,7 +127,24 @@ async def get_current_shift(
         return {"active_shift": None}
 
     shift_id = str(shift_item.get("id", ""))
-    summary = POSService.get_shift_summary(shift_id)
+    summary = None
+    try:
+        summary = POSService.get_shift_summary(shift_id)
+    except Exception as exc:
+        logger.warning("Could not compute dynamic summary for shift %s: %s", shift_id, exc)
+        summary = {
+            "shift_id": shift_id,
+            "opening_cash": float(shift_item.get("opening_cash", 0.0) or 0.0),
+            "expected_cash": float(shift_item.get("expected_cash", 0.0) or shift_item.get("opening_cash", 0.0) or 0.0),
+            "total_sales": 0.0,
+            "cash_sales": 0.0,
+            "upi_sales": 0.0,
+            "card_sales": 0.0,
+            "sales_count": 0,
+            "cash_in": 0.0,
+            "cash_out": 0.0,
+            "cash_refunds": 0.0,
+        }
     return {"active_shift": shift_item, "summary": summary}
 
 

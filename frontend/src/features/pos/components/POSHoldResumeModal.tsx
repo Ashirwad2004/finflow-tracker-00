@@ -25,7 +25,7 @@ export const POSHoldResumeModal: React.FC<POSHoldResumeModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-card border-border text-foreground rounded-2xl shadow-2xl">
-        <DialogHeader className="p-4 sm:p-5 border-b border-border/80 bg-muted/30">
+        <DialogHeader className="p-4 sm:p-5 pr-14 sm:pr-16 border-b border-border/80 bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shadow-2xs">

@@ -589,9 +589,12 @@ export default function POSPage() {
         notes: notes || null,
       });
       toast.success("Register shift opened successfully!");
-      refetchShift();
+      await queryClient.invalidateQueries({ queryKey: ["pos_current_shift"] });
+      await refetchShift();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to open shift");
+      const detail = err.response?.data?.detail || err.message || "Failed to open shift";
+      toast.error(`Shift Error: ${detail}`);
+      throw err;
     }
   };
 
@@ -609,9 +612,12 @@ export default function POSPage() {
       } else {
         toast.error(`Shift closed with cash shortage of -${formatCurrency(Math.abs(diff))}`);
       }
-      refetchShift();
+      await queryClient.invalidateQueries({ queryKey: ["pos_current_shift"] });
+      await refetchShift();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to close shift");
+      const detail = err.response?.data?.detail || err.message || "Failed to close shift";
+      toast.error(`Shift Close Error: ${detail}`);
+      throw err;
     }
   };
 
@@ -629,9 +635,12 @@ export default function POSPage() {
         reason,
       });
       toast.success(`Recorded ${type === "cash_in" ? "Cash In (+)" : "Cash Out (-)"} of ${formatCurrency(amount)}`);
-      refetchShift();
+      await queryClient.invalidateQueries({ queryKey: ["pos_current_shift"] });
+      await refetchShift();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to record cash movement");
+      const detail = err.response?.data?.detail || err.message || "Failed to record cash movement";
+      toast.error(`Cash Movement Error: ${detail}`);
+      throw err;
     }
   };
 

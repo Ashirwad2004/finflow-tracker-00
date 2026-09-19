@@ -371,29 +371,25 @@ BEGIN
 
                 IF FOUND THEN
                     IF v_db_stock < v_qty THEN
-                        IF p_is_offline_sync THEN
-                            INSERT INTO public.inventory_discrepancies (
-                                store_id,
-                                product_id,
-                                expected_stock,
-                                deducted_quantity,
-                                resulting_stock,
-                                source
-                            ) VALUES (
-                                p_store_id,
-                                v_product_id,
-                                v_db_stock,
-                                v_qty,
-                                v_db_stock - v_qty::INTEGER,
-                                'offline_pos_sync'
-                            );
-                        ELSE
-                            RAISE EXCEPTION 'Product "%" only has % in stock (requested %)', v_db_product_name, v_db_stock, v_qty;
-                        END IF;
+                        INSERT INTO public.inventory_discrepancies (
+                            store_id,
+                            product_id,
+                            expected_stock,
+                            deducted_quantity,
+                            resulting_stock,
+                            source
+                        ) VALUES (
+                            p_store_id,
+                            v_product_id,
+                            COALESCE(v_db_stock, 0),
+                            v_qty,
+                            COALESCE(v_db_stock, 0) - v_qty::INTEGER,
+                            CASE WHEN p_is_offline_sync THEN 'offline_pos_sync' ELSE 'pos_oversell' END
+                        );
                     END IF;
 
                     UPDATE public.products
-                    SET stock_quantity = stock_quantity - v_qty::INTEGER,
+                    SET stock_quantity = COALESCE(stock_quantity, 0) - v_qty::INTEGER,
                         updated_at = now()
                     WHERE id = v_product_id;
                 END IF;

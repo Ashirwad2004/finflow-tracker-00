@@ -169,7 +169,6 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
       onOpenChange(false);
     } catch (err: any) {
       console.error("[POSPayment] Sale completion failed:", err);
-      toast.error(err?.message || "Failed to complete sale");
     } finally {
       setIsSubmitting(false);
     }
@@ -178,17 +177,17 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-card border-border text-foreground rounded-2xl shadow-2xl">
-        <DialogHeader className="p-4 sm:p-5 border-b border-border/80 bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div>
+        <DialogHeader className="p-4 sm:p-5 pr-14 sm:pr-16 border-b border-border/80 bg-muted/30">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
               <DialogTitle className="text-base font-bold text-foreground">Sale Settlement</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate">
                 Customer: <span className="font-semibold text-foreground">{customerName}</span>
               </DialogDescription>
             </div>
-            <div className="text-right">
+            <div className="text-right flex-shrink-0 bg-background/80 px-3.5 py-1.5 rounded-xl border border-border/70 shadow-2xs">
               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Payable Total</span>
-              <span className="text-xl font-black text-primary tracking-tight font-mono">{formatCurrency(totalAmount)}</span>
+              <span className="text-lg sm:text-xl font-black text-primary tracking-tight font-mono">{formatCurrency(totalAmount)}</span>
             </div>
           </div>
         </DialogHeader>
