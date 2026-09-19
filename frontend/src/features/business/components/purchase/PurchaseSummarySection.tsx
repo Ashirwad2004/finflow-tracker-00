@@ -9,7 +9,8 @@ import {
     Clock, 
     AlertCircle, 
     UserCheck, 
-    ArrowRight 
+    ArrowRight,
+    Wallet 
 } from "lucide-react";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 
@@ -24,6 +25,8 @@ interface PurchaseSummarySectionProps {
     paymentStatus: "paid" | "partial" | "pending";
     vendorName?: string;
     placeOfSupply?: string;
+    vendorPreviousBalance?: number;
+    totalNetPayable?: number;
     onOverallDiscountChange: (val: number) => void;
     onAmountPaidChange: (val: number) => void;
     onPaymentStatusChange: (status: "paid" | "partial" | "pending") => void;
@@ -40,6 +43,8 @@ export const PurchaseSummarySection = ({
     paymentStatus,
     vendorName = "Supplier",
     placeOfSupply = "",
+    vendorPreviousBalance = 0,
+    totalNetPayable,
     onOverallDiscountChange,
     onAmountPaidChange,
     onPaymentStatusChange,
@@ -165,6 +170,70 @@ export const PurchaseSummarySection = ({
                                 : `Payment of ${formatCurrency(amountPaid)} recorded. No outstanding payable balance will be created.`}
                         </p>
                     </div>
+
+                    {/* Vyapar / Big Billing CA-Grade Vendor Previous Due & Net Balance Box */}
+                    {vendorName && vendorName.trim() !== "" && vendorName !== "Supplier" && (
+                        <div className="p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/40 to-background dark:from-indigo-950/20 dark:to-background dark:border-indigo-800/60 shadow-2xs space-y-2">
+                            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">
+                                <span className="flex items-center gap-1.5">
+                                    <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                                    Vendor Ledger Balance
+                                </span>
+                                <span className="text-[10px] font-medium text-muted-foreground lowercase truncate max-w-[140px]">
+                                    {vendorName}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground">Previous Payable:</span>
+                                <span className={`font-semibold ${vendorPreviousBalance > 0 ? "text-rose-600 dark:text-rose-400" : vendorPreviousBalance < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                                    {vendorPreviousBalance > 0 
+                                        ? `${formatCurrency(vendorPreviousBalance)} Cr (Payable)` 
+                                        : vendorPreviousBalance < 0 
+                                            ? `${formatCurrency(Math.abs(vendorPreviousBalance))} Dr (Advance)` 
+                                            : formatCurrency(0)}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground">Current Bill Due:</span>
+                                <span className="font-semibold text-foreground">
+                                    {formatCurrency(balanceDue)}
+                                </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
+                                <div>
+                                    <span className="text-xs font-bold text-foreground uppercase tracking-tight block">
+                                        Total Net Payable:
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                        (Previous + Current Bill)
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    {(() => {
+                                        const netPayable = totalNetPayable ?? (vendorPreviousBalance + balanceDue);
+                                        return (
+                                            <span className={`text-xs font-extrabold px-2 py-0.5 rounded ${
+                                                netPayable > 0 
+                                                    ? "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800" 
+                                                    : netPayable < 0 
+                                                        ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" 
+                                                        : "bg-muted text-muted-foreground border border-border"
+                                            }`}>
+                                                {netPayable > 0 
+                                                    ? `${formatCurrency(netPayable)} Cr` 
+                                                    : netPayable < 0 
+                                                        ? `${formatCurrency(Math.abs(netPayable))} Dr` 
+                                                        : "₹0.00 (Settled)"}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Side: Financial Breakdown */}
