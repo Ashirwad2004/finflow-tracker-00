@@ -161,7 +161,7 @@ export function useRazorpayPayment() {
             currency: orderData.currency || "INR",
             name: "RupeeBill",
             description: "RupeeBill Business License (6 Months)",
-            ...(Boolean(orderData.gatewayOrderId && /^order_[a-zA-Z0-9]{14,}$/.test(orderData.gatewayOrderId) && !orderData.gatewayOrderId.includes("dev") && !orderData.gatewayOrderId.includes("mock"))
+            ...(orderData.gatewayOrderId && /^order_[a-zA-Z0-9]{14,}$/.test(orderData.gatewayOrderId) && !orderData.gatewayOrderId.includes("dev") && !orderData.gatewayOrderId.includes("mock")
               ? { order_id: orderData.gatewayOrderId }
               : {}),
             prefill: {
