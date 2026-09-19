@@ -217,10 +217,10 @@ export const businessMenuItems: any[] = [
     description: "Preferences"
   },
   {
-    title: "Bank Details",
+    title: "Banking & Treasury",
     path: "/bank-details",
     icon: Landmark,
-    description: "Manage Bank Accounts"
+    description: "Accounts, Passbook & BRS"
   },
   {
     title: "Loyalty & Campaigns",

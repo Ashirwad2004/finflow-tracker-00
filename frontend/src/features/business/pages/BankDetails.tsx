@@ -1,132 +1,65 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-    Plus, 
-    Building2, 
-    Trash2, 
-    Edit2, 
-    CheckCircle2, 
     Landmark, 
     ArrowDownLeft, 
     ArrowUpRight, 
     ArrowLeftRight, 
-    Search, 
-    Download, 
-    AlertTriangle,
-    Check,
-    RefreshCw,
-    TrendingUp,
-    TrendingDown,
-    HelpCircle,
-    BadgeAlert,
-    QrCode
+    Plus, 
+    QrCode, 
+    Edit2,
+    ShieldCheck,
+    CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { cn } from "@/core/lib/utils";
 import { useAuth } from "@/core/lib/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
-import { offlineMutate } from "@/core/offline/apiService";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    Tooltip as ChartTooltip,
-    ResponsiveContainer,
-    CartesianGrid,
-    BarChart,
-    Bar,
-    Cell
-} from "recharts";
-import { format, subDays, isAfter, parseISO } from "date-fns";
+import { subDays, isAfter, parseISO, format } from "date-fns";
 
-// ─── Bank Accounts & Ledger Persistence ──────────────────────────────────────
+// Banking Modular Components
+import { BankAccount, BankTransaction, BankStatementLine, ChequeRecord, AccountType } from "../components/banking/types";
+import { BankKPIHeader } from "../components/banking/BankKPIHeader";
+import { BankAccountsGrid } from "../components/banking/BankAccountsGrid";
+import { BankAccountModal } from "../components/banking/BankAccountModal";
+import { RecordTransactionModal } from "../components/banking/RecordTransactionModal";
+import { ContraTransferModal } from "../components/banking/ContraTransferModal";
+import { StatementImportModal } from "../components/banking/StatementImportModal";
+import { BankReconciliationWorkspace } from "../components/banking/BankReconciliationWorkspace";
+import { BankLedgerPassbook } from "../components/banking/BankLedgerPassbook";
+import { ChequeTrackerTab } from "../components/banking/ChequeTrackerTab";
+import { BankAnalyticsTab } from "../components/banking/BankAnalyticsTab";
+import { ParsedStatementResult } from "../services/statementParser";
 
-// ─── Interfaces & Schemas ───────────────────────────────────────────────────
-
-export type AccountType = "checking" | "savings" | "overdraft" | "cash";
-export type TransactionType = "deposit" | "withdrawal";
-export type TransactionCategory = 
-    | "Sales" 
-    | "Vendor Payment" 
-    | "Salary" 
-    | "Utilities" 
-    | "Rent" 
-    | "Transfer" 
-    | "Tax" 
-    | "Other";
-
-export interface BankAccount {
-    id: string;
-    bankName: string;
-    accountNumber: string;
-    ifscCode: string;
-    branchName: string;
-    isDefault: boolean;
-    accountType: AccountType;
-    initialBalance: number;
-    odLimit?: number;
-}
-
-export interface BankTransaction {
-    id: string;
-    accountId: string;
-    date: string;
-    type: TransactionType;
-    amount: number;
-    category: TransactionCategory;
-    referenceId: string;
-    description: string;
-    isReconciled: boolean;
-    reconciledAt?: string;
-    transferToAccountId?: string;
-}
-
-export interface MockStatementRecord {
-    id: string;
-    date: string;
-    description: string;
-    amount: number;
-    referenceId: string;
-    matchedTransactionId?: string;
-}
-
-// ─── Component Implementation ─────────────────────────────────────────────────
-
-const BankDetailsPage = () => {
+const BankDetailsPage: React.FC = () => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
-    // State & Database Queries
+    // Active Tab state
+    const [activeTab, setActiveTab] = useState<string>("accounts");
+
+    // Modal Visibility States
+    const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+    const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+
+    const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+    const [txModalType, setTxModalType] = useState<"deposit" | "withdrawal">("deposit");
+    const [txModalAccountId, setTxModalAccountId] = useState<string | undefined>(undefined);
+
+    const [isContraModalOpen, setIsContraModalOpen] = useState(false);
+    const [isStatementImportOpen, setIsStatementImportOpen] = useState(false);
+    const [reconcileSelectedAccountId, setReconcileSelectedAccountId] = useState<string>("all");
+
+    // UPI Configuration State
+    const [upiId, setUpiId] = useState<string>(() => localStorage.getItem("rupeebill_upi_id") || "");
+    const [isEditingUpi, setIsEditingUpi] = useState(false);
+    const [upiInputVal, setUpiInputVal] = useState("");
+
+    // ─── 1. FETCH BANK ACCOUNTS ────────────────────────────────────────────────
     const { data: accounts = [], isLoading: isLoadingAccounts } = useQuery<BankAccount[]>({
         queryKey: ["bank_accounts", user?.id],
         queryFn: async () => {
@@ -136,46 +69,10 @@ const BankDetailsPage = () => {
                     .from("bank_accounts")
                     .select("*")
                     .eq("user_id", user.id)
+                    .eq("is_archived", false)
                     .order("created_at", { ascending: true });
 
                 if (!error && Array.isArray(data)) {
-                    // Auto-seed: If database table is empty, check if profile has bank details to auto-migrate
-                    if (data.length === 0) {
-                        const { data: profData } = await (supabase as any)
-                            .from("profiles")
-                            .select("bank_name, bank_account_no, bank_ifsc, bank_branch")
-                            .eq("user_id", user.id)
-                            .maybeSingle();
-
-                        if (profData?.bank_name && profData?.bank_account_no) {
-                            const newId = crypto.randomUUID();
-                            const newAccRow = {
-                                id: newId,
-                                user_id: user.id,
-                                bank_name: profData.bank_name,
-                                account_number: profData.bank_account_no,
-                                ifsc_code: profData.bank_ifsc || "",
-                                branch_name: profData.bank_branch || "",
-                                account_type: "checking",
-                                is_default: true,
-                                initial_balance: 0,
-                                od_limit: 0,
-                            };
-                            await (supabase as any).from("bank_accounts").insert(newAccRow);
-                            return [{
-                                id: newId,
-                                bankName: newAccRow.bank_name,
-                                accountNumber: newAccRow.account_number,
-                                ifscCode: newAccRow.ifsc_code,
-                                branchName: newAccRow.branch_name,
-                                isDefault: true,
-                                accountType: "checking" as AccountType,
-                                initialBalance: 0,
-                                odLimit: 0,
-                            }];
-                        }
-                    }
-
                     const mapped: BankAccount[] = data.map((row: any) => ({
                         id: row.id,
                         bankName: row.bank_name || "",
@@ -186,71 +83,209 @@ const BankDetailsPage = () => {
                         accountType: (row.account_type as AccountType) || "checking",
                         initialBalance: Number(row.initial_balance) || 0,
                         odLimit: row.od_limit ? Number(row.od_limit) : 0,
+                        upiId: row.upi_id || undefined,
+                        colorTheme: row.color_theme || "default",
+                        isArchived: Boolean(row.is_archived),
+                        notes: row.notes || undefined
                     }));
+
+                    // Keep local mirror updated for synchronous PDF generation in invoices & PrintStudio
                     try {
                         localStorage.setItem(`finflow_bank_accounts_${user.id}`, JSON.stringify(mapped));
                     } catch {}
+
                     return mapped;
                 }
             } catch (err) {
-                console.error("[BankDetails] Error fetching bank accounts from Supabase:", err);
+                console.error("[BankDetails] Error fetching bank accounts:", err);
             }
 
-            // Fallback to tenant local cache if offline
+            // Fallback from cache if offline
             try {
-                const localKey = `finflow_bank_accounts_${user.id}`;
-                const cached = localStorage.getItem(localKey);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed)) return parsed;
-                }
+                const cached = localStorage.getItem(`finflow_bank_accounts_${user?.id}`);
+                if (cached) return JSON.parse(cached);
             } catch {}
             return [];
         },
-        enabled: !!user?.id,
+        enabled: !!user?.id
     });
 
-    const [transactions, setTransactions] = useState<BankTransaction[]>(() => {
-        if (!user?.id) return [];
-        try {
-            const saved = localStorage.getItem(`finflow_txs_${user.id}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) return parsed;
+    // ─── 2. FETCH BANK TRANSACTIONS (GENERAL LEDGER) ───────────────────────────
+    const { data: transactions = [], isLoading: isLoadingTxs } = useQuery<BankTransaction[]>({
+        queryKey: ["bank_transactions", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("bank_transactions")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false })
+                    .order("created_at", { ascending: false });
+
+                if (!error && Array.isArray(data)) {
+                    // Auto-migration check: If Supabase table is empty but localStorage has transactions, migrate them!
+                    if (data.length === 0) {
+                        try {
+                            const localSaved = localStorage.getItem(`finflow_txs_${user.id}`);
+                            if (localSaved) {
+                                const parsed = JSON.parse(localSaved);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    // Seed into Supabase
+                                    const rowsToInsert = parsed.map((item: any) => ({
+                                        id: item.id || crypto.randomUUID(),
+                                        user_id: user.id,
+                                        account_id: item.accountId,
+                                        date: item.date || format(new Date(), "yyyy-MM-dd"),
+                                        type: item.type || "deposit",
+                                        amount: Number(item.amount) || 0,
+                                        category: item.category || "Sales Revenue",
+                                        payment_mode: "NEFT",
+                                        reference_no: item.referenceId || `MIG-${Date.now()}`,
+                                        description: item.description || "Migrated entry",
+                                        is_reconciled: Boolean(item.isReconciled)
+                                    })).filter((r: any) => accounts.some(a => a.id === r.account_id));
+
+                                    if (rowsToInsert.length > 0) {
+                                        await (supabase as any).from("bank_transactions").insert(rowsToInsert);
+                                        localStorage.removeItem(`finflow_txs_${user.id}`);
+                                        return rowsToInsert.map((r: any) => ({
+                                            id: r.id,
+                                            accountId: r.account_id,
+                                            date: r.date,
+                                            type: r.type,
+                                            amount: r.amount,
+                                            category: r.category,
+                                            paymentMode: r.payment_mode,
+                                            referenceNo: r.reference_no,
+                                            description: r.description,
+                                            isReconciled: r.is_reconciled
+                                        }));
+                                    }
+                                }
+                            }
+                        } catch (migrationErr) {
+                            console.warn("Auto-migration from localStorage skipped:", migrationErr);
+                        }
+                    }
+
+                    return data.map((row: any) => ({
+                        id: row.id,
+                        accountId: row.account_id,
+                        date: row.date,
+                        type: row.type,
+                        amount: Number(row.amount),
+                        category: row.category,
+                        paymentMode: row.payment_mode || "NEFT",
+                        referenceNo: row.reference_no || "",
+                        description: row.description || "",
+                        partyName: row.party_name || undefined,
+                        isReconciled: Boolean(row.is_reconciled),
+                        reconciledAt: row.reconciled_at || undefined,
+                        matchedStatementLineId: row.matched_statement_line_id || undefined,
+                        transferToAccountId: row.transfer_to_account_id || undefined,
+                        linkedContraTxId: row.linked_contra_tx_id || undefined,
+                        linkedChequeId: row.linked_cheque_id || undefined,
+                        createdAt: row.created_at,
+                        updatedAt: row.updated_at
+                    }));
+                }
+            } catch (err) {
+                console.error("[BankDetails] Error fetching bank transactions:", err);
             }
-        } catch {}
-        return [];
+            return [];
+        },
+        enabled: !!user?.id && accounts.length > 0
     });
 
-    const [mockStatement, setMockStatement] = useState<MockStatementRecord[]>(() => {
-        if (!user?.id) return [];
-        try {
-            const saved = localStorage.getItem(`finflow_statements_${user.id}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) return parsed;
+    // ─── 3. FETCH BANK STATEMENT LINES (FOR BRS) ──────────────────────────────
+    const { data: statementLines = [] } = useQuery<BankStatementLine[]>({
+        queryKey: ["bank_statement_lines", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("bank_statement_lines")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("date", { ascending: false });
+
+                if (!error && Array.isArray(data)) {
+                    return data.map((r: any) => ({
+                        id: r.id,
+                        importId: r.import_id,
+                        accountId: r.account_id,
+                        date: r.date,
+                        narration: r.narration,
+                        referenceNo: r.reference_no || "",
+                        withdrawal: Number(r.withdrawal) || 0,
+                        deposit: Number(r.deposit) || 0,
+                        balance: r.balance !== null && r.balance !== undefined ? Number(r.balance) : undefined,
+                        status: r.status,
+                        matchedTxId: r.matched_tx_id || undefined,
+                        matchedAt: r.matched_at || undefined
+                    }));
+                }
+            } catch (err) {
+                console.error("[BankDetails] Error fetching statement lines:", err);
             }
-        } catch {}
-        return [];
+            return [];
+        },
+        enabled: !!user?.id
     });
 
-    // UPI Payment State
-    const [upiId, setUpiId] = useState<string>(() => localStorage.getItem("rupeebill_upi_id") || "");
-    const [isEditingUpi, setIsEditingUpi] = useState(false);
-    const [upiInputVal, setUpiInputVal] = useState(upiId);
+    // ─── 4. FETCH CHEQUE RECORDS ──────────────────────────────────────────────
+    const { data: cheques = [] } = useQuery<ChequeRecord[]>({
+        queryKey: ["cheque_records", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("cheque_records")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("due_date", { ascending: true });
 
+                if (!error && Array.isArray(data)) {
+                    return data.map((r: any) => ({
+                        id: r.id,
+                        accountId: r.account_id,
+                        chequeType: r.cheque_type,
+                        chequeNumber: r.cheque_number,
+                        partyName: r.party_name,
+                        partyId: r.party_id || undefined,
+                        amount: Number(r.amount) || 0,
+                        issueDate: r.issue_date,
+                        dueDate: r.due_date,
+                        clearanceDate: r.clearance_date || undefined,
+                        bankName: r.bank_name || undefined,
+                        status: r.status,
+                        bounceReason: r.bounce_reason || undefined,
+                        linkedTransactionId: r.linked_transaction_id || undefined,
+                        notes: r.notes || undefined
+                    }));
+                }
+            } catch (err) {
+                console.error("[BankDetails] Error fetching cheque records:", err);
+            }
+            return [];
+        },
+        enabled: !!user?.id
+    });
+
+    // ─── 5. PROFILE & UPI SYNC ────────────────────────────────────────────────
     const { data: profile } = useQuery({
         queryKey: ["profile_bank_page", user?.id],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            if (!user?.id) return null;
+            const { data } = await (supabase as any)
                 .from("profiles")
                 .select("upi_id, bank_name, bank_account_no, bank_ifsc, bank_branch")
-                .eq("user_id", user?.id || "")
-                .single();
-            if (error) return null;
+                .eq("user_id", user.id)
+                .maybeSingle();
             return data;
         },
-        enabled: !!user,
+        enabled: !!user?.id
     });
 
     useEffect(() => {
@@ -270,6 +305,7 @@ const BankDetailsPage = () => {
         } else {
             localStorage.removeItem("rupeebill_upi_id");
         }
+
         if (user?.id) {
             try {
                 await (supabase as any)
@@ -282,117 +318,12 @@ const BankDetailsPage = () => {
             } catch (err) {
                 console.error("Failed to save UPI ID", err);
             }
-        } else {
-            toast.success("Merchant UPI ID saved!");
         }
     };
 
-    // Dialog Controls
-    const [isAccountOpen, setIsAccountOpen] = useState(false);
-    const [isTxOpen, setIsTxOpen] = useState(false);
-    const [isTransferOpen, setIsTransferOpen] = useState(false);
-
-    // Edit references
-    const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
-
-    // Account Form state
-    const [bankName, setBankName] = useState("");
-    const [accountNumber, setAccountNumber] = useState("");
-    const [ifscCode, setIfscCode] = useState("");
-    const [branchName, setBranchName] = useState("");
-    const [accountType, setAccountType] = useState<AccountType>("checking");
-    const [initialBalance, setInitialBalance] = useState("0");
-    const [odLimit, setOdLimit] = useState("0");
-
-    // Transaction Form state
-    const [txAccountId, setTxAccountId] = useState("");
-    const [txType, setTxType] = useState<TransactionType>("deposit");
-    const [txAmount, setTxAmount] = useState("");
-    const [txDate, setTxDate] = useState(format(new Date(), "yyyy-MM-dd"));
-    const [txCategory, setTxCategory] = useState<TransactionCategory>("Sales");
-    const [txRef, setTxRef] = useState("");
-    const [txDesc, setTxDesc] = useState("");
-
-    // Transfer Form state
-    const [fromAccountId, setFromAccountId] = useState("");
-    const [toAccountId, setToAccountId] = useState("");
-    const [transferAmount, setTransferAmount] = useState("");
-    const [transferDate, setTransferDate] = useState(format(new Date(), "yyyy-MM-dd"));
-    const [transferRef, setTransferRef] = useState("");
-    const [transferDesc, setTransferDesc] = useState("");
-
-    // Ledger Filters
-    const [ledgerSearch, setLedgerSearch] = useState("");
-    const [ledgerAccountFilter, setLedgerAccountFilter] = useState("all");
-    const [ledgerTypeFilter, setLedgerTypeFilter] = useState("all");
-
-    // Persistence Helpers for Transactions & Bank Statements
-    const saveTransactions = useCallback((list: BankTransaction[]) => {
-        setTransactions(list);
-        if (user?.id) {
-            try {
-                localStorage.setItem(`finflow_txs_${user.id}`, JSON.stringify(list));
-            } catch {}
-        }
-    }, [user?.id]);
-
-    const saveStatement = useCallback((list: MockStatementRecord[]) => {
-        setMockStatement(list);
-        if (user?.id) {
-            try {
-                localStorage.setItem(`finflow_statements_${user.id}`, JSON.stringify(list));
-            } catch {}
-        }
-    }, [user?.id]);
-
-    // Keep transactions and statements in sync with active user
-    useEffect(() => {
-        if (user?.id) {
-            try {
-                const savedTx = localStorage.getItem(`finflow_txs_${user.id}`);
-                setTransactions(savedTx ? JSON.parse(savedTx) : []);
-                const savedStmt = localStorage.getItem(`finflow_statements_${user.id}`);
-                setMockStatement(savedStmt ? JSON.parse(savedStmt) : []);
-            } catch {
-                setTransactions([]);
-                setMockStatement([]);
-            }
-        }
-    }, [user?.id]);
-
-    // Sync default bank account with Supabase profile for cloud backup and invoice printing
-    const syncDefaultToProfile = useCallback(async (defaultAcc: BankAccount | null) => {
-        if (!user?.id) return;
-        try {
-            await (supabase as any)
-                .from("profiles")
-                .update({
-                    bank_name: defaultAcc?.bankName || null,
-                    bank_account_no: defaultAcc?.accountNumber || null,
-                    bank_ifsc: defaultAcc?.ifscCode || null,
-                    bank_branch: defaultAcc?.branchName || null
-                })
-                .eq("user_id", user.id);
-            queryClient.invalidateQueries({ queryKey: ["profile"] });
-            queryClient.invalidateQueries({ queryKey: ["profile_bank_page"] });
-        } catch (e) {
-            console.error("Failed to sync bank details to profile", e);
-        }
-    }, [user?.id, queryClient]);
-
-    // One-time purge of legacy mock storage keys
-    useEffect(() => {
-        try {
-            localStorage.removeItem("rupeebill_bank_accounts");
-            localStorage.removeItem("rupeebill_bank_transactions");
-            localStorage.removeItem("rupeebill_mock_statement");
-        } catch {}
-    }, []);
-
-    // Ledger Calculations
+    // ─── 6. COMPUTED BALANCES & METRICS ───────────────────────────────────────
     const accountBalances = useMemo(() => {
         const balances: Record<string, number> = {};
-        
         accounts.forEach(a => {
             balances[a.id] = Number(a.initialBalance) || 0;
         });
@@ -420,585 +351,671 @@ const BankDetailsPage = () => {
         let outbound = 0;
 
         transactions.forEach(t => {
-            if (isAfter(parseISO(t.date), thirtyDaysAgo)) {
-                if (t.type === "deposit") {
-                    inbound += t.amount;
-                } else {
-                    outbound += t.amount;
+            try {
+                if (isAfter(parseISO(t.date), thirtyDaysAgo)) {
+                    if (t.type === "deposit") inbound += t.amount;
+                    else outbound += t.amount;
                 }
-            }
+            } catch {}
         });
 
-        return { inbound, outbound, net: inbound - outbound };
+        return { inbound, outbound };
     }, [transactions]);
 
-    // Actions
-    const handleOpenAccountDialog = (acc?: BankAccount) => {
-        if (acc) {
-            setEditingAccount(acc);
-            setBankName(acc.bankName);
-            setAccountNumber(acc.accountNumber);
-            setIfscCode(acc.ifscCode);
-            setBranchName(acc.branchName);
-            setAccountType(acc.accountType);
-            setInitialBalance(acc.initialBalance.toString());
-            setOdLimit(acc.odLimit ? acc.odLimit.toString() : "0");
-        } else {
-            setEditingAccount(null);
-            setBankName("");
-            setAccountNumber("");
-            setIfscCode("");
-            setBranchName("");
-            setAccountType("checking");
-            setInitialBalance("0");
-            setOdLimit("0");
-        }
-        setIsAccountOpen(true);
-    };
+    const pendingCheques = useMemo(() => {
+        const pending = cheques.filter(c => c.status === "pending" || c.status === "deposited");
+        return {
+            count: pending.length,
+            amount: pending.reduce((sum, c) => sum + c.amount, 0)
+        };
+    }, [cheques]);
 
-    const handleAccountSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const unreconciledStatementLinesCount = useMemo(() => {
+        return statementLines.filter(l => l.status === "unmatched").length;
+    }, [statementLines]);
 
-        if (!bankName.trim() || !accountNumber.trim() || !ifscCode.trim() || !branchName.trim()) {
-            toast.error("Please fill in all bank details.");
-            return;
-        }
-
-        if (ifscCode.trim().length !== 11) {
-            toast.error("IFSC Code must be exactly 11 characters.");
-            return;
-        }
-
-        if (!user?.id) {
-            toast.error("Please login to manage your bank accounts.");
-            return;
-        }
-
-        const isOverdraft = accountType === "overdraft";
-        const balanceNum = Number(initialBalance) || 0;
-        const odNum = isOverdraft ? (Number(odLimit) || 0) : 0;
-
-        try {
-            if (editingAccount) {
-                const payload = {
-                    bank_name: bankName.trim(),
-                    account_number: accountNumber.trim(),
-                    ifsc_code: ifscCode.trim().toUpperCase(),
-                    branch_name: branchName.trim(),
-                    account_type: accountType,
-                    initial_balance: balanceNum,
-                    od_limit: odNum,
-                    updated_at: new Date().toISOString()
-                };
-
-                const { error } = await offlineMutate({
-                    table: "bank_accounts",
-                    action: "update",
-                    recordId: editingAccount.id,
-                    payload,
-                    userId: user.id
-                });
-
-                if (error) throw error;
-
-                if (editingAccount.isDefault) {
-                    await syncDefaultToProfile({
-                        ...editingAccount,
-                        bankName: payload.bank_name,
-                        accountNumber: payload.account_number,
-                        ifscCode: payload.ifsc_code,
-                        branchName: payload.branch_name,
-                    });
-                }
-                toast.success("Bank details updated successfully!");
-            } else {
-                const newId = crypto.randomUUID();
-                const isFirst = accounts.length === 0;
-                const newAcc: BankAccount = {
-                    id: newId,
-                    bankName: bankName.trim(),
-                    accountNumber: accountNumber.trim(),
-                    ifscCode: ifscCode.trim().toUpperCase(),
-                    branchName: branchName.trim(),
-                    accountType,
-                    isDefault: isFirst,
-                    initialBalance: balanceNum,
-                    odLimit: odNum
-                };
-
-                const payload = {
-                    id: newId,
-                    user_id: user.id,
-                    bank_name: newAcc.bankName,
-                    account_number: newAcc.accountNumber,
-                    ifsc_code: newAcc.ifscCode,
-                    branch_name: newAcc.branchName,
-                    account_type: newAcc.accountType,
-                    is_default: isFirst,
-                    initial_balance: balanceNum,
-                    od_limit: odNum,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                };
-
-                const { error } = await offlineMutate({
-                    table: "bank_accounts",
-                    action: "insert",
-                    recordId: newId,
-                    payload,
-                    userId: user.id
-                });
-
-                if (error) throw error;
-
-                if (isFirst) {
-                    await syncDefaultToProfile(newAcc);
-                }
-                toast.success("New bank account created!");
-            }
-
-            await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
-            setIsAccountOpen(false);
-        } catch (err: any) {
-            console.error("Failed to save bank account:", err);
-            toast.error(err?.message || "Failed to save bank account.");
-        }
-    };
-
-    const handleDeleteAccount = async (id: string) => {
+    // ─── 7. ACTIONS: BANK ACCOUNTS ────────────────────────────────────────────
+    const handleSaveAccount = async (accountData: Partial<BankAccount>) => {
         if (!user?.id) return;
-        const target = accounts.find(a => a.id === id);
-        if (!target) return;
+
+        if (editingAccount) {
+            // Update
+            const { error } = await (supabase as any)
+                .from("bank_accounts")
+                .update({
+                    bank_name: accountData.bankName,
+                    account_number: accountData.accountNumber,
+                    ifsc_code: accountData.ifscCode,
+                    branch_name: accountData.branchName,
+                    account_type: accountData.accountType,
+                    initial_balance: accountData.initialBalance,
+                    od_limit: accountData.odLimit,
+                    upi_id: accountData.upiId || null,
+                    is_default: Boolean(accountData.isDefault),
+                    updated_at: new Date().toISOString()
+                })
+                .eq("id", editingAccount.id)
+                .eq("user_id", user.id);
+
+            if (error) throw error;
+            toast.success("Bank account updated successfully!");
+        } else {
+            // Insert
+            const isFirst = accounts.length === 0;
+            const newAccRow = {
+                user_id: user.id,
+                bank_name: accountData.bankName,
+                account_number: accountData.accountNumber,
+                ifsc_code: accountData.ifscCode,
+                branch_name: accountData.branchName,
+                account_type: accountData.accountType,
+                initial_balance: accountData.initialBalance || 0,
+                od_limit: accountData.odLimit || 0,
+                upi_id: accountData.upiId || null,
+                is_default: isFirst ? true : Boolean(accountData.isDefault)
+            };
+
+            const { error } = await (supabase as any)
+                .from("bank_accounts")
+                .insert(newAccRow);
+
+            if (error) throw error;
+            toast.success("New bank book created successfully!");
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
+    };
+
+    const handleDeleteAccount = async (accountId: string) => {
+        if (!user?.id) return;
+        const confirmDelete = window.confirm(
+            "Are you sure you want to remove this bank account? All linked ledger transactions will also be archived."
+        );
+        if (!confirmDelete) return;
 
         try {
-            const { error } = await offlineMutate({
-                table: "bank_accounts",
-                action: "delete",
-                recordId: id,
-                userId: user.id
-            });
+            const { error } = await (supabase as any)
+                .from("bank_accounts")
+                .delete()
+                .eq("id", accountId)
+                .eq("user_id", user.id);
+
+            if (error) throw error;
+            toast.success("Bank account removed.");
+            await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
+            await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+        } catch (err: any) {
+            console.error("Delete account error:", err);
+            toast.error(err.message || "Failed to remove account.");
+        }
+    };
+
+    const handleSetDefault = async (accountId: string) => {
+        if (!user?.id) return;
+        try {
+            // Unset all defaults
+            await (supabase as any)
+                .from("bank_accounts")
+                .update({ is_default: false })
+                .eq("user_id", user.id);
+
+            // Set chosen default
+            const { error } = await (supabase as any)
+                .from("bank_accounts")
+                .update({ is_default: true })
+                .eq("id", accountId)
+                .eq("user_id", user.id);
 
             if (error) throw error;
 
-            const remaining = accounts.filter(a => a.id !== id);
-
-            if (target.isDefault && remaining.length > 0) {
-                const nextDefault = remaining[0];
-                await offlineMutate({
-                    table: "bank_accounts",
-                    action: "update",
-                    recordId: nextDefault.id,
-                    payload: { is_default: true, updated_at: new Date().toISOString() },
-                    userId: user.id
-                });
-                await syncDefaultToProfile(nextDefault);
-            } else if (remaining.length === 0) {
-                await syncDefaultToProfile(null);
+            // Sync to profile for invoices
+            const target = accounts.find(a => a.id === accountId);
+            if (target) {
+                await (supabase as any)
+                    .from("profiles")
+                    .update({
+                        bank_name: target.bankName,
+                        bank_account_no: target.accountNumber,
+                        bank_ifsc: target.ifscCode,
+                        bank_branch: target.branchName
+                    })
+                    .eq("user_id", user.id);
             }
 
-            // Clean up any transactions linked to this removed account in local state
-            const updatedTxs = transactions.filter(t => t.accountId !== id);
-            if (updatedTxs.length !== transactions.length) {
-                saveTransactions(updatedTxs);
-            }
-
+            toast.success("Default bank account updated for printed invoices!");
             await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
-            toast.success("Bank account removed successfully.");
+            await queryClient.invalidateQueries({ queryKey: ["profile"] });
+            await queryClient.invalidateQueries({ queryKey: ["profile_bank_page"] });
         } catch (err: any) {
-            console.error("Failed to delete bank account:", err);
-            toast.error(err?.message || "Failed to delete bank account.");
+            toast.error(err.message || "Failed to set default bank account.");
         }
     };
 
-    const handleSetDefault = async (id: string) => {
+    // ─── 8. ACTIONS: TRANSACTIONS & CONTRA ─────────────────────────────────────
+    const handleRecordTransaction = async (txData: Partial<BankTransaction>) => {
         if (!user?.id) return;
-        const selected = accounts.find(a => a.id === id);
-        if (!selected) return;
+
+        const newRow = {
+            user_id: user.id,
+            account_id: txData.accountId,
+            date: txData.date || format(new Date(), "yyyy-MM-dd"),
+            type: txData.type,
+            amount: txData.amount,
+            category: txData.category,
+            payment_mode: txData.paymentMode || "NEFT",
+            reference_no: txData.referenceNo,
+            party_name: txData.partyName || null,
+            description: txData.description,
+            is_reconciled: Boolean(txData.isReconciled)
+        };
+
+        const { error } = await (supabase as any)
+            .from("bank_transactions")
+            .insert(newRow);
+
+        if (error) throw error;
+        toast.success(`Ledger posted: ${txData.type === "deposit" ? "+" : "-"}₹${txData.amount?.toLocaleString()}`);
+        await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+    };
+
+    const handleContraTransfer = async (transferData: {
+        fromAccountId: string;
+        toAccountId: string;
+        amount: number;
+        date: string;
+        referenceNo: string;
+        description: string;
+    }) => {
+        if (!user?.id) return;
+
+        const sourceAcc = accounts.find(a => a.id === transferData.fromAccountId);
+        const destAcc = accounts.find(a => a.id === transferData.toAccountId);
+
+        const debitId = crypto.randomUUID();
+        const creditId = crypto.randomUUID();
+
+        const debitRow = {
+            id: debitId,
+            user_id: user.id,
+            account_id: transferData.fromAccountId,
+            date: transferData.date,
+            type: "withdrawal",
+            amount: transferData.amount,
+            category: "Transfer",
+            payment_mode: "Net Banking",
+            reference_no: transferData.referenceNo,
+            description: transferData.description || `Contra transfer to ${destAcc?.bankName}`,
+            transfer_to_account_id: transferData.toAccountId,
+            linked_contra_tx_id: creditId,
+            is_reconciled: false
+        };
+
+        const creditRow = {
+            id: creditId,
+            user_id: user.id,
+            account_id: transferData.toAccountId,
+            date: transferData.date,
+            type: "deposit",
+            amount: transferData.amount,
+            category: "Transfer",
+            payment_mode: "Net Banking",
+            reference_no: transferData.referenceNo,
+            description: transferData.description || `Contra transfer from ${sourceAcc?.bankName}`,
+            transfer_to_account_id: transferData.fromAccountId,
+            linked_contra_tx_id: debitId,
+            is_reconciled: false
+        };
+
+        const { error } = await (supabase as any)
+            .from("bank_transactions")
+            .insert([debitRow, creditRow]);
+
+        if (error) throw error;
+        toast.success(`Contra posted: ₹${transferData.amount.toLocaleString()} transferred.`);
+        await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+    };
+
+    const handleDeleteTransaction = async (txId: string) => {
+        if (!user?.id) return;
+        const confirmDelete = window.confirm("Are you sure you want to delete this ledger transaction?");
+        if (!confirmDelete) return;
 
         try {
-            for (const acc of accounts) {
-                if (acc.id !== id && acc.isDefault) {
-                    await offlineMutate({
-                        table: "bank_accounts",
-                        action: "update",
-                        recordId: acc.id,
-                        payload: { is_default: false, updated_at: new Date().toISOString() },
-                        userId: user.id
-                    });
-                }
-            }
+            const { error } = await (supabase as any)
+                .from("bank_transactions")
+                .delete()
+                .eq("id", txId)
+                .eq("user_id", user.id);
 
-            await offlineMutate({
-                table: "bank_accounts",
-                action: "update",
-                recordId: id,
-                payload: { is_default: true, updated_at: new Date().toISOString() },
-                userId: user.id
-            });
-
-            await syncDefaultToProfile(selected);
-            await queryClient.invalidateQueries({ queryKey: ["bank_accounts", user.id] });
-            toast.success("Default invoice bank account updated!");
+            if (error) throw error;
+            toast.success("Transaction removed from ledger.");
+            await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
         } catch (err: any) {
-            console.error("Failed to update default bank account:", err);
-            toast.error(err?.message || "Failed to update default account.");
+            toast.error(err.message || "Failed to delete transaction.");
         }
     };
 
-    const handleOpenTxDialog = (type: TransactionType, accountId?: string) => {
-        setTxAccountId(accountId || (accounts[0]?.id || ""));
-        setTxType(type);
-        setTxAmount("");
-        setTxDate(format(new Date(), "yyyy-MM-dd"));
-        setTxCategory(type === "deposit" ? "Sales" : "Vendor Payment");
-        setTxRef("UTR" + Math.floor(1000000000 + Math.random() * 9000000000).toString());
-        setTxDesc("");
-        setIsTxOpen(true);
+    const handleToggleReconciliation = async (txId: string, isReconciled: boolean) => {
+        if (!user?.id) return;
+        try {
+            const { error } = await (supabase as any)
+                .from("bank_transactions")
+                .update({
+                    is_reconciled: isReconciled,
+                    reconciled_at: isReconciled ? new Date().toISOString() : null
+                })
+                .eq("id", txId)
+                .eq("user_id", user.id);
+
+            if (error) throw error;
+            toast.success(isReconciled ? "Marked as Reconciled." : "Reconciliation reset.");
+            await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+        } catch (err: any) {
+            toast.error(err.message || "Failed to update reconciliation state.");
+        }
     };
 
-    const handleTxSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    // ─── 9. ACTIONS: STATEMENT IMPORT & AUTO-MATCH ────────────────────────────
+    const handleImportStatement = async (accountId: string, parsed: ParsedStatementResult) => {
+        if (!user?.id) return;
 
-        if (!txAccountId || !txAmount || Number(txAmount) <= 0) {
-            toast.error("Please enter a valid amount.");
-            return;
-        }
-
-        const targetAcc = accounts.find(a => a.id === txAccountId);
-        if (!targetAcc) return;
-
-        if (txType === "withdrawal") {
-            const currentBal = accountBalances[txAccountId] || 0;
-            const remainingOD = targetAcc.accountType === "overdraft" 
-                ? (targetAcc.odLimit || 0) + currentBal 
-                : currentBal;
-
-            if (Number(txAmount) > remainingOD) {
-                toast.error(`Transaction exceeds available funds/overdraft limit! Max draw: ₹${remainingOD.toLocaleString()}`);
-                return;
-            }
-        }
-
-        const newTx: BankTransaction = {
-            id: crypto.randomUUID(),
-            accountId: txAccountId,
-            date: txDate,
-            type: txType,
-            amount: Number(txAmount),
-            category: txCategory,
-            referenceId: txRef || ("REF" + Date.now()),
-            description: txDesc || `${txType === "deposit" ? "Deposit" : "Withdrawal"} - ${txCategory}`,
-            isReconciled: false
+        // 1. Insert import batch header
+        const importId = crypto.randomUUID();
+        const importRow = {
+            id: importId,
+            user_id: user.id,
+            account_id: accountId,
+            filename: parsed.filename,
+            total_lines: parsed.lines.length,
+            opening_balance: parsed.openingBalance || null,
+            closing_balance: parsed.closingBalance || null,
+            start_date: parsed.startDate || null,
+            end_date: parsed.endDate || null
         };
 
-        saveTransactions([newTx, ...transactions]);
-        setIsTxOpen(false);
-        toast.success(`Ledger posted: ${txType === "deposit" ? "+" : "-"}₹${newTx.amount.toLocaleString()}`);
-    };
+        const { error: importErr } = await (supabase as any)
+            .from("bank_statement_imports")
+            .insert(importRow);
 
-    const handleOpenTransferDialog = () => {
-        if (accounts.length < 2) {
-            toast.error("At least two bank books are required to initiate an internal transfer.");
-            return;
-        }
-        setFromAccountId(accounts[0]?.id || "");
-        setToAccountId(accounts[1]?.id || "");
-        setTransferAmount("");
-        setTransferDate(format(new Date(), "yyyy-MM-dd"));
-        setTransferRef("TXN" + Math.floor(1000000000 + Math.random() * 9000000000).toString());
-        setTransferDesc("Contra fund transfer");
-        setIsTransferOpen(true);
-    };
+        if (importErr) throw importErr;
 
-    const handleTransferSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (fromAccountId === toAccountId) {
-            toast.error("Source and destination accounts must be different.");
-            return;
-        }
-
-        const amt = Number(transferAmount);
-        if (!amt || amt <= 0) {
-            toast.error("Please enter a valid transfer amount.");
-            return;
-        }
-
-        const sourceAcc = accounts.find(a => a.id === fromAccountId);
-        const destAcc = accounts.find(a => a.id === toAccountId);
-        if (!sourceAcc || !destAcc) return;
-
-        const currentBal = accountBalances[fromAccountId] || 0;
-        const maxLimit = sourceAcc.accountType === "overdraft" 
-            ? (sourceAcc.odLimit || 0) + currentBal 
-            : currentBal;
-
-        if (amt > maxLimit) {
-            toast.error(`Transfer exceeds available funds. Max limit: ₹${maxLimit.toLocaleString()}`);
-            return;
-        }
-
-        const commonRef = transferRef || ("TXN" + Date.now());
-
-        const debitTx: BankTransaction = {
+        // 2. Insert statement lines
+        const linesRows = parsed.lines.map(l => ({
             id: crypto.randomUUID(),
-            accountId: fromAccountId,
-            date: transferDate,
-            type: "withdrawal",
-            amount: amt,
-            category: "Transfer",
-            referenceId: commonRef,
-            description: transferDesc || `Transfer to ${destAcc.bankName}`,
-            isReconciled: false,
-            transferToAccountId: toAccountId
+            import_id: importId,
+            user_id: user.id,
+            account_id: accountId,
+            date: l.date,
+            narration: l.narration,
+            reference_no: l.referenceNo || null,
+            withdrawal: l.withdrawal,
+            deposit: l.deposit,
+            balance: l.balance !== undefined ? l.balance : null,
+            status: "unmatched"
+        }));
+
+        const { error: linesErr } = await (supabase as any)
+            .from("bank_statement_lines")
+            .insert(linesRows);
+
+        if (linesErr) throw linesErr;
+
+        await queryClient.invalidateQueries({ queryKey: ["bank_statement_lines", user.id] });
+        setActiveTab("reconcile");
+    };
+
+    const handleApplyAutoMatches = async (matches: { txId: string; stmtLineId: string }[]) => {
+        if (!user?.id) return;
+        const now = new Date().toISOString();
+
+        for (const m of matches) {
+            // Update transaction
+            await (supabase as any)
+                .from("bank_transactions")
+                .update({
+                    is_reconciled: true,
+                    reconciled_at: now,
+                    matched_statement_line_id: m.stmtLineId
+                })
+                .eq("id", m.txId)
+                .eq("user_id", user.id);
+
+            // Update statement line
+            await (supabase as any)
+                .from("bank_statement_lines")
+                .update({
+                    status: "matched",
+                    matched_tx_id: m.txId,
+                    matched_at: now
+                })
+                .eq("id", m.stmtLineId)
+                .eq("user_id", user.id);
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+        await queryClient.invalidateQueries({ queryKey: ["bank_statement_lines", user.id] });
+    };
+
+    const handleCreateTxFromStatementLine = async (line: BankStatementLine, category: string) => {
+        if (!user?.id) return;
+
+        const isDeposit = line.deposit > 0;
+        const amount = isDeposit ? line.deposit : line.withdrawal;
+        const newTxId = crypto.randomUUID();
+        const now = new Date().toISOString();
+
+        // 1. Insert into general ledger
+        const txRow = {
+            id: newTxId,
+            user_id: user.id,
+            account_id: line.accountId,
+            date: line.date,
+            type: isDeposit ? "deposit" : "withdrawal",
+            amount,
+            category,
+            payment_mode: "Bank Feed",
+            reference_no: line.referenceNo || `STMT-${Date.now()}`,
+            description: line.narration,
+            is_reconciled: true,
+            reconciled_at: now,
+            matched_statement_line_id: line.id
         };
 
-        const creditTx: BankTransaction = {
-            id: crypto.randomUUID(),
-            accountId: toAccountId,
-            date: transferDate,
-            type: "deposit",
-            amount: amt,
-            category: "Transfer",
-            referenceId: commonRef,
-            description: transferDesc || `Transfer from ${sourceAcc.bankName}`,
-            isReconciled: false
+        const { error: txErr } = await (supabase as any)
+            .from("bank_transactions")
+            .insert(txRow);
+
+        if (txErr) throw txErr;
+
+        // 2. Mark statement line as created_in_ledger
+        const { error: lineErr } = await (supabase as any)
+            .from("bank_statement_lines")
+            .update({
+                status: "created_in_ledger",
+                matched_tx_id: newTxId,
+                matched_at: now
+            })
+            .eq("id", line.id)
+            .eq("user_id", user.id);
+
+        if (lineErr) throw lineErr;
+
+        await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+        await queryClient.invalidateQueries({ queryKey: ["bank_statement_lines", user.id] });
+    };
+
+    const handleGenerateSampleFeed = async () => {
+        if (!user?.id || accounts.length === 0) {
+            toast.error("Please add at least one bank account first.");
+            return;
+        }
+
+        const targetAcc = (reconcileSelectedAccountId && reconcileSelectedAccountId !== "all")
+            ? accounts.find(a => a.id === reconcileSelectedAccountId) || accounts[0]
+            : accounts[0];
+
+        const importId = crypto.randomUUID();
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+
+        const importRow = {
+            id: importId,
+            user_id: user.id,
+            account_id: targetAcc.id,
+            filename: `Sample_${targetAcc.bankName}_Statement.csv`,
+            total_lines: 3,
+            opening_balance: targetAcc.initialBalance,
+            closing_balance: targetAcc.initialBalance + 5000,
+            start_date: todayStr,
+            end_date: todayStr
         };
 
-        saveTransactions([debitTx, creditTx, ...transactions]);
-        setIsTransferOpen(false);
-        toast.success(`Contra posted: ₹${amt.toLocaleString()} moved.`);
-    };
+        const { error: impErr } = await (supabase as any).from("bank_statement_imports").insert(importRow);
+        if (impErr) {
+            console.error("Failed to insert sample import header:", impErr);
+        }
 
-    const handleDeleteTransaction = (id: string) => {
-        const updated = transactions.filter(t => t.id !== id);
-        saveTransactions(updated);
-        toast.success("Transaction removed from ledger.");
-    };
+        const unreconciledTxs = transactions.filter(t => t.accountId === targetAcc.id && !t.isReconciled);
+        const sampleLines: any[] = [];
 
-    const handleReconcileToggle = (txId: string) => {
-        const updated = transactions.map(t => {
-            if (t.id === txId) {
-                const newState = !t.isReconciled;
-                return {
-                    ...t,
-                    isReconciled: newState,
-                    reconciledAt: newState ? format(new Date(), "yyyy-MM-dd") : undefined
-                };
-            }
-            return t;
-        });
-
-        const tx = transactions.find(t => t.id === txId);
-        if (tx) {
-            const isReconciling = !tx.isReconciled;
-            const updatedStatement = mockStatement.map(st => {
-                if (st.referenceId === tx.referenceId) {
-                    return { ...st, matchedTransactionId: isReconciling ? tx.id : undefined };
-                }
-                return st;
+        if (unreconciledTxs.length > 0) {
+            unreconciledTxs.slice(0, 3).forEach(tx => {
+                sampleLines.push({
+                    id: crypto.randomUUID(),
+                    import_id: importId,
+                    user_id: user.id,
+                    account_id: targetAcc.id,
+                    date: tx.date,
+                    narration: `${targetAcc.bankName.toUpperCase()} CLEARING REF ${tx.referenceNo} - ${tx.description.toUpperCase()}`,
+                    reference_no: tx.referenceNo,
+                    withdrawal: tx.type === "withdrawal" ? tx.amount : 0,
+                    deposit: tx.type === "deposit" ? tx.amount : 0,
+                    balance: targetAcc.initialBalance,
+                    status: "unmatched"
+                });
             });
-            saveStatement(updatedStatement);
-        }
-
-        saveTransactions(updated);
-        toast.success(tx?.isReconciled ? "Transaction un-reconciled." : "Transaction reconciled with bank statement!");
-    };
-
-    const handleAutoMatchReconciliation = () => {
-        let matchCount = 0;
-        const tempStatement = [...mockStatement];
-        
-        const updatedTxs = transactions.map(t => {
-            if (t.isReconciled) return t;
-
-            const matchIndex = tempStatement.findIndex(st => 
-                st.referenceId === t.referenceId && 
-                Math.abs(st.amount) === t.amount &&
-                !st.matchedTransactionId
-            );
-
-            if (matchIndex !== -1) {
-                matchCount++;
-                tempStatement[matchIndex].matchedTransactionId = t.id;
-                return {
-                    ...t,
-                    isReconciled: true,
-                    reconciledAt: tempStatement[matchIndex].date
-                };
-            }
-            return t;
-        });
-
-        if (matchCount > 0) {
-            saveTransactions(updatedTxs);
-            saveStatement(tempStatement);
-            toast.success(`Automated match completed! Reconciled ${matchCount} transactions with bank feeds.`);
         } else {
-            toast.info("No matching reference numbers or amounts found in bank feeds.");
-        }
-    };
+            const sampleRef1 = "UTR" + Math.floor(1000000000 + Math.random() * 9000000000);
+            const sampleRef2 = "INT" + Math.floor(100000 + Math.random() * 900000);
+            const sampleRef3 = "CHG" + Math.floor(100000 + Math.random() * 900000);
 
-    const handleGenerateBankStatement = () => {
-        const today = new Date();
-        const unreconciled = transactions.filter(t => !t.isReconciled);
-        
-        if (unreconciled.length === 0) {
-            const genericFeeds: MockStatementRecord[] = [
+            sampleLines.push(
                 {
-                    id: "gen-" + Math.random(),
-                    date: format(today, "yyyy-MM-dd"),
-                    description: "BANK INTEREST REBATE CR",
-                    amount: 550,
-                    referenceId: "MOCKINT" + Math.floor(Math.random() * 1000)
+                    id: crypto.randomUUID(),
+                    import_id: importId,
+                    user_id: user.id,
+                    account_id: targetAcc.id,
+                    date: todayStr,
+                    narration: `UPI/INWARD/CLIENTPAY/${sampleRef1}`,
+                    reference_no: sampleRef1,
+                    withdrawal: 0,
+                    deposit: 15000,
+                    balance: targetAcc.initialBalance + 15000,
+                    status: "unmatched"
                 },
                 {
-                    id: "gen-" + Math.random(),
-                    date: format(today, "yyyy-MM-dd"),
-                    description: "UPI INWARD CREDIT MOCKPAY",
-                    amount: 15000,
-                    referenceId: "UTR" + Math.floor(Math.random() * 9000000000)
+                    id: crypto.randomUUID(),
+                    import_id: importId,
+                    user_id: user.id,
+                    account_id: targetAcc.id,
+                    date: todayStr,
+                    narration: "QUARTERLY SAVINGS BANK INTEREST CR",
+                    reference_no: sampleRef2,
+                    withdrawal: 0,
+                    deposit: 450,
+                    balance: targetAcc.initialBalance + 15450,
+                    status: "unmatched"
+                },
+                {
+                    id: crypto.randomUUID(),
+                    import_id: importId,
+                    user_id: user.id,
+                    account_id: targetAcc.id,
+                    date: todayStr,
+                    narration: "SMS CHARGES & CONSOLIDATED AUDIT FEE DR",
+                    reference_no: sampleRef3,
+                    withdrawal: 17.70,
+                    deposit: 0,
+                    balance: targetAcc.initialBalance + 15432.30,
+                    status: "unmatched"
                 }
-            ];
-            saveStatement([...genericFeeds, ...mockStatement]);
-            toast.success("Simulated bank statement feed populated with new activities.");
-            return;
+            );
         }
 
-        const newFeeds = unreconciled.map(t => {
-            const acc = accounts.find(a => a.id === t.accountId);
-            const prefix = acc ? acc.bankName.toUpperCase() : "BANK FEED";
-            return {
-                id: "st-feed-" + crypto.randomUUID(),
-                date: t.date,
-                description: `${prefix} ${t.type === "deposit" ? "CR" : "DR"} ${t.description.toUpperCase()} REF ${t.referenceId}`,
-                amount: t.type === "deposit" ? t.amount : -t.amount,
-                referenceId: t.referenceId
-            };
-        });
-        saveStatement([...newFeeds, ...mockStatement]);
-        toast.success(`Generated ${newFeeds.length} new statement line feeds corresponding to your ledger.`);
+        const { error: lineErr } = await (supabase as any).from("bank_statement_lines").insert(sampleLines);
+        if (lineErr) throw lineErr;
+
+        toast.success(`Generated ${sampleLines.length} test statement feeds for ${targetAcc.bankName}!`);
+        await queryClient.invalidateQueries({ queryKey: ["bank_statement_lines", user.id] });
     };
 
-    const handleClearStatementFeeds = () => {
-        const resetTxs = transactions.map(t => ({ ...t, isReconciled: false, reconciledAt: undefined }));
-        saveTransactions(resetTxs);
-        saveStatement([]);
-        toast.success("Bank statement feed cleared. Ledger reconciliation reset.");
-    };
+    const handleClearStatementFeeds = async () => {
+        if (!user?.id) return;
+        const confirmClear = window.confirm("Are you sure you want to clear all statement feeds from workspace?");
+        if (!confirmClear) return;
 
-    const filteredTransactions = useMemo(() => {
-        return transactions.filter(t => {
-            const matchesSearch = 
-                t.description.toLowerCase().includes(ledgerSearch.toLowerCase()) || 
-                t.referenceId.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
-                t.category.toLowerCase().includes(ledgerSearch.toLowerCase());
-            
-            const matchesAccount = ledgerAccountFilter === "all" || t.accountId === ledgerAccountFilter;
-            const matchesType = ledgerTypeFilter === "all" || t.type === ledgerTypeFilter;
-
-            return matchesSearch && matchesAccount && matchesType;
-        });
-    }, [transactions, ledgerSearch, ledgerAccountFilter, ledgerTypeFilter]);
-
-    const handleExportCSV = () => {
-        if (filteredTransactions.length === 0) {
-            toast.error("No transactions to export.");
-            return;
+        try {
+            await (supabase as any).from("bank_statement_lines").delete().eq("user_id", user.id);
+            await (supabase as any).from("bank_statement_imports").delete().eq("user_id", user.id);
+            toast.success("Statement feeds cleared.");
+            await queryClient.invalidateQueries({ queryKey: ["bank_statement_lines", user.id] });
+        } catch (err: any) {
+            toast.error(err.message || "Failed to clear statement feeds.");
         }
-
-        const headers = ["Date", "Bank Account", "Type", "Category", "Amount (INR)", "Reference/UTR", "Description", "Reconciled"];
-        const rows = filteredTransactions.map(t => {
-            const acc = accounts.find(a => a.id === t.accountId);
-            return [
-                t.date,
-                acc ? `${acc.bankName} (${acc.accountNumber.slice(-4)})` : "Unknown",
-                t.type.toUpperCase(),
-                t.category,
-                t.amount,
-                t.referenceId,
-                t.description,
-                t.isReconciled ? "YES" : "NO"
-            ];
-        });
-
-        const csvContent = "data:text/csv;charset=utf-8," 
-            + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
-        
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `General_Ledger_${format(new Date(), "yyyy-MM-dd")}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success("Bank Ledger exported successfully to CSV!");
     };
 
-    const chartData = useMemo(() => {
-        const data: Record<string, { date: string; Inbound: number; Outbound: number }> = {};
-        const today = new Date();
+    // ─── 10. ACTIONS: CHEQUES & PDCs ──────────────────────────────────────────
+    const handleCreateCheque = async (chequeData: Partial<ChequeRecord>) => {
+        if (!user?.id) return;
 
-        for (let i = 29; i >= 0; i--) {
-            const dateStr = format(subDays(today, i), "yyyy-MM-dd");
-            const dayLabel = format(subDays(today, i), "dd MMM");
-            data[dateStr] = { date: dayLabel, Inbound: 0, Outbound: 0 };
-        }
+        const newRow = {
+            user_id: user.id,
+            account_id: chequeData.accountId,
+            cheque_type: chequeData.chequeType,
+            cheque_number: chequeData.chequeNumber,
+            party_name: chequeData.partyName,
+            amount: chequeData.amount,
+            issue_date: chequeData.issueDate,
+            due_date: chequeData.dueDate,
+            bank_name: chequeData.bankName || null,
+            status: "pending",
+            notes: chequeData.notes || null
+        };
 
-        transactions.forEach(t => {
-            if (data[t.date]) {
-                if (t.type === "deposit") {
-                    data[t.date].Inbound += t.amount;
-                } else {
-                    data[t.date].Outbound += t.amount;
-                }
-            }
-        });
+        const { error } = await (supabase as any)
+            .from("cheque_records")
+            .insert(newRow);
 
-        return Object.values(data);
-    }, [transactions]);
+        if (error) throw error;
+        await queryClient.invalidateQueries({ queryKey: ["cheque_records", user.id] });
+    };
+
+    const handleUpdateChequeStatus = async (
+        chequeId: string, 
+        status: ChequeRecord["status"], 
+        bounceReason?: string
+    ) => {
+        if (!user?.id) return;
+
+        const { error } = await (supabase as any)
+            .from("cheque_records")
+            .update({
+                status,
+                bounce_reason: bounceReason || null,
+                clearance_date: status === "cleared" ? format(new Date(), "yyyy-MM-dd") : null,
+                updated_at: new Date().toISOString()
+            })
+            .eq("id", chequeId)
+            .eq("user_id", user.id);
+
+        if (error) throw error;
+        await queryClient.invalidateQueries({ queryKey: ["cheque_records", user.id] });
+    };
+
+    const handleClearCheque = async (cheque: ChequeRecord) => {
+        if (!user?.id) return;
+
+        const isReceived = cheque.chequeType === "received";
+        const txId = crypto.randomUUID();
+        const clearanceDate = format(new Date(), "yyyy-MM-dd");
+
+        // 1. Post to bank general ledger
+        const txRow = {
+            id: txId,
+            user_id: user.id,
+            account_id: cheque.accountId,
+            date: clearanceDate,
+            type: isReceived ? "deposit" : "withdrawal",
+            amount: cheque.amount,
+            category: isReceived ? "Customer Payment" : "Vendor Payment",
+            payment_mode: "Cheque",
+            reference_no: `CHQ-${cheque.chequeNumber}`,
+            party_name: cheque.partyName,
+            description: `Cheque #${cheque.chequeNumber} cleared (${cheque.partyName})`,
+            is_reconciled: false,
+            linked_cheque_id: cheque.id
+        };
+
+        const { error: txErr } = await (supabase as any)
+            .from("bank_transactions")
+            .insert(txRow);
+
+        if (txErr) throw txErr;
+
+        // 2. Mark cheque as cleared
+        const { error: chqErr } = await (supabase as any)
+            .from("cheque_records")
+            .update({
+                status: "cleared",
+                clearance_date: clearanceDate,
+                linked_transaction_id: txId,
+                updated_at: new Date().toISOString()
+            })
+            .eq("id", cheque.id)
+            .eq("user_id", user.id);
+
+        if (chqErr) throw chqErr;
+
+        toast.success(`Cheque #${cheque.chequeNumber} cleared and posted to bank ledger!`);
+        await queryClient.invalidateQueries({ queryKey: ["cheque_records", user.id] });
+        await queryClient.invalidateQueries({ queryKey: ["bank_transactions", user.id] });
+    };
 
     return (
         <AppLayout>
-            <div className="container mx-auto p-4 sm:p-6 max-w-6xl space-y-6 animate-fade-in pb-12">
+            <div className="container mx-auto p-4 sm:p-6 max-w-7xl space-y-6 animate-fade-in pb-16">
                 
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-5">
                     <div>
-                        <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
+                        <h1 className="text-2xl font-bold flex items-center gap-2.5 text-foreground tracking-tight">
                             <Landmark className="w-6 h-6 text-primary" />
-                            Business Banking Hub
+                            Business Banking & Treasury Hub
                         </h1>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Accounting general ledger, multi-book registers, real-life bank reconciliation workstation, and liquidity metrics.
+                            Double-entry general ledger, multi-bank passbooks, CTS-2010 cheque clearance, and real statement reconciliation.
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+
+                    <div className="flex flex-wrap items-center gap-2">
                         <Button 
-                            onClick={handleOpenTransferDialog} 
+                            onClick={() => setIsContraModalOpen(true)} 
                             variant="outline"
                             className="rounded-xl text-xs font-bold gap-1.5 h-9"
                         >
-                            <ArrowLeftRight className="w-3.5 h-3.5" />
-                            Internal Transfer
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-primary" />
+                            Contra Transfer (F4)
                         </Button>
+
                         <Button 
-                            onClick={() => handleOpenTxDialog("deposit")} 
-                            className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-600/95 text-white"
+                            onClick={() => {
+                                setTxModalType("deposit");
+                                setTxModalAccountId(undefined);
+                                setIsTxModalOpen(true);
+                            }} 
+                            className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                             <ArrowDownLeft className="w-3.5 h-3.5" />
                             Receive (Credit)
                         </Button>
+
                         <Button 
-                            onClick={() => handleOpenTxDialog("withdrawal")} 
-                            className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-rose-600 hover:bg-rose-600/95 text-white"
+                            onClick={() => {
+                                setTxModalType("withdrawal");
+                                setTxModalAccountId(undefined);
+                                setIsTxModalOpen(true);
+                            }} 
+                            className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-rose-600 hover:bg-rose-700 text-white"
                         >
                             <ArrowUpRight className="w-3.5 h-3.5" />
                             Pay (Debit)
                         </Button>
+
                         <Button 
-                            onClick={() => handleOpenAccountDialog()} 
-                            className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-primary hover:bg-primary/95 text-white"
+                            onClick={() => {
+                                setEditingAccount(null);
+                                setIsAccountModalOpen(true);
+                            }} 
+                            className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-primary hover:bg-primary/90 text-white"
                         >
                             <Plus className="w-3.5 h-3.5" />
                             Add Account
@@ -1006,81 +1023,42 @@ const BankDetailsPage = () => {
                     </div>
                 </div>
 
-                {/* KPI Metrics Dashboard Card */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    
-                    {/* Liquid Assets Card */}
-                    <div className="bg-card border border-border/80 p-5 rounded-2xl flex items-center gap-4 relative overflow-hidden shadow-sm hover:shadow-md transition-all">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                            <Landmark className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Liquid Assets</span>
-                            <span className="text-lg font-bold text-foreground">
-                                ₹{totalLiquidAssets.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Monthly Inflow */}
-                    <div className="bg-card border border-border/80 p-5 rounded-2xl flex items-center gap-4 relative overflow-hidden shadow-sm hover:shadow-md transition-all">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                            <TrendingUp className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">30D Inflow (Credits)</span>
-                            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                                +₹{stats30Days.inbound.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Monthly Outflow */}
-                    <div className="bg-card border border-border/80 p-5 rounded-2xl flex items-center gap-4 relative overflow-hidden shadow-sm hover:shadow-md transition-all">
-                        <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
-                            <TrendingDown className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">30D Outflow (Debits)</span>
-                            <span className="text-lg font-bold text-rose-600 dark:text-rose-400">
-                                -₹{stats30Days.outbound.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Net Cash Flow */}
-                    <div className="bg-card border border-border/80 p-5 rounded-2xl flex items-center gap-4 relative overflow-hidden shadow-sm hover:shadow-md transition-all">
-                        <div className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center",
-                            stats30Days.net >= 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"
-                        )}>
-                            {stats30Days.net >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                        </div>
-                        <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Net Cash Flow (30D)</span>
-                            <span className={cn(
-                                "text-lg font-bold",
-                                stats30Days.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                            )}>
-                                {stats30Days.net >= 0 ? "+" : ""}₹{stats30Days.net.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                {/* Top KPI Header */}
+                <BankKPIHeader
+                    totalLiquidAssets={totalLiquidAssets}
+                    inflow30Days={stats30Days.inbound}
+                    outflow30Days={stats30Days.outbound}
+                    pendingChequesCount={pendingCheques.count}
+                    pendingChequesAmount={pendingCheques.amount}
+                    unreconciledCount={unreconciledStatementLinesCount}
+                    onGoToReconciliation={() => setActiveTab("reconcile")}
+                    onGoToCheques={() => setActiveTab("cheques")}
+                />
 
                 {/* Main Content Workspace Tabs */}
-                <Tabs defaultValue="accounts" className="w-full space-y-4">
-                    <TabsList className="bg-muted p-1 rounded-xl w-full max-w-md grid grid-cols-4">
-                        <TabsTrigger value="accounts" className="rounded-lg text-xs py-1.5">Accounts</TabsTrigger>
-                        <TabsTrigger value="ledger" className="rounded-lg text-xs py-1.5">Ledger</TabsTrigger>
-                        <TabsTrigger value="reconcile" className="rounded-lg text-xs py-1.5">Reconcile</TabsTrigger>
-                        <TabsTrigger value="analytics" className="rounded-lg text-xs py-1.5">Analytics</TabsTrigger>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
+                    <TabsList className="bg-muted p-1 rounded-xl w-full max-w-2xl grid grid-cols-5">
+                        <TabsTrigger value="accounts" className="rounded-lg text-xs py-1.5 font-semibold">
+                            Bank Accounts
+                        </TabsTrigger>
+                        <TabsTrigger value="ledger" className="rounded-lg text-xs py-1.5 font-semibold">
+                            Passbook Ledger
+                        </TabsTrigger>
+                        <TabsTrigger value="reconcile" className="rounded-lg text-xs py-1.5 font-semibold">
+                            Reconcile (BRS)
+                        </TabsTrigger>
+                        <TabsTrigger value="cheques" className="rounded-lg text-xs py-1.5 font-semibold">
+                            Cheques & PDCs
+                        </TabsTrigger>
+                        <TabsTrigger value="analytics" className="rounded-lg text-xs py-1.5 font-semibold">
+                            Analytics
+                        </TabsTrigger>
                     </TabsList>
 
-                    {/* ACCOUNTS REGISTER TAB */}
+                    {/* TAB 1: ACCOUNTS REGISTER */}
                     <TabsContent value="accounts" className="space-y-4 outline-none">
                         {/* UPI Payment Configuration Banner */}
-                        <div className="bg-card border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                        <div className="bg-card border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:center justify-between gap-4 shadow-xs">
                             <div className="flex items-center gap-3.5">
                                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
                                     <QrCode className="w-5 h-5" />
@@ -1096,7 +1074,7 @@ const BankDetailsPage = () => {
                                         {upiId ? (
                                             <span>Active UPI ID: <span className="font-mono font-bold text-foreground">{upiId}</span></span>
                                         ) : (
-                                            "No UPI ID set. Add your UPI ID to generate scan-and-pay QR codes on customer bills."
+                                            "Add your business UPI ID to generate scan-and-pay Dynamic QR codes on customer tax invoices."
                                         )}
                                     </p>
                                 </div>
@@ -1107,18 +1085,18 @@ const BankDetailsPage = () => {
                                     <Input 
                                         value={upiInputVal}
                                         onChange={(e) => setUpiInputVal(e.target.value)}
-                                        placeholder="e.g. shopname@upi"
-                                        className="h-8 text-xs font-mono w-full sm:w-60"
+                                        placeholder="e.g. storename@okaxis"
+                                        className="h-8 text-xs font-mono w-full sm:w-60 rounded-lg"
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') handleSaveUpi();
                                             if (e.key === 'Escape') setIsEditingUpi(false);
                                         }}
                                         autoFocus
                                     />
-                                    <Button size="sm" onClick={handleSaveUpi} className="h-8 text-xs px-3">
+                                    <Button size="sm" onClick={handleSaveUpi} className="h-8 text-xs px-3 rounded-lg">
                                         Save
                                     </Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setIsEditingUpi(false)} className="h-8 text-xs px-2">
+                                    <Button size="sm" variant="ghost" onClick={() => setIsEditingUpi(false)} className="h-8 text-xs px-2 rounded-lg">
                                         Cancel
                                     </Button>
                                 </div>
@@ -1137,881 +1115,119 @@ const BankDetailsPage = () => {
                                 </Button>
                             )}
                         </div>
-                        {accounts.length === 0 ? (
-                            <div className="border border-dashed rounded-3xl p-12 text-center flex flex-col items-center justify-center space-y-3 bg-card/50">
-                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                                    <Landmark className="w-6 h-6" />
-                                </div>
-                                <h3 className="font-bold text-sm">No bank accounts configured</h3>
-                                <p className="text-xs text-muted-foreground max-w-xs">
-                                    Create a business checking, savings, or overdraft registry to track transactions.
-                                </p>
-                                <Button size="sm" onClick={() => handleOpenAccountDialog()} className="rounded-xl text-xs">
-                                    Create First Bank Book
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {accounts.map((acc) => {
-                                    const bal = accountBalances[acc.id] || 0;
-                                    const isOD = acc.accountType === "overdraft";
-                                    const isLowOD = isOD && (acc.odLimit !== undefined) && ((acc.odLimit + bal) < (acc.odLimit * 0.1));
 
-                                    return (
-                                        <div 
-                                            key={acc.id}
-                                            className={cn(
-                                                "relative bg-card rounded-2xl border p-5 transition-all flex flex-col justify-between space-y-4 hover:shadow-md",
-                                                acc.isDefault ? "border-primary ring-2 ring-primary/5 shadow-sm" : "border-border/80"
-                                            )}
-                                        >
-                                            {acc.isDefault && (
-                                                <div className="absolute top-4 right-4 flex items-center gap-1 text-[9px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                                                    <CheckCircle2 className="w-3 h-3" />
-                                                    Default
-                                                </div>
-                                            )}
-
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                                                        <Building2 className="w-4 h-4" />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-sm text-foreground">{acc.bankName}</h3>
-                                                        <span className="text-[10px] text-muted-foreground capitalize font-semibold">{acc.accountType} Account</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="bg-muted/50 p-3 rounded-xl">
-                                                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Ledger Balance</span>
-                                                    <span className={cn(
-                                                        "text-base font-bold font-mono",
-                                                        bal < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground"
-                                                    )}>
-                                                        ₹{bal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                    </span>
-                                                </div>
-
-                                                {isOD && acc.odLimit !== undefined && (
-                                                    <div className="space-y-1 pt-1">
-                                                        <div className="flex items-center justify-between text-[9px] font-bold">
-                                                            <span className="text-muted-foreground">Available Credit</span>
-                                                            <span className={isLowOD ? "text-rose-600" : "text-emerald-600"}>
-                                                                ₹{(acc.odLimit + bal).toLocaleString()} / ₹{acc.odLimit.toLocaleString()}
-                                                            </span>
-                                                        </div>
-                                                        <Progress 
-                                                            value={((acc.odLimit + bal) / acc.odLimit) * 100} 
-                                                            className={cn("h-1.5", isLowOD ? "bg-rose-100 dark:bg-rose-950" : "")}
-                                                        />
-                                                        {isLowOD && (
-                                                            <span className="text-[8px] text-rose-500 font-bold flex items-center gap-1">
-                                                                <BadgeAlert className="w-3 h-3" /> Critical: Overdraft limit exhaustion warning.
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                <div className="grid grid-cols-2 gap-y-2 pt-2 border-t text-[10px] font-mono">
-                                                    <div>
-                                                        <span className="text-[8px] text-muted-foreground uppercase block font-sans">Account Number</span>
-                                                        <span className="font-semibold text-foreground">{acc.accountNumber}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[8px] text-muted-foreground uppercase block font-sans">IFSC Code</span>
-                                                        <span className="font-semibold text-foreground">{acc.ifscCode}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-between border-t pt-3">
-                                                <button 
-                                                    onClick={() => handleSetDefault(acc.id)}
-                                                    disabled={acc.isDefault}
-                                                    className={cn(
-                                                        "text-[10px] font-bold transition-all disabled:opacity-50",
-                                                        acc.isDefault 
-                                                            ? "text-primary cursor-default" 
-                                                            : "text-muted-foreground hover:text-primary"
-                                                    )}
-                                                >
-                                                    {acc.isDefault ? "Selected for prints" : "Set as default"}
-                                                </button>
-
-                                                <div className="flex items-center gap-1">
-                                                    <Button
-                                                        onClick={() => handleOpenAccountDialog(acc)}
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground"
-                                                        title="Edit account details"
-                                                    >
-                                                        <Edit2 className="w-3 h-3" />
-                                                    </Button>
-                                                    <Button
-                                                        onClick={() => handleDeleteAccount(acc.id)}
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="w-7 h-7 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                                                        title="Remove account"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                        {/* Visual Bank Accounts Grid */}
+                        <BankAccountsGrid
+                            accounts={accounts}
+                            balances={accountBalances}
+                            onAddAccount={() => {
+                                setEditingAccount(null);
+                                setIsAccountModalOpen(true);
+                            }}
+                            onEditAccount={(acc) => {
+                                setEditingAccount(acc);
+                                setIsAccountModalOpen(true);
+                            }}
+                            onDeleteAccount={handleDeleteAccount}
+                            onSetDefault={handleSetDefault}
+                            onDeposit={(accId) => {
+                                setTxModalType("deposit");
+                                setTxModalAccountId(accId);
+                                setIsTxModalOpen(true);
+                            }}
+                            onWithdraw={(accId) => {
+                                setTxModalType("withdrawal");
+                                setTxModalAccountId(accId);
+                                setIsTxModalOpen(true);
+                            }}
+                        />
                     </TabsContent>
 
-                    {/* GENERAL LEDGER TAB */}
+                    {/* TAB 2: PASSBOOK LEDGER */}
                     <TabsContent value="ledger" className="space-y-4 outline-none">
-                        <div className="bg-card border border-border/80 rounded-2xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
-                            <div className="relative w-full md:w-80">
-                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                    placeholder="Search Ref, Category, description..." 
-                                    className="pl-9 h-9 text-xs rounded-xl"
-                                    value={ledgerSearch}
-                                    onChange={e => setLedgerSearch(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                                <Select value={ledgerAccountFilter} onValueChange={setLedgerAccountFilter}>
-                                    <SelectTrigger className="h-9 text-xs rounded-xl w-[140px]">
-                                        <SelectValue placeholder="Filter Account" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Accounts</SelectItem>
-                                        {accounts.map(a => (
-                                            <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-
-                                <Select value={ledgerTypeFilter} onValueChange={setLedgerTypeFilter}>
-                                    <SelectTrigger className="h-9 text-xs rounded-xl w-[120px]">
-                                        <SelectValue placeholder="Filter Type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Types</SelectItem>
-                                        <SelectItem value="deposit">Credits (+)</SelectItem>
-                                        <SelectItem value="withdrawal">Debits (-)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-
-                                <Button 
-                                    onClick={handleExportCSV}
-                                    variant="outline"
-                                    className="h-9 text-xs rounded-xl gap-1.5 ml-auto md:ml-0 font-bold"
-                                >
-                                    <Download className="w-3.5 h-3.5" />
-                                    Export CSV
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="bg-card border border-border/85 rounded-2xl overflow-hidden shadow-sm">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="bg-muted/50">
-                                        <TableHead className="w-[100px] text-xs font-bold">Date</TableHead>
-                                        <TableHead className="text-xs font-bold">Bank Book</TableHead>
-                                        <TableHead className="text-xs font-bold">Type</TableHead>
-                                        <TableHead className="text-xs font-bold">Category</TableHead>
-                                        <TableHead className="text-xs font-bold">Ref/UTR</TableHead>
-                                        <TableHead className="text-xs font-bold">Description</TableHead>
-                                        <TableHead className="text-xs font-bold text-right">Amount (₹)</TableHead>
-                                        <TableHead className="text-xs font-bold text-center w-[120px]">Status</TableHead>
-                                        <TableHead className="w-[60px] text-center"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredTransactions.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={9} className="h-32 text-center text-xs text-muted-foreground">
-                                                No banking records found. Click "Receive (Credit)" or "Pay (Debit)" above to post a transaction.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        filteredTransactions.map((tx) => {
-                                            const acc = accounts.find(a => a.id === tx.accountId);
-                                            return (
-                                                <TableRow key={tx.id} className="hover:bg-muted/30">
-                                                    <TableCell className="font-mono text-[10px]">{tx.date}</TableCell>
-                                                    <TableCell className="font-medium text-xs">
-                                                        {acc ? acc.bankName : "Unknown Account"}
-                                                        {acc && <span className="block text-[8px] font-mono text-muted-foreground">({acc.accountNumber.slice(-4)})</span>}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {tx.type === "deposit" ? (
-                                                            <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 border-0 text-[9px] font-bold rounded-lg px-2">
-                                                                CREDIT
-                                                            </Badge>
-                                                        ) : (
-                                                            <Badge className="bg-rose-500/10 text-rose-600 hover:bg-rose-500/15 border-0 text-[9px] font-bold rounded-lg px-2">
-                                                                DEBIT
-                                                            </Badge>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-xs font-semibold text-foreground">{tx.category}</TableCell>
-                                                    <TableCell className="font-mono text-[10px] font-bold">{tx.referenceId}</TableCell>
-                                                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={tx.description}>
-                                                        {tx.description}
-                                                    </TableCell>
-                                                    <TableCell className={cn(
-                                                        "text-xs font-mono font-bold text-right",
-                                                        tx.type === "deposit" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                                                    )}>
-                                                        {tx.type === "deposit" ? "+" : "-"}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        {tx.isReconciled ? (
-                                                            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-600 text-[9px] py-0.5 rounded-full inline-flex gap-1 items-center">
-                                                                <Check className="w-2.5 h-2.5" /> Reconciled
-                                                            </Badge>
-                                                        ) : (
-                                                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/5 text-amber-600 text-[9px] py-0.5 rounded-full inline-flex gap-1 items-center">
-                                                                <HelpCircle className="w-2.5 h-2.5" /> Unreconciled
-                                                            </Badge>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <Button
-                                                            onClick={() => handleDeleteTransaction(tx.id)}
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="w-6 h-6 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
+                        <BankLedgerPassbook
+                            accounts={accounts}
+                            transactions={transactions}
+                            onDeleteTransaction={handleDeleteTransaction}
+                            onToggleReconciliation={handleToggleReconciliation}
+                        />
                     </TabsContent>
 
-                    {/* RECONCILIATION TAB */}
+                    {/* TAB 3: RECONCILIATION WORKSPACE (BRS) */}
                     <TabsContent value="reconcile" className="space-y-4 outline-none">
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-card border border-border/80 p-4 rounded-2xl flex flex-col justify-between">
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground">General Ledger Balance</span>
-                                <span className="text-lg font-bold font-mono text-foreground">
-                                    ₹{totalLiquidAssets.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </span>
-                            </div>
-
-                            <div className="bg-card border border-border/80 p-4 rounded-2xl flex flex-col justify-between">
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground">Reconciled Statement balance</span>
-                                <span className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                                    ₹{(
-                                        accounts.reduce((sum, a) => sum + a.initialBalance, 0) +
-                                        transactions.filter(t => t.isReconciled).reduce((sum, t) => sum + (t.type === "deposit" ? t.amount : -t.amount), 0)
-                                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </span>
-                            </div>
-
-                            <div className="bg-card border border-border/80 p-4 rounded-2xl flex flex-col justify-between">
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground">Difference to Match</span>
-                                <span className={cn(
-                                    "text-lg font-bold font-mono",
-                                    transactions.some(t => !t.isReconciled) ? "text-amber-500" : "text-emerald-500"
-                                )}>
-                                    ₹{transactions.filter(t => !t.isReconciled).reduce((sum, t) => sum + t.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="bg-card border border-border/80 rounded-2xl p-4 flex flex-wrap gap-2 items-center justify-between">
-                            <div className="text-xs text-muted-foreground">
-                                Perform automated reconciliations by matching Ledger transaction UTR reference codes directly with incoming bank statement feeds.
-                            </div>
-                            <div className="flex gap-2">
-                                <Button 
-                                    onClick={handleAutoMatchReconciliation}
-                                    variant="outline"
-                                    className="rounded-xl text-xs h-9 font-bold border-primary text-primary hover:bg-primary/5 gap-1.5"
-                                >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    Run Auto-Match
-                                </Button>
-                                <Button 
-                                    onClick={handleGenerateBankStatement}
-                                    className="rounded-xl text-xs h-9 font-bold bg-slate-800 hover:bg-slate-700 text-white gap-1.5"
-                                >
-                                    <RefreshCw className="w-3.5 h-3.5" />
-                                    Simulate Statement Feed
-                                </Button>
-                                <Button 
-                                    onClick={handleClearStatementFeeds}
-                                    variant="ghost"
-                                    className="rounded-xl text-xs h-9 font-bold text-rose-500 hover:bg-rose-500/5 gap-1.5"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    Reset Workspace
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            
-                            {/* Left Side: Unreconciled General Ledger */}
-                            <div className="bg-card border border-border/80 rounded-2xl p-4 space-y-3">
-                                <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
-                                    <Landmark className="w-3.5 h-3.5 text-primary" /> Unreconciled General Ledger ({transactions.filter(t => !t.isReconciled).length} Posts)
-                                </h3>
-                                <div className="border border-border/60 rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
-                                    <Table>
-                                        <TableHeader className="bg-muted/50">
-                                            <TableRow>
-                                                <TableHead className="text-[10px] font-bold">Date/Book</TableHead>
-                                                <TableHead className="text-[10px] font-bold">Ref/UTR</TableHead>
-                                                <TableHead className="text-[10px] font-bold text-right">Amount (₹)</TableHead>
-                                                <TableHead className="w-[80px] text-center"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {transactions.filter(t => !t.isReconciled).length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={4} className="h-32 text-center text-xs text-muted-foreground">
-                                                        Perfect match! All ledger postings have been matched.
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                transactions.filter(t => !t.isReconciled).map(t => {
-                                                    const acc = accounts.find(a => a.id === t.accountId);
-                                                    return (
-                                                        <TableRow key={t.id} className="hover:bg-muted/20">
-                                                            <TableCell>
-                                                                <span className="block font-mono text-[9px]">{t.date}</span>
-                                                                <span className="text-[9px] font-semibold block truncate max-w-[120px]">{acc?.bankName}</span>
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <span className="font-mono text-[9px] font-bold block">{t.referenceId}</span>
-                                                                <span className="text-[8px] text-muted-foreground block truncate max-w-[120px]">{t.description}</span>
-                                                            </TableCell>
-                                                            <TableCell className={cn(
-                                                                "text-[10px] font-mono font-bold text-right",
-                                                                t.type === "deposit" ? "text-emerald-600" : "text-rose-600"
-                                                            )}>
-                                                                {t.type === "deposit" ? "+" : "-"}₹{t.amount.toLocaleString()}
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Button
-                                                                    size="sm"
-                                                                    onClick={() => handleReconcileToggle(t.id)}
-                                                                    className="h-6 rounded px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px]"
-                                                                >
-                                                                    Mark Reconciled
-                                                                </Button>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
-
-                            {/* Right Side: Bank Statement Feeds */}
-                            <div className="bg-card border border-border/80 rounded-2xl p-4 space-y-3">
-                                <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
-                                    <RefreshCw className="w-3.5 h-3.5 text-primary animate-pulse" /> Live Bank Statement Feeds ({mockStatement.length} Feeds)
-                                </h3>
-                                <div className="border border-border/60 rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
-                                    <Table>
-                                        <TableHeader className="bg-muted/50">
-                                            <TableRow>
-                                                <TableHead className="text-[10px] font-bold">Date/Bank Info</TableHead>
-                                                <TableHead className="text-[10px] font-bold">Ref/UTR</TableHead>
-                                                <TableHead className="text-[10px] font-bold text-right">Amount (₹)</TableHead>
-                                                <TableHead className="w-[80px] text-center">Status</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {mockStatement.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={4} className="h-32 text-center text-xs text-muted-foreground">
-                                                        No imported statements. Click "Simulate Statement Feed" above to start testing.
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                mockStatement.map(st => (
-                                                    <TableRow key={st.id} className="hover:bg-muted/20">
-                                                        <TableCell>
-                                                            <span className="block font-mono text-[9px]">{st.date}</span>
-                                                            <span className="text-[8px] text-muted-foreground block truncate max-w-[150px]">{st.description}</span>
-                                                        </TableCell>
-                                                        <TableCell className="font-mono text-[9px] font-bold">{st.referenceId}</TableCell>
-                                                        <TableCell className={cn(
-                                                            "text-[10px] font-mono font-bold text-right",
-                                                            st.amount > 0 ? "text-emerald-600" : "text-rose-600"
-                                                        )}>
-                                                            {st.amount > 0 ? "+" : ""}₹{st.amount.toLocaleString()}
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            {st.matchedTransactionId ? (
-                                                                <Badge className="bg-emerald-500/10 border-0 text-emerald-600 hover:bg-emerald-500/15 text-[8px] px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
-                                                                    <Check className="w-2.5 h-2.5" /> Matched
-                                                                </Badge>
-                                                            ) : (
-                                                                <Badge className="bg-amber-500/10 border-0 text-amber-600 hover:bg-amber-500/15 text-[8px] px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
-                                                                    <AlertTriangle className="w-2.5 h-2.5" /> Pending
-                                                                </Badge>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
-
-                        </div>
+                        <BankReconciliationWorkspace
+                            accounts={accounts}
+                            transactions={transactions}
+                            statementLines={statementLines}
+                            selectedAccountId={reconcileSelectedAccountId}
+                            onSelectAccount={setReconcileSelectedAccountId}
+                            onOpenImportModal={() => setIsStatementImportOpen(true)}
+                            onToggleReconciliation={handleToggleReconciliation}
+                            onApplyAutoMatches={handleApplyAutoMatches}
+                            onCreateTxFromStatementLine={handleCreateTxFromStatementLine}
+                            onGenerateSampleFeed={handleGenerateSampleFeed}
+                            onClearStatementFeeds={handleClearStatementFeeds}
+                        />
                     </TabsContent>
 
-                    {/* ANALYTICS & CHARTS TAB */}
-                    <TabsContent value="analytics" className="space-y-6 outline-none">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            
-                            {/* Area Chart: cash flow trends */}
-                            <div className="bg-card border border-border/80 rounded-2xl p-5 space-y-4">
-                                <div>
-                                    <h3 className="font-bold text-sm text-foreground">30-Day Cash Flow Trends</h3>
-                                    <p className="text-[10px] text-muted-foreground">Daily credit (Inflow) vs debit (Outflow) transaction aggregate tracking.</p>
-                                </div>
-                                <div className="h-[250px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="inboundGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                                </linearGradient>
-                                                <linearGradient id="outboundGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2}/>
-                                                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.1)" />
-                                            <XAxis dataKey="date" tickLine={false} tick={{ fontSize: 9 }} />
-                                            <YAxis tickLine={false} tick={{ fontSize: 9 }} />
-                                            <ChartTooltip 
-                                                contentStyle={{ 
-                                                    backgroundColor: "rgba(255, 255, 255, 0.95)", 
-                                                    border: "1px solid #e2e8f0", 
-                                                    borderRadius: "12px",
-                                                    fontSize: "11px"
-                                                }} 
-                                            />
-                                            <Area type="monotone" dataKey="Inbound" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#inboundGrad)" />
-                                            <Area type="monotone" dataKey="Outbound" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#outboundGrad)" />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
+                    {/* TAB 4: CHEQUES & PDCs */}
+                    <TabsContent value="cheques" className="space-y-4 outline-none">
+                        <ChequeTrackerTab
+                            accounts={accounts}
+                            cheques={cheques}
+                            onCreateCheque={handleCreateCheque}
+                            onUpdateChequeStatus={handleUpdateChequeStatus}
+                            onClearCheque={handleClearCheque}
+                        />
+                    </TabsContent>
 
-                            {/* Bar Chart: Balance distribution across accounts */}
-                            <div className="bg-card border border-border/80 rounded-2xl p-5 space-y-4">
-                                <div>
-                                    <h3 className="font-bold text-sm text-foreground">Liquidity Distribution</h3>
-                                    <p className="text-[10px] text-muted-foreground">Current ledger balance distributed by configured bank books.</p>
-                                </div>
-                                <div className="h-[250px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={accounts.map(a => ({ name: a.bankName, Balance: accountBalances[a.id] || 0 }))} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.1)" />
-                                            <XAxis dataKey="name" tickLine={false} tick={{ fontSize: 8 }} />
-                                            <YAxis tickLine={false} tick={{ fontSize: 9 }} />
-                                            <ChartTooltip 
-                                                contentStyle={{ 
-                                                    backgroundColor: "rgba(255, 255, 255, 0.95)", 
-                                                    border: "1px solid #e2e8f0", 
-                                                    borderRadius: "12px",
-                                                    fontSize: "11px"
-                                                }}
-                                            />
-                                            <Bar dataKey="Balance" radius={[6, 6, 0, 0]}>
-                                                {
-                                                    accounts.map((entry, index) => {
-                                                        const bal = accountBalances[entry.id] || 0;
-                                                        return <Cell key={`cell-${index}`} fill={bal < 0 ? "#f43f5e" : "#3b82f6"} />;
-                                                    })
-                                                }
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-
-                        </div>
+                    {/* TAB 5: ANALYTICS & LIQUIDITY */}
+                    <TabsContent value="analytics" className="space-y-4 outline-none">
+                        <BankAnalyticsTab
+                            accounts={accounts}
+                            transactions={transactions}
+                            balances={accountBalances}
+                        />
                     </TabsContent>
                 </Tabs>
 
-                {/* DIALOG: ADD/EDIT BANK ACCOUNT */}
-                <Dialog open={isAccountOpen} onOpenChange={setIsAccountOpen}>
-                    <DialogContent className="sm:max-w-[425px] rounded-2xl">
-                        <DialogHeader>
-                            <DialogTitle className="text-base font-bold text-foreground">
-                                {editingAccount ? "Edit Bank Account" : "Add Bank Account"}
-                            </DialogTitle>
-                            <DialogDescription className="text-xs">
-                                Configure bank parameters accurately. Account details automatically map onto ledger and printed invoice headers.
-                            </DialogDescription>
-                        </DialogHeader>
-                        
-                        <form onSubmit={handleAccountSubmit} className="space-y-4 py-2">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Bank Name</label>
-                                    <Input 
-                                        value={bankName}
-                                        onChange={e => setBankName(e.target.value)}
-                                        placeholder="e.g. State Bank of India"
-                                        className="h-9 text-xs rounded-xl"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Account Type</label>
-                                    <Select value={accountType} onValueChange={(val) => setAccountType(val as AccountType)}>
-                                        <SelectTrigger className="h-9 text-xs rounded-xl">
-                                            <SelectValue placeholder="Select type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="checking">Checking (Current)</SelectItem>
-                                            <SelectItem value="savings">Savings</SelectItem>
-                                            <SelectItem value="overdraft">Credit Line (Overdraft)</SelectItem>
-                                            <SelectItem value="cash">Cash In Hand / Safe</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
+                {/* MODAL: ADD / EDIT BANK ACCOUNT */}
+                <BankAccountModal
+                    isOpen={isAccountModalOpen}
+                    onClose={() => {
+                        setIsAccountModalOpen(false);
+                        setEditingAccount(null);
+                    }}
+                    onSave={handleSaveAccount}
+                    editingAccount={editingAccount}
+                />
 
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Account Number</label>
-                                <Input 
-                                    value={accountNumber}
-                                    onChange={e => setAccountNumber(e.target.value)}
-                                    placeholder="e.g. 100293848123"
-                                    className="h-9 text-xs rounded-xl"
-                                    required
-                                />
-                            </div>
+                {/* MODAL: RECORD INWARD / OUTWARD TRANSACTION */}
+                <RecordTransactionModal
+                    isOpen={isTxModalOpen}
+                    onClose={() => setIsTxModalOpen(false)}
+                    onSave={handleRecordTransaction}
+                    accounts={accounts}
+                    initialType={txModalType}
+                    initialAccountId={txModalAccountId}
+                />
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">IFSC Code</label>
-                                    <Input 
-                                        value={ifscCode}
-                                        onChange={e => setIfscCode(e.target.value.toUpperCase())}
-                                        placeholder="e.g. SBIN0001609"
-                                        maxLength={11}
-                                        className="h-9 text-xs rounded-xl uppercase"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Branch Name</label>
-                                    <Input 
-                                        value={branchName}
-                                        onChange={e => setBranchName(e.target.value)}
-                                        placeholder="e.g. Connaught Place"
-                                        className="h-9 text-xs rounded-xl"
-                                        required
-                                    />
-                                </div>
-                            </div>
+                {/* MODAL: CONTRA TRANSFER (F4) */}
+                <ContraTransferModal
+                    isOpen={isContraModalOpen}
+                    onClose={() => setIsContraModalOpen(false)}
+                    onTransfer={handleContraTransfer}
+                    accounts={accounts}
+                    balances={accountBalances}
+                />
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Initial Book Balance (₹)</label>
-                                    <Input 
-                                        type="number"
-                                        value={initialBalance}
-                                        onChange={e => setInitialBalance(e.target.value)}
-                                        placeholder="0"
-                                        className="h-9 text-xs rounded-xl"
-                                        required
-                                    />
-                                </div>
-                                {accountType === "overdraft" && (
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] uppercase font-bold text-rose-500 block">Overdraft limit (₹)</label>
-                                        <Input 
-                                            type="number"
-                                            value={odLimit}
-                                            onChange={e => setOdLimit(e.target.value)}
-                                            placeholder="500000"
-                                            className="h-9 text-xs border-rose-500/40 rounded-xl"
-                                            required
-                                        />
-                                    </div>
-                                )}
-                            </div>
-
-                            <DialogFooter className="pt-3">
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={() => setIsAccountOpen(false)}
-                                    className="h-9 text-xs rounded-xl"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button 
-                                    type="submit"
-                                    className="h-9 text-xs rounded-xl bg-primary hover:bg-primary/95 text-white"
-                                >
-                                    {editingAccount ? "Save Changes" : "Create Book"}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-
-                {/* DIALOG: LOG TRANSACTION (CREDIT / DEBIT) */}
-                <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
-                    <DialogContent className="sm:max-w-[425px] rounded-2xl">
-                        <DialogHeader>
-                            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-1.5">
-                                {txType === "deposit" ? (
-                                    <><ArrowDownLeft className="w-5 h-5 text-emerald-500" /> Record Inward Credit</>
-                                ) : (
-                                    <><ArrowUpRight className="w-5 h-5 text-rose-500" /> Record Outward Debit</>
-                                )}
-                            </DialogTitle>
-                            <DialogDescription className="text-xs">
-                                Manually record bank transactions directly into the account general ledger book.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <form onSubmit={handleTxSubmit} className="space-y-4 py-2">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Bank Account</label>
-                                    <Select value={txAccountId} onValueChange={setTxAccountId}>
-                                        <SelectTrigger className="h-9 text-xs rounded-xl">
-                                            <SelectValue placeholder="Select account" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {accounts.map(a => (
-                                                <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Amount (₹)</label>
-                                    <Input 
-                                        type="number"
-                                        value={txAmount}
-                                        onChange={e => setTxAmount(e.target.value)}
-                                        placeholder="Amount in Rupees"
-                                        className="h-9 text-xs rounded-xl"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Transaction Date</label>
-                                    <Input 
-                                        type="date"
-                                        value={txDate}
-                                        onChange={e => setTxDate(e.target.value)}
-                                        className="h-9 text-xs rounded-xl font-mono"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Category</label>
-                                    <Select value={txCategory} onValueChange={(val) => setTxCategory(val as TransactionCategory)}>
-                                        <SelectTrigger className="h-9 text-xs rounded-xl">
-                                            <SelectValue placeholder="Select category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {txType === "deposit" ? (
-                                                <>
-                                                    <SelectItem value="Sales">Sales Revenue</SelectItem>
-                                                    <SelectItem value="Transfer">Internal Transfer (Inbound)</SelectItem>
-                                                    <SelectItem value="Other">Other Revenue / Capital</SelectItem>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <SelectItem value="Vendor Payment">Vendor Payment</SelectItem>
-                                                    <SelectItem value="Salary">Salaries & Wages</SelectItem>
-                                                    <SelectItem value="Utilities">Office Utilities</SelectItem>
-                                                    <SelectItem value="Rent">Commercial Rent</SelectItem>
-                                                    <SelectItem value="Tax">Government Tax</SelectItem>
-                                                    <SelectItem value="Transfer">Internal Transfer (Outbound)</SelectItem>
-                                                    <SelectItem value="Other">Other Expense</SelectItem>
-                                                </>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Reference ID / UTR Number</label>
-                                <Input 
-                                    value={txRef}
-                                    onChange={e => setTxRef(e.target.value)}
-                                    placeholder="e.g. UTR1029302919"
-                                    className="h-9 text-xs rounded-xl font-mono font-bold"
-                                    required
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Narration / Description</label>
-                                <Input 
-                                    value={txDesc}
-                                    onChange={e => setTxDesc(e.target.value)}
-                                    placeholder="Short note about the payment..."
-                                    className="h-9 text-xs rounded-xl"
-                                />
-                            </div>
-
-                            <DialogFooter className="pt-3">
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={() => setIsTxOpen(false)}
-                                    className="h-9 text-xs rounded-xl"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button 
-                                    type="submit"
-                                    className="h-9 text-xs rounded-xl bg-primary hover:bg-primary/95 text-white"
-                                >
-                                    Post Transaction
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-
-                {/* DIALOG: INTERNAL TRANSFER (CONTRA ENTRY) */}
-                <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
-                    <DialogContent className="sm:max-w-[425px] rounded-2xl">
-                        <DialogHeader>
-                            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-1.5">
-                                <ArrowLeftRight className="w-5 h-5 text-primary" /> Post Contra Transfer
-                            </DialogTitle>
-                            <DialogDescription className="text-xs">
-                                Move assets between internal bank books. Enforces double-entry contra posting automatically.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <form onSubmit={handleTransferSubmit} className="space-y-4 py-2">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-rose-500 block">From Account (Debit)</label>
-                                    <Select value={fromAccountId} onValueChange={setFromAccountId}>
-                                        <SelectTrigger className="h-9 text-xs rounded-xl border-rose-500/30">
-                                            <SelectValue placeholder="From account" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {accounts.map(a => (
-                                                <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-emerald-500 block">To Account (Credit)</label>
-                                    <Select value={toAccountId} onValueChange={setToAccountId}>
-                                        <SelectTrigger className="h-9 text-xs rounded-xl border-emerald-500/30">
-                                            <SelectValue placeholder="To account" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {accounts.map(a => (
-                                                <SelectItem key={a.id} value={a.id}>{a.bankName}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Transfer Amount (₹)</label>
-                                    <Input 
-                                        type="number"
-                                        value={transferAmount}
-                                        onChange={e => setTransferAmount(e.target.value)}
-                                        placeholder="Amount to transfer"
-                                        className="h-9 text-xs rounded-xl"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">Transfer Date</label>
-                                    <Input 
-                                        type="date"
-                                        value={transferDate}
-                                        onChange={e => setTransferDate(e.target.value)}
-                                        className="h-9 text-xs rounded-xl font-mono"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Reference ID / UTR Number</label>
-                                <Input 
-                                    value={transferRef}
-                                    onChange={e => setTransferRef(e.target.value)}
-                                    placeholder="e.g. TXN10293029"
-                                    className="h-9 text-xs rounded-xl font-mono font-bold"
-                                    required
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase font-bold text-muted-foreground block">Narration / Memo</label>
-                                <Input 
-                                    value={transferDesc}
-                                    onChange={e => setTransferDesc(e.target.value)}
-                                    placeholder="Contra account transfer memo..."
-                                    className="h-9 text-xs rounded-xl"
-                                />
-                            </div>
-
-                            <DialogFooter className="pt-3">
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={() => setIsTransferOpen(false)}
-                                    className="h-9 text-xs rounded-xl"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button 
-                                    type="submit"
-                                    className="h-9 text-xs rounded-xl bg-primary hover:bg-primary/95 text-white"
-                                >
-                                    Execute Transfer
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                {/* MODAL: IMPORT REAL STATEMENT (EXCEL / CSV) */}
+                <StatementImportModal
+                    isOpen={isStatementImportOpen}
+                    onClose={() => setIsStatementImportOpen(false)}
+                    accounts={accounts}
+                    onImportSuccess={handleImportStatement}
+                />
 
             </div>
         </AppLayout>
