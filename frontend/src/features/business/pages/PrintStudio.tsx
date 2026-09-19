@@ -49,7 +49,9 @@ import {
     convertAmountToIndianWords,
     resolveInvoiceBankDetails,
     getStoredBankAccounts,
-    BankDetailsInfo
+    BankDetailsInfo,
+    UniversalDocumentType,
+    resolveDocumentDescriptor
 } from "@/utils/generateInvoicePDF";
 import { printThermalReceipt } from "@/utils/printThermalReceipt";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -82,7 +84,7 @@ const themeMeta: Record<InvoiceTheme, { name: string; desc: string; color: strin
 
 const invoiceThemes = Object.keys(themeMeta) as InvoiceTheme[];
 
-// Sample sale used for preview when no recent sales exist
+// Sample Sale Bill / Tax Invoice
 const sampleSale = {
     id: "sample-id-12345",
     invoice_number: "INV-2026-089",
@@ -109,6 +111,89 @@ const sampleSale = {
     ]
 };
 
+// Sample Purchase Bill
+const samplePurchaseBill = {
+    id: "sample-pb-1001",
+    invoice_number: "BILL-2026-441",
+    date: new Date().toISOString().split("T")[0],
+    created_at: new Date().toISOString(),
+    customer_name: "Apex Raw Materials & Logistics",
+    customer_phone: "+91 94455 88990",
+    customer_email: "orders@apexrawmaterials.in",
+    customer_gstin: "29AABCA5566Z1Z8",
+    subtotal: 38000,
+    discount_amount: 2000,
+    tax_rate: 18,
+    tax_amount: 6480,
+    total_amount: 42480,
+    amount_paid: 20000,
+    balance_due: 22480,
+    previous_balance: 15000,
+    total_due_balance: 37480,
+    status: "partial",
+    payment_method: "bank_transfer",
+    items: [
+        { description: "Industrial Grade Stainless Fasteners M8 (1000pcs)", quantity: 2, price: 11500, total: 23000, hsn_code: "731815", unit: "box" },
+        { description: "Corrugated Export Packaging Cartons", quantity: 500, price: 30, total: 15000, hsn_code: "481910", unit: "pcs" }
+    ]
+};
+
+// Sample Sale Order
+const sampleSaleOrder = {
+    id: "sample-so-2002",
+    invoice_number: "SO-2026-015",
+    date: new Date().toISOString().split("T")[0],
+    due_date: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+    created_at: new Date().toISOString(),
+    customer_name: "Bharat Retail Networks Pvt Ltd",
+    customer_phone: "+91 98111 22334",
+    customer_email: "procurement@bharatretail.com",
+    customer_gstin: "07AAACB2233M1ZU",
+    subtotal: 55000,
+    discount_amount: 2500,
+    tax_rate: 18,
+    tax_amount: 9450,
+    total_amount: 61950,
+    amount_paid: 30000,
+    balance_due: 31950,
+    previous_balance: 0,
+    total_due_balance: 31950,
+    status: "confirmed",
+    payment_method: "upi",
+    items: [
+        { description: "Enterprise Cloud ERP Annual License Seat", quantity: 5, price: 8000, total: 40000, hsn_code: "998313", unit: "licenses" },
+        { description: "On-site Deployment & Training Services", quantity: 1, price: 15000, total: 15000, hsn_code: "998319", unit: "session" }
+    ]
+};
+
+// Sample Purchase Order
+const samplePurchaseOrder = {
+    id: "sample-po-3003",
+    invoice_number: "PO-2026-088",
+    date: new Date().toISOString().split("T")[0],
+    due_date: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+    created_at: new Date().toISOString(),
+    customer_name: "Global Components Fabricators Corp",
+    customer_phone: "+91 97222 44556",
+    customer_email: "supply@globalcomponents.com",
+    customer_gstin: "24AAACG8899K1Z5",
+    subtotal: 78000,
+    discount_amount: 3000,
+    tax_rate: 18,
+    tax_amount: 13500,
+    total_amount: 88500,
+    amount_paid: 0,
+    balance_due: 88500,
+    previous_balance: 0,
+    total_due_balance: 88500,
+    status: "sent",
+    payment_method: "cheque",
+    items: [
+        { description: "High Precision CNC Aluminium Enclosures", quantity: 40, price: 1200, total: 48000, hsn_code: "761699", unit: "pcs" },
+        { description: "Custom Molded Silicon Dampening Gaskets", quantity: 600, price: 50, total: 30000, hsn_code: "401693", unit: "pcs" }
+    ]
+};
+
 // ── INTERACTIVE MOCK PREVIEW COMPONENT ──
 const InvoiceMockPreview = ({ 
     sale, 
@@ -122,7 +207,8 @@ const InvoiceMockPreview = ({
     printUpiQr,
     upiId,
     showItemTaxRate,
-    showPartyPreviousBalance
+    showPartyPreviousBalance,
+    documentType = 'invoice'
 }: { 
     sale: any; 
     profile: any; 
@@ -136,7 +222,9 @@ const InvoiceMockPreview = ({
     upiId?: string;
     showItemTaxRate?: boolean;
     showPartyPreviousBalance?: boolean;
+    documentType?: UniversalDocumentType;
 }) => {
+    const descriptor = resolveDocumentDescriptor(documentType, undefined, sale?.invoice_number);
     const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
     const dateToParse = sale.date || sale.created_at;
     const parsedDate = dateToParse ? new Date(dateToParse) : new Date();
@@ -163,7 +251,7 @@ const InvoiceMockPreview = ({
     const effectiveUpi = (upiId || profile?.upi_id || localStorage.getItem("rupeebill_upi_id") || "").trim();
     const amountToPay = balanceDue > 0 ? balanceDue : totalAmount;
     const upiUri = effectiveUpi 
-        ? `upi://pay?pa=${encodeURIComponent(effectiveUpi)}&pn=${encodeURIComponent(bizName.slice(0, 50))}&am=${amountToPay.toFixed(2)}&cu=INR&tn=Invoice-${encodeURIComponent(sale.invoice_number || 'INV')}`
+        ? `upi://pay?pa=${encodeURIComponent(effectiveUpi)}&pn=${encodeURIComponent(bizName.slice(0, 50))}&am=${amountToPay.toFixed(2)}&cu=INR&tn=${encodeURIComponent(descriptor.title)}-${encodeURIComponent(sale.invoice_number || 'DOC')}`
         : "";
 
     let taxRate = Number(sale.tax_rate) || 0;
@@ -188,14 +276,14 @@ const InvoiceMockPreview = ({
             )}>
                 {/* Header label */}
                 <div className="text-center font-bold text-sm tracking-wide border-b border-black pb-2 mb-2">
-                    TAX INVOICE
+                    {descriptor.title}
                 </div>
                 
                 {/* Seller & Invoice Details Grid (Quadrants) */}
                 <div className="grid grid-cols-2 border border-black">
                     {/* Top Left: Seller Details */}
                     <div className="p-2.5 border-r border-b border-black space-y-1">
-                        <span className="text-[9px] uppercase text-slate-500 font-bold block">Sender / Company Details</span>
+                        <span className="text-[9px] uppercase text-slate-500 font-bold block">{descriptor.senderLabel}</span>
                         <div className="font-extrabold text-xs">{bizName}</div>
                         {profile?.business_address && <p className="text-[10px] text-slate-700 leading-tight">{profile.business_address}</p>}
                         {profile?.business_phone && <p className="text-[10px] text-slate-700">Phone: {profile.business_phone}</p>}
@@ -205,16 +293,16 @@ const InvoiceMockPreview = ({
                     {/* Top Right: Invoice Metadata */}
                     <div className="p-2.5 border-b border-black grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] content-start">
                         <div>
-                            <span className="text-slate-500 block text-[9px]">Invoice No.</span>
+                            <span className="text-slate-500 block text-[9px]">{descriptor.numberLabel}</span>
                             <span className="font-bold text-xs">{sale.invoice_number}</span>
                         </div>
                         <div>
-                            <span className="text-slate-500 block text-[9px]">Dated</span>
+                            <span className="text-slate-500 block text-[9px]">{descriptor.dateLabel}</span>
                             <span className="font-bold">{dateFormatted}</span>
                         </div>
                         <div>
-                            <span className="text-slate-500 block text-[9px]">Delivery Note</span>
-                            <span className="font-medium">Direct Delivery</span>
+                            <span className="text-slate-500 block text-[9px]">{sale.due_date ? descriptor.dueDateLabel : "Delivery Note"}</span>
+                            <span className="font-medium">{sale.due_date ? format(new Date(sale.due_date), "dd MMM yyyy") : "Direct Delivery"}</span>
                         </div>
                         <div>
                             <span className="text-slate-500 block text-[9px]">Terms / Mode</span>
@@ -226,7 +314,7 @@ const InvoiceMockPreview = ({
                     
                     {/* Bottom Left: Buyer details */}
                     <div className="p-2.5 border-r border-black space-y-1">
-                        <span className="text-[9px] uppercase text-slate-500 font-bold block">Buyer (Bill to)</span>
+                        <span className="text-[9px] uppercase text-slate-500 font-bold block">{descriptor.partyLabel}</span>
                         <div className="font-bold text-[11px]">{sale.customer_name || "Walk-in Guest"}</div>
                         {sale.customer_phone && <p className="text-[10px] text-slate-700">Phone: {sale.customer_phone}</p>}
                         {sale.customer_email && <p className="text-[10px] text-slate-700">Email: {sale.customer_email}</p>}
@@ -235,7 +323,7 @@ const InvoiceMockPreview = ({
                     
                     {/* Bottom Right: Consignee Details */}
                     <div className="p-2.5 space-y-1">
-                        <span className="text-[9px] uppercase text-slate-500 font-bold block">Consignee (Ship to)</span>
+                        <span className="text-[9px] uppercase text-slate-500 font-bold block">{descriptor.consigneeLabel}</span>
                         <div className="font-bold text-[11px]">{sale.customer_name || "Walk-in Guest"}</div>
                         <p className="text-[10px] text-slate-600 italic">Same as billing address</p>
                     </div>
@@ -305,7 +393,7 @@ const InvoiceMockPreview = ({
                             <span className="font-bold text-[9.5px] uppercase">{convertAmountToIndianWords(totalAmount)}</span>
                         </div>
 
-                        {(printBankDetails && bankAccount?.bankName) || (printUpiQr && effectiveUpi) ? (
+                        {(printBankDetails && bankAccount?.bankName) || (descriptor.enableUpiQr && printUpiQr && effectiveUpi) ? (
                             <div className="border-t border-black/10 pt-2 flex items-center justify-between gap-3 text-[9px] text-slate-700">
                                 <div className="space-y-0.5 min-w-0">
                                     {printBankDetails && bankAccount?.bankName && (
@@ -315,14 +403,14 @@ const InvoiceMockPreview = ({
                                             <p>A/c No: {bankAccount.accountNumber} {bankAccount.ifscCode ? ` | IFSC: ${bankAccount.ifscCode}` : ''} {bankAccount.branchName ? ` | Branch: ${bankAccount.branchName}` : ''}</p>
                                         </>
                                     )}
-                                    {printUpiQr && effectiveUpi && (
+                                    {descriptor.enableUpiQr && printUpiQr && effectiveUpi && (
                                         <div className="pt-0.5">
                                             <span className="font-bold text-[9px] text-slate-900">Instant UPI: </span>
                                             <span className="font-mono text-slate-800">{effectiveUpi}</span>
                                         </div>
                                     )}
                                 </div>
-                                {printUpiQr && effectiveUpi && (
+                                {descriptor.enableUpiQr && printUpiQr && effectiveUpi && (
                                     <div className="flex flex-col items-center flex-shrink-0 bg-white p-1 border border-black/20 rounded shadow-2xs">
                                         <QRCodeSVG value={upiUri} size={52} level="M" />
                                         <span className="text-[6.5px] font-bold mt-0.5 tracking-tight text-slate-800">SCAN TO PAY</span>
@@ -333,7 +421,7 @@ const InvoiceMockPreview = ({
 
                         <div className="border-t border-black/10 pt-2 text-[8px] text-slate-500">
                             <span className="font-bold text-[9px] text-slate-700 block mb-0.5">Declaration</span>
-                            {customTerms || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."}
+                            {customTerms || descriptor.defaultDeclaration}
                         </div>
 
                         <div className="text-[7px] text-slate-400 pt-1">
@@ -346,7 +434,7 @@ const InvoiceMockPreview = ({
                         {/* Summary details */}
                         <div className="p-2.5 space-y-1 text-[10px] border-b border-black bg-slate-50/50">
                             <div className="flex justify-between">
-                                <span className="text-slate-500">Subtotal</span>
+                                <span className="text-slate-500">{descriptor.subtotalLabel}</span>
                                 <span>{formatCurrency(subtotal).replace("Rs. ","")}</span>
                             </div>
                             {discount > 0 && (
@@ -369,16 +457,16 @@ const InvoiceMockPreview = ({
                             )}
                             <div className="border-t border-black/20 my-0.5"></div>
                             <div className="flex justify-between font-extrabold text-[11px]">
-                                <span>Total Amount</span>
+                                <span>{descriptor.totalLabel}</span>
                                 <span>{formatCurrency(totalAmount).replace("Rs. ","")}</span>
                             </div>
                             <div className="border-t border-black/20 my-0.5"></div>
                             <div className="flex justify-between text-emerald-700 font-semibold text-[10px]">
-                                <span>Amount Paid</span>
+                                <span>{descriptor.paidLabel}</span>
                                 <span>{formatCurrency(amountPaid).replace("Rs. ","")}</span>
                             </div>
                             <div className={cn("flex justify-between text-[10px] font-bold", balanceDue > 0 ? "text-rose-700" : "text-emerald-700")}>
-                                <span>Balance Due</span>
+                                <span>{descriptor.balanceLabel}</span>
                                 <span>{balanceDue > 0 ? formatCurrency(balanceDue).replace("Rs. ","") : "0.00 (PAID)"}</span>
                             </div>
                             {showPartyPreviousBalance && (
@@ -414,7 +502,7 @@ const InvoiceMockPreview = ({
                             {profile?.signature_url && (
                                 <img src={profile.signature_url} alt="Signature" className="h-7 object-contain mx-auto my-0.5" />
                             )}
-                            <span className="text-[8px] font-medium block text-slate-500">Authorized Signatory</span>
+                            <span className="text-[8px] font-medium block text-slate-500">{descriptor.signatoryRoleText}</span>
                         </div>
                     </div>
                 </div>
@@ -432,13 +520,12 @@ const InvoiceMockPreview = ({
                     {profile?.business_phone && <p className="text-[10px]">PH: {profile.business_phone}</p>}
                     {profile?.gst_number && <p className="text-[10px]">GSTIN: {profile.gst_number}</p>}
                 </div>
-                
-                <div className="border-b border-dashed border-black my-2"></div>
+                        <div className="border-b border-dashed border-black my-2"></div>
                 
                 <div className="space-y-0.5 text-[11px] mb-2">
-                    <div className="flex justify-between"><span>BILL NO: {sale.invoice_number}</span></div>
-                    <div className="flex justify-between"><span>DATE: {dateFormatted}</span></div>
-                    <div className="flex justify-between"><span>CUSTOMER: {sale.customer_name || "CASH"}</span></div>
+                    <div className="flex justify-between"><span>{descriptor.numberLabel.toUpperCase()}: {sale.invoice_number}</span></div>
+                    <div className="flex justify-between"><span>{descriptor.dateLabel.toUpperCase()}: {dateFormatted}</span></div>
+                    <div className="flex justify-between"><span>{descriptor.partyLabel.toUpperCase()}: {sale.customer_name || "CASH"}</span></div>
                 </div>
                 
                 <div className="border-b border-dashed border-black my-2"></div>
@@ -467,7 +554,7 @@ const InvoiceMockPreview = ({
                 <div className="border-b border-dashed border-black my-2"></div>
                 
                 <div className="space-y-1 text-[11px] mb-4">
-                    <div className="flex justify-between"><span>SUBTOTAL</span><span>₹{subtotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>{descriptor.subtotalLabel.toUpperCase()}</span><span>₹{subtotal.toFixed(2)}</span></div>
                     {discount > 0 && <div className="flex justify-between"><span>DISCOUNT</span><span>-₹{discount.toFixed(2)}</span></div>}
                     {taxAmount > 0 && (
                         <>
@@ -476,10 +563,10 @@ const InvoiceMockPreview = ({
                         </>
                     )}
                     <div className="border-b border-dashed border-black/40 my-1"></div>
-                    <div className="flex justify-between font-bold text-sm"><span>TOTAL AMOUNT</span><span>₹{totalAmount.toFixed(2)}</span></div>
-                    <div className="flex justify-between text-[11px] font-semibold text-emerald-800"><span>AMOUNT PAID</span><span>₹{amountPaid.toFixed(2)}</span></div>
+                    <div className="flex justify-between font-bold text-sm"><span>{descriptor.totalLabel.toUpperCase()}</span><span>₹{totalAmount.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-[11px] font-semibold text-emerald-800"><span>{descriptor.paidLabel.toUpperCase()}</span><span>₹{amountPaid.toFixed(2)}</span></div>
                     <div className={cn("flex justify-between text-[11px] font-bold", balanceDue > 0 ? "text-rose-700" : "text-emerald-800")}>
-                        <span>BALANCE DUE</span>
+                        <span>{descriptor.balanceLabel.toUpperCase()}</span>
                         <span>{balanceDue > 0 ? `₹${balanceDue.toFixed(2)} (PENDING)` : "₹0.00 (PAID)"}</span>
                     </div>
                     {showPartyPreviousBalance && (
@@ -516,7 +603,7 @@ const InvoiceMockPreview = ({
                 </div>
                 
                 {/* Thermal UPI QR Code or Barcode */}
-                {printUpiQr && effectiveUpi ? (
+                {descriptor.enableUpiQr && printUpiQr && effectiveUpi ? (
                     <div className="flex flex-col items-center justify-center mt-4">
                         <div className="p-1.5 bg-white border border-black rounded shadow-2xs">
                             <QRCodeSVG value={upiUri} size={68} level="M" />
@@ -608,16 +695,16 @@ const InvoiceMockPreview = ({
                 </div>
                 
                 <div className="text-right sm:text-right flex flex-col items-start sm:items-end">
-                    <h1 className="text-3xl font-black tracking-tight leading-none uppercase">INVOICE</h1>
-                    <p className="text-xs font-semibold opacity-90 mt-2">No. {sale.invoice_number}</p>
-                    <p className="text-xs opacity-90 mt-0.5">Date: {dateFormatted}</p>
+                    <h1 className="text-3xl font-black tracking-tight leading-none uppercase">{descriptor.title}</h1>
+                    <p className="text-xs font-semibold opacity-90 mt-2">{descriptor.numberLabel} {sale.invoice_number}</p>
+                    <p className="text-xs opacity-90 mt-0.5">{descriptor.dateLabel}: {dateFormatted}</p>
                 </div>
             </div>
 
             {/* BILL DETAILS */}
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-100">
                 <div className="space-y-1">
-                    <h4 className={cn("text-xs font-bold uppercase tracking-wider", styles.accentText)}>Billed To</h4>
+                    <h4 className={cn("text-xs font-bold uppercase tracking-wider", styles.accentText)}>{descriptor.partyLabel}</h4>
                     <div className="text-sm font-bold text-slate-800">{sale.customer_name || "Walk-in Guest"}</div>
                     {sale.customer_phone && <div className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" /> {sale.customer_phone}</div>}
                     {sale.customer_email && <div className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {sale.customer_email}</div>}
@@ -625,9 +712,9 @@ const InvoiceMockPreview = ({
                 </div>
                 
                 <div className="space-y-1 text-left md:text-right flex flex-col md:items-end justify-center">
-                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Payment Status</div>
+                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Status</div>
                     <Badge className="bg-emerald-500/10 hover:bg-emerald-500/10 border-transparent text-emerald-700 dark:text-emerald-400 font-bold uppercase text-[10px] tracking-wider mt-1 px-3 py-1">
-                        PAID / SETTLED
+                        {balanceDue <= 0 ? "PAID / SETTLED" : isPartial ? `PARTIAL (DUE: ₹${balanceDue.toFixed(2)})` : "PENDING"}
                     </Badge>
                 </div>
             </div>
@@ -648,7 +735,7 @@ const InvoiceMockPreview = ({
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={showItemTaxRate ? 5 : 4} className="p-6 text-center text-muted-foreground italic">No items listed in this invoice.</td>
+                                    <td colSpan={showItemTaxRate ? 5 : 4} className="p-6 text-center text-muted-foreground italic">No items listed in this document.</td>
                                 </tr>
                             ) : (
                                 items.map((item: any, idx: number) => (
@@ -675,7 +762,7 @@ const InvoiceMockPreview = ({
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-100 bg-slate-50/40 rounded-b-xl">
                 {/* Payment & Terms Note */}
                 <div className="text-[11px] text-slate-500 space-y-2.5 flex flex-col justify-end">
-                    {printUpiQr && effectiveUpi && (
+                    {descriptor.enableUpiQr && printUpiQr && effectiveUpi && (
                         <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-white shadow-xs">
                             <div className="p-1 rounded bg-slate-50 border flex-shrink-0">
                                 <QRCodeSVG value={upiUri} size={56} level="M" />
@@ -704,14 +791,14 @@ const InvoiceMockPreview = ({
                     )}
                     <div className="space-y-0.5">
                         <p className="font-bold text-slate-700 uppercase tracking-wider">Terms & Declarations</p>
-                        <p className="leading-relaxed">{customTerms || "1. All claims and returns must refer to the Invoice Number."}</p>
+                        <p className="leading-relaxed">{customTerms || descriptor.defaultDeclaration}</p>
                     </div>
                 </div>
                 
                 {/* Financial Summary */}
                 <div className="space-y-2 text-xs">
                     <div className="flex justify-between text-slate-500">
-                        <span>Subtotal</span>
+                        <span>{descriptor.subtotalLabel}</span>
                         <span className="font-medium text-slate-800">{formatCurrency(subtotal)}</span>
                     </div>
                     {discount > 0 && (
@@ -733,15 +820,15 @@ const InvoiceMockPreview = ({
                         </>
                     )}
                     <div className={cn("flex justify-between p-3 rounded-lg border font-bold text-sm", styles.totalBox)}>
-                        <span>Grand Total</span>
+                        <span>{descriptor.totalLabel}</span>
                         <span className={cn("text-base font-extrabold", styles.accentText)}>{formatCurrency(totalAmount)}</span>
                     </div>
                     <div className="flex justify-between px-3 py-1 text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
-                        <span>Amount Paid</span>
+                        <span>{descriptor.paidLabel}</span>
                         <span>{formatCurrency(amountPaid)}</span>
                     </div>
                     <div className={cn("flex justify-between px-3 py-1.5 rounded-md font-bold text-xs", balanceDue > 0 ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-400" : "text-emerald-700")}>
-                        <span>Balance Due (Pending)</span>
+                        <span>{descriptor.balanceLabel}</span>
                         <span>{balanceDue > 0 ? formatCurrency(balanceDue) : "₹0.00 (Fully Settled)"}</span>
                     </div>
                     {showPartyPreviousBalance && (
@@ -776,7 +863,7 @@ const InvoiceMockPreview = ({
                 <div className="px-6 pb-6 flex justify-end">
                     <div className="text-right space-y-1">
                         <img src={profile.signature_url} alt="Signature" className="h-10 object-contain ml-auto opacity-90 max-w-[120px]" />
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider">Authorized Signature</div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider">{descriptor.signatoryRoleText}</div>
                     </div>
                 </div>
             )}
@@ -790,6 +877,7 @@ const PrintStudioPage = () => {
     const queryClient = useQueryClient();
     const [selectedTheme, setSelectedTheme] = useState<InvoiceTheme>("startup-gradient");
     const [selectedSale, setSelectedSale] = useState<any>(null);
+    const [selectedDocType, setSelectedDocType] = useState<UniversalDocumentType>("invoice");
     const [pageSize, setPageSize] = useState<PageSize>(() => {
         return (localStorage.getItem("rupeebill_invoice_pagesize") as PageSize) || "a4";
     });
@@ -982,8 +1070,11 @@ const PrintStudioPage = () => {
     }, [recentSales, selectedSale]);
 
     const activeSaleData = useMemo(() => {
+        if (selectedDocType === 'purchase_bill') return samplePurchaseBill;
+        if (selectedDocType === 'sale_order') return sampleSaleOrder;
+        if (selectedDocType === 'purchase_order') return samplePurchaseOrder;
         return selectedSale || sampleSale;
-    }, [selectedSale]);
+    }, [selectedSale, selectedDocType]);
 
     const handlePrintSale = async (sale: any) => {
         const invoiceDetails: InvoiceDetails = {
@@ -1029,6 +1120,7 @@ const PrintStudioPage = () => {
             await generateInvoicePDF(invoiceDetails, { 
                 action: 'download', 
                 theme: selectedTheme as InvoicePdfTheme, 
+                documentType: selectedDocType,
                 pageSize, 
                 customTerms, 
                 fontSizeFactor,
@@ -1412,13 +1504,68 @@ const PrintStudioPage = () => {
                     <div className="lg:col-span-8 flex flex-col gap-4 h-full overflow-hidden">
                         
                         {/* Interactive Toolbar */}
-                        <div className="bg-card border rounded-xl p-3 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+                        <div className="bg-card border rounded-xl p-3 shadow-sm flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 shrink-0">
                             <div>
                                 <h3 className="font-bold text-xs flex items-center gap-1.5">
                                     <Eye className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-                                    Live Invoice Preview
+                                    Live Document Preview
                                 </h3>
-                                <p className="text-[9px] text-muted-foreground mt-0.5">Showing: {selectedSale ? selectedSale.invoice_number : "Sample Invoice Template"}</p>
+                                <p className="text-[9px] text-muted-foreground mt-0.5">
+                                    Showing: {activeSaleData.invoice_number} ({resolveDocumentDescriptor(selectedDocType, undefined, activeSaleData?.invoice_number).title})
+                                </p>
+                            </div>
+
+                            {/* Document Type Switcher */}
+                            <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-lg border text-xs overflow-x-auto max-w-full">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedDocType('invoice')}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap",
+                                        selectedDocType === 'invoice' ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    🧾 Sale Bill
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedDocType('purchase_bill');
+                                        setSelectedSale(null);
+                                    }}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap",
+                                        selectedDocType === 'purchase_bill' ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    📦 Purchase Bill
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedDocType('sale_order');
+                                        setSelectedSale(null);
+                                    }}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap",
+                                        selectedDocType === 'sale_order' ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    📋 Sale Order
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedDocType('purchase_order');
+                                        setSelectedSale(null);
+                                    }}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap",
+                                        selectedDocType === 'purchase_order' ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    🛒 Purchase Order
+                                </button>
                             </div>
                             
                             <div className="flex gap-2 w-full sm:w-auto">
@@ -1427,17 +1574,18 @@ const PrintStudioPage = () => {
                                     className="bg-primary hover:bg-primary/95 text-white font-bold rounded-lg text-xs h-8.5 px-3 flex items-center gap-1.5 flex-1 sm:flex-initial"
                                 >
                                     <Printer className="w-3.5 h-3.5" />
-                                    {selectedTheme === 'thermal' ? 'Print Thermal' : 'Download Invoice'}
+                                    {selectedTheme === 'thermal' ? 'Print Thermal' : `Download ${resolveDocumentDescriptor(selectedDocType, undefined, activeSaleData?.invoice_number).title}`}
                                 </Button>
                                 
                                 {selectedTheme !== 'thermal' && (
                                     <Button
                                         variant="outline"
                                         onClick={async () => {
-                                            toast.success("Printing invoice layout...");
+                                            const desc = resolveDocumentDescriptor(selectedDocType, undefined, activeSaleData?.invoice_number);
+                                            toast.success(`Printing ${desc.title} layout...`);
                                             await generateInvoicePDF(
                                                 {
-                                                    invoice_number: activeSaleData.invoice_number || `INV-${activeSaleData.id.slice(0, 6).toUpperCase()}`,
+                                                    invoice_number: activeSaleData.invoice_number || `DOC-${activeSaleData.id.slice(0, 6).toUpperCase()}`,
                                                     date: activeSaleData.date || activeSaleData.created_at,
                                                     due_date: activeSaleData.due_date,
                                                     status: activeSaleData.status,
@@ -1473,6 +1621,7 @@ const PrintStudioPage = () => {
                                                 { 
                                                     action: 'preview', 
                                                     theme: selectedTheme as InvoicePdfTheme, 
+                                                    documentType: selectedDocType,
                                                     pageSize, 
                                                     customTerms, 
                                                     fontSizeFactor,
@@ -1550,6 +1699,7 @@ const PrintStudioPage = () => {
                                             upiId={upiIdInput || profile?.upi_id}
                                             showItemTaxRate={showItemTaxRate}
                                             showPartyPreviousBalance={showPartyPreviousBalance}
+                                            documentType={selectedDocType}
                                         />
                                     </div>
                                 </div>

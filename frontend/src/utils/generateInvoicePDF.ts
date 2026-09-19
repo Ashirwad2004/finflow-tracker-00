@@ -55,6 +55,221 @@ export interface InvoiceDetails {
 
 export type InvoicePdfTheme = 'startup-gradient' | 'tally-accounting';
 
+export type UniversalDocumentType = 
+    | 'invoice' 
+    | 'purchase_bill' 
+    | 'sale_order' 
+    | 'purchase_order' 
+    | 'delivery_challan' 
+    | 'proforma';
+
+export interface DocumentDescriptor {
+    type: UniversalDocumentType;
+    title: string;
+    numberLabel: string;
+    dateLabel: string;
+    dueDateLabel: string;
+    defaultDueDateText: string;
+    statusHeaderLabel: string;
+    senderLabel: string;
+    partyLabel: string;
+    consigneeLabel: string;
+    subtotalLabel: string;
+    totalLabel: string;
+    paidLabel: string;
+    balanceLabel: string;
+    signatoryCompanyText: (bizName: string) => string;
+    signatoryRoleText: string;
+    declarationTitle: string;
+    defaultDeclaration: string;
+    enableUpiQr: boolean;
+    isPurchaseFlow: boolean;
+    isOrder: boolean;
+}
+
+export const DOCUMENT_DESCRIPTORS: Record<UniversalDocumentType, DocumentDescriptor> = {
+    invoice: {
+        type: 'invoice',
+        title: 'TAX INVOICE',
+        numberLabel: 'Invoice No:',
+        dateLabel: 'Dated:',
+        dueDateLabel: 'Delivery Note / Due:',
+        defaultDueDateText: 'Direct Delivery',
+        statusHeaderLabel: 'Mode/Terms:',
+        senderLabel: 'Sender / Company Details:',
+        partyLabel: 'Buyer (Bill to):',
+        consigneeLabel: 'Consignee (Ship to):',
+        subtotalLabel: 'Subtotal:',
+        totalLabel: 'Grand Total:',
+        paidLabel: 'Amount Paid:',
+        balanceLabel: 'Balance Due:',
+        signatoryCompanyText: (biz) => `for ${biz.toUpperCase()}`,
+        signatoryRoleText: 'Authorized Signatory',
+        declarationTitle: 'Declaration:',
+        defaultDeclaration: 'We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.',
+        enableUpiQr: true,
+        isPurchaseFlow: false,
+        isOrder: false
+    },
+    purchase_bill: {
+        type: 'purchase_bill',
+        title: 'PURCHASE BILL',
+        numberLabel: 'Bill No:',
+        dateLabel: 'Bill Date:',
+        dueDateLabel: 'Payment Due:',
+        defaultDueDateText: 'Immediate / Net 0',
+        statusHeaderLabel: 'Bill Status:',
+        senderLabel: 'Recipient / Consignee (Purchaser):',
+        partyLabel: 'Supplier / Vendor (Billed By):',
+        consigneeLabel: 'Delivery / Goods Inward At:',
+        subtotalLabel: 'Subtotal:',
+        totalLabel: 'Total Bill Value:',
+        paidLabel: 'Amount Paid:',
+        balanceLabel: 'Balance Payable:',
+        signatoryCompanyText: (biz) => `for ${biz.toUpperCase()} (Purchaser)`,
+        signatoryRoleText: 'Authorized Receiver / Signatory',
+        declarationTitle: 'Declaration:',
+        defaultDeclaration: 'We acknowledge receipt of inward goods/services as per the quantities and rates invoiced above, subject to internal verification and GST ITC eligibility.',
+        enableUpiQr: false,
+        isPurchaseFlow: true,
+        isOrder: false
+    },
+    sale_order: {
+        type: 'sale_order',
+        title: 'SALE ORDER',
+        numberLabel: 'Order No:',
+        dateLabel: 'Order Date:',
+        dueDateLabel: 'Expected Delivery:',
+        defaultDueDateText: 'Standard Fulfillment',
+        statusHeaderLabel: 'Order Status:',
+        senderLabel: 'Seller / Supplier Details:',
+        partyLabel: 'Customer Details (Bill To):',
+        consigneeLabel: 'Shipping Address (Ship To):',
+        subtotalLabel: 'Subtotal:',
+        totalLabel: 'Total Order Value:',
+        paidLabel: 'Advance Received:',
+        balanceLabel: 'Balance on Delivery:',
+        signatoryCompanyText: (biz) => `for ${biz.toUpperCase()}`,
+        signatoryRoleText: 'Authorized Signatory',
+        declarationTitle: 'Order Notes & Terms:',
+        defaultDeclaration: 'Goods will be supplied as per the agreed specifications and delivery schedule above. Subject to local jurisdiction.',
+        enableUpiQr: true,
+        isPurchaseFlow: false,
+        isOrder: true
+    },
+    purchase_order: {
+        type: 'purchase_order',
+        title: 'PURCHASE ORDER',
+        numberLabel: 'PO No:',
+        dateLabel: 'PO Date:',
+        dueDateLabel: 'Expected Delivery:',
+        defaultDueDateText: 'Standard Procurement',
+        statusHeaderLabel: 'PO Status:',
+        senderLabel: 'Issued By / Purchaser:',
+        partyLabel: 'Vendor / Supplier Details:',
+        consigneeLabel: 'Deliver To / Destination:',
+        subtotalLabel: 'Subtotal:',
+        totalLabel: 'Total PO Value:',
+        paidLabel: 'Advance Paid:',
+        balanceLabel: 'Balance on Delivery:',
+        signatoryCompanyText: (biz) => `for ${biz.toUpperCase()} (Purchaser)`,
+        signatoryRoleText: 'Authorized Procurement Officer',
+        declarationTitle: 'Procurement Instructions:',
+        defaultDeclaration: 'Please supply the goods described above adhering strictly to the agreed purchase rates, delivery deadlines, and packaging standards.',
+        enableUpiQr: false,
+        isPurchaseFlow: true,
+        isOrder: true
+    },
+    delivery_challan: {
+        type: 'delivery_challan',
+        title: 'DELIVERY CHALLAN',
+        numberLabel: 'Challan No:',
+        dateLabel: 'Challan Date:',
+        dueDateLabel: 'Delivery Date:',
+        defaultDueDateText: 'Direct Delivery',
+        statusHeaderLabel: 'Dispatch Status:',
+        senderLabel: 'Dispatched By:',
+        partyLabel: 'Consignee / Recipient:',
+        consigneeLabel: 'Delivery Location:',
+        subtotalLabel: 'Subtotal:',
+        totalLabel: 'Declared Value:',
+        paidLabel: 'Amount Received:',
+        balanceLabel: 'Balance Payable:',
+        signatoryCompanyText: (biz) => `for ${biz.toUpperCase()}`,
+        signatoryRoleText: 'Authorized Dispatcher',
+        declarationTitle: 'Transportation Terms:',
+        defaultDeclaration: 'Goods dispatched for transportation / delivery. Not an invoice for sale.',
+        enableUpiQr: false,
+        isPurchaseFlow: false,
+        isOrder: false
+    },
+    proforma: {
+        type: 'proforma',
+        title: 'PROFORMA INVOICE',
+        numberLabel: 'Proforma No:',
+        dateLabel: 'Date:',
+        dueDateLabel: 'Validity Until:',
+        defaultDueDateText: '30 Days Validity',
+        statusHeaderLabel: 'Quote Status:',
+        senderLabel: 'Quoted By:',
+        partyLabel: 'Quotation For:',
+        consigneeLabel: 'Proposed Delivery To:',
+        subtotalLabel: 'Subtotal:',
+        totalLabel: 'Estimated Total:',
+        paidLabel: 'Advance Required:',
+        balanceLabel: 'Estimated Balance:',
+        signatoryCompanyText: (biz) => `for ${biz.toUpperCase()}`,
+        signatoryRoleText: 'Authorized Signatory',
+        declarationTitle: 'Quotation Terms:',
+        defaultDeclaration: 'This is a proforma quotation and not a demand for payment or tax invoice.',
+        enableUpiQr: true,
+        isPurchaseFlow: false,
+        isOrder: true
+    }
+};
+
+export function resolveDocumentDescriptor(
+    documentType?: UniversalDocumentType, 
+    documentTitle?: string, 
+    docNumber?: string
+): DocumentDescriptor {
+    if (documentType && DOCUMENT_DESCRIPTORS[documentType]) {
+        const desc = { ...DOCUMENT_DESCRIPTORS[documentType] };
+        if (documentTitle) desc.title = documentTitle;
+        return desc;
+    }
+
+    const titleUpper = (documentTitle || "").trim().toUpperCase();
+    if (titleUpper.includes("PURCHASE ORDER") || titleUpper === "PO") {
+        return { ...DOCUMENT_DESCRIPTORS['purchase_order'], title: documentTitle || "PURCHASE ORDER" };
+    }
+    if (titleUpper.includes("SALE ORDER") || titleUpper.includes("SALES ORDER") || titleUpper === "SO") {
+        return { ...DOCUMENT_DESCRIPTORS['sale_order'], title: documentTitle || "SALE ORDER" };
+    }
+    if (titleUpper.includes("PURCHASE BILL") || titleUpper.includes("PURCHASE INVOICE") || titleUpper.includes("INWARD")) {
+        return { ...DOCUMENT_DESCRIPTORS['purchase_bill'], title: documentTitle || "PURCHASE BILL" };
+    }
+    if (titleUpper.includes("DELIVERY CHALLAN")) {
+        return { ...DOCUMENT_DESCRIPTORS['delivery_challan'], title: documentTitle || "DELIVERY CHALLAN" };
+    }
+    if (titleUpper.includes("PROFORMA")) {
+        return { ...DOCUMENT_DESCRIPTORS['proforma'], title: documentTitle || "PROFORMA INVOICE" };
+    }
+
+    const numUpper = (docNumber || "").trim().toUpperCase();
+    if (numUpper.startsWith("PO-") || numUpper.startsWith("PO/")) {
+        return { ...DOCUMENT_DESCRIPTORS['purchase_order'], title: documentTitle || "PURCHASE ORDER" };
+    }
+    if (numUpper.startsWith("SO-") || numUpper.startsWith("ORD-") || numUpper.startsWith("SO/")) {
+        return { ...DOCUMENT_DESCRIPTORS['sale_order'], title: documentTitle || "SALE ORDER" };
+    }
+    if (numUpper.startsWith("BILL-") || numUpper.startsWith("PB-") || numUpper.startsWith("PUR-")) {
+        return { ...DOCUMENT_DESCRIPTORS['purchase_bill'], title: documentTitle || "PURCHASE BILL" };
+    }
+
+    return { ...DOCUMENT_DESCRIPTORS['invoice'], title: documentTitle || "TAX INVOICE" };
+}
+
 export interface BankDetailsInfo {
     bankName: string;
     accountNumber: string;
@@ -398,6 +613,7 @@ export const generateInvoicePDF = async (
     options?: { 
         action?: 'download' | 'preview', 
         theme?: InvoicePdfTheme, 
+        documentType?: UniversalDocumentType,
         documentTitle?: string, 
         pageSize?: PageSize, 
         customTerms?: string, 
@@ -416,13 +632,10 @@ export const generateInvoicePDF = async (
         const action = options?.action || 'download';
         const savedTheme = options?.theme || localStorage.getItem("rupeebill_invoice_theme") || 'startup-gradient';
         const theme = (savedTheme === 'tally-accounting' || savedTheme === 'startup-gradient') ? savedTheme : 'startup-gradient';
-        const documentTitle = options?.documentTitle;
-        const isPurchaseBill = Boolean(
-            documentTitle === 'PURCHASE BILL' || 
-            documentTitle?.toUpperCase().includes('PURCHASE BILL') ||
-            data.invoice_number?.startsWith('BILL-')
-        );
-        const resolvedDocTitle = documentTitle || (isPurchaseBill ? "PURCHASE BILL" : (theme === 'tally-accounting' ? "TAX INVOICE" : "INVOICE"));
+        
+        const descriptor = resolveDocumentDescriptor(options?.documentType, options?.documentTitle, data.invoice_number);
+        const resolvedDocTitle = options?.documentTitle || descriptor.title;
+        const isPurchaseBill = descriptor.isPurchaseFlow;
         const pageSize = options?.pageSize || (localStorage.getItem("rupeebill_invoice_pagesize") as PageSize) || 'a4';
         const customTerms = data.notes || options?.customTerms || localStorage.getItem("rupeebill_invoice_terms") || "";
         
@@ -487,12 +700,12 @@ export const generateInvoicePDF = async (
         ).trim();
 
         let upiQrBase64: { dataUrl: string; width: number; height: number } | null = null;
-        if (printUpiSetting && resolvedUpiId && !isPurchaseBill) {
+        if (printUpiSetting && resolvedUpiId && descriptor.enableUpiQr) {
             try {
                 const payeeVpa = resolvedUpiId;
                 const payeeName = encodeURIComponent(bizName.slice(0, 50));
                 const amountToPay = (balanceDue > 0 ? balanceDue : totalAmount).toFixed(2);
-                const note = encodeURIComponent(`Invoice ${safeText(data.invoice_number)}`);
+                const note = encodeURIComponent(`${descriptor.title} ${safeText(data.invoice_number)}`);
                 const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${payeeName}&am=${amountToPay}&cu=INR&tn=${note}`;
                 const dataUrl = await QRCode.toDataURL(upiUri, {
                     errorCorrectionLevel: 'M',
@@ -502,7 +715,7 @@ export const generateInvoicePDF = async (
                 });
                 upiQrBase64 = { dataUrl, width: 300, height: 300 };
             } catch (err) {
-                console.warn("Failed to generate UPI QR code for invoice:", err);
+                console.warn("Failed to generate UPI QR code for document:", err);
             }
         }
 
@@ -543,12 +756,12 @@ export const generateInvoicePDF = async (
         };
 
         const totalRows: TotalRow[] = [
-            { label: "Subtotal", value: data.subtotal },
+            { label: descriptor.subtotalLabel.replace(/:$/, ''), value: data.subtotal },
             ...(data.discount_amount && data.discount_amount > 0 ? [{ label: "Discount", value: -data.discount_amount }] : []),
             ...getTaxRows("at"),
-            { label: "Grand Total", value: data.total_amount, bold: true },
-            { label: "Amount Paid", value: amountPaid, isPaid: true },
-            { label: "Balance Due (Pending)", value: balanceDue, isDue: true, bold: balanceDue > 0 },
+            { label: descriptor.totalLabel.replace(/:$/, ''), value: data.total_amount, bold: true },
+            { label: descriptor.paidLabel.replace(/:$/, ''), value: amountPaid, isPaid: true },
+            { label: descriptor.balanceLabel.replace(/:$/, ''), value: balanceDue, isDue: true, bold: balanceDue > 0 },
             ...(hasPrevBalance ? [
                 { 
                     label: prevBalanceVal >= 0 ? "Previous Balance (Dr)" : "Previous Balance (Cr)", 
@@ -577,10 +790,10 @@ export const generateInvoicePDF = async (
             doc.setLineWidth(0.5);
             doc.rect(tallyMarginX, tallyMarginY, pageWidth - 2 * tallyMarginX, pageHeight - 2 * tallyMarginY);
 
-            // Centered Header Label: "TAX INVOICE" or "PURCHASE BILL"
+            // Centered Header Label: e.g. "TAX INVOICE", "PURCHASE BILL", "SALE ORDER", "PURCHASE ORDER"
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(11);
-            doc.text(resolvedDocTitle, pageWidth / 2, 16 * scale, { align: "center" });
+            doc.text(descriptor.title, pageWidth / 2, 16 * scale, { align: "center" });
             doc.line(tallyMarginX, 19 * scale, pageWidth - tallyMarginX, 19 * scale);
 
             const midX = pageWidth / 2;
@@ -589,7 +802,7 @@ export const generateInvoicePDF = async (
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(7.5);
             doc.setTextColor(80, 80, 80);
-            doc.text(isPurchaseBill ? "Recipient / Consignee (Purchaser):" : "Sender / Company Details:", tallyMarginX + 2, 23 * scale);
+            doc.text(descriptor.senderLabel, tallyMarginX + 2, 23 * scale);
             doc.setTextColor(...textDark);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(11);
@@ -620,26 +833,28 @@ export const generateInvoicePDF = async (
 
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
-            doc.text(isPurchaseBill ? "Bill No:" : "Invoice No:", metaLabelX, metaY);
+            doc.text(descriptor.numberLabel, metaLabelX, metaY);
             doc.setFont(fontStyle, "bold");
             doc.text(safeText(data.invoice_number), metaValX, metaY, { align: "right" });
             metaY += 4.8 * scale;
 
             doc.setFont(fontStyle, "normal");
-            doc.text(isPurchaseBill ? "Bill Date:" : "Dated:", metaLabelX, metaY);
+            doc.text(descriptor.dateLabel, metaLabelX, metaY);
             doc.setFont(fontStyle, "bold");
             doc.text(dateFormatted, metaValX, metaY, { align: "right" });
             metaY += 4.8 * scale;
 
             doc.setFont(fontStyle, "normal");
-            doc.text(isPurchaseBill ? "Payment Due:" : "Delivery Note:", metaLabelX, metaY);
-            doc.text(dueDateFormatted ? `Due: ${dueDateFormatted}` : (isPurchaseBill ? "Immediate / Net 0" : "Direct Delivery"), metaValX, metaY, { align: "right" });
+            doc.text(descriptor.dueDateLabel, metaLabelX, metaY);
+            doc.text(dueDateFormatted ? dueDateFormatted : descriptor.defaultDueDateText, metaValX, metaY, { align: "right" });
             metaY += 4.8 * scale;
 
-            doc.text(isPurchaseBill ? "Bill Status:" : "Mode/Terms:", metaLabelX, metaY);
-            const statusLabel = balanceDue <= 0 ? "Immediate / Paid" : (amountPaid > 0 ? `Partial (Due: Rs. ${balanceDue.toFixed(2)})` : "Pending / Due");
+            doc.text(descriptor.statusHeaderLabel, metaLabelX, metaY);
+            const statusLabel = balanceDue <= 0 && isFullyPaid 
+                ? (descriptor.isOrder ? "Confirmed / Settled" : "Immediate / Paid") 
+                : (amountPaid > 0 ? `Partial (Due: Rs. ${balanceDue.toFixed(2)})` : (data.status ? safeText(data.status).toUpperCase().replace("_", " ") : "Pending / Due"));
             doc.setFont(fontStyle, "bold");
-            if (balanceDue <= 0) doc.setTextColor(22, 101, 52);
+            if (balanceDue <= 0 && isFullyPaid) doc.setTextColor(22, 101, 52);
             else if (amountPaid > 0) doc.setTextColor(180, 83, 9);
             else doc.setTextColor(220, 38, 38);
             doc.text(statusLabel, metaValX, metaY, { align: "right" });
@@ -655,12 +870,12 @@ export const generateInvoicePDF = async (
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(7.5);
             doc.setTextColor(80, 80, 80);
-            doc.text(isPurchaseBill ? "Supplier / Vendor (Billed By):" : "Buyer (Bill to):", tallyMarginX + 2, buyerY);
+            doc.text(descriptor.partyLabel, tallyMarginX + 2, buyerY);
             doc.setTextColor(...textDark);
             buyerY += 4.2 * scale;
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(10);
-            doc.text(safeText(data.customer_name || (isPurchaseBill ? "Vendor / Supplier" : "Walk-in Guest")), tallyMarginX + 2, buyerY);
+            doc.text(safeText(data.customer_name || (descriptor.isPurchaseFlow ? "Vendor / Supplier" : "Walk-in Guest")), tallyMarginX + 2, buyerY);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
             buyerY += 4 * scale;
@@ -684,16 +899,19 @@ export const generateInvoicePDF = async (
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(7.5);
             doc.setTextColor(80, 80, 80);
-            doc.text(isPurchaseBill ? "Delivery / Goods Inward At:" : "Consignee (Ship to):", midX + 2, shipY);
+            doc.text(descriptor.consigneeLabel, midX + 2, shipY);
             doc.setTextColor(...textDark);
             shipY += 4.2 * scale;
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(9.5);
-            doc.text(isPurchaseBill ? bizName : safeText(data.customer_name || "Walk-in Guest"), midX + 2, shipY);
+            doc.text(descriptor.isPurchaseFlow ? bizName : safeText(data.customer_name || "Walk-in Guest"), midX + 2, shipY);
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
             shipY += 4 * scale;
-            doc.text(isPurchaseBill ? (data.business_details?.address ? safeText(data.business_details.address).slice(0, 45) : "Business Premises") : "Same as billing address", midX + 2, shipY);
+            const consigneeAddress = descriptor.isPurchaseFlow 
+                ? (data.business_details?.address ? safeText(data.business_details.address).slice(0, 45) : "Business Premises / Receiving Bay")
+                : "Same as billing address";
+            doc.text(consigneeAddress, midX + 2, shipY);
             shipY += 4 * scale;
 
             // Compute table start Y
@@ -908,13 +1126,11 @@ export const generateInvoicePDF = async (
                 const declY = line2Y + 3.8 * scale;
                 doc.setFont(fontStyle, "bold");
                 doc.setFontSize(7.5);
-                doc.text("Declaration:", tallyMarginX + 2, declY);
+                doc.text(descriptor.declarationTitle, tallyMarginX + 2, declY);
 
                 doc.setFont(fontStyle, "normal");
                 doc.setFontSize(6.8);
-                const termsText = customTerms || (isPurchaseBill
-                    ? "We acknowledge receipt of inward goods/services as per the quantities and rates invoiced above, subject to internal verification and GST ITC eligibility."
-                    : "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.");
+                const termsText = customTerms || descriptor.defaultDeclaration;
                 const splitTerms = doc.splitTextToSize(termsText, splitX - tallyMarginX - 4);
                 doc.text(splitTerms, tallyMarginX + 2, declY + 3.5 * scale);
 
@@ -922,7 +1138,7 @@ export const generateInvoicePDF = async (
                 doc.setFont(fontStyle, "normal");
                 doc.setFontSize(6.5);
                 doc.setTextColor(110, 110, 110);
-                doc.text(isPurchaseBill ? "Receiver's / Store's Seal & Signature" : "Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5 * scale);
+                doc.text(descriptor.isPurchaseFlow ? "Receiver's / Store's Seal & Signature" : "Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5 * scale);
                 doc.setTextColor(...textDark);
 
             } else {
@@ -934,13 +1150,11 @@ export const generateInvoicePDF = async (
                 const declY = line1Y + 4 * scale;
                 doc.setFont(fontStyle, "bold");
                 doc.setFontSize(7.5);
-                doc.text("Declaration:", tallyMarginX + 2, declY);
+                doc.text(descriptor.declarationTitle, tallyMarginX + 2, declY);
 
                 doc.setFont(fontStyle, "normal");
                 doc.setFontSize(6.8);
-                const termsText = customTerms || (isPurchaseBill
-                    ? "We acknowledge receipt of inward goods/services as per the quantities and rates invoiced above, subject to internal verification and GST ITC eligibility."
-                    : "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.");
+                const termsText = customTerms || descriptor.defaultDeclaration;
                 const splitTerms = doc.splitTextToSize(termsText, splitX - tallyMarginX - 4);
                 doc.text(splitTerms, tallyMarginX + 2, declY + 3.5 * scale);
 
@@ -948,7 +1162,7 @@ export const generateInvoicePDF = async (
                 doc.setFont(fontStyle, "normal");
                 doc.setFontSize(6.5);
                 doc.setTextColor(110, 110, 110);
-                doc.text(isPurchaseBill ? "Receiver's / Store's Seal & Signature" : "Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5 * scale);
+                doc.text(descriptor.isPurchaseFlow ? "Receiver's / Store's Seal & Signature" : "Customer's Seal and Signature", tallyMarginX + 2, pageHeight - tallyMarginY - 2.5 * scale);
                 doc.setTextColor(...textDark);
             }
 
@@ -957,7 +1171,7 @@ export const generateInvoicePDF = async (
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(8);
             
-            doc.text("Subtotal:", splitX + 2, rightY);
+            doc.text(descriptor.subtotalLabel, splitX + 2, rightY);
             doc.text(formatCurrencySafe(data.subtotal), pageWidth - tallyMarginX - 2, rightY, { align: "right" });
             rightY += 4.2 * scale;
             
@@ -985,7 +1199,7 @@ export const generateInvoicePDF = async (
             doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(9);
-            doc.text("Total:", splitX + 2, rightY + 3.8 * scale);
+            doc.text(descriptor.totalLabel, splitX + 2, rightY + 3.8 * scale);
             doc.text(formatCurrencySafe(data.total_amount), pageWidth - tallyMarginX - 2, rightY + 3.8 * scale, { align: "right" });
             rightY += 5.8 * scale;
 
@@ -994,19 +1208,19 @@ export const generateInvoicePDF = async (
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
             doc.setTextColor(22, 101, 52); // Forest green
-            doc.text("Amount Paid:", splitX + 2, rightY + 3.2 * scale);
+            doc.text(descriptor.paidLabel, splitX + 2, rightY + 3.2 * scale);
             doc.text(formatCurrencySafe(amountPaid), pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
             rightY += 4.8 * scale;
 
             doc.setFont(fontStyle, "bold");
             if (balanceDue > 0) {
                 doc.setTextColor(185, 28, 28); // Crimson red
-                doc.text("Balance Due:", splitX + 2, rightY + 3.2 * scale);
+                doc.text(descriptor.balanceLabel, splitX + 2, rightY + 3.2 * scale);
                 doc.text(formatCurrencySafe(balanceDue), pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
             } else {
                 doc.setTextColor(22, 101, 52); // Forest green
-                doc.text("Balance Due:", splitX + 2, rightY + 3.2 * scale);
-                doc.text("0.00 (PAID)", pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
+                doc.text(descriptor.balanceLabel, splitX + 2, rightY + 3.2 * scale);
+                doc.text("0.00 (PAID / SETTLED)", pageWidth - tallyMarginX - 2, rightY + 3.2 * scale, { align: "right" });
             }
             doc.setTextColor(...textDark);
             rightY += 5.2 * scale;
@@ -1052,7 +1266,7 @@ export const generateInvoicePDF = async (
 
             doc.setFont(fontStyle, "bold");
             doc.setFontSize(7.5);
-            const forBizText = isPurchaseBill ? `for ${bizName.toUpperCase()} (Purchaser)` : `for ${bizName.toUpperCase()}`;
+            const forBizText = descriptor.signatoryCompanyText(bizName);
             const splitForBiz = doc.splitTextToSize(forBizText, rightColWidth - 4);
             doc.text(splitForBiz, splitX + 2, signatoryBoxTop + 3.5 * scale);
             const bizTextH = splitForBiz.length * 3.2 * scale;
@@ -1060,7 +1274,7 @@ export const generateInvoicePDF = async (
             // Authorized Signatory anchor at bottom
             doc.setFont(fontStyle, "normal");
             doc.setFontSize(7.5);
-            doc.text(isPurchaseBill ? "Authorized Receiver / Signatory" : "Authorized Signatory", signatoryCenterX, signatoryBoxBottom - 2.5 * scale, { align: "center" });
+            doc.text(descriptor.signatoryRoleText, signatoryCenterX, signatoryBoxBottom - 2.5 * scale, { align: "center" });
 
             // Signature Image strictly placed in the available slot between forBizText and Authorized Signatory
             if (signatureBase64) {
@@ -1151,32 +1365,32 @@ export const generateInvoicePDF = async (
 
             doc.setFont("helvetica", "bold");
             doc.setFontSize(28);
-            doc.text(resolvedDocTitle, 196, 20, { align: "right" });
+            doc.text(descriptor.title, 196, 20, { align: "right" });
             doc.setFontSize(11);
             doc.setFont("helvetica", "normal");
-            doc.text(isPurchaseBill ? `Bill # ${safeText(data.invoice_number)}` : `No. ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
-            doc.text(`Date: ${dateFormatted}`, 196, 32, { align: "right" });
+            doc.text(`${descriptor.numberLabel.replace(':', '')} ${safeText(data.invoice_number)}`, 196, 27, { align: "right" });
+            doc.text(`${descriptor.dateLabel} ${dateFormatted}`, 196, 32, { align: "right" });
             if (dueDateFormatted) {
-                doc.text(`Due Date: ${dueDateFormatted}`, 196, 37, { align: "right" });
+                doc.text(`${descriptor.dueDateLabel} ${dueDateFormatted}`, 196, 37, { align: "right" });
             }
             const statusLineY = dueDateFormatted ? 42 : 37;
             doc.setFontSize(8.5);
             doc.setFont("helvetica", "bold");
-            if (balanceDue <= 0) {
+            if (balanceDue <= 0 && isFullyPaid) {
                 doc.setTextColor(22, 101, 52);
-                doc.text("STATUS: FULLY PAID", 196, statusLineY, { align: "right" });
+                doc.text(`STATUS: ${descriptor.isOrder ? "CONFIRMED / SETTLED" : "FULLY PAID"}`, 196, statusLineY, { align: "right" });
             } else if (amountPaid > 0) {
                 doc.setTextColor(180, 83, 9);
                 doc.text(`STATUS: PARTIALLY PAID (Pending: ${formatCurrencySafe(balanceDue)})`, 196, statusLineY, { align: "right" });
             } else {
                 doc.setTextColor(220, 38, 38);
-                doc.text("STATUS: UNPAID / DUE", 196, statusLineY, { align: "right" });
+                doc.text(`STATUS: ${(data.status ? safeText(data.status).toUpperCase().replace("_", " ") : "UNPAID / DUE")}`, 196, statusLineY, { align: "right" });
             }
 
             doc.setTextColor(...textDark);
             doc.setFontSize(12);
             doc.setFont("helvetica", "bold");
-            doc.text(isPurchaseBill ? "VENDOR / SUPPLIER (BILLED BY)" : "BILL TO", 14, 55);
+            doc.text(descriptor.partyLabel.toUpperCase().replace(":", ""), 14, 55);
 
             doc.setDrawColor(...indigoColor);
             doc.setLineWidth(0.5);
@@ -1435,7 +1649,7 @@ export const generateInvoicePDF = async (
                 doc.setFontSize(9);
                 doc.setTextColor(...textDark);
                 doc.setFont("helvetica", "normal");
-                doc.text(isPurchaseBill ? "Receiver's Verification / Signature" : "Authorized Signature", pageWidth - 14, sigY + renderH + 5, { align: "right" });
+                doc.text(descriptor.signatoryRoleText, pageWidth - 14, sigY + renderH + 5, { align: "right" });
             }
 
             doc.setDrawColor(243, 244, 246);
@@ -1443,7 +1657,7 @@ export const generateInvoicePDF = async (
             doc.setFontSize(9);
             doc.setTextColor(...textLight);
             doc.setFont("helvetica", "italic");
-            const termsText = customTerms || (isPurchaseBill ? "Inward Purchase Voucher recorded for accounting and ITC compliance." : "Generated with love via RupeeBill Ledger. Growth is a habit.");
+            const termsText = customTerms || descriptor.defaultDeclaration;
             doc.text(doc.splitTextToSize(termsText, pageWidth - 28), pageWidth / 2, pageHeight - 12, { align: "center" });
         }
 
