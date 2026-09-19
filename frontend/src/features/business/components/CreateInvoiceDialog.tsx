@@ -16,6 +16,7 @@ import {
     FileText,
     Wand2,
     Plus,
+    Wallet,
 } from "lucide-react";
 import { SmartSaleInput } from "./SmartSaleInput";
 import { CustomerSection } from "./CustomerSection";
@@ -302,6 +303,79 @@ export const CreateInvoiceDialog = ({
         },
         enabled: !!currentUserId,
     });
+
+    // ============================================================
+    // FETCH SALES FOR ACCURATE PARTY PREVIOUS BALANCE CALCULATION
+    // ============================================================
+
+    const { data: userSales = [] } = useQuery({
+        queryKey: ["sales", currentUserId],
+        queryFn: async () => {
+            if (!currentUserId) return [];
+            try {
+                const { data } = await supabase
+                    .from("sales" as any)
+                    .select("id, customer_name, total_amount, amount_paid, balance_due, status, date, document_type, party_id")
+                    .eq("user_id", currentUserId)
+                    .neq("status", "draft");
+                if (data && data.length > 0) return data;
+            } catch {
+                // offline fallback
+            }
+            const cached = (queryClient.getQueryData(["sales", currentUserId]) as any[]) || [];
+            if (cached.length > 0) return cached;
+            return (await sqliteService.getAll<any>("sales", currentUserId)) || [];
+        },
+        enabled: !!currentUserId,
+    });
+
+    const selectedParty = useMemo(() => {
+        const trimmedName = watchCustomerName.trim().toLowerCase();
+        if (!trimmedName) return null;
+        return (parties as any[]).find(
+            (p: any) => p.name?.trim().toLowerCase() === trimmedName
+        ) || null;
+    }, [watchCustomerName, parties]);
+
+    // CA-Grade Ledger Calculation for Party's Prior Pending Balance
+    const partyPreviousBalance = useMemo(() => {
+        if (!selectedParty && !watchCustomerName.trim()) return 0;
+        const pName = watchCustomerName.trim().toLowerCase();
+
+        const openBal = Number(selectedParty?.opening_balance) || 0;
+        const isOpeningReceivable = selectedParty?.opening_balance_type
+            ? selectedParty.opening_balance_type === "to_receive"
+            : selectedParty?.type !== "vendor";
+        let balance = isOpeningReceivable ? openBal : -openBal;
+
+        const currentInvoiceId = invoiceToEdit?.id;
+
+        (userSales as any[]).forEach((s: any) => {
+            if (currentInvoiceId && s.id === currentInvoiceId) return;
+
+            const isPartyMatch = (selectedParty?.id && s.party_id === selectedParty.id) ||
+                (s.customer_name && s.customer_name.trim().toLowerCase() === pName);
+
+            if (!isPartyMatch) return;
+
+            const total = Number(s.total_amount) || 0;
+            const paid = Number(s.amount_paid != null ? s.amount_paid : (s.status === "paid" ? total : 0));
+            const due = Number(s.balance_due != null ? s.balance_due : Math.max(0, total - paid));
+            const docType = (s.document_type || "invoice").toLowerCase();
+
+            if (docType === "receipt") {
+                balance = Math.max(0, balance - (total || paid));
+            } else if (docType === "credit_note") {
+                balance = balance - total;
+            } else if (docType === "debit_note") {
+                balance += total;
+            } else {
+                balance += due;
+            }
+        });
+
+        return balance;
+    }, [selectedParty, watchCustomerName, userSales, invoiceToEdit?.id]);
 
     const handleCustomerSelect = (customerName: string) => {
         const party = parties.find(
@@ -1105,6 +1179,18 @@ export const CreateInvoiceDialog = ({
 
     const totalAmount = roundedTotal;
 
+    const effectiveInvoiceTotal = isQuickBilling ? (Number(watchQuickTotalAmount) || 0) : roundedTotal;
+
+    const currentInvoiceDue = useMemo(() => {
+        const watchStatus = watch("status");
+        const paidVal = Number(watch("amount_paid")) || 0;
+        if (watchStatus === "paid") return 0;
+        if (watchStatus === "pending") return effectiveInvoiceTotal;
+        return Math.max(0, effectiveInvoiceTotal - paidVal);
+    }, [watch("status"), watch("amount_paid"), effectiveInvoiceTotal]);
+
+    const partyClosingDue = partyPreviousBalance + currentInvoiceDue;
+
     // ============================================================
     // MUTATION
     // ============================================================
@@ -1501,6 +1587,8 @@ export const CreateInvoiceDialog = ({
                         values.status === "paid" || (values.status === "partial" && (Number(values.amount_paid) || 0) > 0)
                             ? "cash"
                             : null,
+                    previous_balance: partyPreviousBalance,
+                    total_due_balance: partyClosingDue,
                     irn:
                         values.irn || null,
                     eway_bill_number:
@@ -2355,6 +2443,65 @@ export const CreateInvoiceDialog = ({
                                                     )
                                                 )}
                                             </span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Vyapar / Big Billing CA-Grade Party Previous Due & Net Balance Box */}
+                                {salesSettings?.showPartyPreviousBalance && watchCustomerName.trim() && (
+                                    <div className="p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/50 to-slate-50 dark:from-indigo-950/20 dark:to-slate-900 dark:border-indigo-800/60 shadow-xs space-y-2 mt-3">
+                                        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">
+                                            <span className="flex items-center gap-1.5">
+                                                <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                                                Party Balance (Ledger Status)
+                                            </span>
+                                            <span className="text-[10px] font-medium text-slate-500 lowercase truncate max-w-[140px]">
+                                                {selectedParty?.name || watchCustomerName}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-600 dark:text-slate-400">Previous Balance:</span>
+                                            <span className={`font-semibold ${partyPreviousBalance > 0 ? "text-rose-600 dark:text-rose-400" : partyPreviousBalance < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700"}`}>
+                                                {partyPreviousBalance > 0 
+                                                    ? `${formatCurrency(partyPreviousBalance)} Dr (Pending)` 
+                                                    : partyPreviousBalance < 0 
+                                                        ? `${formatCurrency(Math.abs(partyPreviousBalance))} Cr (Advance)` 
+                                                        : formatCurrency(0)}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-600 dark:text-slate-400">Current Bill Due:</span>
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                {formatCurrency(currentInvoiceDue)}
+                                            </span>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight block">
+                                                    Total Closing Balance:
+                                                </span>
+                                                <span className="text-[10px] text-slate-400">
+                                                    (Previous + Current Bill)
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`text-xs font-extrabold px-2 py-0.5 rounded ${
+                                                    partyClosingDue > 0 
+                                                        ? "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800" 
+                                                        : partyClosingDue < 0 
+                                                            ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" 
+                                                            : "bg-slate-100 text-slate-700 border border-slate-200"
+                                                }`}>
+                                                    {partyClosingDue > 0 
+                                                        ? `${formatCurrency(partyClosingDue)} Dr` 
+                                                        : partyClosingDue < 0 
+                                                            ? `${formatCurrency(Math.abs(partyClosingDue))} Cr` 
+                                                            : "₹0.00 (Settled)"}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -3283,6 +3430,65 @@ export const CreateInvoiceDialog = ({
                                             </span>
                                         </div>
                                     </div>
+
+                                    {/* Vyapar / Big Billing CA-Grade Party Previous Due & Net Balance Box */}
+                                    {salesSettings?.showPartyPreviousBalance && watchCustomerName.trim() && (
+                                        <div className="mt-3 p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/50 to-slate-50 dark:from-indigo-950/20 dark:to-slate-900 dark:border-indigo-800/60 shadow-xs space-y-2">
+                                            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                                                    Party Balance (Ledger Status)
+                                                </span>
+                                                <span className="text-[10px] font-medium text-slate-500 lowercase truncate max-w-[140px]">
+                                                    {selectedParty?.name || watchCustomerName}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-600 dark:text-slate-400">Previous Balance:</span>
+                                                <span className={`font-semibold ${partyPreviousBalance > 0 ? "text-rose-600 dark:text-rose-400" : partyPreviousBalance < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700"}`}>
+                                                    {partyPreviousBalance > 0 
+                                                        ? `${formatCurrency(partyPreviousBalance)} Dr (Pending)` 
+                                                        : partyPreviousBalance < 0 
+                                                            ? `${formatCurrency(Math.abs(partyPreviousBalance))} Cr (Advance)` 
+                                                            : formatCurrency(0)}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-600 dark:text-slate-400">Current Bill Due:</span>
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                    {formatCurrency(currentInvoiceDue)}
+                                                </span>
+                                            </div>
+
+                                            <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight block">
+                                                        Total Closing Balance:
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">
+                                                        (Previous + Current Bill)
+                                                    </span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className={`text-xs font-extrabold px-2 py-0.5 rounded ${
+                                                        partyClosingDue > 0 
+                                                            ? "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800" 
+                                                            : partyClosingDue < 0 
+                                                                ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" 
+                                                                : "bg-slate-100 text-slate-700 border border-slate-200"
+                                                    }`}>
+                                                        {partyClosingDue > 0 
+                                                            ? `${formatCurrency(partyClosingDue)} Dr` 
+                                                            : partyClosingDue < 0 
+                                                                ? `${formatCurrency(Math.abs(partyClosingDue))} Cr` 
+                                                                : "₹0.00 (Settled)"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

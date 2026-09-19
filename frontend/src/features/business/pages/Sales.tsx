@@ -62,6 +62,9 @@ interface Sale {
     discount_amount?: number;
     date: string;
     due_date?: string | null;
+    party_id?: string | null;
+    previous_balance?: number;
+    total_due_balance?: number;
     items: SaleItem[];
     notes?: string | null;
 }
@@ -243,7 +246,54 @@ export default function SalesPage() {
         setTranscriptTarget(getSalePaymentTarget(invoice));
     };
 
+    const getPartyPreviousBalance = (invoice: Sale) => {
+        if ((invoice as any).previous_balance !== undefined && (invoice as any).previous_balance !== null) {
+            return Number((invoice as any).previous_balance);
+        }
+        const custName = (invoice.customer_name || "").trim().toLowerCase();
+        if (!custName) return 0;
+        const party = parties.find((p: any) => 
+            (invoice.party_id && p.id === invoice.party_id) || 
+            (p.name && p.name.trim().toLowerCase() === custName)
+        );
+        if (!party) return 0;
+
+        const openBal = Number(party.opening_balance) || 0;
+        const isOpeningReceivable = party.opening_balance_type ? party.opening_balance_type === "to_receive" : party.type !== "vendor";
+        let prevBal = isOpeningReceivable ? openBal : -openBal;
+
+        const invDate = new Date(invoice.date || (invoice as any).created_at || 0).getTime();
+        const priorInvoices = invoices.filter((inv: any) => {
+            if (inv.id === invoice.id) return false;
+            const match = (inv.party_id && party.id && inv.party_id === party.id) ||
+                          (inv.customer_name && inv.customer_name.trim().toLowerCase() === custName);
+            if (!match) return false;
+            const d = new Date(inv.date || inv.created_at || 0).getTime();
+            return d < invDate;
+        });
+
+        priorInvoices.forEach((inv: any) => {
+            const tot = Number(inv.total_amount) || 0;
+            const pd = Number(inv.amount_paid != null ? inv.amount_paid : (inv.status === "paid" ? tot : 0));
+            const due = Number(inv.balance_due != null ? inv.balance_due : Math.max(0, tot - pd));
+            const docType = (inv.document_type || "invoice").toLowerCase();
+            if (docType === "receipt") {
+                prevBal = Math.max(0, prevBal - (tot || pd));
+            } else if (docType === "credit_note") {
+                prevBal = prevBal - tot;
+            } else if (docType === "debit_note") {
+                prevBal += tot;
+            } else {
+                prevBal += due;
+            }
+        });
+
+        return prevBal;
+    };
+
     const handlePreview = async (invoice: Sale) => {
+        const prevBal = getPartyPreviousBalance(invoice);
+        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
         const url = await generateInvoicePDF({
             invoice_number: invoice.invoice_number,
             date: invoice.date || (invoice as any).created_at,
@@ -252,6 +302,8 @@ export default function SalesPage() {
             amount_paid: invoice.amount_paid,
             balance_due: invoice.balance_due,
             payment_method: (invoice as any).payment_method,
+            previous_balance: prevBal,
+            total_due_balance: prevBal + curDue,
             customer_name: invoice.customer_name,
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
@@ -280,7 +332,7 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview' });
+        }, { action: 'preview', showPartyPreviousBalance: settings.showPartyPreviousBalance });
 
         if (url) {
             window.open(String(url), '_blank');
@@ -288,6 +340,8 @@ export default function SalesPage() {
     };
 
     const handleDownload = (invoice: Sale) => {
+        const prevBal = getPartyPreviousBalance(invoice);
+        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
         generateInvoicePDF({
             invoice_number: invoice.invoice_number,
             date: invoice.date || (invoice as any).created_at,
@@ -296,6 +350,8 @@ export default function SalesPage() {
             amount_paid: invoice.amount_paid,
             balance_due: invoice.balance_due,
             payment_method: (invoice as any).payment_method,
+            previous_balance: prevBal,
+            total_due_balance: prevBal + curDue,
             customer_name: invoice.customer_name,
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
@@ -324,12 +380,14 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download' });
+        }, { action: 'download', showPartyPreviousBalance: settings.showPartyPreviousBalance });
         toast.success(`Invoice ${invoice.invoice_number} downloaded.`);
     };
 
     const handleShare = async (invoice: Sale) => {
         try {
+            const prevBal = getPartyPreviousBalance(invoice);
+            const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
             const url = await generateInvoicePDF({
                 invoice_number: invoice.invoice_number,
                 date: invoice.date || (invoice as any).created_at,
@@ -338,6 +396,8 @@ export default function SalesPage() {
                 amount_paid: invoice.amount_paid,
                 balance_due: invoice.balance_due,
                 payment_method: (invoice as any).payment_method,
+                previous_balance: prevBal,
+                total_due_balance: prevBal + curDue,
                 customer_name: invoice.customer_name,
                 customer_phone: invoice.customer_phone,
                 customer_email: invoice.customer_email,
@@ -366,7 +426,7 @@ export default function SalesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'preview' });
+            }, { action: 'preview', showPartyPreviousBalance: settings.showPartyPreviousBalance });
 
             if (url) {
                 const response = await fetch(String(url));
@@ -1266,6 +1326,30 @@ export default function SalesPage() {
                                     <option value="igst">IGST</option>
                                     <option value="cgst_sgst">CGST + SGST</option>
                                 </select>
+                            </div>
+
+                            {/* Show Party Previous Due Balance on Invoices */}
+                            <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Show Party Previous Balance</p>
+                                        {settings.showPartyPreviousBalance && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">Active</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Display customer's pending previous balance, current bill due, and total closing balance at the bottom of bills and printed invoices (standard practice in Vyapar, Busy, and Tally).
+                                    </p>
+                                </div>
+                                <button
+                                    type="button" role="switch" aria-checked={settings.showPartyPreviousBalance}
+                                    onClick={() => updateSetting("showPartyPreviousBalance", !settings.showPartyPreviousBalance)}
+                                    className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                                        settings.showPartyPreviousBalance ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.showPartyPreviousBalance ? "translate-x-5" : "translate-x-0.5"}`} />
+                                </button>
                             </div>
 
                             {/* ── WORKFLOW ── */}

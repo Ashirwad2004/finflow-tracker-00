@@ -22,7 +22,8 @@ import {
     FileCheck,
     Landmark,
     QrCode,
-    Percent
+    Percent,
+    Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,7 @@ const themeMeta: Record<InvoiceTheme, { name: string; desc: string; color: strin
         color: "bg-zinc-800 text-white border border-black",
         class: "border-slate-300 hover:border-slate-500"
     },
-    thermal: { 
+    "thermal": { 
         name: "Thermal POS Receipt", 
         desc: "Compact receipt format with barcode styling for 58mm/80mm thermal rolls.", 
         color: "bg-stone-300 text-stone-800 font-mono",
@@ -98,6 +99,8 @@ const sampleSale = {
     total_amount: 15340,
     amount_paid: 10000,
     balance_due: 5340,
+    previous_balance: 8500,
+    total_due_balance: 13840,
     status: "partial",
     payment_method: "upi",
     items: [
@@ -118,7 +121,8 @@ const InvoiceMockPreview = ({
     bankAccount,
     printUpiQr,
     upiId,
-    showItemTaxRate
+    showItemTaxRate,
+    showPartyPreviousBalance
 }: { 
     sale: any; 
     profile: any; 
@@ -131,6 +135,7 @@ const InvoiceMockPreview = ({
     printUpiQr?: boolean;
     upiId?: string;
     showItemTaxRate?: boolean;
+    showPartyPreviousBalance?: boolean;
 }) => {
     const bizName = profile?.business_name || profile?.display_name || "RupeeBill Ventures";
     const dateToParse = sale.date || sale.created_at;
@@ -151,6 +156,9 @@ const InvoiceMockPreview = ({
         ? Number(sale.balance_due) 
         : Math.max(0, totalAmount - amountPaid);
     const isPartial = sale.status === 'partial' || (amountPaid > 0 && balanceDue > 0);
+
+    const partyPrevBal = sale.previous_balance !== undefined ? Number(sale.previous_balance) : 8500;
+    const partyClosingDue = sale.total_due_balance !== undefined ? Number(sale.total_due_balance) : (partyPrevBal + balanceDue);
 
     const effectiveUpi = (upiId || profile?.upi_id || localStorage.getItem("rupeebill_upi_id") || "").trim();
     const amountToPay = balanceDue > 0 ? balanceDue : totalAmount;
@@ -373,6 +381,31 @@ const InvoiceMockPreview = ({
                                 <span>Balance Due</span>
                                 <span>{balanceDue > 0 ? formatCurrency(balanceDue).replace("Rs. ","") : "0.00 (PAID)"}</span>
                             </div>
+                            {showPartyPreviousBalance && (
+                                <>
+                                    <div className="border-t border-dashed border-black/30 my-0.5"></div>
+                                    <div className="flex justify-between text-[10px] text-slate-700">
+                                        <span>Previous Balance</span>
+                                        <span>
+                                            {partyPrevBal > 0 
+                                                ? `${formatCurrency(partyPrevBal).replace("Rs. ","")} Dr` 
+                                                : partyPrevBal < 0 
+                                                    ? `${formatCurrency(Math.abs(partyPrevBal)).replace("Rs. ","")} Cr` 
+                                                    : "0.00"}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-[11px] font-black text-rose-800 bg-rose-50/70 px-1 py-0.5 rounded-xs border border-rose-200 mt-0.5">
+                                        <span>Total Net Due</span>
+                                        <span>
+                                            {partyClosingDue > 0 
+                                                ? `${formatCurrency(partyClosingDue).replace("Rs. ","")} Dr` 
+                                                : partyClosingDue < 0 
+                                                    ? `${formatCurrency(Math.abs(partyClosingDue)).replace("Rs. ","")} Cr` 
+                                                    : "0.00 (Settled)"}
+                                        </span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         
                         {/* Signatory Box */}
@@ -449,6 +482,31 @@ const InvoiceMockPreview = ({
                         <span>BALANCE DUE</span>
                         <span>{balanceDue > 0 ? `₹${balanceDue.toFixed(2)} (PENDING)` : "₹0.00 (PAID)"}</span>
                     </div>
+                    {showPartyPreviousBalance && (
+                        <>
+                            <div className="border-b border-dashed border-black/40 my-1"></div>
+                            <div className="flex justify-between text-[10px] text-slate-700">
+                                <span>PREV BAL:</span>
+                                <span>
+                                    {partyPrevBal > 0 
+                                        ? `₹${partyPrevBal.toFixed(2)} Dr` 
+                                        : partyPrevBal < 0 
+                                            ? `₹${Math.abs(partyPrevBal).toFixed(2)} Cr` 
+                                            : "₹0.00"}
+                                </span>
+                            </div>
+                            <div className="flex justify-between text-[11px] font-black">
+                                <span>TOTAL NET DUE:</span>
+                                <span>
+                                    {partyClosingDue > 0 
+                                        ? `₹${partyClosingDue.toFixed(2)} Dr` 
+                                        : partyClosingDue < 0 
+                                            ? `₹${Math.abs(partyClosingDue).toFixed(2)} Cr` 
+                                            : "₹0.00"}
+                                </span>
+                            </div>
+                        </>
+                    )}
                 </div>
                 
                 <div className="border-b border-dashed border-black my-2"></div>
@@ -686,6 +744,30 @@ const InvoiceMockPreview = ({
                         <span>Balance Due (Pending)</span>
                         <span>{balanceDue > 0 ? formatCurrency(balanceDue) : "₹0.00 (Fully Settled)"}</span>
                     </div>
+                    {showPartyPreviousBalance && (
+                        <div className="mt-2 pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-1">
+                            <div className="flex justify-between px-3 py-1 text-xs text-slate-600 dark:text-slate-400">
+                                <span>Party Previous Balance</span>
+                                <span className="font-semibold">
+                                    {partyPrevBal > 0 
+                                        ? `${formatCurrency(partyPrevBal)} Dr` 
+                                        : partyPrevBal < 0 
+                                            ? `${formatCurrency(Math.abs(partyPrevBal))} Cr` 
+                                            : "₹0.00"}
+                                </span>
+                            </div>
+                            <div className="flex justify-between px-3 py-1.5 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/50 text-xs font-black text-indigo-950 dark:text-indigo-200 shadow-xs">
+                                <span>Total Closing Due</span>
+                                <span className="text-sm font-extrabold text-indigo-700 dark:text-indigo-300">
+                                    {partyClosingDue > 0 
+                                        ? `${formatCurrency(partyClosingDue)} Dr` 
+                                        : partyClosingDue < 0 
+                                            ? `${formatCurrency(Math.abs(partyClosingDue))} Cr` 
+                                            : "₹0.00 (Settled)"}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
             
@@ -770,6 +852,18 @@ const PrintStudioPage = () => {
         setShowItemTaxRate(checked);
         localStorage.setItem("rupeebill_show_item_tax_rate_on_bill", checked ? "true" : "false");
         toast.success(checked ? "Product Tax % enabled on bills/invoices" : "Product Tax % hidden from bills/invoices");
+    };
+
+    // Party Previous Balance Preferences
+    const [showPartyPreviousBalance, setShowPartyPreviousBalance] = useState<boolean>(() => {
+        const saved = localStorage.getItem("rupeebill_show_party_previous_balance");
+        return saved !== "false";
+    });
+
+    const handleShowPartyPreviousBalanceToggle = (checked: boolean) => {
+        setShowPartyPreviousBalance(checked);
+        localStorage.setItem("rupeebill_show_party_previous_balance", checked ? "true" : "false");
+        toast.success(checked ? "Party previous balance enabled on invoices" : "Party previous balance hidden from invoices");
     };
 
     const [upiIdInput, setUpiIdInput] = useState<string>(() => {
@@ -910,6 +1004,8 @@ const PrintStudioPage = () => {
             tax_rate: sale.tax_rate || 0,
             tax_amount: sale.tax_amount || 0,
             total_amount: sale.total_amount,
+            previous_balance: sale.previous_balance,
+            total_due_balance: sale.total_due_balance,
             business_details: profile ? {
                 name: profile.business_name || profile.display_name || "My Business",
                 address: profile.business_address || undefined,
@@ -941,7 +1037,8 @@ const PrintStudioPage = () => {
                 selectedBankAccountId: selectedBankId,
                 printUpiQr,
                 upiId: upiIdInput || profile?.upi_id,
-                showItemTaxRateOnBill: showItemTaxRate
+                showItemTaxRateOnBill: showItemTaxRate,
+                showPartyPreviousBalance
             });
         }
     };
@@ -1276,11 +1373,30 @@ const PrintStudioPage = () => {
                             </p>
                         </div>
 
-                        {/* 7. Terms & Conditions Card */}
+                        {/* 7. Party Previous Balance Card */}
+                        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
+                            <div className="flex items-center justify-between border-b pb-2">
+                                <h2 className="text-sm font-bold flex items-center gap-2">
+                                    <Wallet className="w-3.5 h-3.5 text-primary" />
+                                    7. Party Previous Balance
+                                </h2>
+                                <Switch 
+                                    checked={showPartyPreviousBalance}
+                                    onCheckedChange={handleShowPartyPreviousBalanceToggle}
+                                />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                {showPartyPreviousBalance 
+                                    ? "Displaying party's prior pending balance and total closing due at the bottom of bills." 
+                                    : "Prior ledger balance is hidden. Only current bill amount is shown."}
+                            </p>
+                        </div>
+
+                        {/* 8. Terms & Conditions Card */}
                         <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
                             <h2 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
                                 <FileCheck className="w-3.5 h-3.5 text-primary" />
-                                7. Terms & Conditions
+                                8. Terms & Conditions
                             </h2>
                             <textarea
                                 value={customTerms}
@@ -1338,6 +1454,8 @@ const PrintStudioPage = () => {
                                                     tax_rate: activeSaleData.tax_rate || 0,
                                                     tax_amount: activeSaleData.tax_amount || 0,
                                                     total_amount: activeSaleData.total_amount,
+                                                    previous_balance: activeSaleData.previous_balance,
+                                                    total_due_balance: activeSaleData.total_due_balance,
                                                     business_details: profile ? {
                                                         name: profile.business_name || profile.display_name || "My Business",
                                                         address: profile.business_address || undefined,
@@ -1363,7 +1481,8 @@ const PrintStudioPage = () => {
                                                     selectedBankAccountId: selectedBankId,
                                                     printUpiQr,
                                                     upiId: upiIdInput || profile?.upi_id,
-                                                    showItemTaxRateOnBill: showItemTaxRate
+                                                    showItemTaxRateOnBill: showItemTaxRate,
+                                                    showPartyPreviousBalance
                                                 }
                                             );
                                         }}
@@ -1430,6 +1549,7 @@ const PrintStudioPage = () => {
                                             printUpiQr={printUpiQr}
                                             upiId={upiIdInput || profile?.upi_id}
                                             showItemTaxRate={showItemTaxRate}
+                                            showPartyPreviousBalance={showPartyPreviousBalance}
                                         />
                                     </div>
                                 </div>
