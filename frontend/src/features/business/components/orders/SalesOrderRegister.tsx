@@ -17,6 +17,7 @@ import {
     History,
     AlertCircle,
     ArrowUpRight,
+    Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,9 +30,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/core/integrations/supabase/client";
 import { SaleOrder, SaleOrderStatus } from "../../types/orders";
 import { useSaleOrders, useDeleteSaleOrder, calculateOrderStockSummary } from "../../hooks/useOrders";
-import { generateOrderPDF } from "@/utils/generateOrderPDF";
+import { generateOrderPDF, previewOrderPDF } from "@/utils/generateOrderPDF";
 import { CreateSaleOrderDialog } from "./CreateSaleOrderDialog";
 import { ConvertOrderToInvoiceDialog } from "./ConvertOrderToInvoiceDialog";
 import { ProcureItemsDialog } from "./ProcureItemsDialog";
@@ -124,13 +127,39 @@ export const SalesOrderRegister: React.FC<SalesOrderRegisterProps> = ({
         }
     };
 
+    const { data: profile } = useQuery({
+        queryKey: ["profile", userId],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from("profiles")
+                .select("*")
+                .eq("user_id", userId)
+                .single();
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!userId,
+    });
+
     const handleDownloadPDF = async (order: SaleOrder) => {
         try {
-            await generateOrderPDF(order, "sale_order");
+            await generateOrderPDF(order, "sale_order", profile);
             toast.success(`PDF downloaded for Order #${order.order_number}`);
         } catch (err) {
             console.error("PDF generation failed:", err);
             toast.error("Failed to generate PDF slip");
+        }
+    };
+
+    const handlePreviewPDF = async (order: SaleOrder) => {
+        try {
+            const url = await previewOrderPDF(order, "sale_order", profile);
+            if (url) {
+                window.open(String(url), "_blank");
+            }
+        } catch (err) {
+            console.error("PDF preview failed:", err);
+            toast.error("Failed to preview PDF slip");
         }
     };
 
@@ -474,6 +503,13 @@ export const SalesOrderRegister: React.FC<SalesOrderRegisterProps> = ({
                                                             >
                                                                 <History className="w-3.5 h-3.5 text-indigo-500" />
                                                                 <span>View Order Timeline</span>
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem
+                                                                onClick={() => handlePreviewPDF(order)}
+                                                                className="gap-2 cursor-pointer"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5 text-indigo-500" />
+                                                                <span>Preview PDF Slip</span>
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem
                                                                 onClick={() => handleDownloadPDF(order)}

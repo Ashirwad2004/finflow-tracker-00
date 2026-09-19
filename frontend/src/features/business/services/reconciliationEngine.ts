@@ -102,7 +102,7 @@ export function computeAutoMatches(
 
         for (const tx of unreconciledTxs) {
             if (usedTxIds.has(tx.id)) continue;
-            if (tx.type !== lineType) return false;
+            if (tx.type !== lineType) continue;
             if (Math.abs(tx.amount - lineAmount) > 0.01) continue;
 
             try {

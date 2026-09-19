@@ -246,7 +246,7 @@ export default function PurchasesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview', documentTitle: 'PURCHASE BILL' });
+        }, { action: 'preview', documentType: 'purchase_bill', documentTitle: 'PURCHASE BILL' });
 
         if (url) {
             window.open(String(url), '_blank');
@@ -280,7 +280,7 @@ export default function PurchasesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download', documentTitle: 'PURCHASE BILL' });
+        }, { action: 'download', documentType: 'purchase_bill', documentTitle: 'PURCHASE BILL' });
     };
 
     const handleShare = async (purchase: Purchase) => {
@@ -311,7 +311,7 @@ export default function PurchasesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'preview', documentTitle: 'PURCHASE BILL' });
+            }, { action: 'preview', documentType: 'purchase_bill', documentTitle: 'PURCHASE BILL' });
 
             if (url) {
                 const response = await fetch(String(url));

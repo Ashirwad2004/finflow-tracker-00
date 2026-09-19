@@ -332,7 +332,7 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+        }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
 
         if (url) {
             window.open(String(url), '_blank');
@@ -380,7 +380,7 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+        }, { action: 'download', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
         toast.success(`Invoice ${invoice.invoice_number} downloaded.`);
     };
 
@@ -426,7 +426,7 @@ export default function SalesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'preview', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+            }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
 
             if (url) {
                 const response = await fetch(String(url));
