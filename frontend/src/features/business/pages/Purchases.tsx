@@ -1,9 +1,29 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingDown, Clock, Eye, Trash2, Share2, ShoppingBag, Zap, ReceiptIndianRupee, ScrollText, ArrowUpRight } from "lucide-react";
+import { 
+    Search, 
+    MoreHorizontal, 
+    FileText, 
+    Download, 
+    Pencil, 
+    Filter, 
+    Plus, 
+    TrendingDown, 
+    Clock, 
+    Eye, 
+    Trash2, 
+    Share2, 
+    ShoppingBag, 
+    Zap, 
+    ReceiptIndianRupee, 
+    ScrollText, 
+    ArrowUpRight,
+    CheckCircle,
+    AlertCircle
+} from "lucide-react";
 import { toast } from "sonner";
 import { RecordPurchaseDialog } from "@/features/business/components/RecordPurchaseDialog";
 import { RecordBillPaymentDialog, BillPaymentTarget } from "@/features/business/components/RecordBillPaymentDialog";
@@ -33,7 +53,8 @@ export default function PurchasesPage() {
     const [isRecordOpen, setIsRecordOpen] = useState(false);
     const [startWithScanner, setStartWithScanner] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue' | 'draft'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'pending' | 'overdue'>('all');
+    const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
     const [editingPurchase, setEditingPurchase] = useState<any>(null);
     const [paymentPurchase, setPaymentPurchase] = useState<BillPaymentTarget | null>(null);
     const [transcriptPurchase, setTranscriptPurchase] = useState<BillPaymentTarget | null>(null);
@@ -391,24 +412,51 @@ export default function PurchasesPage() {
         })
         .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
 
-    const filteredPurchases = purchases.filter((purchase) => {
-        const matchesSearch =
-            purchase.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            purchase.bill_number?.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        let matchesFilter = filterStatus === 'all';
-        if (filterStatus === 'paid') matchesFilter = purchase.status === 'paid';
-        if (filterStatus === 'draft') matchesFilter = !purchase.status || purchase.status === 'draft';
-        if (filterStatus === 'overdue') matchesFilter = isRecordOverdue(purchase);
-        if (filterStatus === 'pending') matchesFilter = purchase.status === 'pending' && !isRecordOverdue(purchase);
+    const sortedAndFilteredPurchases = useMemo(() => {
+        const result = purchases.filter((purchase) => {
+            const matchesSearch =
+                purchase.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                purchase.bill_number?.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            let matchesFilter = filterStatus === 'all';
+            const amtPaid = Number(purchase.amount_paid || 0);
+            const balDue = Number(
+                purchase.balance_due != null
+                    ? purchase.balance_due
+                    : Math.max(0, purchase.total_amount - amtPaid)
+            );
+            const isSettled = balDue <= 0.001 && purchase.total_amount > 0;
+            const isOverdue = isRecordOverdue(purchase);
 
-        return matchesFilter && matchesSearch;
-    });
+            if (filterStatus === 'paid') matchesFilter = isSettled || purchase.status === 'paid';
+            if (filterStatus === 'partial') matchesFilter = (amtPaid > 0 && balDue > 0) || purchase.status === 'partial';
+            if (filterStatus === 'overdue') matchesFilter = isOverdue && balDue > 0;
+            if (filterStatus === 'pending') matchesFilter = balDue > 0 && !isOverdue && amtPaid === 0;
+
+            return matchesFilter && matchesSearch;
+        });
+
+        return result.sort((a, b) => {
+            if (sortBy === 'date-desc') {
+                return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+            }
+            if (sortBy === 'date-asc') {
+                return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+            }
+            if (sortBy === 'amount-desc') {
+                return Number(b.total_amount || 0) - Number(a.total_amount || 0);
+            }
+            if (sortBy === 'amount-asc') {
+                return Number(a.total_amount || 0) - Number(b.total_amount || 0);
+            }
+            return 0;
+        });
+    }, [purchases, searchTerm, filterStatus, sortBy]);
 
     const rowVirtualizer = useVirtualizer({
-        count: filteredPurchases.length,
+        count: sortedAndFilteredPurchases.length,
         getScrollElement: () => tableContainerRef.current,
-        estimateSize: () => 80, // Approximate height of table row
+        estimateSize: () => 65, // Compact row height matching Sales.tsx
         overscan: 10,
     });
 
@@ -419,17 +467,17 @@ export default function PurchasesPage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
                     <div>
-                        <h2 className="text-3xl font-extrabold tracking-tight">Purchases & Bills</h2>
-                        <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">Track and manage your vendor expenses and incoming bills.</p>
+                        <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Purchases & Bills</h2>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1 dark:text-slate-400">Track and manage your vendor expenses, bills, and payables.</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <div className="relative group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
+                        <div className="relative group w-full sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                             <input
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full sm:w-64 h-10 pl-10 pr-4 text-sm rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100"
+                                className="w-full h-9 pl-9 pr-4 text-xs sm:text-sm rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100 shadow-2xs"
                                 placeholder="Search purchases..."
                             />
                         </div>
@@ -439,11 +487,12 @@ export default function PurchasesPage() {
                                 setStartWithScanner(true);
                                 setIsRecordOpen(true);
                             }}
-                            className="flex items-center whitespace-nowrap gap-2 px-3.5 py-2 text-sm font-bold text-violet-700 dark:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg shadow-xs transition-all"
+                            className="flex items-center justify-center whitespace-nowrap gap-1.5 px-3 py-2 text-xs sm:text-sm font-bold text-violet-700 dark:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg shadow-2xs transition-all flex-1 sm:flex-initial"
+                            title="1-Click AI Purchase Bill Scanner"
                         >
-                            <Zap className="w-4 h-4 text-violet-500 animate-pulse" />
+                            <Zap className="w-3.5 h-3.5 text-violet-500 animate-pulse" />
                             <span className="hidden sm:inline">⚡ Scan & Auto-Save</span>
-                            <span className="sm:hidden">Scan</span>
+                            <span className="sm:hidden">Scan Bill</span>
                         </button>
 
                         <button
@@ -451,10 +500,10 @@ export default function PurchasesPage() {
                                 setPaymentPurchase(null);
                                 setIsPaymentOutOpen(true);
                             }}
-                            className="flex items-center whitespace-nowrap gap-1.5 px-3.5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-all"
+                            className="flex items-center justify-center whitespace-nowrap gap-1.5 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition-all flex-1 sm:flex-initial"
                             title="Record Payment Out (With or Without Bill)"
                         >
-                            <ReceiptIndianRupee className="w-4 h-4" />
+                            <ReceiptIndianRupee className="w-3.5 h-3.5" />
                             <span>+ Payment Out</span>
                         </button>
 
@@ -464,16 +513,16 @@ export default function PurchasesPage() {
                                 setStartWithScanner(false);
                                 setIsRecordOpen(true);
                             }}
-                            className="flex items-center whitespace-nowrap gap-2 px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all"
+                            className="flex items-center justify-center whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all flex-1 sm:flex-initial"
                         >
-                            <Plus className="w-5 h-5" />
+                            <Plus className="w-4 h-4" />
                             <span>Record Purchase</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Vyapar Tab Switcher */}
-                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit mb-6">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit mb-4">
                     <button
                         onClick={() => setActiveTab("bills")}
                         className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
@@ -532,51 +581,48 @@ export default function PurchasesPage() {
                 ) : (
                     <>
 
-                {/* Top Metrics Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all flex items-center justify-between">
-                        <div>
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Unpaid Bills</span>
-                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(outstandingTotal)}</p>
-                            <p className="text-[10px] font-medium text-slate-400 mt-0.5">Pending payment</p>
+                {/* Top Metrics Strip matching Sales.tsx */}
+                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm mb-3 divide-x divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-2.5 flex-1">
+                        <div className="h-7 w-7 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0">
+                            <Clock className="w-3.5 h-3.5" />
                         </div>
-                        <div className="h-9 w-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                            <Clock className="w-4.5 h-4.5" />
+                        <div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Unpaid Bills</p>
+                            <p className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">{formatCurrency(outstandingTotal)}</p>
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all flex items-center justify-between">
-                        <div>
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Overdue Bills</span>
-                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(overdueTotal)}</p>
-                            <p className="text-[10px] font-medium text-rose-500 mt-0.5">Requires attention</p>
+                    <div className="flex items-center gap-3 px-4 py-2.5 flex-1">
+                        <div className="h-7 w-7 rounded-md bg-rose-50 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center shrink-0">
+                            <AlertCircle className="w-3.5 h-3.5" />
                         </div>
-                        <div className="h-9 w-9 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                            <TrendingDown className="w-4.5 h-4.5" />
+                        <div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Overdue Bills</p>
+                            <p className="text-sm font-extrabold text-rose-600 dark:text-rose-400 leading-tight">{formatCurrency(overdueTotal)}</p>
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all flex items-center justify-between">
-                        <div>
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Spent this Month</span>
-                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(spentThisMonth)}</p>
-                            <p className="text-[10px] font-medium text-emerald-500 mt-0.5">Paid expenses</p>
+                    <div className="flex items-center gap-3 px-4 py-2.5 flex-1">
+                        <div className="h-7 w-7 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center shrink-0">
+                            <CheckCircle className="w-3.5 h-3.5" />
                         </div>
-                        <div className="h-9 w-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                            <ShoppingBag className="w-4.5 h-4.5" />
+                        <div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Spent this Month</p>
+                            <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 leading-tight">{formatCurrency(spentThisMonth)}</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Data Table Container */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 border-t-0 dark:bg-slate-800/50">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
+                    <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 border-t-0 dark:bg-slate-800/50 gap-2">
                         <div className="flex items-center gap-1 bg-slate-200/50 dark:bg-slate-950 p-1 rounded-lg overflow-x-auto max-w-full">
-                            {['all', 'paid', 'pending', 'overdue'].map((status) => (
+                            {['all', 'paid', 'partial', 'pending', 'overdue'].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => setFilterStatus(status as any)}
-                                    className={`px-4 py-1.5 text-xs font-bold rounded-md shadow-sm capitalize transition-all whitespace-nowrap ${filterStatus === status
+                                    className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-md shadow-2xs capitalize transition-all whitespace-nowrap ${filterStatus === status
                                         ? 'bg-white dark:bg-slate-800 text-primary'
                                         : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                         }`}
@@ -585,33 +631,149 @@ export default function PurchasesPage() {
                                 </button>
                             ))}
                         </div>
-                        <button className="text-slate-400 hover:text-slate-600 p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800">
-                            <Filter className="w-4 h-4" />
-                        </button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="text-slate-400 hover:text-slate-600 p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" title="Sort Purchases">
+                                    <Filter className="w-4 h-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <DropdownMenuItem onClick={() => setSortBy('date-desc')} className={`cursor-pointer py-2 ${sortBy === 'date-desc' ? 'font-bold text-primary' : ''}`}>
+                                    Date: Newest First
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortBy('date-asc')} className={`cursor-pointer py-2 ${sortBy === 'date-asc' ? 'font-bold text-primary' : ''}`}>
+                                    Date: Oldest First
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortBy('amount-desc')} className={`cursor-pointer py-2 ${sortBy === 'amount-desc' ? 'font-bold text-primary' : ''}`}>
+                                    Amount: High to Low
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortBy('amount-asc')} className={`cursor-pointer py-2 ${sortBy === 'amount-asc' ? 'font-bold text-primary' : ''}`}>
+                                    Amount: Low to High
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
 
+                    {/* Mobile Touch-Friendly Cards View (< 768px) */}
+                    <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[65vh]">
+                        {isLoading ? (
+                            <div className="p-6 text-center text-slate-400 text-xs">Loading purchase bills...</div>
+                        ) : sortedAndFilteredPurchases.length === 0 ? (
+                            <div className="p-8 text-center text-slate-500 text-xs">No purchase bills matching your criteria.</div>
+                        ) : (
+                            sortedAndFilteredPurchases.map((purchase) => {
+                                const amtPaid = Number(purchase.amount_paid || 0);
+                                const balDue = Number(
+                                    purchase.balance_due != null
+                                        ? purchase.balance_due
+                                        : Math.max(0, purchase.total_amount - amtPaid)
+                                );
+                                const isSettled = balDue <= 0.001 && purchase.total_amount > 0;
+
+                                return (
+                                    <div 
+                                        key={purchase.id} 
+                                        onClick={() => handleEdit(purchase)} 
+                                        className="p-3.5 space-y-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white font-mono">
+                                                    {purchase.bill_number || `#${purchase.id.substring(0, 6)}`}
+                                                </span>
+                                                {isSettled || purchase.status === 'paid' ? (
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200">Paid</span>
+                                                ) : amtPaid > 0 && balDue > 0 ? (
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200">Partial</span>
+                                                ) : isRecordOverdue(purchase) ? (
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200">Overdue</span>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200">Unpaid</span>
+                                                )}
+                                            </div>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                    <button className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400">
+                                                        <MoreHorizontal className="w-4 h-4" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                                    {balDue > 0 && (
+                                                        <DropdownMenuItem onClick={() => setPaymentPurchase(getPurchasePaymentTarget(purchase))} className="text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer">
+                                                            <ReceiptIndianRupee className="w-4 h-4 mr-2" /> Record Payment Out
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    <DropdownMenuItem onClick={() => setTranscriptPurchase(getPurchasePaymentTarget(purchase))} className="cursor-pointer">
+                                                        <ScrollText className="w-4 h-4 mr-2 text-slate-500" /> Payment Transcript
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handlePreview(purchase)}>
+                                                        <Eye className="w-4 h-4 mr-2" /> Preview PDF
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDownload(purchase)}>
+                                                        <Download className="w-4 h-4 mr-2" /> Download PDF
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleShare(purchase)}>
+                                                        <Share2 className="w-4 h-4 mr-2" /> Share Bill
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleEdit(purchase)}>
+                                                        <Pencil className="w-4 h-4 mr-2" /> Edit Bill
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDelete(purchase)} className="text-red-500 hover:text-red-600 focus:text-red-600">
+                                                        <Trash2 className="w-4 h-4 mr-2" /> Delete Bill
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[200px]">{purchase.vendor_name}</span>
+                                            <span className="text-slate-400 text-[11px]">{formatDateSafe(purchase.date, "MMM dd, yyyy")}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 block">Total Amount</span>
+                                                <span className="font-extrabold text-slate-900 dark:text-white">{formatCurrency(purchase.total_amount)}</span>
+                                            </div>
+                                            {balDue > 0 ? (
+                                                <div className="text-right">
+                                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 block">Balance Due</span>
+                                                    <span className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(balDue)}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="text-right">
+                                                    <span className="text-[10px] text-emerald-600 block">Payment</span>
+                                                    <span className="font-bold text-emerald-600">Fully Settled</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Desktop Virtualized Table (>= 768px) */}
                     <div 
-                        className="overflow-auto max-h-[65vh] w-full"
+                        className="hidden md:block overflow-auto max-h-[65vh] w-full"
                         ref={tableContainerRef}
                     >
                         <table className="w-full text-left border-collapse min-w-[1050px] relative">
                             <thead className="sticky top-0 z-10 shadow-sm">
-                                <tr className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                                    <th className="px-5 py-3.5">Bill Ref</th>
-                                    <th className="px-5 py-3.5">Vendor</th>
-                                    <th className="px-5 py-3.5">Date</th>
-                                    <th className="px-5 py-3.5 text-right">Tax</th>
-                                    <th className="px-5 py-3.5 text-right">Total Amount</th>
-                                    <th className="px-5 py-3.5 text-right">Paid</th>
-                                    <th className="px-5 py-3.5 text-right">Balance Due</th>
-                                    <th className="px-5 py-3.5 text-center">Status</th>
-                                    <th className="px-5 py-3.5 text-right">Actions</th>
+                                <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                    <th className="px-4 py-2.5">Bill Ref</th>
+                                    <th className="px-4 py-2.5">Vendor</th>
+                                    <th className="px-4 py-2.5">Date</th>
+                                    <th className="px-4 py-2.5 text-right">Tax</th>
+                                    <th className="px-4 py-2.5 text-right">Total Amount</th>
+                                    <th className="px-4 py-2.5 text-right">Paid</th>
+                                    <th className="px-4 py-2.5 text-right">Balance Due</th>
+                                    <th className="px-4 py-2.5 text-center">Status</th>
+                                    <th className="px-4 py-2.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoading ? (
                                     <TableLoadingRows cols={9} rows={5} />
-                                ) : filteredPurchases.length === 0 ? (
+                                ) : sortedAndFilteredPurchases.length === 0 ? (
                                     <tr><td colSpan={9} className="px-6 py-12 text-center text-slate-500">No purchases matching your criteria.</td></tr>
                                 ) : (
                                     <>
@@ -621,7 +783,7 @@ export default function PurchasesPage() {
                                             </tr>
                                         )}
                                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                            const purchase = filteredPurchases[virtualRow.index];
+                                            const purchase = sortedAndFilteredPurchases[virtualRow.index];
                                             const amtPaid = Number(purchase.amount_paid || 0);
                                             const balDue = Number(
                                                 purchase.balance_due != null
@@ -632,9 +794,9 @@ export default function PurchasesPage() {
 
                                             return (
                                         <tr key={purchase.id} onClick={() => handleEdit(purchase)} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
-                                            <td className="px-5 py-3.5">
+                                            <td className="px-4 py-2.5">
                                                 <div className="flex items-center gap-1.5">
-                                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{purchase.bill_number ? purchase.bill_number : `#${purchase.id.substring(0, 6)}`}</p>
+                                                    <p className="text-xs font-bold text-slate-900 dark:text-white">{purchase.bill_number ? purchase.bill_number : `#${purchase.id.substring(0, 6)}`}</p>
                                                     {purchase.bill_number?.startsWith("PAY-") && (
                                                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 uppercase tracking-wider">
                                                             Payment Out
@@ -643,38 +805,38 @@ export default function PurchasesPage() {
                                                 </div>
                                                 <p className="text-[10px] text-slate-400 mt-0.5">{purchase.items?.length || 0} items</p>
                                             </td>
-                                            <td className="px-5 py-3.5">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                                            <td className="px-4 py-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-6 w-6 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-primary flex items-center justify-center font-bold text-[10px] shrink-0">
                                                         {purchase.vendor_name?.substring(0, 2).toUpperCase() || 'NA'}
                                                     </div>
-                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+                                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
                                                         {purchase.vendor_name}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400">
+                                            <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
                                                 <div>{formatDateSafe(purchase.date, "MMM dd, yyyy")}</div>
                                                 {purchase.due_date && (
                                                     <div className="text-[10px] text-slate-400 mt-0.5">Due: {formatDateSafe(purchase.due_date, "MMM dd")}</div>
                                                 )}
                                             </td>
-                                            <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 text-right">
+                                            <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400 text-right">
                                                 {purchase.tax_amount ? formatCurrency(purchase.tax_amount) : formatCurrency(0)}
                                             </td>
-                                            <td className="px-5 py-3.5 text-sm font-extrabold text-slate-900 dark:text-white text-right">
+                                            <td className="px-4 py-2.5 text-xs font-extrabold text-slate-900 dark:text-white text-right">
                                                 {formatCurrency(purchase.total_amount)}
                                             </td>
-                                            <td className="px-5 py-3.5 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">
+                                            <td className="px-4 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 text-right">
                                                 {formatCurrency(amtPaid)}
                                             </td>
-                                            <td className="px-5 py-3.5 text-sm text-right">
+                                            <td className="px-4 py-2.5 text-xs text-right">
                                                 {balDue > 0 ? (
                                                     <button
                                                         type="button"
                                                         onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setPaymentPurchase(getPurchasePaymentTarget(purchase));
+                                                             e.stopPropagation();
+                                                             setPaymentPurchase(getPurchasePaymentTarget(purchase));
                                                         }}
                                                         className="font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:underline transition-colors block ml-auto"
                                                         title="Click to Record Payment Out"
@@ -685,7 +847,7 @@ export default function PurchasesPage() {
                                                     <span className="text-slate-400 font-semibold">-</span>
                                                 )}
                                             </td>
-                                            <td className="px-5 py-3.5 text-center">
+                                            <td className="px-4 py-2.5 text-center">
                                                 {isSettled || purchase.status === 'paid' ? (
                                                     <button
                                                         type="button"
@@ -693,7 +855,7 @@ export default function PurchasesPage() {
                                                             e.stopPropagation();
                                                             setTranscriptPurchase(getPurchasePaymentTarget(purchase));
                                                         }}
-                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:scale-105 transition-transform"
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:scale-105 transition-transform"
                                                         title="Paid — Click to view Payment Ledger"
                                                     >
                                                         Paid
@@ -705,7 +867,7 @@ export default function PurchasesPage() {
                                                             e.stopPropagation();
                                                             setPaymentPurchase(getPurchasePaymentTarget(purchase));
                                                         }}
-                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 hover:scale-105 transition-transform"
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 hover:scale-105 transition-transform"
                                                         title={`Partial (Due: ${formatCurrency(balDue)}) — Click to Pay`}
                                                     >
                                                         Partial
@@ -717,7 +879,7 @@ export default function PurchasesPage() {
                                                             e.stopPropagation();
                                                             setPaymentPurchase(getPurchasePaymentTarget(purchase));
                                                         }}
-                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 hover:scale-105 transition-transform"
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 hover:scale-105 transition-transform"
                                                         title="Overdue — Click to Pay"
                                                     >
                                                         Overdue
@@ -729,14 +891,14 @@ export default function PurchasesPage() {
                                                             e.stopPropagation();
                                                             setPaymentPurchase(getPurchasePaymentTarget(purchase));
                                                         }}
-                                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 hover:scale-105 transition-transform"
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 hover:scale-105 transition-transform"
                                                         title="Unpaid — Click to Pay"
                                                     >
                                                         Unpaid
                                                     </button>
                                                 )}
                                             </td>
-                                            <td className="px-5 py-3.5 text-right">
+                                            <td className="px-4 py-2.5 text-right">
                                                 <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity">
                                                     {balDue > 0 && (
                                                         <button
@@ -747,7 +909,7 @@ export default function PurchasesPage() {
                                                             className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-bold flex items-center gap-1 shadow-2xs transition-all mr-1"
                                                             title="Record Payment Out"
                                                         >
-                                                            <ReceiptIndianRupee className="w-3.5 h-3.5" />
+                                                            <ReceiptIndianRupee className="w-3 h-3" />
                                                             <span>Payment Out</span>
                                                         </button>
                                                     )}
