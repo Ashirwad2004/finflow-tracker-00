@@ -217,7 +217,7 @@ export default function BarcodeManagementPage() {
         prefix: "FF",
       });
 
-      toast.success(`Successfully generated ${res.data.count || productsNeedingBarcode.length} barcodes!`);
+      toast.success(`Successfully generated ${res.data?.count || res.data?.total_updated || productsNeedingBarcode.length} barcodes!`);
       queryClient.invalidateQueries({ queryKey: ["pos_products_barcodes", storeId] });
       queryClient.invalidateQueries({ queryKey: ["products", storeId] });
       refetch();
