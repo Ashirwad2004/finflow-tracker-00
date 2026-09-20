@@ -3,9 +3,10 @@ import { supabase } from "@/core/integrations/supabase/client";
 
 /**
  * Hardened API Client with:
- * 1. In-memory access token storage
- * 2. Automatic bearer token injection
- * 3. Concurrent request subscriber queue on 401 to prevent token refresh stampedes
+ * 1. Configurable backend URL via VITE_API_URL
+ * 2. In-memory access token storage
+ * 3. Automatic bearer token injection
+ * 4. Concurrent request subscriber queue on 401 to prevent token refresh stampedes
  */
 
 let inMemoryToken: string | null = null;
@@ -47,7 +48,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
 });
 
 export const apiClient = axios.create({
-  baseURL: "",
+  baseURL: import.meta.env.VITE_API_URL || "",
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
