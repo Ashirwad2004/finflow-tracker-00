@@ -133,8 +133,7 @@ export const businessMenuItems: any[] = [
       {
         title: "Sales Order",
         path: "/sales?tab=sales-order",
-        icon: ShoppingBag,
-        badge: "Soon",
+        icon: ShoppingBag,      
       },
     ],
   },
@@ -176,7 +175,6 @@ export const businessMenuItems: any[] = [
         title: "Purchase Order",
         path: "/purchases?tab=purchase-order",
         icon: ShoppingBag,
-        badge: "Soon",
       },
     ],
   },
