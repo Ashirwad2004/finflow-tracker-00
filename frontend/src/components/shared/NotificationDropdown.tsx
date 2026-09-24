@@ -63,8 +63,10 @@ export const NotificationDropdown = ({ userId }: NotificationDropdownProps) => {
   useEffect(() => {
     if (!userId) return;
 
+    // Use a unique channel name per instance to prevent collisions between desktop and mobile sidebar mounts
+    const channelName = `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -73,7 +75,7 @@ export const NotificationDropdown = ({ userId }: NotificationDropdownProps) => {
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
+        () => {
           queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
         }
       )

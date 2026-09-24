@@ -24,6 +24,10 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
   onNewSale,
 }) => {
   const [thermalWidth, setThermalWidth] = useState<"58mm" | "80mm">("80mm");
+  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
+  const [isPreparingWhatsApp, setIsPreparingWhatsApp] = useState(false);
+  const [whatsAppDataUri, setWhatsAppBase64] = useState<string>("");
+  const { data: connStatus } = useWhatsAppStatus();
   const receiptRef = useRef<HTMLDivElement>(null);
 
   if (!saleData) return null;
@@ -85,11 +89,6 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
       toast.success("Receipt summary copied to clipboard");
     }
   };
-
-  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
-  const [isPreparingWhatsApp, setIsPreparingWhatsApp] = useState(false);
-  const [whatsAppDataUri, setWhatsAppBase64] = useState<string>("");
-  const { data: connStatus } = useWhatsAppStatus();
 
   const handleOpenWhatsApp = async () => {
     setIsPreparingWhatsApp(true);
