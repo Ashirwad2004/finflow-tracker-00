@@ -3,8 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { ThermalReceipt } from "@/features/business/components/ThermalReceipt";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { Printer, Download, Share2, PlusCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { Printer, Download, Share2, PlusCircle, CheckCircle2, ArrowRight, MessageCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
+import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 
 interface POSReceiptModalProps {
   open: boolean;
@@ -84,6 +86,28 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
     }
   };
 
+  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
+  const [isPreparingWhatsApp, setIsPreparingWhatsApp] = useState(false);
+  const [whatsAppDataUri, setWhatsAppBase64] = useState<string>("");
+  const { data: connStatus } = useWhatsAppStatus();
+
+  const handleOpenWhatsApp = async () => {
+    setIsPreparingWhatsApp(true);
+    try {
+      const base64Uri = await generateInvoicePDF(receiptPayload, { action: "base64" });
+      if (typeof base64Uri === "string") {
+        setWhatsAppBase64(base64Uri);
+      }
+      setShowWhatsAppDialog(true);
+    } catch (err) {
+      console.warn("Could not generate base64 for WhatsApp attachment:", err);
+      // Still open dialog without attachment
+      setShowWhatsAppDialog(true);
+    } finally {
+      setIsPreparingWhatsApp(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl p-0 overflow-hidden bg-card border-border text-foreground max-h-[92vh] flex flex-col rounded-2xl shadow-2xl">
@@ -157,6 +181,22 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
             </Button>
             <Button
               type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenWhatsApp}
+              disabled={isPreparingWhatsApp}
+              className="h-9 text-xs gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl font-semibold"
+              title="Send Receipt via WhatsApp"
+            >
+              {isPreparingWhatsApp ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <MessageCircle className="w-4 h-4" />
+              )}
+              WhatsApp
+            </Button>
+            <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleShare}
@@ -181,6 +221,25 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
           </Button>
         </div>
       </DialogContent>
+
+      <SendWhatsAppDialog
+        open={showWhatsAppDialog}
+        onOpenChange={setShowWhatsAppDialog}
+        messageType="receipt"
+        recipientName={saleData.customer_name || "Customer"}
+        recipientPhone={saleData.customer_phone || ""}
+        attachmentName={`receipt_${saleData.invoice_number || "POS"}.pdf`}
+        attachmentBase64={whatsAppDataUri}
+        metadata={{
+          payment_id: saleData.id,
+          receipt_number: saleData.invoice_number,
+          amount_received: Number(saleData.amount_paid || saleData.total_amount || 0),
+          remaining_balance: Number(saleData.balance_due || 0),
+          payment_method: saleData.payment_method || "Cash",
+          currency_symbol: "₹",
+        }}
+        defaultMessage={`Hello ${saleData.customer_name || "Customer"},\n\nThank you for your payment of ₹${Number(saleData.amount_paid || saleData.total_amount || 0).toLocaleString("en-IN")} towards ${saleData.invoice_number || "your bill"} at ${profileData?.business_name || "FinFlow Store"}.\n\nReceipt attached.`}
+      />
     </Dialog>
   );
 };

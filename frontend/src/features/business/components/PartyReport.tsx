@@ -18,6 +18,8 @@ import {
 import { exportPartyReportPDF, PartyReportItem } from "@/utils/exportPartyReportPDF";
 import { exportPartyReportCSV } from "@/utils/exportPartyReportCSV";
 import { TableLoadingRows } from "@/components/shared/PageStates";
+import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
+import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 
 interface EnrichedPartyItem extends PartyReportItem {
     receivable: number;
@@ -35,6 +37,8 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
     const [searchTerm, setSearchTerm] = useState("");
     const [typeFilter, setTypeFilter] = useState<"all" | "customer" | "vendor">("all");
     const [balanceFilter, setBalanceFilter] = useState<"all" | "active" | "receivable" | "payable">("all");
+    const [activeReminderParty, setActiveReminderParty] = useState<EnrichedPartyItem | null>(null);
+    const { data: connStatus } = useWhatsAppStatus();
 
     // Fetch Profile
     const { data: profile } = useQuery({
@@ -311,6 +315,13 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
             alert(`No phone number found for ${party.name}. Please add one in Parties Directory.`);
             return;
         }
+
+        if (connStatus?.status === "connected") {
+            setActiveReminderParty(party);
+            return;
+        }
+
+        // Direct wa.me fallback when OpenWA gateway is not connected
         const cleanPhone = party.phone.replace(/[^0-9]/g, "");
         const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
         const msg = encodeURIComponent(
@@ -621,6 +632,25 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
                     )}
                 </CardContent>
             </Card>
+
+            {activeReminderParty && (
+                <SendWhatsAppDialog
+                    open={!!activeReminderParty}
+                    onOpenChange={(isOpen) => {
+                        if (!isOpen) setActiveReminderParty(null);
+                    }}
+                    messageType="reminder"
+                    recipientName={activeReminderParty.name}
+                    recipientPhone={activeReminderParty.phone || ""}
+                    metadata={{
+                        customer_name: activeReminderParty.name,
+                        customer_phone: activeReminderParty.phone,
+                        outstanding_amount: activeReminderParty.receivable,
+                        currency_symbol: currency?.symbol || "₹",
+                    }}
+                    defaultMessage={`Dear ${activeReminderParty.name},\n\nThis is a gentle reminder from ${(profile as any)?.business_name || "our accounts department"} regarding your outstanding balance of ${formatCurrency(activeReminderParty.receivable)}.\n\nPlease arrange for payment at your earliest convenience.\n\nThank you!`}
+                />
+            )}
         </div>
     );
 };

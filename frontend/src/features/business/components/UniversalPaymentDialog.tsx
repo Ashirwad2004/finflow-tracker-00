@@ -29,6 +29,7 @@ import {
   Check,
   Layers,
   HelpCircle,
+  MessageCircle,
 } from "lucide-react";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
@@ -37,6 +38,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { offlineMutate } from "@/core/offline/apiService";
 import { supabase } from "@/core/integrations/supabase/client";
 import { sqliteService } from "@/core/offline/sqliteService";
+import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
+import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 import {
   PaymentMethodType,
   BillPaymentVoucher,
@@ -81,6 +84,20 @@ export function UniversalPaymentDialog({
   const [referenceNumber, setReferenceNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sendWhatsAppOnSuccess, setSendWhatsAppOnSuccess] = useState(true);
+  const [whatsappReceiptModal, setWhatsappReceiptModal] = useState<{
+    open: boolean;
+    customerName: string;
+    customerPhone: string;
+    receiptNumber: string;
+    amountReceived: number;
+    remainingBalance: number;
+    invoiceNumber?: string;
+    paymentMethod: string;
+    paymentId?: string;
+    customerId?: string;
+  } | null>(null);
+  const { data: connStatus } = useWhatsAppStatus();
 
   // 1. Fetch Parties
   const { data: parties = [] } = useQuery({
@@ -460,6 +477,23 @@ export function UniversalPaymentDialog({
           }`,
         });
 
+        if (isReceipt && sendWhatsAppOnSuccess) {
+          setWhatsappReceiptModal({
+            open: true,
+            customerName: activeParty?.name || activeBill.partyName || "Customer",
+            customerPhone: activeParty?.phone || (activeBill.rawRecord as any)?.customer_phone || "",
+            receiptNumber: voucherNumber,
+            amountReceived: enteredAmount,
+            invoiceNumber: activeBill.billNumber,
+            remainingBalance: billSettlement.newBalanceDue,
+            paymentMethod: paymentMethod,
+            paymentId: activeBill.id,
+            customerId: activeParty?.id,
+          });
+          if (onSuccess) onSuccess(updatePayload);
+          return;
+        }
+
         if (onSuccess) onSuccess(updatePayload);
         onOpenChange(false);
         return;
@@ -656,6 +690,22 @@ export function UniversalPaymentDialog({
         title: `${isReceipt ? "Payment In (Receipt)" : "Payment Out (Voucher)"} Recorded! 🧾`,
         description: `Voucher ${voucherNumber} for ${formatCurrency(enteredAmount)} successfully recorded and credited to ${partyName}'s account.`,
       });
+
+      if (isReceipt && sendWhatsAppOnSuccess) {
+        setWhatsappReceiptModal({
+          open: true,
+          customerName: partyName,
+          customerPhone: party?.phone || "",
+          receiptNumber: voucherNumber,
+          amountReceived: enteredAmount,
+          remainingBalance: Math.max(0, partyBalance - enteredAmount),
+          paymentMethod: paymentMethod,
+          paymentId: voucherRecordId,
+          customerId: partyId || undefined,
+        });
+        if (onSuccess) onSuccess({ voucherNumber, amount: enteredAmount });
+        return;
+      }
 
       if (onSuccess) onSuccess({ voucherNumber, amount: enteredAmount });
       onOpenChange(false);
@@ -1026,6 +1076,32 @@ export function UniversalPaymentDialog({
               />
             </div>
           </div>
+          {/* WhatsApp Receipt Dispatch Option (Only for Payment In) */}
+          {isReceipt && (
+            <div className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <MessageCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-950 dark:text-emerald-100">
+                    Send Receipt via WhatsApp
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
+                    {connStatus?.status === "connected"
+                      ? "Prompt to send payment receipt on save"
+                      : "WhatsApp gateway disconnected (configure in Settings)"}
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={sendWhatsAppOnSuccess}
+                onChange={(e) => setSendWhatsAppOnSuccess(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -1066,6 +1142,34 @@ export function UniversalPaymentDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {whatsappReceiptModal && (
+        <SendWhatsAppDialog
+          open={whatsappReceiptModal.open}
+          onOpenChange={(isOpen) => {
+            setWhatsappReceiptModal(null);
+            if (!isOpen) {
+              onOpenChange(false);
+            }
+          }}
+          messageType="receipt"
+          recipientName={whatsappReceiptModal.customerName}
+          recipientPhone={whatsappReceiptModal.customerPhone}
+          metadata={{
+            payment_id: whatsappReceiptModal.paymentId,
+            receipt_number: whatsappReceiptModal.receiptNumber,
+            amount_received: whatsappReceiptModal.amountReceived,
+            remaining_balance: whatsappReceiptModal.remainingBalance,
+            invoice_number: whatsappReceiptModal.invoiceNumber,
+            payment_method: whatsappReceiptModal.paymentMethod,
+            currency_symbol: "₹",
+          }}
+          defaultMessage={`Hello ${whatsappReceiptModal.customerName},\n\nPayment Receipt: ${whatsappReceiptModal.receiptNumber}\nAmount Received: ₹${whatsappReceiptModal.amountReceived.toLocaleString("en-IN")}${whatsappReceiptModal.invoiceNumber ? `\nInvoice: ${whatsappReceiptModal.invoiceNumber}` : ""}\nRemaining Balance: ₹${whatsappReceiptModal.remainingBalance.toLocaleString("en-IN")}\nPayment Method: ${whatsappReceiptModal.paymentMethod}\n\nThank you for your business!`}
+          onSuccess={() => {
+            onOpenChange(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 }

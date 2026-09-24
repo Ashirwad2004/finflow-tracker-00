@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { useCurrency, CURRENCIES } from "@/core/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, Bell, Clock, CreditCard, Sparkles, ShieldCheck } from "lucide-react";
+import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, Bell, Clock, CreditCard, Sparkles, ShieldCheck, MessageCircle } from "lucide-react";
 import { getOverdueDaysThreshold, setOverdueDaysThreshold } from "@/core/utils/overdue";
 import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StoreSettings } from "../components/StoreSettings";
 import { NotificationSettings } from "../components/NotificationSettings";
+import { WhatsAppSettings } from "../components/WhatsAppSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RealSubscriptionCheckout } from "@/features/landing/components/RealSubscriptionCheckout";
 
@@ -64,6 +66,8 @@ const SettingsPage = () => {
     const { currency, setCurrency } = useCurrency();
     const { user } = useAuth();
     const { toast } = useToast();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = searchParams.get("tab") || "general";
 
     const [showBusinessDialog, setShowBusinessDialog] = useState(false);
     const [isBackingUp, setIsBackingUp] = useState(false);
@@ -228,8 +232,13 @@ const SettingsPage = () => {
             <div className="container mx-auto p-4 max-w-2xl animate-fade-in">
                 <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-                <Tabs defaultValue="general" className="w-full space-y-4">
-                    <TabsList className="grid grid-cols-4 w-full bg-slate-100/50 p-1 rounded-lg border">
+                <Tabs 
+                    defaultValue={activeTab} 
+                    value={activeTab} 
+                    onValueChange={(val) => setSearchParams({ tab: val })} 
+                    className="w-full space-y-4"
+                >
+                    <TabsList className="grid grid-cols-5 w-full bg-slate-100/50 p-1 rounded-lg border">
                         <TabsTrigger value="general" className="flex items-center gap-1.5 text-xs font-semibold">
                             <Sliders className="w-3.5 h-3.5" />
                             General
@@ -241,6 +250,10 @@ const SettingsPage = () => {
                         <TabsTrigger value="store" className="flex items-center gap-1.5 text-xs font-semibold">
                             <Building2 className="w-3.5 h-3.5" />
                             Store
+                        </TabsTrigger>
+                        <TabsTrigger value="whatsapp" className="flex items-center gap-1.5 text-xs font-semibold">
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            WhatsApp
                         </TabsTrigger>
                         <TabsTrigger value="notifications" className="flex items-center gap-1.5 text-xs font-semibold">
                             <Bell className="w-3.5 h-3.5" />
@@ -510,6 +523,10 @@ const SettingsPage = () => {
 
                     <TabsContent value="store" className="outline-none">
                         <StoreSettings />
+                    </TabsContent>
+
+                    <TabsContent value="whatsapp" className="outline-none">
+                        <WhatsAppSettings />
                     </TabsContent>
 
                     <TabsContent value="notifications" className="outline-none">

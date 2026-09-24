@@ -38,6 +38,8 @@ import { exportDetailedPartyPDF } from "@/utils/exportDetailedPartyPDF";
 import { exportDetailedPartyCSV } from "@/utils/exportDetailedPartyCSV";
 import { parsePaymentTranscript } from "@/features/business/utils/paymentTranscript";
 import { UniversalPaymentDialog } from "@/features/business/components/UniversalPaymentDialog";
+import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
+import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 import { cn } from "@/core/lib/utils";
 
 export interface LedgerTransaction {
@@ -102,6 +104,9 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
         open: false,
         mode: "payment_in"
     });
+
+    const [showWhatsAppReminderModal, setShowWhatsAppReminderModal] = useState(false);
+    const { data: connStatus } = useWhatsAppStatus();
 
     // Fetch Profile for Business Details
     const { data: profile } = useQuery({
@@ -715,6 +720,12 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
     const sendWhatsAppReminder = () => {
         const phone = activePartyRecord?.phone;
         if (!phone) return;
+
+        if (connStatus?.status === "connected") {
+            setShowWhatsAppReminderModal(true);
+            return;
+        }
+
         const cleanPhone = phone.replace(/[^0-9]/g, "");
         const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
         const bizName = (profile as any)?.business_name || "our office";
@@ -1218,6 +1229,23 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
                         queryClient.invalidateQueries({ queryKey: ["purchases"] });
                         queryClient.invalidateQueries({ queryKey: ["parties"] });
                     }}
+                />
+            )}
+
+            {showWhatsAppReminderModal && activePartyRecord && (
+                <SendWhatsAppDialog
+                    open={showWhatsAppReminderModal}
+                    onOpenChange={setShowWhatsAppReminderModal}
+                    messageType="reminder"
+                    recipientName={selectedParty}
+                    recipientPhone={activePartyRecord.phone}
+                    metadata={{
+                        customer_name: selectedParty,
+                        customer_phone: activePartyRecord.phone,
+                        outstanding_amount: closingBalance,
+                        currency_symbol: (currency as any)?.symbol || "₹",
+                    }}
+                    defaultMessage={`Dear ${selectedParty},\n\nThis is a friendly reminder from ${(profile as any)?.business_name || "our office"} regarding your outstanding balance of ${formatCurrency(closingBalance)} as per your current ledger statement. Please arrange the payment at your earliest convenience.\n\nThank you!`}
                 />
             )}
         </div>
