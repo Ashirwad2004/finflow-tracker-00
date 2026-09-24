@@ -45,13 +45,14 @@ async def get_current_user(
     try:
         # Verify token and fetch user details directly from Supabase API
         res = supabase_client.auth.get_user(credentials.credentials)
-        user = res.user
-        if not user or not user.id:
+        user = getattr(res, "user", None) if res else None
+        user_id = getattr(user, "id", None) if user else None
+        if not user or not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authorization token",
             )
-        return {"user_id": user.id, "email": user.email}
+        return {"user_id": str(user_id), "email": getattr(user, "email", None)}
     except HTTPException:
         raise
     except Exception as exc:
@@ -84,8 +85,9 @@ async def require_admin(
     # Check profiles database table for admin privileges
     try:
         res = supabase_client.table("profiles").select("is_admin").eq("user_id", user_id).execute()
-        if res.data and len(res.data) > 0:
-            if res.data[0].get("is_admin") is True:
+        if res.data and isinstance(res.data, list) and len(res.data) > 0:
+            row = res.data[0]
+            if isinstance(row, dict) and row.get("is_admin") is True:
                 return user_info
     except Exception as exc:
         logger.exception("Failed to check admin status in profiles")
@@ -116,8 +118,10 @@ async def require_ai_user(
     if supabase_client is not None:
         try:
             res = supabase_client.auth.get_user(credentials.credentials)
-            if res.user and res.user.id:
-                return res.user.id
+            user = getattr(res, "user", None) if res else None
+            user_id = getattr(user, "id", None) if user else None
+            if user_id:
+                return str(user_id)
         except Exception:
             logger.debug("Supabase auth verification failed, checking local JWT fallback")
 
@@ -130,9 +134,9 @@ async def require_ai_user(
                 algorithms=["HS256"],
                 audience="authenticated",
             )
-            user_id = payload.get("sub")
-            if user_id:
-                return user_id
+            sub = payload.get("sub")
+            if sub:
+                return str(sub)
         except jwt.PyJWTError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
