@@ -20,6 +20,7 @@ import { exportPartyReportCSV } from "@/utils/exportPartyReportCSV";
 import { TableLoadingRows } from "@/components/shared/PageStates";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
 import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
+import { sqliteService } from "@/core/offline/sqliteService";
 
 interface EnrichedPartyItem extends PartyReportItem {
     receivable: number;
@@ -643,8 +644,6 @@ export const PartyReport = ({ onSelectPartyForLedger }: { onSelectPartyForLedger
                     recipientName={activeReminderParty.name}
                     recipientPhone={activeReminderParty.phone || ""}
                     metadata={{
-                        customer_name: activeReminderParty.name,
-                        customer_phone: activeReminderParty.phone,
                         outstanding_amount: activeReminderParty.receivable,
                         currency_symbol: currency?.symbol || "₹",
                     }}

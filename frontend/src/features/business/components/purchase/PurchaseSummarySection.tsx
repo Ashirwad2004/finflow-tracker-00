@@ -171,7 +171,7 @@ export const PurchaseSummarySection = ({
                         </p>
                     </div>
 
-                    {/* Vyapar / Big Billing CA-Grade Vendor Previous Due & Net Balance Box */}
+                    {/* FinFlow CA-Grade Vendor Previous Due & Net Balance Box */}
                     {vendorName && vendorName.trim() !== "" && vendorName !== "Supplier" && (
                         <div className="p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/40 to-background dark:from-indigo-950/20 dark:to-background dark:border-indigo-800/60 shadow-2xs space-y-2">
                             <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">

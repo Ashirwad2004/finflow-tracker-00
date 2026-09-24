@@ -63,7 +63,7 @@ export interface SalesSettings {
   showItemTaxRateOnBill: boolean;
   /**
    * Display customer's pending previous balance and total closing balance at the bottom
-   * of bills and printed invoices (standard practice in Vyapar, Busy, and Tally Prime).
+   * of bills and printed invoices (standard accounting practice).
    */
   showPartyPreviousBalance: boolean;
 }

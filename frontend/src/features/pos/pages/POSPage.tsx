@@ -108,10 +108,38 @@ const getProductColor = (name: string) => {
 
 export default function POSPage() {
   const { user } = useAuth();
-  const { currentStoreId, currentStore } = useBusiness();
+  const { currentStoreId } = useBusiness();
   const { formatCurrency } = useCurrency();
   const queryClient = useQueryClient();
   const storeId = currentStoreId || user?.id || "";
+
+  // Fetch Store / Business Profile for branding, receipts, and QR payments
+  const { data: profile } = useQuery({
+    queryKey: ["profile", storeId],
+    queryFn: async () => {
+      if (!storeId) return null;
+      try {
+        const { data, error } = await (supabase as any)
+          .from("profiles")
+          .select("*")
+          .eq("user_id", storeId)
+          .single();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn("[POS] Profile fetch failed offline, reading from cache:", e);
+      }
+      return (await sqliteService.getById<any>(storeId)) || null;
+    },
+    enabled: !!storeId,
+  });
+
+  const currentStore = useMemo(() => {
+    return {
+      name: profile?.business_name || profile?.company_name || "Retail Billing Register",
+      upi_id: profile?.upi_id || "retail@upi",
+      ...profile,
+    };
+  }, [profile]);
 
   // Online / Offline connectivity tracker
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
