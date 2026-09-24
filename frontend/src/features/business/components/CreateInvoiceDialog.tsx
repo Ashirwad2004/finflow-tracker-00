@@ -39,6 +39,7 @@ interface CreateInvoiceDialogProps {
     invoiceToEdit?: any;
     salesSettings?: SalesSettings;
     initialParty?: any;
+    onSuccess?: (savedInvoice: any) => void;
 }
 
 interface InvoiceItem {
@@ -87,6 +88,7 @@ export const CreateInvoiceDialog = ({
     invoiceToEdit,
     salesSettings,
     initialParty,
+    onSuccess,
 }: CreateInvoiceDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -1900,6 +1902,10 @@ export const CreateInvoiceDialog = ({
                         : "✅ Invoice Created",
                     description: `Invoice ${data.invoice_number} saved successfully.`,
                 });
+
+                if (onSuccess) {
+                    onSuccess(data);
+                }
 
                 onOpenChange(false);
                 reset();

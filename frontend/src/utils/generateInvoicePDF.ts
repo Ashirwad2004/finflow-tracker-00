@@ -611,7 +611,7 @@ export const handleContinuationPage = (
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
     options?: { 
-        action?: 'download' | 'preview', 
+        action?: 'download' | 'preview' | 'base64', 
         theme?: InvoicePdfTheme, 
         documentType?: UniversalDocumentType,
         documentTitle?: string, 
@@ -1699,6 +1699,8 @@ export const generateInvoicePDF = async (
 
         if (action === 'download') {
             doc.save(`${data.invoice_number}.pdf`);
+        } else if (action === 'base64') {
+            return doc.output('datauristring');
         } else {
             return doc.output('bloburl');
         }

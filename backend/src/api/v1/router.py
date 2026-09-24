@@ -6,6 +6,7 @@ from src.api.v1.endpoints.feature_requests import router as feature_requests_rou
 from src.api.v1.endpoints.payments import router as payments_router
 from src.api.v1.endpoints.pos import router as pos_router
 from src.api.v1.endpoints.reports import router as reports_router
+from src.api.v1.endpoints.whatsapp import router as whatsapp_router
 
 api_router = APIRouter()
 api_router.include_router(ai_router)
@@ -14,3 +15,4 @@ api_router.include_router(payments_router)
 api_router.include_router(pos_router)
 api_router.include_router(reports_router)
 api_router.include_router(backup_router)
+api_router.include_router(whatsapp_router)

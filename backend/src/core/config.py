@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str = ""
     PAYMENT_GATEWAY_PROVIDER: str = "razorpay"
 
+    # WhatsApp & OpenWA Settings
+    OPENWA_BASE_URL: str = "http://localhost:2785"
+    OPENWA_ADMIN_API_KEY: str = ""
+    OPENWA_TIMEOUT_SECONDS: int = 15
+    OPENWA_WEBHOOK_SECRET: str = ""
+    WHATSAPP_PROVIDER: str = "openwa"
+    WHATSAPP_RATE_LIMIT_PER_MINUTE: int = 30
+    WHATSAPP_COOLDOWN_SECONDS: int = 30
+
 
     @property
     def SUPABASE_URL(self) -> str:

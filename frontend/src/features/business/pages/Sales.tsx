@@ -13,6 +13,7 @@ import { UniversalPaymentDialog } from "@/features/business/components/Universal
 import { PaymentInRegister } from "@/features/business/components/PaymentInRegister";
 import { SalesOrderRegister } from "@/features/business/components/orders/SalesOrderRegister";
 import { BillPaymentTranscriptDialog } from "@/features/business/components/BillPaymentTranscriptDialog";
+import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -80,6 +81,8 @@ export default function SalesPage() {
     const [paymentTarget, setPaymentTarget] = useState<BillPaymentTarget | null>(null);
     const [transcriptTarget, setTranscriptTarget] = useState<BillPaymentTarget | null>(null);
     const [isPaymentInOpen, setIsPaymentInOpen] = useState(false);
+    const [whatsappInvoice, setWhatsappInvoice] = useState<Sale | null>(null);
+    const [whatsappPdfBase64, setWhatsappPdfBase64] = useState<string | undefined>(undefined);
 
     const [searchParams, setSearchParams] = useSearchParams();
     const currentTab = searchParams.get("tab");
@@ -448,6 +451,58 @@ export default function SalesPage() {
         } catch (error) {
             console.error("Error sharing invoice:", error);
             toast.error("Failed to share invoice. Please try again.");
+        }
+    };
+
+    const handleOpenWhatsApp = async (invoice: Sale) => {
+        setWhatsappInvoice(invoice);
+        try {
+            const prevBal = getPartyPreviousBalance(invoice);
+            const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+            const base64Uri = await generateInvoicePDF({
+                invoice_number: invoice.invoice_number,
+                date: invoice.date || (invoice as any).created_at,
+                due_date: invoice.due_date || undefined,
+                status: invoice.status,
+                amount_paid: invoice.amount_paid,
+                balance_due: invoice.balance_due,
+                payment_method: (invoice as any).payment_method,
+                previous_balance: prevBal,
+                total_due_balance: prevBal + curDue,
+                customer_name: invoice.customer_name,
+                customer_phone: invoice.customer_phone,
+                customer_email: invoice.customer_email,
+                customer_gstin: invoice.customer_gstin,
+                items: (invoice.items || []).map(item => ({
+                    description: item.description || item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.total ?? item.amount ?? (item.quantity * item.price),
+                    hsn_code: item.hsn_code,
+                    unit: item.unit,
+                })),
+                subtotal: invoice.subtotal || invoice.total_amount,
+                discount_amount: invoice.discount_amount || 0,
+                tax_amount: invoice.tax_amount || 0,
+                total_amount: invoice.total_amount,
+                business_details: profile ? {
+                    name: (profile as any).business_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone,
+                    gst: (profile as any).gst_number,
+                    logo_url: (profile as any).business_logo,
+                    signature_url: (profile as any).signature_url
+                } : undefined
+            }, { action: 'base64', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+
+            if (base64Uri && typeof base64Uri === 'string') {
+                setWhatsappPdfBase64(base64Uri);
+            } else {
+                setWhatsappPdfBase64(undefined);
+            }
+        } catch (e) {
+            console.warn("Could not generate base64 PDF for WhatsApp:", e);
+            setWhatsappPdfBase64(undefined);
         }
     };
 
@@ -1040,6 +1095,13 @@ export default function SalesPage() {
                                                                 <Share2 className="w-4 h-4 mr-2" />
                                                                 Share Invoice
                                                             </DropdownMenuItem>
+                                                            <DropdownMenuItem 
+                                                                onClick={() => handleOpenWhatsApp(invoice)}
+                                                                className="text-emerald-600 dark:text-emerald-400 font-semibold cursor-pointer"
+                                                            >
+                                                                <MessageCircle className="w-4 h-4 mr-2 text-emerald-500" />
+                                                                Send via WhatsApp
+                                                            </DropdownMenuItem>
                                                             {invoice.customer_gstin && invoice.customer_gstin.length === 15 && (
                                                                 <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)} className="cursor-pointer py-2">
                                                                     <Download className="w-4 h-4 mr-2 text-blue-500" />
@@ -1083,6 +1145,11 @@ export default function SalesPage() {
                     }}
                     invoiceToEdit={editingInvoice}
                     salesSettings={settings}
+                    onSuccess={(newInv) => {
+                        if (newInv?.customer_phone && !editingInvoice) {
+                            handleOpenWhatsAppInvoice(newInv);
+                        }
+                    }}
                 />
 
                 {/* Universal Payment In (Receipt) Dialog */}
@@ -1105,6 +1172,27 @@ export default function SalesPage() {
                     bill={transcriptTarget}
                     onOpenRecordPayment={(target) => setPaymentTarget(target)}
                 />
+
+                {/* WhatsApp Invoice Dialog */}
+                {whatsappInvoice && (
+                    <SendWhatsAppDialog
+                        open={!!whatsappInvoice}
+                        onOpenChange={(open) => !open && setWhatsappInvoice(null)}
+                        messageType="invoice"
+                        recipientName={whatsappInvoice.customer_name}
+                        recipientPhone={whatsappInvoice.customer_phone || ""}
+                        attachmentName={`Invoice_${whatsappInvoice.invoice_number}.pdf`}
+                        attachmentBase64={whatsappPdfBase64}
+                        metadata={{
+                            invoice_id: whatsappInvoice.id,
+                            invoice_number: whatsappInvoice.invoice_number,
+                            total_amount: Number(whatsappInvoice.total_amount || 0),
+                            amount_paid: Number(whatsappInvoice.amount_paid || 0),
+                            balance_due: Number(whatsappInvoice.balance_due != null ? whatsappInvoice.balance_due : Math.max(0, Number(whatsappInvoice.total_amount) - Number(whatsappInvoice.amount_paid || 0))),
+                            due_date: whatsappInvoice.due_date,
+                        }}
+                    />
+                )}
 
                 {/* Sales Settings Dialog */}
                 <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
