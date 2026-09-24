@@ -55,7 +55,7 @@ class WhatsAppService:
         Guarantees that Business A never touches Business B's WhatsApp session.
         Uses hyphens for full compatibility with OpenWA name regex validation.
         """
-        clean_store = str(store_id).replace("-", "")
+        clean_store = store_id.replace("-", "")
         return f"finflow-store-{clean_store}"
 
     def _check_rate_limit(self, store_id: str, phone: str, force: bool = False):

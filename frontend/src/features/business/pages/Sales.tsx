@@ -1147,7 +1147,7 @@ export default function SalesPage() {
                     salesSettings={settings}
                     onSuccess={(newInv) => {
                         if (newInv?.customer_phone && !editingInvoice) {
-                            handleOpenWhatsAppInvoice(newInv);
+                            handleOpenWhatsApp(newInv);
                         }
                     }}
                 />
@@ -1189,7 +1189,7 @@ export default function SalesPage() {
                             total_amount: Number(whatsappInvoice.total_amount || 0),
                             amount_paid: Number(whatsappInvoice.amount_paid || 0),
                             balance_due: Number(whatsappInvoice.balance_due != null ? whatsappInvoice.balance_due : Math.max(0, Number(whatsappInvoice.total_amount) - Number(whatsappInvoice.amount_paid || 0))),
-                            due_date: whatsappInvoice.due_date,
+                            due_date: whatsappInvoice.due_date || undefined,
                         }}
                     />
                 )}
