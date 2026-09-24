@@ -1225,7 +1225,7 @@ export const generateInvoicePDF = async (
             doc.setTextColor(...textDark);
             rightY += 5.2 * scale;
 
-            // CA-Grade Party Previous Due & Net Balance Breakdown (Vyapar / Busy / Tally Style)
+            // CA-Grade Party Previous Due & Net Balance Breakdown (FinFlow Billing Standard)
             if (hasPrevBalance) {
                 doc.line(splitX, rightY, pageWidth - tallyMarginX, rightY);
                 doc.setFont(fontStyle, "normal");

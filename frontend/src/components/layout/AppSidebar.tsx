@@ -194,7 +194,7 @@ export const businessMenuItems: any[] = [
     title: "Reports",
     path: "/reports",
     icon: FileBarChart,
-    description: "Party & Analytics"
+    description: "Financial & Tax Reports"
   },
   {
     title: "Online Store",

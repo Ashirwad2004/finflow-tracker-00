@@ -2453,7 +2453,7 @@ export const CreateInvoiceDialog = ({
                                     </div>
                                 )}
 
-                                {/* Vyapar / Big Billing CA-Grade Party Previous Due & Net Balance Box */}
+                                {/* FinFlow CA-Grade Party Previous Due & Net Balance Box */}
                                 {salesSettings?.showPartyPreviousBalance && watchCustomerName.trim() && (
                                     <div className="p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/50 to-slate-50 dark:from-indigo-950/20 dark:to-slate-900 dark:border-indigo-800/60 shadow-xs space-y-2 mt-3">
                                         <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">
@@ -3437,7 +3437,7 @@ export const CreateInvoiceDialog = ({
                                         </div>
                                     </div>
 
-                                    {/* Vyapar / Big Billing CA-Grade Party Previous Due & Net Balance Box */}
+                                    {/* FinFlow CA-Grade Party Previous Due & Net Balance Box */}
                                     {salesSettings?.showPartyPreviousBalance && watchCustomerName.trim() && (
                                         <div className="mt-3 p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/50 to-slate-50 dark:from-indigo-950/20 dark:to-slate-900 dark:border-indigo-800/60 shadow-xs space-y-2">
                                             <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">

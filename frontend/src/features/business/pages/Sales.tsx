@@ -772,7 +772,7 @@ export default function SalesPage() {
                     </div>
                 </div>
 
-                {/* Vyapar Tab Switcher */}
+                {/* FinFlow Tab Switcher */}
                 <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit mb-4">
                     <button
                         onClick={() => setActiveTab("invoices")}
@@ -1450,7 +1450,7 @@ export default function SalesPage() {
                                         )}
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Display customer's pending previous balance, current bill due, and total closing balance at the bottom of bills and printed invoices (standard practice in Vyapar, Busy, and Tally).
+                                        Display customer's pending previous balance, current bill due, and total closing balance at the bottom of bills and printed invoices for transparent party accounting.
                                     </p>
                                 </div>
                                 <button

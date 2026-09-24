@@ -130,7 +130,7 @@ export function PaymentOutRegister({
 
   return (
     <div className="space-y-4">
-      {/* Top Metrics Strip (Vyapar Style) */}
+      {/* Top Metrics Strip (FinFlow Style) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between">
           <div>
@@ -263,7 +263,7 @@ export function PaymentOutRegister({
         </div>
       </div>
 
-      {/* Vyapar-Style Transactions Table */}
+      {/* FinFlow-Style Transactions Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -293,7 +293,7 @@ export function PaymentOutRegister({
                       <p className="text-xs text-slate-500">
                         {searchTerm || dateFilter !== "all" || modeFilter !== "all" || selectedPartyFilter !== "all"
                           ? "No transactions match your search/filter criteria."
-                          : "Every payment you disburse to vendors will appear here in chronological order like in Vyapar."}
+                          : "Every payment you disburse to vendors will appear here in chronological order in FinFlow."}
                       </p>
                       <Button
                         onClick={onOpenRecordPaymentOut}

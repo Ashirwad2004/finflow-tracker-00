@@ -521,7 +521,7 @@ export default function PurchasesPage() {
                     </div>
                 </div>
 
-                {/* Vyapar Tab Switcher */}
+                {/* FinFlow Tab Switcher */}
                 <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit mb-4">
                     <button
                         onClick={() => setActiveTab("bills")}
