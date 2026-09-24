@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
@@ -14,6 +14,7 @@ import { PaymentInRegister } from "@/features/business/components/PaymentInRegis
 import { SalesOrderRegister } from "@/features/business/components/orders/SalesOrderRegister";
 import { BillPaymentTranscriptDialog } from "@/features/business/components/BillPaymentTranscriptDialog";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
+import { BulkWhatsAppReminderDialog } from "@/features/whatsapp/components/BulkWhatsAppReminderDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -83,7 +84,9 @@ export default function SalesPage() {
     const [isPaymentInOpen, setIsPaymentInOpen] = useState(false);
     const [whatsappInvoice, setWhatsappInvoice] = useState<Sale | null>(null);
     const [whatsappPdfBase64, setWhatsappPdfBase64] = useState<string | undefined>(undefined);
+    const [isBulkWhatsAppOpen, setIsBulkWhatsAppOpen] = useState(false);
 
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const currentTab = searchParams.get("tab");
     const activeTab: "invoices" | "payment-in" | "sales-order" = 
@@ -526,6 +529,15 @@ export default function SalesPage() {
         }
     };
 
+    const handleBulkWhatsApp = () => {
+        const overdueInvoices = invoices.filter(inv => inv.status === 'overdue');
+        if (overdueInvoices.length === 0) {
+            toast.info("No overdue invoices to send reminders for.");
+            return;
+        }
+        setIsBulkWhatsAppOpen(true);
+    };
+
     const handleBulkEmail = async () => {
         const overdueInvoices = invoices.filter(inv => inv.status === 'overdue');
         if (overdueInvoices.length === 0) {
@@ -726,9 +738,12 @@ export default function SalesPage() {
                                         Bulk Actions <MoreHorizontal className="w-4 h-4 ml-1" />
                                     </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <DropdownMenuContent align="end" className="w-60 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                    <DropdownMenuItem onClick={handleBulkWhatsApp} className="cursor-pointer py-2 font-medium">
+                                        <MessageCircle className="w-4 h-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Send WhatsApp to Overdue
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={handleBulkEmail} className="cursor-pointer py-2">
-                                        <Mail className="w-4 h-4 mr-2" /> Send Emails to Overdue
+                                        <Mail className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" /> Send Emails to Overdue
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -1193,6 +1208,15 @@ export default function SalesPage() {
                         }}
                     />
                 )}
+
+                {/* Bulk WhatsApp Reminders Dialog */}
+                <BulkWhatsAppReminderDialog
+                    open={isBulkWhatsAppOpen}
+                    onOpenChange={setIsBulkWhatsAppOpen}
+                    invoices={invoices.filter((inv) => inv.status === 'overdue')}
+                    currencySymbol="₹"
+                    onOpenSettings={() => navigate("/settings?tab=whatsapp")}
+                />
 
                 {/* Sales Settings Dialog */}
                 <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
