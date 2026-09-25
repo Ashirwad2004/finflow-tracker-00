@@ -164,6 +164,7 @@ export default function POSPage() {
   // Quick category & search filters in main view
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [productGridSearch, setProductGridSearch] = useState<string>("");
+  const [mobileTab, setMobileTab] = useState<"catalog" | "cart">("catalog");
 
   // Modals
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -674,7 +675,7 @@ export default function POSPage() {
 
   return (
     <AppLayout>
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col bg-background text-foreground animate-fade-in font-display">
+      <div className="h-full flex flex-col bg-background text-foreground animate-fade-in font-display overflow-hidden select-none">
         {/* Top Professional Station Control Bar */}
         <header className="h-16 px-4 sm:px-6 border-b border-border/80 bg-card/60 backdrop-blur-md flex items-center justify-between gap-3 shrink-0 sticky top-0 z-10 shadow-2xs">
           {/* Left station identity & status pills */}
@@ -806,12 +807,49 @@ export default function POSPage() {
           </div>
         )}
 
+        {/* Mobile / Compact Tablet Viewport Toggle (Visible only below lg breakpoint) */}
+        <div className="lg:hidden px-3 sm:px-4 py-2 bg-card border-b border-border/80 flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileTab("catalog")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              mobileTab === "catalog"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted/60 text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Catalog ({filteredGridProducts.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("cart")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              mobileTab === "cart"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted/60 text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>Cart ({cartItems.length})</span>
+            {cartItems.length > 0 && (
+              <span className="font-mono text-[11px] font-extrabold ml-0.5">
+                • {formatCurrency(totalAmount)}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Main Workstation Screen: 2 Columns */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-          {/* Left Column: Fast Scanner Input + Touch Category Tabs + Product Grid */}
-          <div className="lg:col-span-7 xl:col-span-8 flex flex-col border-r border-border/80 overflow-hidden bg-muted/20">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+          {/* Left Column: Fast Scanner Input + Touch Category Tabs + Independently Scrollable Product Grid */}
+          <div
+            className={`lg:col-span-7 xl:col-span-8 flex flex-col h-full min-h-0 border-r border-border/80 overflow-hidden bg-muted/20 relative ${
+              mobileTab === "catalog" ? "flex" : "hidden lg:flex"
+            }`}
+          >
             {/* Top Barcode Input Area */}
-            <div className="p-3.5 sm:p-4 border-b border-border/80 bg-card/40 shrink-0">
+            <div className="p-3 sm:p-4 border-b border-border/80 bg-card/40 shrink-0">
               <BarcodeScannerInput
                 products={products}
                 onProductFound={handleAddToCart}
@@ -823,44 +861,56 @@ export default function POSPage() {
             </div>
 
             {/* Category Filter Chips & Quick Search Filter */}
-            <div className="p-3 border-b border-border/80 bg-card/60 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+            <div className="p-2.5 sm:p-3 border-b border-border/80 bg-card/60 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
               <button
                 onClick={() => setSelectedCategory("all")}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
+                className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all ${
                   selectedCategory === "all"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/80"
                 }`}
               >
-                All Products ({products.length})
+                All ({products.length})
               </button>
 
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
-                    selectedCategory === cat
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const count = products.filter((p) => p.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all ${
+                      selectedCategory === cat
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {cat} ({count})
+                  </button>
+                );
+              })}
 
-              <div className="ml-auto min-w-[150px]">
+              <div className="ml-auto min-w-[140px] sm:min-w-[170px] relative shrink-0">
                 <Input
                   placeholder="Filter items..."
                   value={productGridSearch}
                   onChange={(e) => setProductGridSearch(e.target.value)}
-                  className="h-8 text-xs bg-background border-border/80 rounded-lg"
+                  className="h-7.5 text-xs bg-background border-border/80 rounded-lg pr-7"
                 />
+                {productGridSearch && (
+                  <button
+                    onClick={() => setProductGridSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs font-bold"
+                    title="Clear filter"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Product Quick-Touch Grid */}
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* Product Quick-Touch Grid - Independently Scrollable */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 overscroll-contain">
               {isProductsLoading ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                   Loading catalog inventory...
@@ -932,10 +982,32 @@ export default function POSPage() {
                 </div>
               )}
             </div>
+
+            {/* Mobile Catalog Floating Bottom Bar when Cart has items */}
+            {cartItems.length > 0 && (
+              <div className="lg:hidden p-3 bg-background/95 backdrop-blur-md border-t border-border/80 shrink-0 shadow-lg">
+                <Button
+                  onClick={() => setMobileTab("cart")}
+                  className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-between px-4 rounded-xl shadow-md"
+                >
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>{cartItems.length} {cartItems.length === 1 ? "Item" : "Items"} in Cart</span>
+                  </div>
+                  <span className="font-mono font-black text-sm sm:text-base">
+                    View Cart • {formatCurrency(totalAmount)} →
+                  </span>
+                </Button>
+              </div>
+            )}
           </div>
 
-          {/* Right Column: POS Cart & Realtime Bill */}
-          <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full bg-card/60">
+          {/* Right Column: POS Cart & Realtime Bill with Permanently Docked Pay Action */}
+          <div
+            className={`lg:col-span-5 xl:col-span-4 flex flex-col h-full min-h-0 bg-card/60 overflow-hidden ${
+              mobileTab === "cart" ? "flex" : "hidden lg:flex"
+            }`}
+          >
             <POSCart
               items={cartItems}
               customerName={customerName}
@@ -955,27 +1027,8 @@ export default function POSPage() {
               subtotal={subtotal}
               taxAmount={taxAmount}
               totalAmount={totalAmount}
+              onPay={() => setIsPaymentOpen(true)}
             />
-
-            {/* Bottom Checkout CTA Bar */}
-            <div className="p-4 border-t border-border/80 bg-background/90 backdrop-blur-md shrink-0">
-              <Button
-                disabled={cartItems.length === 0}
-                onClick={() => setIsPaymentOpen(true)}
-                className="w-full h-14 text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 flex items-center justify-between px-6 rounded-2xl group transition-all"
-              >
-                <div className="flex items-center gap-2.5">
-                  <ShoppingCart className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  <span>Charge / Pay</span>
-                  <kbd className="text-[10px] font-normal bg-primary-foreground/20 text-primary-foreground px-1.5 py-0.5 rounded border border-primary-foreground/30">
-                    F4
-                  </kbd>
-                </div>
-                <span className="text-xl font-extrabold tracking-tight font-mono">
-                  {formatCurrency(totalAmount)}
-                </span>
-              </Button>
-            </div>
           </div>
         </div>
       </div>
