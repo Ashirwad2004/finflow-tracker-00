@@ -56,6 +56,13 @@ class OpenWAProvider(WhatsAppProvider):
         # If OpenWA returns QR code immediately, update status to qr_required
         if qr_code and status != "connected":
             status = "qr_required"
+        elif status == "qr_required" and not qr_code:
+            try:
+                fetched_qr = await self.get_qr(session_id)
+                if fetched_qr:
+                    qr_code = fetched_qr
+            except Exception as e:
+                logger.debug("Proactive QR fetch in create_session skipped: %s", e)
 
         return {
             "status": status,

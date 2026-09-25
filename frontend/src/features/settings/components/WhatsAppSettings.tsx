@@ -51,7 +51,7 @@ export const WhatsAppSettings: React.FC = () => {
   const disconnectMutation = useWhatsAppDisconnect();
   const testMessageMutation = useWhatsAppTestMessage();
 
-  const isAwaitingQR = connStatus?.status === "qr_required" || connStatus?.status === "connecting";
+  const isAwaitingQR = connStatus?.status === "qr_required" || connStatus?.status === "connecting" || (Boolean(connStatus?.qr_code_data) && connStatus?.status !== "connected");
   const { data: qrData, isLoading: qrLoading, refetch: refetchQR } = useWhatsAppQR(isAwaitingQR);
 
   const { data: messageLogs = [] } = useWhatsAppMessages(10);
@@ -147,7 +147,7 @@ export const WhatsAppSettings: React.FC = () => {
 
         <CardContent className="p-6">
           {/* STATE 1: DISCONNECTED */}
-          {currentStatus === "disconnected" && (
+          {currentStatus === "disconnected" && !rawQr && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
@@ -210,7 +210,7 @@ export const WhatsAppSettings: React.FC = () => {
           )}
 
           {/* STATE 2: CONNECTING / GENERATING QR */}
-          {currentStatus === "connecting" && (
+          {currentStatus === "connecting" && !rawQr && (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
               <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
                 <Loader2 className="w-7 h-7 animate-spin" />
@@ -227,7 +227,7 @@ export const WhatsAppSettings: React.FC = () => {
           )}
 
           {/* STATE 3: QR CODE REQUIRED */}
-          {currentStatus === "qr_required" && (
+          {(currentStatus === "qr_required" || (Boolean(rawQr) && currentStatus !== "connected")) && (
             <div className="flex flex-col md:flex-row items-center gap-8 py-4">
               <div className="flex flex-col items-center p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
                 {rawQr ? (

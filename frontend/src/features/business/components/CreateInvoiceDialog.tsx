@@ -17,7 +17,12 @@ import {
     Wand2,
     Plus,
     Wallet,
+    Eye,
+    MessageCircle,
 } from "lucide-react";
+import { InvoicePreview } from "./InvoicePreview";
+import { useWhatsAppSendInvoice } from "@/features/whatsapp/hooks/useWhatsApp";
+import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { SmartSaleInput } from "./SmartSaleInput";
 import { CustomerSection } from "./CustomerSection";
 import { ProductCombobox, ProductItem } from "./purchase/ProductCombobox";
@@ -109,6 +114,7 @@ export const CreateInvoiceDialog = ({
         handleSubmit,
         watch,
         setValue,
+        getValues,
         reset,
         formState: { errors },
     } = useForm<InvoiceFormValues>({
@@ -145,6 +151,43 @@ export const CreateInvoiceDialog = ({
         },
         mode: "onBlur",
     });
+
+    const [activeStep, setActiveStep] = useState<"form" | "preview">("form");
+    const [savedInvoiceData, setSavedInvoiceData] = useState<any | null>(null);
+    const [draftPreviewData, setDraftPreviewData] = useState<any | null>(null);
+    const [sendWhatsApp, setSendWhatsApp] = useState<boolean>(
+        salesSettings?.autoSendWhatsAppOnInvoice ?? false
+    );
+    const sendInvoiceMutation = useWhatsAppSendInvoice();
+
+    const { data: profile } = useQuery({
+        queryKey: ["profile", currentUserId],
+        queryFn: async () => {
+            if (!currentUserId) return null;
+            try {
+                const { data } = await (supabase as any)
+                    .from("profiles")
+                    .select("*")
+                    .eq("user_id", currentUserId)
+                    .single();
+                if (data) return data;
+            } catch {
+                // fallback
+            }
+            return queryClient.getQueryData<any>(["profile", currentUserId]) || null;
+        },
+        enabled: !!currentUserId,
+    });
+
+    useEffect(() => {
+        if (open) {
+            setSendWhatsApp(salesSettings?.autoSendWhatsAppOnInvoice ?? false);
+        } else {
+            setActiveStep("form");
+            setSavedInvoiceData(null);
+            setDraftPreviewData(null);
+        }
+    }, [open, salesSettings?.autoSendWhatsAppOnInvoice]);
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -1193,6 +1236,87 @@ export const CreateInvoiceDialog = ({
 
     const partyClosingDue = partyPreviousBalance + currentInvoiceDue;
 
+    const handlePreviewDraft = () => {
+        const values = getValues();
+        const calculatedOverallDiscount =
+            (subtotal * (Number(values.overall_discount) || 0)) / 100;
+
+        let processedDraftItems: any[] = [];
+        if (isQuickBilling) {
+            const totalVal = Number(values.quick_total_amount) || 0;
+            const taxR = Number(values.tax_rate) || 0;
+            const priceVal = totalVal / (1 + taxR / 100);
+            processedDraftItems = [
+                {
+                    description:
+                        values.quick_item_name?.trim() || "General Sale",
+                    quantity: 1,
+                    price: priceVal,
+                    discount: 0,
+                    tax_rate: taxR,
+                    total: priceVal,
+                    hsn_code: "",
+                },
+            ];
+        } else {
+            const valid = values.items.filter(
+                (it) => it.description && it.description.trim() !== ""
+            );
+            const list = valid.length > 0 ? valid : values.items;
+            processedDraftItems = list.map((item) => {
+                const q = Number(item.quantity) || 1;
+                const p = Number(item.price) || 0;
+                const d = Number(item.discount) || 0;
+                return {
+                    ...item,
+                    description: item.description || "Item",
+                    quantity: q,
+                    price: p,
+                    discount: d,
+                    tax_rate:
+                        item.tax_rate !== undefined
+                            ? Number(item.tax_rate)
+                            : (salesSettings?.defaultTaxRate ?? 0),
+                    total: q * p * (1 - d / 100),
+                };
+            });
+        }
+
+        const draftInvoice = {
+            id: invoiceToEdit?.id,
+            invoice_number:
+                values.invoice_number ||
+                (lastInvoiceNumber
+                    ? `INV-${Number(String(lastInvoiceNumber).replace(/\D/g, "")) + 1}`
+                    : "INV-001"),
+            customer_name: values.customer_name || "Cash Customer",
+            customer_phone: values.customer_phone,
+            customer_email: values.customer_email,
+            customer_gstin: values.customer_gstin,
+            place_of_supply: values.place_of_supply,
+            billing_address: values.billing_address,
+            shipping_address: values.shipping_address,
+            date: values.date,
+            due_date: values.due_date,
+            status: values.status,
+            amount_paid: Number(values.amount_paid) || 0,
+            balance_due: currentInvoiceDue,
+            items: processedDraftItems,
+            subtotal: subtotal,
+            discount_amount: calculatedOverallDiscount,
+            tax_rate: Number(values.tax_rate) || 0,
+            tax_amount: taxAmount,
+            total_amount: totalAmount,
+            previous_balance: partyPreviousBalance,
+            total_due_balance: partyClosingDue,
+            notes: values.notes,
+            profile: profile,
+        };
+
+        setDraftPreviewData(draftInvoice);
+        setActiveStep("preview");
+    };
+
     // ============================================================
     // MUTATION
     // ============================================================
@@ -1802,6 +1926,7 @@ export const CreateInvoiceDialog = ({
 
                 return {
                     ...values,
+                    ...fullSalePayload,
                     items: processedItems,
                     profile: profileData,
                     discount_amount:
@@ -1896,19 +2021,88 @@ export const CreateInvoiceDialog = ({
                     );
                 }
 
+                // Background Auto-WhatsApp Dispatch (Zero Modal, Zero Extra Clicks)
+                const customerPhone = data.customer_phone?.trim();
+                const phoneDigits = (customerPhone || "").replace(/\D/g, "");
+                const shouldSendWhatsApp = sendWhatsApp && phoneDigits.length >= 10;
+
+                if (shouldSendWhatsApp) {
+                    (async () => {
+                        try {
+                            const base64Uri = await generateInvoicePDF({
+                                invoice_number: data.invoice_number,
+                                date: data.date || data.created_at,
+                                due_date: data.due_date || undefined,
+                                status: data.status,
+                                amount_paid: data.amount_paid,
+                                balance_due: data.balance_due,
+                                payment_method: data.payment_method,
+                                previous_balance: data.previous_balance,
+                                total_due_balance: data.total_due_balance,
+                                customer_name: data.customer_name,
+                                customer_phone: data.customer_phone,
+                                customer_email: data.customer_email,
+                                customer_gstin: data.customer_gstin,
+                                items: (data.items || []).map((it: any) => ({
+                                    description: it.description || it.name,
+                                    quantity: it.quantity,
+                                    price: it.price,
+                                    total: it.total ?? (Number(it.quantity) * Number(it.price)),
+                                    hsn_code: it.hsn_code,
+                                    unit: it.unit,
+                                })),
+                                subtotal: data.subtotal,
+                                discount_amount: data.discount_amount || 0,
+                                tax_amount: data.tax_amount || 0,
+                                total_amount: data.total_amount,
+                                notes: data.notes,
+                                business_details: profile ? {
+                                    name: profile.business_name,
+                                    address: profile.business_address,
+                                    phone: profile.business_phone,
+                                    gst: profile.gst_number,
+                                    logo_url: profile.business_logo,
+                                    signature_url: profile.signature_url,
+                                } : undefined,
+                            }, { action: "base64", documentType: "invoice", showPartyPreviousBalance: salesSettings?.showPartyPreviousBalance });
+
+                            await sendInvoiceMutation.mutateAsync({
+                                invoice_id: data.id,
+                                invoice_number: data.invoice_number,
+                                customer_name: data.customer_name || "Customer",
+                                customer_phone: customerPhone!,
+                                total_amount: Number(data.total_amount || 0),
+                                amount_paid: Number(data.amount_paid || 0),
+                                balance_due: Number(data.balance_due != null ? data.balance_due : Math.max(0, Number(data.total_amount) - Number(data.amount_paid || 0))),
+                                due_date: data.due_date || undefined,
+                                document_base64: base64Uri && typeof base64Uri === "string" ? base64Uri : undefined,
+                                document_filename: `Invoice_${data.invoice_number}.pdf`,
+                            });
+                        } catch (err: any) {
+                            console.warn("[CreateInvoiceDialog] Background WhatsApp dispatch error:", err);
+                        }
+                    })();
+                }
+
                 toast({
                     title: invoiceToEdit
                         ? "✅ Invoice Updated"
-                        : "✅ Invoice Created",
-                    description: `Invoice ${data.invoice_number} saved successfully.`,
+                        : "✅ Invoice Saved",
+                    description: shouldSendWhatsApp
+                        ? `Invoice ${data.invoice_number} saved & sent via WhatsApp to ${customerPhone}.`
+                        : `Invoice ${data.invoice_number} saved successfully.`,
                 });
 
                 if (onSuccess) {
                     onSuccess(data);
                 }
 
+                // Immediately close dialog and reset - 0 extra clicks for cashier flow
                 onOpenChange(false);
                 reset();
+                setActiveStep("form");
+                setSavedInvoiceData(null);
+                setDraftPreviewData(null);
             },
 
             onError: (error: any) => {
@@ -2074,12 +2268,36 @@ export const CreateInvoiceDialog = ({
     return (
         <Dialog
             open={open}
-            onOpenChange={
-                onOpenChange
-            }
+            onOpenChange={(isOpen) => {
+                if (!isOpen) {
+                    setActiveStep("form");
+                    setSavedInvoiceData(null);
+                    setDraftPreviewData(null);
+                    reset();
+                }
+                onOpenChange(isOpen);
+            }}
         >
-            <DialogContent className="sm:max-w-[1100px] max-h-[90vh] p-0 flex flex-col bg-background border-slate-200 shadow-xl overflow-hidden rounded-md">
-                <DialogHeader className="px-8 py-5 border-b border-border/60 bg-slate-50/50">
+            <DialogContent className="sm:max-w-[1100px] max-h-[92vh] p-0 flex flex-col bg-background border-slate-200 shadow-xl overflow-hidden rounded-md">
+                {activeStep === "preview" ? (
+                    <InvoicePreview
+                        invoice={savedInvoiceData || draftPreviewData}
+                        profile={profile}
+                        salesSettings={salesSettings}
+                        onEdit={() => setActiveStep("form")}
+                        onClose={() => {
+                            setActiveStep("form");
+                            setSavedInvoiceData(null);
+                            setDraftPreviewData(null);
+                            reset();
+                            onOpenChange(false);
+                        }}
+                        isDraft={!savedInvoiceData}
+                        onSave={!savedInvoiceData ? handleSubmit(onSubmit) : undefined}
+                    />
+                ) : (
+                    <>
+                        <DialogHeader className="px-8 py-5 border-b border-border/60 bg-slate-50/50">
                     <div className="flex justify-between items-center flex-wrap gap-4">
                         <div>
                             <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-800">
@@ -3504,37 +3722,63 @@ export const CreateInvoiceDialog = ({
                         FOOTER
                     ================================================== */}
 
-                    <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 sticky bottom-0 z-20 mt-auto rounded-b-md">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="min-w-[100px] border-slate-300 bg-white"
-                            onClick={() =>
-                                onOpenChange(
-                                    false
-                                )
-                            }
-                        >
-                            Cancel
-                        </Button>
+                    <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 sticky bottom-0 z-20 mt-auto rounded-b-md flex-wrap">
+                        {/* Auto-WhatsApp on Save Toggle */}
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-emerald-700 transition-colors bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                            <input
+                                type="checkbox"
+                                checked={sendWhatsApp}
+                                onChange={(e) => setSendWhatsApp(e.target.checked)}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600"
+                            />
+                            <MessageCircle className="w-4 h-4 text-emerald-600" />
+                            <span>Send WhatsApp on Save</span>
+                        </label>
 
-                        <Button
-                            type="submit"
-                            className="min-w-[140px] bg-slate-800 hover:bg-slate-900 text-white shadow-sm"
-                            disabled={
-                                createInvoiceMutation.isPending
-                            }
-                        >
-                            {createInvoiceMutation.isPending && (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            )}
+                        <div className="flex items-center gap-2.5 ml-auto">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="min-w-[90px] border-slate-300 bg-white"
+                                onClick={() =>
+                                    onOpenChange(
+                                        false
+                                    )
+                                }
+                            >
+                                Cancel
+                            </Button>
 
-                            {invoiceToEdit
-                                ? "Update Invoice"
-                                : "Save Invoice"}
-                        </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
+                                onClick={handlePreviewDraft}
+                            >
+                                <Eye className="w-4 h-4 mr-1.5 text-slate-500" />
+                                Preview
+                            </Button>
+
+                            <Button
+                                type="submit"
+                                className="min-w-[130px] bg-slate-800 hover:bg-slate-900 text-white shadow-sm"
+                                disabled={
+                                    createInvoiceMutation.isPending
+                                }
+                            >
+                                {createInvoiceMutation.isPending && (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                )}
+
+                                {invoiceToEdit
+                                    ? "Update Invoice"
+                                    : "Save Invoice"}
+                            </Button>
+                        </div>
                     </div>
                 </form>
+                    </>
+                )}
             </DialogContent>
         </Dialog>
     );
