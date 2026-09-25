@@ -7,6 +7,32 @@ const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases',
 // Tables whose schema does NOT have a top-level `user_id` column
 const TABLES_WITHOUT_USER_ID = new Set(['groups', 'online_orders']);
 
+const PRODUCT_ALLOWED_COLUMNS = new Set([
+  'id',
+  'user_id',
+  'name',
+  'description',
+  'price',
+  'cost_price',
+  'stock_quantity',
+  'unit',
+  'created_at',
+  'updated_at',
+  'min_stock_level',
+  'is_listed_online',
+  'online_description',
+  'image_url',
+  'rack_location',
+  'hsn_code',
+  'barcode',
+  'barcode_type',
+  'barcode_source',
+  'sku',
+  'category',
+  'mrp',
+  'tax_rate'
+]);
+
 export const sanitizePayload = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;
 
@@ -14,6 +40,60 @@ export const sanitizePayload = (table: string, action: string, payload: any) => 
 
   if (TABLES_WITHOUT_UPDATED_AT.has(table)) {
     delete clean.updated_at;
+  }
+
+  if (table === 'products') {
+    const sanitizedProduct: Record<string, any> = {};
+
+    for (const key of Object.keys(clean)) {
+      if (PRODUCT_ALLOWED_COLUMNS.has(key)) {
+        sanitizedProduct[key] = clean[key];
+      }
+    }
+
+    const parseNumOrNull = (val: any) => {
+      if (val === undefined || val === null || val === '') return null;
+      const num = Number(val);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseNumOrDefault = (val: any, def: number) => {
+      if (val === undefined || val === null || val === '') return def;
+      const num = Number(val);
+      return isNaN(num) ? def : num;
+    };
+
+    if ('price' in sanitizedProduct) {
+      sanitizedProduct.price = parseNumOrDefault(sanitizedProduct.price, 0);
+    }
+    if ('cost_price' in sanitizedProduct) {
+      sanitizedProduct.cost_price = parseNumOrNull(sanitizedProduct.cost_price);
+    }
+    if ('stock_quantity' in sanitizedProduct) {
+      sanitizedProduct.stock_quantity = parseNumOrDefault(sanitizedProduct.stock_quantity, 0);
+    }
+    if ('mrp' in sanitizedProduct) {
+      sanitizedProduct.mrp = parseNumOrNull(sanitizedProduct.mrp);
+    }
+    if ('tax_rate' in sanitizedProduct) {
+      sanitizedProduct.tax_rate = parseNumOrDefault(sanitizedProduct.tax_rate, 0);
+    }
+    if ('min_stock_level' in sanitizedProduct) {
+      sanitizedProduct.min_stock_level = parseNumOrDefault(sanitizedProduct.min_stock_level, 10);
+    }
+    if ('is_listed_online' in sanitizedProduct) {
+      sanitizedProduct.is_listed_online = Boolean(sanitizedProduct.is_listed_online);
+    }
+
+    // Convert empty strings to null for nullable text columns
+    const textColumns = ['online_description', 'image_url', 'rack_location', 'hsn_code', 'barcode', 'sku', 'category', 'description'];
+    for (const col of textColumns) {
+      if (col in sanitizedProduct && typeof sanitizedProduct[col] === 'string' && sanitizedProduct[col].trim() === '') {
+        sanitizedProduct[col] = null;
+      }
+    }
+
+    return sanitizedProduct;
   }
 
   return clean;
@@ -97,11 +177,12 @@ export const offlineMutate = async ({ table, action, recordId, payload, userId }
       }
       return { data: result || cleanPayload, error: null, offline: false };
     } catch (error: any) {
+      console.error(`[offlineMutate] ${action} on ${table} failed:`, error?.message || error);
       // Postgrest schema errors (non-network drops)
       if (error && error.code) {
         throw error;
       }
-      console.warn(`[Offline Sync] Live call failed, enqueueing to offline Queue:`, error.message);
+      console.warn(`[Offline Sync] Live call failed, enqueueing to offline Queue:`, error?.message || error);
     }
   }
 

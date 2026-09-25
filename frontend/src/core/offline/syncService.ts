@@ -25,6 +25,47 @@ export const sanitizePayloadForTable = (table: string, action: string, payload: 
     delete clean.updated_at;
   }
 
+  if (table === 'products') {
+    const {
+      id, user_id, name, description, price, cost_price, stock_quantity,
+      unit, created_at, updated_at, min_stock_level, is_listed_online,
+      online_description, image_url, rack_location, hsn_code,
+      barcode, barcode_type, barcode_source, sku, category, mrp, tax_rate
+    } = clean;
+
+    const parseNum = (v: any, fallback: any = null) => {
+      if (v === undefined || v === null || v === '') return fallback;
+      const n = Number(v);
+      return isNaN(n) ? fallback : n;
+    };
+
+    return {
+      id,
+      user_id,
+      name: String(name || '').trim(),
+      description: description?.trim() || null,
+      price: parseNum(price, 0),
+      cost_price: parseNum(cost_price, null),
+      stock_quantity: parseNum(stock_quantity, 0),
+      unit: unit?.trim() || 'pc',
+      created_at: created_at || new Date().toISOString(),
+      ...(updated_at ? { updated_at } : {}),
+      min_stock_level: parseNum(min_stock_level, 10),
+      is_listed_online: Boolean(is_listed_online),
+      online_description: online_description?.trim() || null,
+      image_url: image_url?.trim() || null,
+      rack_location: rack_location?.trim() || null,
+      hsn_code: hsn_code?.trim() || null,
+      barcode: barcode?.trim() || null,
+      barcode_type: barcode_type?.trim() || 'code128',
+      barcode_source: barcode_source?.trim() || 'internal',
+      sku: sku?.trim() || null,
+      category: category?.trim() || null,
+      mrp: parseNum(mrp, null),
+      tax_rate: parseNum(tax_rate, 0)
+    };
+  }
+
   if (table === 'purchases') {
     const { id, user_id, party_id, bill_number, vendor_name, vendor_phone, vendor_email, vendor_gstin, date, due_date, status, subtotal, tax_amount, tax_rate, discount_amount, total_amount, amount_paid, balance_due, items, place_of_supply, notes } = clean;
     return {
