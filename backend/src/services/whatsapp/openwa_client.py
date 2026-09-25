@@ -127,16 +127,19 @@ class OpenWAClient:
         OpenWA names must contain only letters, numbers, and hyphens.
         Returns the resolved gateway session UUID (or clean_name if legacy).
         """
-        if self._is_uuid(session_id):
-            return session_id
-
         clean_name = session_id.replace("_", "-")
+        clean_store_raw = clean_name.replace("finflow-store-", "").replace("-", "")
+
         try:
             sessions = await self._request("GET", "/api/sessions")
             if isinstance(sessions, list):
                 for s in sessions:
-                    if s.get("name") in (clean_name, session_id) or s.get("id") == session_id:
-                        return str(s.get("id"))
+                    s_id = str(s.get("id") or "")
+                    s_name = str(s.get("name") or "")
+                    if s_id == session_id or s_name in (clean_name, session_id):
+                        return s_id
+                    if clean_store_raw and clean_store_raw in s_name.replace("-", ""):
+                        return s_id
 
             if create:
                 # Not found: create new session
@@ -149,6 +152,9 @@ class OpenWAClient:
             logger.debug("Session resolution check returned %s; continuing with %s", exc, clean_name)
         except Exception as exc:
             logger.debug("Could not resolve session via /api/sessions: %s", exc)
+
+        if self._is_uuid(session_id):
+            return session_id
 
         return clean_name
 
@@ -168,6 +174,9 @@ class OpenWAClient:
             try:
                 return await self._request("POST", f"/api/sessions/{target_id}/start")
             except WhatsAppException as exc:
+                if "already started" in str(exc).lower() or exc.status_code == 400:
+                    logger.info("Session %s is already started on gateway; fetching status...", target_id)
+                    return await self.get_session_status(target_id)
                 if exc.status_code != 404:
                     raise
 
@@ -182,6 +191,8 @@ class OpenWAClient:
         try:
             return await self._request("POST", "/api/sessions/start", json_data=payload)
         except WhatsAppException as exc:
+            if "already started" in str(exc).lower():
+                return await self.get_session_status(clean_name)
             if exc.status_code == 404:
                 return await self._request("POST", "/session/start", json_data=payload)
             raise
@@ -231,6 +242,10 @@ class OpenWAClient:
                         return {"qrCode": qr, "status": res.get("status", "qr_ready")}
                 return res
             except WhatsAppException as exc:
+                err_text = str(exc).lower()
+                if "already authenticated" in err_text or "no qr code needed" in err_text:
+                    logger.info("Session %s is already authenticated on OpenWA, no QR code required.", target_id)
+                    return {"status": "connected", "qrCode": None}
                 if exc.status_code != 404:
                     raise
 
@@ -238,6 +253,9 @@ class OpenWAClient:
         try:
             return await self._request("GET", f"/api/sessions/{session_id}/qr")
         except WhatsAppException as exc:
+            err_text = str(exc).lower()
+            if "already authenticated" in err_text or "no qr code needed" in err_text:
+                return {"status": "connected", "qrCode": None}
             if exc.status_code == 404:
                 return await self._request("GET", f"/session/{session_id}/qr")
             raise

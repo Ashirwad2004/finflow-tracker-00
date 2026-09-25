@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # WhatsApp & OpenWA Settings
     OPENWA_BASE_URL: str = "http://localhost:2785"
     OPENWA_ADMIN_API_KEY: str = ""
-    OPENWA_TIMEOUT_SECONDS: int = 15
+    OPENWA_TIMEOUT_SECONDS: int = 45
     OPENWA_WEBHOOK_SECRET: str = ""
     WHATSAPP_PROVIDER: str = "openwa"
     WHATSAPP_RATE_LIMIT_PER_MINUTE: int = 30

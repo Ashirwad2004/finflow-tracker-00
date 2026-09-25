@@ -66,6 +66,10 @@ export interface SalesSettings {
    * of bills and printed invoices (standard accounting practice).
    */
   showPartyPreviousBalance: boolean;
+  /**
+   * Automatically dispatch invoice notification & PDF to customer via WhatsApp upon saving.
+   */
+  autoSendWhatsAppOnInvoice: boolean;
 }
 
 const DEFAULTS: SalesSettings = {
@@ -85,6 +89,7 @@ const DEFAULTS: SalesSettings = {
   enableItemWiseTax: false,
   showItemTaxRateOnBill: false,
   showPartyPreviousBalance: true,
+  autoSendWhatsAppOnInvoice: false,
 };
 
 function getStorageKey(userId: string | undefined) {
@@ -107,7 +112,8 @@ function loadSettings(userId: string | undefined): SalesSettings {
       ...DEFAULTS,
       ...parsed,
       showItemTaxRateOnBill: parsed.showItemTaxRateOnBill !== undefined ? parsed.showItemTaxRateOnBill : fallbackShowTax,
-      showPartyPreviousBalance: parsed.showPartyPreviousBalance !== undefined ? parsed.showPartyPreviousBalance : fallbackShowPartyBal
+      showPartyPreviousBalance: parsed.showPartyPreviousBalance !== undefined ? parsed.showPartyPreviousBalance : fallbackShowPartyBal,
+      autoSendWhatsAppOnInvoice: parsed.autoSendWhatsAppOnInvoice !== undefined ? parsed.autoSendWhatsAppOnInvoice : DEFAULTS.autoSendWhatsAppOnInvoice,
     };
   } catch {
     return { ...DEFAULTS, showItemTaxRateOnBill: fallbackShowTax, showPartyPreviousBalance: fallbackShowPartyBal };

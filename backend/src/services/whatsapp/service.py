@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 import time
 from typing import Dict, Any, Optional, List
+import uuid
 from uuid import uuid4
 
 from src.core.config import settings
@@ -118,60 +119,76 @@ class WhatsAppService:
         conn = await self.get_connection(store_id)
         session_id = self.get_session_id_for_store(store_id)
 
-        if not conn:
-            return WhatsAppConnectionResponse(
-                store_id=store_id,
-                provider=self.provider.name,
-                provider_session_id=session_id,
-                status="disconnected",
-            )
+        session_id = self.get_session_id_for_store(store_id)
+        conn = await self.get_connection(store_id)
+        current_status = conn.get("status", "disconnected") if conn else "disconnected"
+        live_qr: Optional[str] = None
 
-        current_status = conn.get("status", "disconnected")
+        # Check live status from provider
+        try:
+            live_status = await self.provider.get_session_status(session_id)
+            new_status = live_status.get("status")
 
-        # If session is in transient state, sync status from provider
-        if current_status in ("connecting", "qr_required", "connected"):
-            try:
-                live_status = await self.provider.get_session_status(session_id)
-                new_status = live_status.get("status")
+            if new_status and (new_status in ("connecting", "qr_required", "connected") or current_status != "disconnected"):
+                current_status = new_status
+                if current_status == "qr_required" or current_status == "connecting":
+                    live_qr = await self.provider.get_qr(session_id)
+                    if live_qr and current_status != "connected":
+                        current_status = "qr_required"
 
-                update_fields: Dict[str, Any] = {}
-                if new_status and new_status != current_status:
-                    update_fields["status"] = new_status
-                    current_status = new_status
+                update_fields: Dict[str, Any] = {"status": current_status}
+                if live_qr:
+                    update_fields["qr_code_data"] = live_qr
+                    if conn:
+                        conn["qr_code_data"] = live_qr
 
-                if live_status.get("phone_number") and not conn.get("phone_number"):
+                if live_status.get("phone_number"):
                     update_fields["phone_number"] = live_status["phone_number"]
-                    conn["phone_number"] = live_status["phone_number"]
+                    if conn:
+                        conn["phone_number"] = live_status["phone_number"]
 
-                if live_status.get("display_name") and not conn.get("display_name"):
+                if live_status.get("display_name"):
                     update_fields["display_name"] = live_status["display_name"]
-                    conn["display_name"] = live_status["display_name"]
+                    if conn:
+                        conn["display_name"] = live_status["display_name"]
 
-                if new_status == "connected" and conn.get("status") != "connected":
+                if current_status == "connected":
                     update_fields["last_connected_at"] = datetime.now(timezone.utc).isoformat()
                     update_fields["qr_code_data"] = None
 
-                if update_fields and supabase_client:
+                if supabase_client:
                     update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
-                    supabase_client.table("whatsapp_connections").update(update_fields).eq("store_id", store_id).execute()
+                    try:
+                        if conn:
+                            supabase_client.table("whatsapp_connections").update(update_fields).eq("store_id", store_id).execute()
+                        else:
+                            update_fields["store_id"] = store_id
+                            update_fields["provider"] = self.provider.name
+                            update_fields["provider_session_id"] = session_id
+                            supabase_client.table("whatsapp_connections").insert(update_fields).execute()
+                    except Exception as e:
+                        logger.debug("Failed to update status record in DB: %s", e)
+        except Exception as exc:
+            logger.debug("Provider status sync skipped for %s: %s", session_id, exc)
 
-            except Exception as exc:
-                logger.debug("Provider status sync skipped for %s: %s", session_id, exc)
+        resolved_qr = live_qr or (conn.get("qr_code_data") if conn else None)
+        if resolved_qr and current_status != "connected":
+            current_status = "qr_required"
 
         return WhatsAppConnectionResponse(
-            id=conn.get("id"),
+            id=conn.get("id") if conn else None,
             store_id=store_id,
-            provider=conn.get("provider", self.provider.name),
+            provider=conn.get("provider", self.provider.name) if conn else self.provider.name,
             provider_session_id=session_id,
-            phone_number=conn.get("phone_number"),
-            display_name=conn.get("display_name"),
+            phone_number=conn.get("phone_number") if conn else None,
+            display_name=conn.get("display_name") if conn else None,
             status=current_status,
-            qr_code_data=conn.get("qr_code_data"),
-            error_message=conn.get("error_message"),
-            last_connected_at=conn.get("last_connected_at"),
-            last_seen_at=conn.get("last_seen_at"),
-            created_at=conn.get("created_at"),
-            updated_at=conn.get("updated_at"),
+            qr_code_data=resolved_qr,
+            error_message=conn.get("error_message") if conn else None,
+            last_connected_at=conn.get("last_connected_at") if conn else None,
+            last_seen_at=conn.get("last_seen_at") if conn else None,
+            created_at=conn.get("created_at") if conn else None,
+            updated_at=conn.get("updated_at") if conn else None,
         )
 
     async def connect(
