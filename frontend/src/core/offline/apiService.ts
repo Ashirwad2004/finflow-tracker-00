@@ -2,7 +2,26 @@ import { supabase } from "@/core/integrations/supabase/client";
 import { sqliteService } from "./sqliteService";
 import { queueService } from "./queueService";
 
-const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants', 'group_expenses', 'groups', 'group_members', 'online_orders']);
+const TABLES_WITHOUT_UPDATED_AT = new Set([
+  'parties',
+  'categories',
+  'purchases',
+  'sales',
+  'split_bill_participants',
+  'group_expenses',
+  'groups',
+  'group_members',
+  'online_orders',
+  'sale_order_invoices',
+  'sale_order_purchase_orders',
+  'purchase_order_bills',
+  'pos_return_items',
+  'invoice_items',
+  'order_status_events',
+  'online_order_items',
+  'bank_statement_lines',
+  'whatsapp_messages',
+]);
 
 // Tables whose schema does NOT have a top-level `user_id` column
 const TABLES_WITHOUT_USER_ID = new Set(['groups', 'online_orders']);
@@ -40,6 +59,12 @@ export const sanitizePayload = (table: string, action: string, payload: any) => 
 
   if (TABLES_WITHOUT_UPDATED_AT.has(table)) {
     delete clean.updated_at;
+  }
+
+  // Prevent PGRST204 errors: sales and purchases tables do not have address columns in schema cache
+  if (table === 'sales' || table === 'purchases') {
+    delete clean.billing_address;
+    delete clean.shipping_address;
   }
 
   if (table === 'products') {

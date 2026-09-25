@@ -13,7 +13,26 @@ import { connectivityService } from "./connectivityService";
 
 let isSyncingActive = false;
 
-const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants']);
+const TABLES_WITHOUT_UPDATED_AT = new Set([
+  'parties',
+  'categories',
+  'purchases',
+  'sales',
+  'split_bill_participants',
+  'group_expenses',
+  'groups',
+  'group_members',
+  'online_orders',
+  'sale_order_invoices',
+  'sale_order_purchase_orders',
+  'purchase_order_bills',
+  'pos_return_items',
+  'invoice_items',
+  'order_status_events',
+  'online_order_items',
+  'bank_statement_lines',
+  'whatsapp_messages',
+]);
 
 export const sanitizePayloadForTable = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;

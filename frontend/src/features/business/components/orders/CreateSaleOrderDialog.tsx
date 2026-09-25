@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/core/integrations/supabase/client";
+import { sqliteService } from "@/core/offline/sqliteService";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Calendar, ShoppingBag, ShieldCheck, UserCheck, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Calendar, ShoppingBag, UserCheck, AlertCircle, Clock, Truck, Check } from "lucide-react";
 import { toast } from "sonner";
 import { SaleOrder, SaleOrderItem } from "../../types/orders";
 import { useUpsertSaleOrder } from "../../hooks/useOrders";
@@ -22,13 +25,56 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
     open,
     onOpenChange,
     saleOrderToEdit,
-    parties = [],
-    products = [],
+    parties: partiesProp = [],
+    products: productsProp = [],
     userId,
 }) => {
     const upsertMutation = useUpsertSaleOrder(userId);
 
+    // Reliable fallback queries for parties and products
+    const { data: dbParties = [] } = useQuery({
+        queryKey: ["parties", userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("parties")
+                    .select("*")
+                    .eq("user_id", userId)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[CreateSaleOrderDialog] Parties fetch fallback:", e);
+            }
+            return (await sqliteService.getAll<any>("parties", userId)) || [];
+        },
+        enabled: !!userId && open,
+    });
+
+    const { data: dbProducts = [] } = useQuery({
+        queryKey: ["products", userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("products")
+                    .select("*")
+                    .eq("user_id", userId)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[CreateSaleOrderDialog] Products fetch fallback:", e);
+            }
+            return (await sqliteService.getAll<any>("products", userId)) || [];
+        },
+        enabled: !!userId && open,
+    });
+
+    const parties = partiesProp && partiesProp.length > 0 ? partiesProp : dbParties;
+    const products = productsProp && productsProp.length > 0 ? productsProp : dbProducts;
+
     const [orderNumber, setOrderNumber] = useState("");
+    const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
     const [customerName, setCustomerName] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
     const [customerEmail, setCustomerEmail] = useState("");
@@ -41,8 +87,17 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
     const [notes, setNotes] = useState("");
     const [termsConditions, setTermsConditions] = useState("");
 
+    // Customer suggestion dropdown state
+    const [isPartyDropdownOpen, setIsPartyDropdownOpen] = useState(false);
+    const partyDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Line item product dropdown state
+    const [activeProductIdx, setActiveProductIdx] = useState<number | null>(null);
+    const productDropdownRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
     const [items, setItems] = useState<SaleOrderItem[]>([
         {
+            id: crypto.randomUUID(),
             name: "",
             quantity: 1,
             price: 0,
@@ -53,10 +108,28 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
         },
     ]);
 
+    // Handle click outside for party dropdown & product dropdowns
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (partyDropdownRef.current && !partyDropdownRef.current.contains(event.target as Node)) {
+                setIsPartyDropdownOpen(false);
+            }
+            if (activeProductIdx !== null) {
+                const container = productDropdownRefs.current[activeProductIdx];
+                if (container && !container.contains(event.target as Node)) {
+                    setActiveProductIdx(null);
+                }
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [activeProductIdx]);
+
     // Initialize or reset form
     useEffect(() => {
         if (saleOrderToEdit) {
             setOrderNumber(saleOrderToEdit.order_number);
+            setSelectedPartyId(saleOrderToEdit.party_id || null);
             setCustomerName(saleOrderToEdit.customer_name);
             setCustomerPhone(saleOrderToEdit.customer_phone || "");
             setCustomerEmail(saleOrderToEdit.customer_email || "");
@@ -70,12 +143,19 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
             setTermsConditions(saleOrderToEdit.terms_conditions || "");
             setItems(
                 saleOrderToEdit.items && saleOrderToEdit.items.length > 0
-                    ? saleOrderToEdit.items
-                    : [{ name: "", quantity: 1, price: 0, tax_rate: 0, unit: "pcs" }]
+                    ? saleOrderToEdit.items.map((it) => ({
+                          ...it,
+                          id: it.id || crypto.randomUUID(),
+                          product_id: it.product_id || undefined,
+                          delivered_qty: Number(it.delivered_qty) || 0,
+                          purchased_qty: Number(it.purchased_qty) || 0,
+                      }))
+                    : [{ id: crypto.randomUUID(), name: "", quantity: 1, price: 0, tax_rate: 0, unit: "pcs", delivered_qty: 0, purchased_qty: 0 }]
             );
         } else {
             const randomCode = Math.floor(1000 + Math.random() * 9000);
             setOrderNumber(`SO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomCode}`);
+            setSelectedPartyId(null);
             setCustomerName("");
             setCustomerPhone("");
             setCustomerEmail("");
@@ -87,22 +167,29 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
             setAdvancePaid(0);
             setNotes("");
             setTermsConditions("Delivery within agreed timeline. 100% replacement warranty for transit damages.");
-            setItems([{ name: "", quantity: 1, price: 0, tax_rate: 0, unit: "pcs", delivered_qty: 0, purchased_qty: 0 }]);
+            setItems([{ id: crypto.randomUUID(), name: "", quantity: 1, price: 0, tax_rate: 0, unit: "pcs", delivered_qty: 0, purchased_qty: 0 }]);
         }
     }, [saleOrderToEdit, open]);
 
-    // Handle party selection
-    const handlePartySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const partyId = e.target.value;
-        if (!partyId) return;
-        const selected = parties.find((p) => p.id === partyId);
-        if (selected) {
-            setCustomerName(selected.name || "");
-            setCustomerPhone(selected.phone || "");
-            setCustomerEmail(selected.email || "");
-            setCustomerGstin(selected.gstin || "");
-            setBillingAddress(selected.billing_address || selected.address || "");
-        }
+    // Party suggestions filtering
+    const filteredParties = useMemo(() => {
+        if (!customerName.trim()) return parties;
+        const q = customerName.toLowerCase().trim();
+        return parties.filter((p) =>
+            (p.name && p.name.toLowerCase().includes(q)) ||
+            (p.phone && p.phone.includes(q)) ||
+            (p.gstin && p.gstin.toLowerCase().includes(q))
+        );
+    }, [parties, customerName]);
+
+    const handleSelectParty = (selected: any) => {
+        setSelectedPartyId(selected.id || null);
+        setCustomerName(selected.name || "");
+        setCustomerPhone(selected.phone || "");
+        setCustomerEmail(selected.email || "");
+        setCustomerGstin(selected.gstin || "");
+        setBillingAddress(selected.billing_address || selected.address || "");
+        setIsPartyDropdownOpen(false);
     };
 
     // Item changes
@@ -112,27 +199,55 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
         setItems(newItems);
     };
 
-    const handleProductSelect = (index: number, productName: string) => {
-        const matched = products.find((p) => p.name?.toLowerCase() === productName.toLowerCase());
+    const getFilteredProducts = (query: string) => {
+        if (!query.trim()) return products;
+        const q = query.toLowerCase().trim();
+        return products.filter((p) =>
+            (p.name && p.name.toLowerCase().includes(q)) ||
+            (p.hsn_code && p.hsn_code.toLowerCase().includes(q)) ||
+            (p.sku && p.sku.toLowerCase().includes(q))
+        );
+    };
+
+    const handleSelectProduct = (index: number, matchedProduct: any) => {
+        const newItems = [...items];
+        const selPrice = Number(matchedProduct.price ?? matchedProduct.sale_price ?? 0);
+        newItems[index] = {
+            ...newItems[index],
+            product_id: matchedProduct.id,
+            name: matchedProduct.name,
+            price: selPrice,
+            unit: matchedProduct.unit || "pcs",
+            hsn_code: matchedProduct.hsn_code || "",
+            tax_rate: Number(matchedProduct.tax_rate) || 0,
+        };
+        setItems(newItems);
+        setActiveProductIdx(null);
+    };
+
+    const handleProductInputChange = (index: number, productName: string) => {
+        const matched = products.find((p) => p.name?.toLowerCase().trim() === productName.toLowerCase().trim());
         if (matched) {
-            const newItems = [...items];
-            newItems[index] = {
-                ...newItems[index],
-                product_id: matched.id,
-                name: matched.name,
-                price: Number(matched.sale_price) || 0,
-                unit: matched.unit || "pcs",
-                hsn_code: matched.hsn_code || "",
-                tax_rate: Number(matched.tax_rate) || 0,
-            };
-            setItems(newItems);
+            handleSelectProduct(index, matched);
         } else {
             updateItem(index, "name", productName);
         }
     };
 
     const addItem = () => {
-        setItems([...items, { name: "", quantity: 1, price: 0, tax_rate: 0, unit: "pcs", delivered_qty: 0, purchased_qty: 0 }]);
+        setItems([
+            ...items,
+            {
+                id: crypto.randomUUID(),
+                name: "",
+                quantity: 1,
+                price: 0,
+                tax_rate: 0,
+                unit: "pcs",
+                delivered_qty: 0,
+                purchased_qty: 0,
+            },
+        ]);
     };
 
     const removeItem = (index: number) => {
@@ -142,6 +257,22 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
         }
         setItems(items.filter((_, i) => i !== index));
     };
+
+    // Quick Delivery Preset Helper
+    const setPresetDeliveryDays = (days: number) => {
+        const baseDate = orderDate ? new Date(orderDate) : new Date();
+        const futureDate = new Date(baseDate);
+        futureDate.setDate(futureDate.getDate() + days);
+        setExpectedDeliveryDate(futureDate.toISOString().split("T")[0]);
+    };
+
+    const deliveryGapDays = useMemo(() => {
+        if (!orderDate || !expectedDeliveryDate) return null;
+        const start = new Date(orderDate).getTime();
+        const end = new Date(expectedDeliveryDate).getTime();
+        if (isNaN(start) || isNaN(end)) return null;
+        return Math.round((end - start) / (1000 * 3600 * 24));
+    }, [orderDate, expectedDeliveryDate]);
 
     // Calculation
     const subtotal = items.reduce((acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.price) || 0), 0);
@@ -165,10 +296,16 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
             return;
         }
 
+        const matchedParty = parties.find(
+            (p) => p.name?.toLowerCase().trim() === customerName.toLowerCase().trim()
+        );
+        const finalPartyId = selectedPartyId || matchedParty?.id || saleOrderToEdit?.party_id || null;
+
         try {
             await upsertMutation.mutateAsync({
                 id: saleOrderToEdit?.id,
                 order_number: orderNumber,
+                party_id: finalPartyId,
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_email: customerEmail,
@@ -177,12 +314,19 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                 order_date: orderDate,
                 expected_delivery_date: expectedDeliveryDate || null,
                 items: validItems.map((it) => ({
-                    ...it,
+                    id: it.id || crypto.randomUUID(),
+                    product_id: it.product_id || undefined,
+                    name: it.name,
+                    description: it.description || it.name,
                     quantity: Number(it.quantity),
                     price: Number(it.price),
                     tax_rate: Number(it.tax_rate || 0),
                     tax_amount: ((Number(it.quantity) * Number(it.price) * (Number(it.tax_rate) || 0)) / 100),
                     total: (Number(it.quantity) * Number(it.price)) + ((Number(it.quantity) * Number(it.price) * (Number(it.tax_rate) || 0)) / 100),
+                    delivered_qty: Number(it.delivered_qty) || 0,
+                    purchased_qty: Number(it.purchased_qty) || 0,
+                    unit: it.unit || "pcs",
+                    hsn_code: it.hsn_code || "",
                 })),
                 subtotal,
                 tax_amount: taxTotal,
@@ -243,80 +387,173 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                     </div>
 
                     <div className="p-6 space-y-6">
-                        {/* Customer Details Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60">
-                            <div className="space-y-1.5 md:col-span-1">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                        Customer Name <span className="text-rose-500">*</span>
-                                    </Label>
-                                    {parties.length > 0 && (
-                                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400">
-                                            or quick-select:
-                                        </span>
+                        {/* Customer & Party Details Section */}
+                        <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Searchable Customer Name Input */}
+                                <div className="relative space-y-1.5 md:col-span-1" ref={partyDropdownRef}>
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                            Customer Name <span className="text-rose-500">*</span>
+                                        </Label>
+                                        {parties.length > 0 && (
+                                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
+                                                {parties.length} parties
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Type or click to select party..."
+                                            value={customerName}
+                                            onChange={(e) => {
+                                                setCustomerName(e.target.value);
+                                                setIsPartyDropdownOpen(true);
+                                            }}
+                                            onFocus={() => setIsPartyDropdownOpen(true)}
+                                            className="h-9 text-xs pr-8 font-medium bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                            required
+                                        />
+                                        <UserCheck className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                    </div>
+
+                                    {/* Party Suggestions Dropdown */}
+                                    {isPartyDropdownOpen && (
+                                        <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1 divide-y divide-slate-100 dark:divide-slate-800">
+                                            {filteredParties.length > 0 ? (
+                                                filteredParties.map((p) => (
+                                                    <button
+                                                        key={p.id}
+                                                        type="button"
+                                                        onClick={() => handleSelectParty(p)}
+                                                        className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors flex items-center justify-between group"
+                                                    >
+                                                        <div>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                                                                {p.name}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                                                {p.phone && <span>Ph: {p.phone}</span>}
+                                                                {p.gstin && <span>GST: {p.gstin}</span>}
+                                                                {p.type && (
+                                                                    <span className="capitalize px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-medium text-slate-600 dark:text-slate-300">
+                                                                        {p.type}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {customerName.trim().toLowerCase() === (p.name || "").trim().toLowerCase() && (
+                                                            <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                                        )}
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="p-3 text-center text-xs text-slate-400">
+                                                    No matching parties. New party "{customerName}" will be used.
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
-                                {parties.length > 0 && (
-                                    <select
-                                        onChange={handlePartySelect}
-                                        className="w-full text-xs h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 mb-1"
-                                        defaultValue=""
-                                    >
-                                        <option value="" disabled>-- Select Existing Party --</option>
-                                        {parties.map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name} {p.phone ? `(${p.phone})` : ""}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                                <Input
-                                    placeholder="Enter or confirm customer name"
-                                    value={customerName}
-                                    onChange={(e) => setCustomerName(e.target.value)}
-                                    className="h-9 text-xs"
-                                    required
-                                />
-                            </div>
 
-                            <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Phone & GSTIN</Label>
-                                <Input
-                                    placeholder="Phone number"
-                                    value={customerPhone}
-                                    onChange={(e) => setCustomerPhone(e.target.value)}
-                                    className="h-9 text-xs mb-1"
-                                />
-                                <Input
-                                    placeholder="Customer GSTIN (Optional)"
-                                    value={customerGstin}
-                                    onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
-                                    className="h-9 text-xs font-mono"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Delivery Dates</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <span className="text-[10px] text-slate-400">Booking Date</span>
-                                        <Input
-                                            type="date"
-                                            value={orderDate}
-                                            onChange={(e) => setOrderDate(e.target.value)}
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div>
-                                        <span className="text-[10px] text-slate-400">Expected Delivery</span>
-                                        <Input
-                                            type="date"
-                                            value={expectedDeliveryDate}
-                                            onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Phone Number</Label>
+                                    <Input
+                                        placeholder="Customer phone number"
+                                        value={customerPhone}
+                                        onChange={(e) => setCustomerPhone(e.target.value)}
+                                        className="h-9 text-xs bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                    />
                                 </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Customer GSTIN</Label>
+                                    <Input
+                                        placeholder="GSTIN (Optional)"
+                                        value={customerGstin}
+                                        onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                                        className="h-9 text-xs font-mono bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Order & Expected Delivery Dates Section */}
+                        <div className="p-4 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                                        Order & Expected Delivery Timeline
+                                    </h4>
+                                </div>
+                                {deliveryGapDays !== null && (
+                                    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                                        deliveryGapDays < 0
+                                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300"
+                                            : deliveryGapDays === 0
+                                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300"
+                                            : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/80 dark:text-indigo-300"
+                                    }`}>
+                                        {deliveryGapDays < 0
+                                            ? "⚠️ Delivery before Order Date"
+                                            : deliveryGapDays === 0
+                                            ? "⚡ Same Day Delivery"
+                                            : `⏱️ ${deliveryGapDays} Day${deliveryGapDays > 1 ? "s" : ""} Delivery Lead Time`}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                                        <span>Order Booking Date</span>
+                                    </Label>
+                                    <Input
+                                        type="date"
+                                        value={orderDate}
+                                        onChange={(e) => setOrderDate(e.target.value)}
+                                        className="h-9 text-xs font-medium bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <Truck className="w-3.5 h-3.5 text-indigo-500" />
+                                        <span>Expected Delivery Date</span>
+                                    </Label>
+                                    <Input
+                                        type="date"
+                                        value={expectedDeliveryDate}
+                                        onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                                        className="h-9 text-xs font-medium bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Quick Presets */}
+                            <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mr-1 shrink-0">
+                                    Quick Presets:
+                                </span>
+                                {[
+                                    { label: "Today", days: 0 },
+                                    { label: "+3 Days", days: 3 },
+                                    { label: "+7 Days", days: 7 },
+                                    { label: "+14 Days", days: 14 },
+                                    { label: "+30 Days", days: 30 },
+                                ].map((preset) => (
+                                    <button
+                                        key={preset.days}
+                                        type="button"
+                                        onClick={() => setPresetDeliveryDays(preset.days)}
+                                        className="px-2.5 py-1 text-[10px] font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 dark:hover:bg-indigo-600 dark:hover:border-indigo-600 transition-all text-slate-600 dark:text-slate-300 shadow-xs shrink-0"
+                                    >
+                                        {preset.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -339,12 +576,12 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                                 </Button>
                             </div>
 
-                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-visible shadow-sm bg-white dark:bg-slate-900">
                                 <table className="w-full text-xs text-left">
                                     <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
                                         <tr>
                                             <th className="p-3 w-6 text-center">#</th>
-                                            <th className="p-3">Item / Product Name</th>
+                                            <th className="p-3">Item / Inventory Product Name</th>
                                             <th className="p-3 w-24 text-right">Qty</th>
                                             <th className="p-3 w-20 text-center">Unit</th>
                                             <th className="p-3 w-28 text-right">Rate (₹)</th>
@@ -362,25 +599,64 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                                             return (
                                                 <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                                                     <td className="p-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                                                    <td className="p-2">
-                                                        <div className="space-y-1">
+                                                    
+                                                    {/* Interactive Product Search Dropdown Cell */}
+                                                    <td className="p-2 relative">
+                                                        <div
+                                                            ref={(el) => { productDropdownRefs.current[idx] = el; }}
+                                                            className="relative"
+                                                        >
                                                             <Input
-                                                                list={`products-list-${idx}`}
-                                                                placeholder="Type or select product..."
+                                                                placeholder="Type or select inventory product..."
                                                                 value={item.name}
-                                                                onChange={(e) => handleProductSelect(idx, e.target.value)}
-                                                                className="h-8 text-xs font-medium"
+                                                                onChange={(e) => {
+                                                                    handleProductInputChange(idx, e.target.value);
+                                                                    setActiveProductIdx(idx);
+                                                                }}
+                                                                onFocus={() => setActiveProductIdx(idx)}
+                                                                className="h-8 text-xs font-medium bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                                                                 required
                                                             />
-                                                            <datalist id={`products-list-${idx}`}>
-                                                                {products.map((prod) => (
-                                                                    <option key={prod.id} value={prod.name}>
-                                                                        ₹{prod.sale_price} • Stock: {prod.stock_quantity} {prod.unit}
-                                                                    </option>
-                                                                ))}
-                                                            </datalist>
+
+                                                            {/* Product Suggestions Menu */}
+                                                            {activeProductIdx === idx && (
+                                                                <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl py-1 divide-y divide-slate-100 dark:divide-slate-800 min-w-[260px]">
+                                                                    {getFilteredProducts(item.name).length > 0 ? (
+                                                                        getFilteredProducts(item.name).map((prod) => (
+                                                                            <button
+                                                                                key={prod.id}
+                                                                                type="button"
+                                                                                onClick={() => handleSelectProduct(idx, prod)}
+                                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors flex items-center justify-between group"
+                                                                            >
+                                                                                <div>
+                                                                                    <div className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                                                                                        {prod.name}
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                                                                        <span>Stock: {prod.stock_quantity ?? prod.stock ?? 0} {prod.unit || "pcs"}</span>
+                                                                                        {prod.hsn_code && <span>HSN: {prod.hsn_code}</span>}
+                                                                                        {prod.tax_rate != null && <span>GST: {prod.tax_rate}%</span>}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-right">
+                                                                                    <div className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                                                                        ₹{Number(prod.price ?? prod.sale_price ?? 0).toLocaleString("en-IN")}
+                                                                                    </div>
+                                                                                    <div className="text-[9px] text-slate-400">per {prod.unit || "pcs"}</div>
+                                                                                </div>
+                                                                            </button>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="p-3 text-center text-xs text-slate-400">
+                                                                            {products.length === 0 ? "No inventory products found." : `No products matching "${item.name}"`}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </td>
+
                                                     <td className="p-2">
                                                         <Input
                                                             type="number"
@@ -392,6 +668,7 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                                                             required
                                                         />
                                                     </td>
+
                                                     <td className="p-2">
                                                         <select
                                                             value={item.unit || "pcs"}
@@ -406,6 +683,7 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                                                             <option value="set">set</option>
                                                         </select>
                                                     </td>
+
                                                     <td className="p-2">
                                                         <Input
                                                             type="number"
@@ -417,6 +695,7 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                                                             required
                                                         />
                                                     </td>
+
                                                     <td className="p-2">
                                                         <select
                                                             value={item.tax_rate ?? 0}
@@ -430,9 +709,11 @@ export const CreateSaleOrderDialog: React.FC<CreateSaleOrderDialogProps> = ({
                                                             <option value={28}>28%</option>
                                                         </select>
                                                     </td>
+
                                                     <td className="p-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
                                                         ₹{lineTot.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </td>
+
                                                     <td className="p-2 text-center">
                                                         <button
                                                             type="button"

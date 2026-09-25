@@ -19,6 +19,7 @@ interface ConvertOrderToBillDialogProps {
 
 interface ReceiptRow {
     item_id?: string;
+    product_id?: string;
     name: string;
     ordered_qty: number;
     already_received: number;
@@ -62,6 +63,7 @@ export const ConvertOrderToBillDialog: React.FC<ConvertOrderToBillDialogProps> =
 
             return {
                 item_id: it.id,
+                product_id: it.product_id,
                 name: it.name,
                 ordered_qty: ordered,
                 already_received: received,
@@ -119,6 +121,7 @@ export const ConvertOrderToBillDialog: React.FC<ConvertOrderToBillDialogProps> =
                 purchaseOrder,
                 receivedItems: selectedRows.map((r) => ({
                     item_id: r.item_id,
+                    product_id: r.product_id,
                     name: r.name,
                     quantity: Number(r.receive_qty),
                     price: Number(r.price),
