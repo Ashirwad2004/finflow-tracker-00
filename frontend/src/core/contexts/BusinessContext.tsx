@@ -16,10 +16,39 @@ const BusinessContext = createContext<BusinessContextType | undefined>(undefined
 
 export const BusinessProvider = ({ children }: { children: React.ReactNode }) => {
     const { user } = useAuth();
-    const [isBusinessMode, setIsBusinessMode] = useState(true);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSalesman, setIsSalesman] = useState(false);
-    const [salesmanStoreId, setSalesmanStoreId] = useState<string | null>(null);
+    const [isBusinessMode, setIsBusinessMode] = useState<boolean>(() => {
+        try {
+            const cached = localStorage.getItem("cached_is_business_mode");
+            if (cached !== null) return JSON.parse(cached);
+        } catch {}
+        return true;
+    });
+    const [isLoading, setIsLoading] = useState<boolean>(() => {
+        try {
+            const hasLocalSession = !!localStorage.getItem("salesman_session");
+            const hasCachedMode = localStorage.getItem("cached_is_business_mode") !== null;
+            return !hasLocalSession && !hasCachedMode;
+        } catch {
+            return false;
+        }
+    });
+    const [isSalesman, setIsSalesman] = useState<boolean>(() => {
+        try {
+            return !!localStorage.getItem("salesman_session");
+        } catch {
+            return false;
+        }
+    });
+    const [salesmanStoreId, setSalesmanStoreId] = useState<string | null>(() => {
+        try {
+            const stored = localStorage.getItem("salesman_session");
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                return parsed?.store_id || null;
+            }
+        } catch {}
+        return null;
+    });
 
     const setSalesmanSession = (session: { store_id: string; email: string; name: string } | null) => {
         if (session) {
@@ -27,6 +56,9 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
             setIsSalesman(true);
             setSalesmanStoreId(session.store_id);
             setIsBusinessMode(true);
+            try {
+                localStorage.setItem("cached_is_business_mode", JSON.stringify(true));
+            } catch {}
         } else {
             localStorage.removeItem("salesman_session");
             setIsSalesman(false);
@@ -113,8 +145,11 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
                 }
 
                 if (data) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    setIsBusinessMode((data as any).is_business_mode !== false);
+                    const mode = (data as any).is_business_mode !== false;
+                    setIsBusinessMode(mode);
+                    try {
+                        localStorage.setItem("cached_is_business_mode", JSON.stringify(mode));
+                    } catch {}
                 }
             } catch (error) {
                 console.error('Error fetching business settings:', error);
@@ -136,6 +171,9 @@ export const BusinessProvider = ({ children }: { children: React.ReactNode }) =>
         if (!user || isSalesman) return;
 
         setIsBusinessMode(value); // Optimistic update
+        try {
+            localStorage.setItem("cached_is_business_mode", JSON.stringify(value));
+        } catch {}
 
         const { error } = await (supabase as any)
             .from('profiles')

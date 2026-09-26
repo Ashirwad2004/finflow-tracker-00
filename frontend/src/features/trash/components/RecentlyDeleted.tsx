@@ -106,9 +106,21 @@ interface DeletedProduct extends BaseDeletedItem {
   user_id: string;
   name: string;
   price: number;
-  cost_price: number;
+  cost_price: number | null;
   stock_quantity: number;
   unit: string;
+  is_listed_online?: boolean;
+  online_description?: string | null;
+  image_url?: string | null;
+  mrp?: number | null;
+  tax_rate?: number;
+  barcode?: string | null;
+  barcode_type?: string;
+  barcode_source?: string;
+  sku?: string | null;
+  category?: string | null;
+  hsn_code?: string | null;
+  rack_location?: string | null;
 }
 
 interface DeletedSale extends BaseDeletedItem {
@@ -392,10 +404,22 @@ export const RecentlyDeleted = ({ userId, currencyCode = "INR", onClose }: Recen
         const { error: err } = await supabase.from("products").insert({
           user_id: userId,
           name: item.name,
-          price: item.price,
-          cost_price: item.cost_price,
-          stock_quantity: item.stock_quantity,
-          unit: item.unit,
+          price: Number(item.price) || 0,
+          cost_price: item.cost_price != null && !isNaN(Number(item.cost_price)) ? Number(item.cost_price) : null,
+          stock_quantity: Number(item.stock_quantity) || 0,
+          unit: item.unit || "pc",
+          is_listed_online: Boolean(item.is_listed_online),
+          online_description: item.online_description || null,
+          image_url: item.image_url || null,
+          mrp: item.mrp != null && !isNaN(Number(item.mrp)) ? Number(item.mrp) : null,
+          tax_rate: item.tax_rate != null && !isNaN(Number(item.tax_rate)) ? Number(item.tax_rate) : 0,
+          barcode: item.barcode || null,
+          barcode_type: item.barcode_type || "code128",
+          barcode_source: item.barcode_source || "manufacturer",
+          sku: item.sku || null,
+          category: item.category || null,
+          hsn_code: item.hsn_code || null,
+          rack_location: item.rack_location || null,
         } as any);
         if (err) throw err;
         queryClient.invalidateQueries({ queryKey: ["products"] });

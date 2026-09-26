@@ -102,12 +102,15 @@ export interface SaleOrderInvoiceLink {
     user_id: string;
     sale_order_id: string;
     sale_id: string;
-    delivered_items?: { item_id?: string; name: string; quantity: number }[];
+    delivered_items?: { item_id?: string; product_id?: string; name: string; quantity: number }[];
     created_at: string;
     sale?: {
+        id?: string;
         invoice_number: string;
         date: string;
         total_amount: number;
+        amount_paid?: number;
+        balance_due?: number;
         status: string;
     };
 }
@@ -117,9 +120,10 @@ export interface SaleOrderPurchaseOrderLink {
     user_id: string;
     sale_order_id: string;
     purchase_order_id: string;
-    procured_items?: { item_id?: string; name: string; quantity: number }[];
+    procured_items?: { item_id?: string; product_id?: string; name: string; quantity: number }[];
     created_at: string;
     purchase_order?: {
+        id?: string;
         po_number: string;
         vendor_name: string;
         order_date: string;
@@ -133,9 +137,10 @@ export interface PurchaseOrderBillLink {
     user_id: string;
     purchase_order_id: string;
     purchase_id: string;
-    received_items?: { item_id?: string; name: string; quantity: number }[];
+    received_items?: { item_id?: string; product_id?: string; name: string; quantity: number }[];
     created_at: string;
     purchase?: {
+        id?: string;
         bill_number: string;
         date: string;
         total_amount: number;

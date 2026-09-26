@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Barcode, Camera, Search, Sparkles } from "lucide-react";
@@ -41,35 +41,50 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [autoFocus]);
 
-  // Handle barcode lookup
-  const handleBarcodeLookup = (barcodeText: string) => {
+  // Pre-index products for O(1) instant barcode, SKU, and name lookups
+  const { barcodeMap, skuMap, nameMap } = useMemo(() => {
+    const bMap = new Map<string, POSProduct>();
+    const sMap = new Map<string, POSProduct>();
+    const nMap = new Map<string, POSProduct>();
+
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      if (p.barcode) {
+        bMap.set(p.barcode.trim().toLowerCase(), p);
+      }
+      if (p.sku) {
+        sMap.set(p.sku.trim().toLowerCase(), p);
+      }
+      if (p.name) {
+        nMap.set(p.name.trim().toLowerCase(), p);
+      }
+    }
+    return { barcodeMap: bMap, skuMap: sMap, nameMap: nMap };
+  }, [products]);
+
+  // O(1) constant-time barcode lookup handler
+  const handleBarcodeLookup = useCallback((barcodeText: string) => {
     const cleaned = barcodeText.trim().toLowerCase();
     if (!cleaned) return;
 
-    // 1. Exact barcode match
-    const matchByBarcode = products.find(
-      (p) => p.barcode && p.barcode.trim().toLowerCase() === cleaned
-    );
+    // 1. Exact barcode match (O(1))
+    const matchByBarcode = barcodeMap.get(cleaned);
     if (matchByBarcode) {
       onProductFound(matchByBarcode);
       setQuery("");
       return;
     }
 
-    // 2. Exact SKU match
-    const matchBySku = products.find(
-      (p) => p.sku && p.sku.trim().toLowerCase() === cleaned
-    );
+    // 2. Exact SKU match (O(1))
+    const matchBySku = skuMap.get(cleaned);
     if (matchBySku) {
       onProductFound(matchBySku);
       setQuery("");
       return;
     }
 
-    // 3. Name exact match
-    const matchByName = products.find(
-      (p) => p.name.trim().toLowerCase() === cleaned
-    );
+    // 3. Name exact match (O(1))
+    const matchByName = nameMap.get(cleaned);
     if (matchByName) {
       onProductFound(matchByName);
       setQuery("");
@@ -79,7 +94,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
     // 4. Barcode not found
     onBarcodeNotFound(barcodeText.trim());
     setQuery("");
-  };
+  }, [barcodeMap, skuMap, nameMap, onProductFound, onBarcodeNotFound]);
 
   // Attach background hardware scanner listener (captures rapid laser/CCD scanner keystrokes)
   useEffect(() => {
@@ -88,7 +103,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
     });
     scanner.attach();
     return () => scanner.detach();
-  }, [products]);
+  }, [handleBarcodeLookup]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {

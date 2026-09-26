@@ -5,7 +5,7 @@ import { CurrencyProvider } from "@/core/contexts/CurrencyContext";
 import { BusinessProvider, useBusiness } from "@/core/contexts/BusinessContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/core/lib/auth";
 import { supabase } from "@/core/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,9 @@ import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { ThemeInitializer } from "@/components/shared/ThemeToggle";
 import { AppAssistantGate } from "@/components/shared/AppAssistantGate";
 import { AppLayout } from "@/components/layout/AppLayout";
-import Index from "@/pages/Index";
 
-// Lazy-loaded pages
+// Lazy-loaded pages (including Index for minimal initial bundle size)
+const Index = lazy(() => import("@/pages/Index"));
 const Auth = lazy(() => import("@/features/auth/Auth"));
 const SalesmanLogin = lazy(() => import("@/features/auth/SalesmanLogin"));
 const SalesmanDashboard = lazy(() => import("@/features/salesman/pages/SalesmanDashboard"));
@@ -49,10 +49,11 @@ const PricingPage = lazy(() => import("@/pages/Pricing"));
 const POSPage = lazy(() => import("@/features/pos/pages/POSPage"));
 const BarcodeManagementPage = lazy(() => import("@/features/pos/pages/BarcodeManagement"));
 
-// Optimize React Query: 
-// 1. Keep data fresh for 5 mins (reduces duplicate network requests)
+// Optimize React Query for Instant Client-Side SPA Rendering:
+// 1. Keep data fresh for 5 mins (eliminates unnecessary duplicate network requests)
 // 2. Keep unused cache around for 15 mins
-// 3. Set networkMode to offlineFirst to prevent pausing queries/mutations when offline
+// 3. placeholderData preserves current UI data in memory during background refetches
+// 4. Set networkMode to offlineFirst to prevent pausing queries/mutations when offline
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -61,6 +62,7 @@ const queryClient = new QueryClient({
       retry: 1,
       refetchOnWindowFocus: false, // Prevents sudden UI slowdowns when switching tabs
       networkMode: "offlineFirst",
+      placeholderData: (previousData: any) => previousData, // Seamless in-memory transitions without layout flash
     },
     mutations: {
       networkMode: "offlineFirst",
@@ -73,10 +75,20 @@ const PageLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
     <div className="flex flex-col items-center gap-4">
       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading experience...</p>
     </div>
   </div>
 );
+
+// Automatically resets scroll position to top on route change
+const ScrollToTopOnNavigate = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -247,44 +259,60 @@ const AppRoutes = () => {
   }, [navigate]);
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/salesman-login" element={<SalesmanLogin />} />
-        <Route path="/expenses" element={<MerchantRoute><AllExpenses /></MerchantRoute>} />
-        <Route path="/groups" element={<MerchantRoute><Groups /></MerchantRoute>} />
-        <Route path="/groups/:groupId" element={<MerchantRoute><GroupDetail /></MerchantRoute>} />
-        <Route path="/join/:inviteCode" element={<JoinGroup />} />
-        <Route path="/lent-money" element={<MerchantRoute><LentMoney /></MerchantRoute>} />
-        <Route path="/borrowed-money" element={<MerchantRoute><BorrowedMoney /></MerchantRoute>} />
-        <Route path="/personal-reports" element={<MerchantRoute><PersonalReportsPage /></MerchantRoute>} />
-        <Route path="/recently-deleted" element={<MerchantRoute><RecentlyDeletedPage /></MerchantRoute>} />
-        <Route path="/settings" element={<MerchantRoute><SettingsPage /></MerchantRoute>} />
-        <Route path="/sales" element={<MerchantRoute><SalesPage /></MerchantRoute>} />
-        <Route path="/purchases" element={<MerchantRoute><PurchasesPage /></MerchantRoute>} />
-        <Route path="/business-dashboard" element={<MerchantRoute><AppLayout><BusinessDashboardPage /></AppLayout></MerchantRoute>} />
-        <Route path="/print-studio" element={<MerchantRoute><PrintStudioPage /></MerchantRoute>} />
-        <Route path="/parties" element={<MerchantRoute><PartiesPage /></MerchantRoute>} />
-        <Route path="/bank-details" element={<MerchantRoute><BankDetailsPage /></MerchantRoute>} />
-        <Route path="/pos" element={<MerchantRoute><POSPage /></MerchantRoute>} />
-        <Route path="/inventory/barcodes" element={<MerchantRoute><BarcodeManagementPage /></MerchantRoute>} />
-        <Route path="/inventory" element={<MerchantRoute><InventoryPage /></MerchantRoute>} />
-        <Route path="/online-store" element={<MerchantRoute><OnlineStorePage /></MerchantRoute>} />
-        <Route path="/salesman-dashboard" element={<SalesmanRoute><SalesmanDashboard /></SalesmanRoute>} />
-        <Route path="/store/:storeSlug" element={<StorefrontPage />} />
-        <Route path="/store/:storeSlug/payment-success" element={<PaymentSuccessPage />} />
-        <Route path="/store/:storeSlug/payment-failure" element={<PaymentFailurePage />} />
-        <Route path="/reports" element={<MerchantRoute><ReportsPage /></MerchantRoute>} />
-        <Route path="/admin" element={<AdminRoute><AdminDemoPage /></AdminRoute>} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/payment" element={<PricingPage />} />
-        <Route path="/loyalty" element={<MerchantRoute><LoyaltyCampaigns /></MerchantRoute>} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Suspense>
+    <>
+      <ScrollToTopOnNavigate />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/salesman-login" element={<SalesmanLogin />} />
+
+          {/* Persistent Merchant AppLayout Shell: AppSidebar and shell stay continuously mounted for instant 0ms client-side route transitions */}
+          <Route
+            element={
+              <MerchantRoute>
+                <AppLayout>
+                  <Outlet />
+                </AppLayout>
+              </MerchantRoute>
+            }
+          >
+            <Route path="/business-dashboard" element={<BusinessDashboardPage />} />
+            <Route path="/sales" element={<SalesPage />} />
+            <Route path="/purchases" element={<PurchasesPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/inventory/barcodes" element={<BarcodeManagementPage />} />
+            <Route path="/parties" element={<PartiesPage />} />
+            <Route path="/pos" element={<POSPage />} />
+            <Route path="/print-studio" element={<PrintStudioPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/online-store" element={<OnlineStorePage />} />
+            <Route path="/bank-details" element={<BankDetailsPage />} />
+            <Route path="/loyalty" element={<LoyaltyCampaigns />} />
+            <Route path="/expenses" element={<AllExpenses />} />
+            <Route path="/groups" element={<Groups />} />
+            <Route path="/groups/:groupId" element={<GroupDetail />} />
+            <Route path="/lent-money" element={<LentMoney />} />
+            <Route path="/borrowed-money" element={<BorrowedMoney />} />
+            <Route path="/personal-reports" element={<PersonalReportsPage />} />
+            <Route path="/recently-deleted" element={<RecentlyDeletedPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+
+          <Route path="/join/:inviteCode" element={<JoinGroup />} />
+          <Route path="/salesman-dashboard" element={<SalesmanRoute><SalesmanDashboard /></SalesmanRoute>} />
+          <Route path="/store/:storeSlug" element={<StorefrontPage />} />
+          <Route path="/store/:storeSlug/payment-success" element={<PaymentSuccessPage />} />
+          <Route path="/store/:storeSlug/payment-failure" element={<PaymentFailurePage />} />
+          <Route path="/admin" element={<AdminRoute><AdminDemoPage /></AdminRoute>} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/payment" element={<PricingPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 };
 

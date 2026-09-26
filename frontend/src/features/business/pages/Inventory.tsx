@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -66,10 +66,10 @@ interface Product {
     user_id: string;
     name: string;
     price: number;
-    cost_price: number;
+    cost_price: number | null;
     stock_quantity: number;
     unit: string;
-    hsn_code?: string;
+    hsn_code?: string | null;
     barcode?: string | null;
     barcode_type?: string;
     barcode_source?: string;
@@ -80,15 +80,15 @@ interface Product {
     created_at: string;
     updated_at?: string;
     is_listed_online?: boolean;
-    online_description?: string;
-    image_url?: string;
-    rack_location?: string;
+    online_description?: string | null;
+    image_url?: string | null;
+    rack_location?: string | null;
 }
 
 interface ProductFormValues {
     name: string;
     price: number;
-    cost_price: number;
+    cost_price?: number | null;
     stock_quantity: number;
     unit: string;
     hsn_code?: string;
@@ -97,7 +97,7 @@ interface ProductFormValues {
     barcode_source?: string;
     sku?: string;
     category?: string;
-    mrp?: number;
+    mrp?: number | null;
     tax_rate?: number;
     is_listed_online?: boolean;
     online_description?: string;
@@ -273,37 +273,78 @@ export default function Inventory() {
             const localData = await sqliteService.getAll<Product>("products", userId);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<Product[]>(["products", userId]) || undefined,
         enabled: !!user && !!userId
     });
 
-    // Filter products based on search and stock status
-    const filteredProducts = products.filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-        if (!matchesSearch) return false;
+    // Filter products based on search and stock status (memoized for high catalog scale)
+    const filteredProducts = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        return products.filter(product => {
+            if (term) {
+                const matchesSearch =
+                    product.name.toLowerCase().includes(term) ||
+                    (product.barcode && product.barcode.toLowerCase().includes(term)) ||
+                    (product.sku && product.sku.toLowerCase().includes(term)) ||
+                    (product.category && product.category.toLowerCase().includes(term));
+                if (!matchesSearch) return false;
+            }
 
-        if (stockFilter === "stock") {
-            return product.stock_quantity > 0;
-        } else if (stockFilter === "non-stock") {
-            return product.stock_quantity <= 0;
-        }
-        return true;
-    });
+            if (stockFilter === "stock") {
+                return product.stock_quantity > 0;
+            } else if (stockFilter === "non-stock") {
+                return product.stock_quantity <= 0;
+            }
+            return true;
+        });
+    }, [products, searchTerm, stockFilter]);
+
+    const buildProductRecord = (values: ProductFormValues, baseProduct?: Partial<Product> | null): Product => {
+        const parseNumOrNull = (v: any) => {
+            if (v === undefined || v === null || String(v).trim() === '') return null;
+            const n = Number(v);
+            return isNaN(n) ? null : n;
+        };
+
+        const parseNumOrDefault = (v: any, def: number) => {
+            if (v === undefined || v === null || String(v).trim() === '') return def;
+            const n = Number(v);
+            return isNaN(n) ? def : n;
+        };
+
+        return {
+            id: baseProduct?.id || uuidv4(),
+            user_id: userId,
+            name: values.name.trim(),
+            price: parseNumOrDefault(values.price, 0),
+            cost_price: parseNumOrNull(values.cost_price),
+            stock_quantity: parseNumOrDefault(values.stock_quantity, 0),
+            unit: values.unit?.trim() || "pc",
+            hsn_code: values.hsn_code?.trim() || null,
+            barcode: values.barcode?.trim() || null,
+            barcode_type: values.barcode_type?.trim() || "code128",
+            barcode_source: values.barcode_source?.trim() || "manufacturer",
+            sku: values.sku?.trim() || null,
+            category: values.category?.trim() || null,
+            mrp: parseNumOrNull(values.mrp),
+            tax_rate: parseNumOrDefault(values.tax_rate, 0),
+            is_listed_online: Boolean(values.is_listed_online),
+            online_description: values.online_description?.trim() || null,
+            image_url: values.image_url?.trim() || null,
+            rack_location: values.rack_location?.trim() || null,
+            created_at: baseProduct?.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+    };
 
     // Add product mutation
     const addProductMutation = useMutation({
         mutationFn: async (values: ProductFormValues) => {
-            const recordId = uuidv4();
-            const recordPayload: Product = {
-                id: recordId,
-                user_id: userId,
-                ...values,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            };
+            const recordPayload = buildProductRecord(values);
             const result = await offlineMutate({
                 table: "products",
                 action: "insert",
-                recordId,
+                recordId: recordPayload.id,
                 payload: recordPayload,
                 userId: user?.id || ""
             });
@@ -336,11 +377,7 @@ export default function Inventory() {
     const updateProductMutation = useMutation({
         mutationFn: async (values: ProductFormValues) => {
             if (!selectedProduct) throw new Error("No product selected.");
-            const recordPayload: Product = {
-                ...selectedProduct,
-                ...values,
-                updated_at: new Date().toISOString()
-            };
+            const recordPayload = buildProductRecord(values, selectedProduct);
             const result = await offlineMutate({
                 table: "products",
                 action: "update",
@@ -449,23 +486,47 @@ export default function Inventory() {
         reset({
             name: product.name,
             price: product.price,
-            cost_price: product.cost_price,
+            cost_price: product.cost_price ?? 0,
             stock_quantity: product.stock_quantity,
-            unit: product.unit,
+            unit: product.unit || "pc",
             hsn_code: product.hsn_code || "",
             barcode: product.barcode || "",
             barcode_type: product.barcode_type || "code128",
             barcode_source: product.barcode_source || "manufacturer",
             sku: product.sku || "",
             category: product.category || "",
-            mrp: product.mrp ?? undefined,
+            mrp: product.mrp ?? 0,
             tax_rate: product.tax_rate ?? 0,
-            is_listed_online: product.is_listed_online || false,
+            is_listed_online: Boolean(product.is_listed_online),
             online_description: product.online_description || "",
             image_url: product.image_url || "",
             rack_location: product.rack_location || ""
         });
         setIsEditDialogOpen(true);
+    };
+
+    const handleOpenAddDialog = () => {
+        setSelectedProduct(null);
+        reset({
+            name: "",
+            price: 0,
+            cost_price: 0,
+            stock_quantity: 0,
+            unit: "pc",
+            hsn_code: "",
+            barcode: "",
+            barcode_type: "code128",
+            barcode_source: "manufacturer",
+            sku: "",
+            category: "",
+            mrp: 0,
+            tax_rate: 0,
+            is_listed_online: true,
+            online_description: "",
+            image_url: "",
+            rack_location: ""
+        });
+        setIsAddDialogOpen(true);
     };
 
     const handleDelete = (product: Product) => {
@@ -580,7 +641,7 @@ export default function Inventory() {
                             <FileSpreadsheet className="w-4 h-4" />
                             Import / Export
                         </Button>
-                        <Button onClick={() => setIsAddDialogOpen(true)} className="text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
+                        <Button onClick={handleOpenAddDialog} className="text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
                             <Plus className="w-4 h-4 mr-1 sm:mr-2" />
                             Add Product
                         </Button>
@@ -657,7 +718,7 @@ export default function Inventory() {
                                 {searchTerm ? "No products match your search." : "Add your first product to get started!"}
                             </p>
                             {!searchTerm && (
-                                <Button onClick={() => setIsAddDialogOpen(true)}>
+                                <Button onClick={handleOpenAddDialog}>
                                     <Plus className="w-4 h-4 mr-2" />
                                     Add Product
                                 </Button>
@@ -708,7 +769,7 @@ export default function Inventory() {
                                             </TableCell>
                                         )}
                                         <TableCell>{formatCurrency(product.price)}</TableCell>
-                                        <TableCell>{formatCurrency(product.cost_price)}</TableCell>
+                                        <TableCell>{formatCurrency(product.cost_price ?? 0)}</TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <span>{product.stock_quantity}</span>

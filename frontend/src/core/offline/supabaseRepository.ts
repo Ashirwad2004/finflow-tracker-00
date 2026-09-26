@@ -23,6 +23,24 @@ class SupabaseRepository {
   }
 
   /**
+   * Fetches a single record by primary key (id or user_id) efficiently without full-table scans.
+   */
+  async fetchById<T = any>(table: string, recordId: string): Promise<T | null> {
+    const keyColumn = table === 'profiles' ? 'user_id' : 'id';
+    const { data, error } = await (supabase as any)
+      .from(table)
+      .select('*')
+      .eq(keyColumn, recordId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[SupabaseRepository] fetchById error on ${table}/${recordId}:`, error);
+      return null;
+    }
+    return data || null;
+  }
+
+  /**
    * Performs an upsert operation against a Supabase table.
    */
   async upsert(table: string, record: any): Promise<any> {

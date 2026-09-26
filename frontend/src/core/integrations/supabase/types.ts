@@ -1223,6 +1223,10 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
+          barcode_source: string | null
+          barcode_type: string | null
+          category: string | null
           cost_price: number | null
           created_at: string
           description: string | null
@@ -1231,16 +1235,23 @@ export type Database = {
           image_url: string | null
           is_listed_online: boolean | null
           min_stock_level: number | null
+          mrp: number | null
           name: string
           online_description: string | null
           price: number
           rack_location: string | null
+          sku: string | null
           stock_quantity: number | null
+          tax_rate: number | null
           unit: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          barcode?: string | null
+          barcode_source?: string | null
+          barcode_type?: string | null
+          category?: string | null
           cost_price?: number | null
           created_at?: string
           description?: string | null
@@ -1249,16 +1260,23 @@ export type Database = {
           image_url?: string | null
           is_listed_online?: boolean | null
           min_stock_level?: number | null
+          mrp?: number | null
           name: string
           online_description?: string | null
           price?: number
           rack_location?: string | null
+          sku?: string | null
           stock_quantity?: number | null
+          tax_rate?: number | null
           unit?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          barcode?: string | null
+          barcode_source?: string | null
+          barcode_type?: string | null
+          category?: string | null
           cost_price?: number | null
           created_at?: string
           description?: string | null
@@ -1267,11 +1285,14 @@ export type Database = {
           image_url?: string | null
           is_listed_online?: boolean | null
           min_stock_level?: number | null
+          mrp?: number | null
           name?: string
           online_description?: string | null
           price?: number
           rack_location?: string | null
+          sku?: string | null
           stock_quantity?: number | null
+          tax_rate?: number | null
           unit?: string | null
           updated_at?: string | null
           user_id?: string | null

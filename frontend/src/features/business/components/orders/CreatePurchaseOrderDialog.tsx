@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/core/integrations/supabase/client";
+import { sqliteService } from "@/core/offline/sqliteService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +26,31 @@ export const CreatePurchaseOrderDialog: React.FC<CreatePurchaseOrderDialogProps>
     onOpenChange,
     purchaseOrderToEdit,
     parties = [],
-    products = [],
+    products: productsProp = [],
     userId,
 }) => {
     const upsertMutation = useUpsertPurchaseOrder(userId);
+
+    const { data: dbProducts = [] } = useQuery({
+        queryKey: ["products", userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("products")
+                    .select("*")
+                    .eq("user_id", userId)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[CreatePurchaseOrderDialog] Products fetch fallback:", e);
+            }
+            return (await sqliteService.getAll<any>("products", userId)) || [];
+        },
+        enabled: !!userId && open,
+    });
+
+    const products = productsProp && productsProp.length > 0 ? productsProp : dbProducts;
 
     const [poNumber, setPoNumber] = useState("");
     const [vendorName, setVendorName] = useState("");
@@ -109,14 +133,15 @@ export const CreatePurchaseOrderDialog: React.FC<CreatePurchaseOrderDialogProps>
     };
 
     const handleProductSelect = (index: number, productName: string) => {
-        const matched = products.find((p) => p.name?.toLowerCase() === productName.toLowerCase());
+        const matched = products.find((p) => p.name?.toLowerCase().trim() === productName.toLowerCase().trim());
         if (matched) {
             const newItems = [...items];
+            const purchasePrice = Number(matched.cost_price ?? matched.purchase_price ?? matched.price ?? matched.sale_price ?? 0);
             newItems[index] = {
                 ...newItems[index],
                 product_id: matched.id,
                 name: matched.name,
-                price: Number(matched.purchase_price) || Number(matched.sale_price) || 0,
+                price: purchasePrice,
                 unit: matched.unit || "pcs",
                 hsn_code: matched.hsn_code || "",
                 tax_rate: Number(matched.tax_rate) || 0,
@@ -173,6 +198,8 @@ export const CreatePurchaseOrderDialog: React.FC<CreatePurchaseOrderDialogProps>
                 expected_delivery_date: expectedDeliveryDate || null,
                 items: validItems.map((it) => ({
                     ...it,
+                    id: it.id || crypto.randomUUID(),
+                    product_id: it.product_id || undefined,
                     quantity: Number(it.quantity),
                     price: Number(it.price),
                     tax_rate: Number(it.tax_rate || 0),

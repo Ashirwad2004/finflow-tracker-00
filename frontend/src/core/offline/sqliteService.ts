@@ -12,6 +12,7 @@ const OPFS_SNAPSHOT_FILENAME = "finflow_database_snapshot.json";
 
 class SqliteService {
   private snapshotTimeout: ReturnType<typeof setTimeout> | null = null;
+  private restoreAttempted = false;
 
   /**
    * Schedules a debounced snapshot write to local OPFS disk.
@@ -21,10 +22,18 @@ class SqliteService {
       clearTimeout(this.snapshotTimeout);
     }
     this.snapshotTimeout = setTimeout(() => {
-      this.exportSnapshotToOPFS().catch((err) => {
-        console.warn("[SqliteService] Background OPFS disk backup warning:", err);
-      });
-    }, 2000);
+      const runBackup = () => {
+        this.exportSnapshotToOPFS().catch((err) => {
+          console.warn("[SqliteService] Background OPFS disk backup warning:", err);
+        });
+      };
+
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+        (window as any).requestIdleCallback(runBackup, { timeout: 4000 });
+      } else {
+        runBackup();
+      }
+    }, 5000); // 5-second debounce ensures zero UI contention during active cashier workflows
   }
 
   /**
@@ -50,6 +59,9 @@ class SqliteService {
    * Rehydrates IndexedDB from OPFS disk snapshot if local IndexedDB was cleared or empty.
    */
   async restoreFromOPFS(): Promise<number> {
+    if (this.restoreAttempted) return 0;
+    this.restoreAttempted = true;
+
     try {
       const content = await OPFSStorageManager.readFile(OPFS_SNAPSHOT_FILENAME);
       if (!content) return 0;

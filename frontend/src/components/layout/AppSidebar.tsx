@@ -234,8 +234,36 @@ export const businessMenuItems: any[] = [
   }
 ];
 
-// Exporting menuItems for backward compatibility in other files (though they should update)
-export const menuItems = personalMenuItems;
+// Lazy route chunk preloaders for instantaneous 0ms client-side transitions
+const routePreloaders: Record<string, () => Promise<any>> = {
+  "/sales": () => import("@/features/business/pages/Sales"),
+  "/purchases": () => import("@/features/business/pages/Purchases"),
+  "/business-dashboard": () => import("@/features/business/pages/BusinessDashboard"),
+  "/inventory": () => import("@/features/business/pages/Inventory"),
+  "/inventory/barcodes": () => import("@/features/pos/pages/BarcodeManagement"),
+  "/parties": () => import("@/features/business/pages/Parties"),
+  "/pos": () => import("@/features/pos/pages/POSPage"),
+  "/print-studio": () => import("@/features/business/pages/PrintStudio"),
+  "/reports": () => import("@/features/business/pages/Reports"),
+  "/online-store": () => import("@/features/business/pages/OnlineStore"),
+  "/bank-details": () => import("@/features/business/pages/BankDetails"),
+  "/loyalty": () => import("@/features/business/pages/LoyaltyCampaigns"),
+  "/expenses": () => import("@/features/expenses/pages/AllExpenses"),
+  "/groups": () => import("@/features/groups/Groups"),
+  "/lent-money": () => import("@/features/loans/pages/LentMoney"),
+  "/borrowed-money": () => import("@/features/loans/pages/BorrowedMoney"),
+  "/personal-reports": () => import("@/features/reports/pages/PersonalReports"),
+  "/recently-deleted": () => import("@/features/trash/pages/RecentlyDeletedPage"),
+  "/settings": () => import("@/features/settings/pages/Settings"),
+};
+
+export const prefetchRoute = (path: string) => {
+  const cleanPath = path.split("?")[0];
+  const loader = routePreloaders[cleanPath];
+  if (loader) {
+    loader().catch(() => {});
+  }
+};
 
 interface AppSidebarProps {
   onNavigate?: () => void;
@@ -435,6 +463,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
               <div key={item.path} className="space-y-1">
                 {/* Parent Nav Row with Down Arrow */}
                 <div
+                  onMouseEnter={() => prefetchRoute(item.path)}
+                  onFocus={() => prefetchRoute(item.path)}
                   onClick={() => {
                     if (!isSubmenuOpen) {
                       setExpandedMenus((prev) => ({ ...prev, [item.path]: true }));
@@ -496,6 +526,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
                           <NavLink
                             to={child.path}
                             onClick={onNavigate}
+                            onMouseEnter={() => prefetchRoute(child.path)}
+                            onFocus={() => prefetchRoute(child.path)}
                             className={cn(
                               "flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all group",
                               isChildActive
@@ -545,6 +577,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
               key={item.path}
               to={item.path}
               onClick={onNavigate}
+              onMouseEnter={() => prefetchRoute(item.path)}
+              onFocus={() => prefetchRoute(item.path)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
                 isActive

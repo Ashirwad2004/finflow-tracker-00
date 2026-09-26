@@ -13,7 +13,26 @@ import { connectivityService } from "./connectivityService";
 
 let isSyncingActive = false;
 
-const TABLES_WITHOUT_UPDATED_AT = new Set(['parties', 'categories', 'purchases', 'sales', 'split_bill_participants']);
+const TABLES_WITHOUT_UPDATED_AT = new Set([
+  'parties',
+  'categories',
+  'purchases',
+  'sales',
+  'split_bill_participants',
+  'group_expenses',
+  'groups',
+  'group_members',
+  'online_orders',
+  'sale_order_invoices',
+  'sale_order_purchase_orders',
+  'purchase_order_bills',
+  'pos_return_items',
+  'invoice_items',
+  'order_status_events',
+  'online_order_items',
+  'bank_statement_lines',
+  'whatsapp_messages',
+]);
 
 export const sanitizePayloadForTable = (table: string, action: string, payload: any) => {
   if (!payload || typeof payload !== 'object') return payload;
@@ -23,6 +42,47 @@ export const sanitizePayloadForTable = (table: string, action: string, payload: 
   // Remove updated_at if table schema does not include updated_at column
   if (TABLES_WITHOUT_UPDATED_AT.has(table)) {
     delete clean.updated_at;
+  }
+
+  if (table === 'products') {
+    const {
+      id, user_id, name, description, price, cost_price, stock_quantity,
+      unit, created_at, updated_at, min_stock_level, is_listed_online,
+      online_description, image_url, rack_location, hsn_code,
+      barcode, barcode_type, barcode_source, sku, category, mrp, tax_rate
+    } = clean;
+
+    const parseNum = (v: any, fallback: any = null) => {
+      if (v === undefined || v === null || v === '') return fallback;
+      const n = Number(v);
+      return isNaN(n) ? fallback : n;
+    };
+
+    return {
+      id,
+      user_id,
+      name: String(name || '').trim(),
+      description: description?.trim() || null,
+      price: parseNum(price, 0),
+      cost_price: parseNum(cost_price, null),
+      stock_quantity: parseNum(stock_quantity, 0),
+      unit: unit?.trim() || 'pc',
+      created_at: created_at || new Date().toISOString(),
+      ...(updated_at ? { updated_at } : {}),
+      min_stock_level: parseNum(min_stock_level, 10),
+      is_listed_online: Boolean(is_listed_online),
+      online_description: online_description?.trim() || null,
+      image_url: image_url?.trim() || null,
+      rack_location: rack_location?.trim() || null,
+      hsn_code: hsn_code?.trim() || null,
+      barcode: barcode?.trim() || null,
+      barcode_type: barcode_type?.trim() || 'code128',
+      barcode_source: barcode_source?.trim() || 'internal',
+      sku: sku?.trim() || null,
+      category: category?.trim() || null,
+      mrp: parseNum(mrp, null),
+      tax_rate: parseNum(tax_rate, 0)
+    };
   }
 
   if (table === 'purchases') {
@@ -140,8 +200,7 @@ export const processSyncQueue = async (userId: string): Promise<void> => {
           let shouldUpdateRemote = true;
           if (!TABLES_WITHOUT_UPDATED_AT.has(item.table)) {
             try {
-              const remoteRecord = await supabaseRepository.fetch(item.table, userId);
-              const existing = remoteRecord.find((r: any) => r.id === item.recordId);
+              const existing = await supabaseRepository.fetchById(item.table, item.recordId);
 
               if (existing && existing.updated_at && payload.updated_at) {
                 const remoteTime = new Date(existing.updated_at).getTime();

@@ -20,6 +20,7 @@ interface ProcureItemsDialogProps {
 
 interface ProcureRow {
     item_id?: string;
+    product_id?: string;
     name: string;
     ordered_qty: number;
     already_procured: number;
@@ -73,14 +74,17 @@ export const ProcureItemsDialog: React.FC<ProcureItemsDialogProps> = ({
             const already = Number(it.purchased_qty) || 0;
             const remaining = Math.max(0, ordered - already);
 
-            // Estimate purchase rate from product catalog or fallback to 70% of sale price
-            const matchedProd = products.find((p) => p.name?.toLowerCase() === it.name?.toLowerCase());
-            const estRate = matchedProd?.purchase_price
-                ? Number(matchedProd.purchase_price)
+            // Estimate purchase rate from product catalog or fallback to 75% of sale price
+            const matchedProd = products.find(
+                (p) => (it.product_id && p.id === it.product_id) || p.name?.toLowerCase().trim() === it.name?.toLowerCase().trim()
+            );
+            const estRate = matchedProd?.cost_price ?? matchedProd?.purchase_price
+                ? Number(matchedProd.cost_price ?? matchedProd.purchase_price)
                 : Number(it.price) * 0.75;
 
             return {
                 item_id: it.id,
+                product_id: it.product_id,
                 name: it.name,
                 ordered_qty: ordered,
                 already_procured: already,
@@ -158,6 +162,7 @@ export const ProcureItemsDialog: React.FC<ProcureItemsDialogProps> = ({
                 },
                 procureItems: selectedRows.map((r) => ({
                     item_id: r.item_id,
+                    product_id: r.product_id,
                     name: r.name,
                     quantity: Number(r.procure_qty),
                     price: Number(r.price),

@@ -24,16 +24,18 @@ export function computeSaleOrderStatus(
     currentStatus: SaleOrderStatus
 ): SaleOrderStatus {
     if (currentStatus === "cancelled" || currentStatus === "draft") return currentStatus;
+    if (!items || items.length === 0) return currentStatus;
 
-    const totalOrdered = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-    const totalDelivered = items.reduce((acc, it) => acc + (Number(it.delivered_qty) || 0), 0);
-
-    if (totalOrdered > 0 && totalDelivered >= totalOrdered) {
+    const allFulfilled = items.every((it) => (Number(it.delivered_qty) || 0) >= (Number(it.quantity) || 0));
+    if (allFulfilled) {
         return "delivered";
     }
-    if (totalDelivered > 0) {
+
+    const anyDelivered = items.some((it) => (Number(it.delivered_qty) || 0) > 0);
+    if (anyDelivered) {
         return "partially_delivered";
     }
+
     return "confirmed";
 }
 
@@ -42,16 +44,18 @@ export function computePurchaseOrderStatus(
     currentStatus: PurchaseOrderStatus
 ): PurchaseOrderStatus {
     if (currentStatus === "cancelled" || currentStatus === "draft") return currentStatus;
+    if (!items || items.length === 0) return currentStatus;
 
-    const totalOrdered = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-    const totalReceived = items.reduce((acc, it) => acc + (Number(it.received_qty) || 0), 0);
-
-    if (totalOrdered > 0 && totalReceived >= totalOrdered) {
+    const allReceived = items.every((it) => (Number(it.received_qty) || 0) >= (Number(it.quantity) || 0));
+    if (allReceived) {
         return "received";
     }
-    if (totalReceived > 0) {
+
+    const anyReceived = items.some((it) => (Number(it.received_qty) || 0) > 0);
+    if (anyReceived) {
         return "partially_received";
     }
+
     return "sent";
 }
 
@@ -61,8 +65,18 @@ export function calculateOrderStockSummary(order: SaleOrder): OrderStockSummary 
     const delivered = items.reduce((acc, i) => acc + (Number(i.delivered_qty) || 0), 0);
     const purchased = items.reduce((acc, i) => acc + (Number(i.purchased_qty) || 0), 0);
 
-    const remainingDelivery = Math.max(0, ordered - delivered);
-    const remainingProcurement = Math.max(0, ordered - purchased);
+    const remainingDelivery = items.reduce((acc, i) => {
+        const ord = Number(i.quantity) || 0;
+        const del = Number(i.delivered_qty) || 0;
+        return acc + Math.max(0, ord - del);
+    }, 0);
+
+    const remainingProcurement = items.reduce((acc, i) => {
+        const ord = Number(i.quantity) || 0;
+        const pur = Number(i.purchased_qty) || 0;
+        return acc + Math.max(0, ord - pur);
+    }, 0);
+
     const reserved = order.status !== "cancelled" && order.status !== "delivered" ? remainingDelivery : 0;
 
     return {
@@ -146,7 +160,7 @@ export function useSaleOrderRelations(saleOrderId?: string, userId?: string) {
                 const [invRes, poRes] = await Promise.all([
                     (supabase as any)
                         .from("sale_order_invoices")
-                        .select("*, sale:sales(id, invoice_number, date, total_amount, status)")
+                        .select("*, sale:sales(id, invoice_number, date, total_amount, amount_paid, balance_due, status)")
                         .eq("sale_order_id", saleOrderId),
                     (supabase as any)
                         .from("sale_order_purchase_orders")
@@ -154,12 +168,65 @@ export function useSaleOrderRelations(saleOrderId?: string, userId?: string) {
                         .eq("sale_order_id", saleOrderId),
                 ]);
 
-                return {
-                    invoices: (invRes.data || []) as SaleOrderInvoiceLink[],
-                    purchaseOrders: (poRes.data || []) as SaleOrderPurchaseOrderLink[],
-                };
+                if (!invRes.error && !poRes.error && invRes.data && poRes.data) {
+                    return {
+                        invoices: (invRes.data || []) as SaleOrderInvoiceLink[],
+                        purchaseOrders: (poRes.data || []) as SaleOrderPurchaseOrderLink[],
+                    };
+                }
             } catch (err) {
-                console.warn("[useSaleOrderRelations] Failed to fetch relations:", err);
+                console.warn("[useSaleOrderRelations] Online fetch failed, trying local fallback:", err);
+            }
+
+            // Local fallback for offline mode
+            try {
+                const localInvoices = await sqliteService.getAll<any>("sale_order_invoices", userId);
+                const filteredInvoices = (localInvoices || []).filter((i: any) => i.sale_order_id === saleOrderId);
+                const localSales = await sqliteService.getAll<any>("sales", userId);
+                const enrichedInvoices = filteredInvoices.map((inv: any) => {
+                    const s = (localSales || []).find((x: any) => x.id === inv.sale_id);
+                    return {
+                        ...inv,
+                        sale: s
+                            ? {
+                                  id: s.id,
+                                  invoice_number: s.invoice_number,
+                                  date: s.date,
+                                  total_amount: Number(s.total_amount) || 0,
+                                  amount_paid: Number(s.amount_paid) || 0,
+                                  balance_due: Number(s.balance_due) || 0,
+                                  status: s.status,
+                              }
+                            : undefined,
+                    };
+                });
+
+                const localPOs = await sqliteService.getAll<any>("sale_order_purchase_orders", userId);
+                const filteredPOs = (localPOs || []).filter((p: any) => p.sale_order_id === saleOrderId);
+                const localPOList = await sqliteService.getAll<any>("purchase_orders", userId);
+                const enrichedPOs = filteredPOs.map((link: any) => {
+                    const po = (localPOList || []).find((x: any) => x.id === link.purchase_order_id);
+                    return {
+                        ...link,
+                        purchase_order: po
+                            ? {
+                                  id: po.id,
+                                  po_number: po.po_number,
+                                  vendor_name: po.vendor_name,
+                                  order_date: po.order_date,
+                                  total_amount: Number(po.total_amount) || 0,
+                                  status: po.status,
+                              }
+                            : undefined,
+                    };
+                });
+
+                return {
+                    invoices: enrichedInvoices as SaleOrderInvoiceLink[],
+                    purchaseOrders: enrichedPOs as SaleOrderPurchaseOrderLink[],
+                };
+            } catch (localErr) {
+                console.warn("[useSaleOrderRelations] Local fallback error:", localErr);
                 return { invoices: [], purchaseOrders: [] };
             }
         },
@@ -185,12 +252,63 @@ export function usePurchaseOrderRelations(purchaseOrderId?: string, userId?: str
                         .eq("purchase_order_id", purchaseOrderId),
                 ]);
 
-                return {
-                    bills: (billsRes.data || []) as PurchaseOrderBillLink[],
-                    sourceSaleOrders: soRes.data || [],
-                };
+                if (!billsRes.error && !soRes.error && billsRes.data && soRes.data) {
+                    return {
+                        bills: (billsRes.data || []) as PurchaseOrderBillLink[],
+                        sourceSaleOrders: soRes.data || [],
+                    };
+                }
             } catch (err) {
-                console.warn("[usePurchaseOrderRelations] Failed to fetch relations:", err);
+                console.warn("[usePurchaseOrderRelations] Online fetch failed, trying local fallback:", err);
+            }
+
+            // Local fallback for offline mode
+            try {
+                const localBills = await sqliteService.getAll<any>("purchase_order_bills", userId);
+                const filteredBills = (localBills || []).filter((b: any) => b.purchase_order_id === purchaseOrderId);
+                const localPurchases = await sqliteService.getAll<any>("purchases", userId);
+                const enrichedBills = filteredBills.map((b: any) => {
+                    const p = (localPurchases || []).find((x: any) => x.id === b.purchase_id);
+                    return {
+                        ...b,
+                        purchase: p
+                            ? {
+                                  id: p.id,
+                                  bill_number: p.bill_number,
+                                  date: p.date,
+                                  total_amount: Number(p.total_amount) || 0,
+                                  status: p.status,
+                              }
+                            : undefined,
+                    };
+                });
+
+                const localSOPOs = await sqliteService.getAll<any>("sale_order_purchase_orders", userId);
+                const filteredSOPOs = (localSOPOs || []).filter((link: any) => link.purchase_order_id === purchaseOrderId);
+                const localSOs = await sqliteService.getAll<any>("sale_orders", userId);
+                const enrichedSOs = filteredSOPOs.map((link: any) => {
+                    const so = (localSOs || []).find((x: any) => x.id === link.sale_order_id);
+                    return {
+                        ...link,
+                        sale_order: so
+                            ? {
+                                  id: so.id,
+                                  order_number: so.order_number,
+                                  customer_name: so.customer_name,
+                                  order_date: so.order_date,
+                                  total_amount: Number(so.total_amount) || 0,
+                                  status: so.status,
+                              }
+                            : undefined,
+                    };
+                });
+
+                return {
+                    bills: enrichedBills as PurchaseOrderBillLink[],
+                    sourceSaleOrders: enrichedSOs,
+                };
+            } catch (localErr) {
+                console.warn("[usePurchaseOrderRelations] Local fallback error:", localErr);
                 return { bills: [], sourceSaleOrders: [] };
             }
         },
@@ -362,6 +480,7 @@ export interface ConvertSaleOrderToInvoiceParams {
     saleOrder: SaleOrder;
     deliveryItems: {
         item_id?: string;
+        product_id?: string;
         name: string;
         quantity: number; // quantity delivered on this invoice
         price: number;
@@ -397,10 +516,12 @@ export function useConvertSaleOrderToInvoice(userId?: string) {
                 const tax = ((it.tax_rate || 0) * sub) / 100;
                 return {
                     id: crypto.randomUUID(),
+                    product_id: it.product_id,
                     name: it.name,
+                    description: it.name,
                     quantity: it.quantity,
                     price: it.price,
-                    amount: sub + tax,
+                    amount: sub,
                     total: sub + tax,
                     tax_rate: it.tax_rate || 0,
                     tax_amount: tax,
@@ -414,42 +535,100 @@ export function useConvertSaleOrderToInvoice(userId?: string) {
             const total_amount = subtotal + tax_amount;
             const paid = Number(amountPaid) || 0;
             const balance_due = Math.max(0, total_amount - paid);
+            const derivedStatus = paymentStatus || (balance_due === 0 ? "paid" : paid > 0 ? "partial" : "pending");
 
-            // 2. Insert into `sales` table
-            const salePayload = {
+            // 2. Insert into `sales` table with CA ledger & compliance fields
+            const noteParts = [
+                `Generated from Sale Order #${saleOrder.order_number}`,
+                saleOrder.billing_address ? `Billing: ${saleOrder.billing_address}` : null,
+                saleOrder.shipping_address && saleOrder.shipping_address !== saleOrder.billing_address
+                    ? `Shipping: ${saleOrder.shipping_address}`
+                    : null,
+                saleOrder.notes || null,
+            ].filter(Boolean);
+            const formattedNotes = noteParts.join(" • ");
+
+            const salePayload: any = {
                 id: saleId,
                 user_id: userId,
+                party_id: saleOrder.party_id || null,
                 customer_name: saleOrder.customer_name,
                 customer_phone: saleOrder.customer_phone || null,
                 customer_email: saleOrder.customer_email || null,
                 customer_gstin: saleOrder.customer_gstin || null,
+                place_of_supply: saleOrder.place_of_supply || (saleOrder.customer_gstin ? saleOrder.customer_gstin.trim().substring(0, 2) : null),
+                document_type: "invoice",
                 invoice_number: invoiceNumber,
                 date: dateStr,
                 due_date: dueDate || null,
-                status: paymentStatus || (balance_due === 0 ? "paid" : paid > 0 ? "partial" : "pending"),
+                status: derivedStatus,
                 payment_method: paymentMethod || "Cash",
                 subtotal,
+                discount_amount: 0,
+                tax_rate: saleItems.length > 0 ? saleItems[0].tax_rate : 0,
                 tax_amount,
                 total_amount,
                 amount_paid: paid,
                 balance_due,
                 items: saleItems,
-                notes: `Generated from Sale Order #${saleOrder.order_number}`,
+                notes: formattedNotes,
+                created_at: now,
             };
 
-            const { error: saleErr } = await offlineMutate({
-                table: "sales",
-                action: "insert",
-                recordId: saleId,
-                payload: salePayload,
-                userId,
-            });
-            if (saleErr) throw saleErr;
+            let saleErr: any = null;
+            try {
+                const res = await offlineMutate({
+                    table: "sales",
+                    action: "insert",
+                    recordId: saleId,
+                    payload: salePayload,
+                    userId,
+                });
+                saleErr = res?.error;
+            } catch (e: any) {
+                saleErr = e;
+            }
+
+            // Resilient fallback to core sales columns if remote DB schema lacks optional columns
+            if (saleErr) {
+                console.warn("[useConvertSaleOrderToInvoice] Full schema insert warning, falling back to core columns:", saleErr);
+                const coreSalePayload = {
+                    id: saleId,
+                    user_id: userId,
+                    party_id: saleOrder.party_id || null,
+                    invoice_number: invoiceNumber,
+                    customer_name: saleOrder.customer_name,
+                    customer_phone: saleOrder.customer_phone || null,
+                    customer_email: saleOrder.customer_email || null,
+                    date: dateStr,
+                    status: derivedStatus,
+                    subtotal,
+                    tax_amount,
+                    total_amount,
+                    amount_paid: paid,
+                    balance_due,
+                    payment_method: paymentMethod || "Cash",
+                    items: saleItems,
+                    notes: formattedNotes,
+                    created_at: now,
+                };
+                const coreRes = await offlineMutate({
+                    table: "sales",
+                    action: "insert",
+                    recordId: saleId,
+                    payload: coreSalePayload,
+                    userId,
+                });
+                if (coreRes?.error) throw coreRes.error;
+            }
 
             // 3. Update delivered_qty on Sale Order items
             const updatedItems = (saleOrder.items || []).map((orderItem) => {
                 const deliveredNow = deliveryItems.find(
-                    (d) => (d.item_id && d.item_id === orderItem.id) || d.name.trim().toLowerCase() === orderItem.name.trim().toLowerCase()
+                    (d) =>
+                        (d.item_id && orderItem.id && d.item_id === orderItem.id) ||
+                        (d.product_id && orderItem.product_id && d.product_id === orderItem.product_id) ||
+                        d.name.trim().toLowerCase() === orderItem.name.trim().toLowerCase()
                 );
                 const addQty = deliveredNow ? Number(deliveredNow.quantity) || 0 : 0;
                 return {
@@ -476,32 +655,36 @@ export function useConvertSaleOrderToInvoice(userId?: string) {
 
             // 4. Create junction record in sale_order_invoices
             const junctionId = crypto.randomUUID();
-            await offlineMutate({
-                table: "sale_order_invoices",
-                action: "insert",
-                recordId: junctionId,
-                payload: {
-                    id: junctionId,
-                    user_id: userId,
-                    sale_order_id: saleOrder.id,
-                    sale_id: saleId,
-                    delivered_items: deliveryItems,
-                    created_at: now,
-                },
-                userId,
-            });
+            try {
+                await offlineMutate({
+                    table: "sale_order_invoices",
+                    action: "insert",
+                    recordId: junctionId,
+                    payload: {
+                        id: junctionId,
+                        user_id: userId,
+                        sale_order_id: saleOrder.id,
+                        sale_id: saleId,
+                        delivered_items: deliveryItems,
+                        created_at: now,
+                    },
+                    userId,
+                });
+            } catch (juncErr) {
+                console.warn("[useConvertSaleOrderToInvoice] Junction record insert warning:", juncErr);
+            }
 
             // 5. Deduct inventory stock if requested (Production CA / ERP standard)
             if (deductStock !== false && dbProducts && Array.isArray(dbProducts)) {
                 for (const item of deliveryItems) {
                     const matchedProduct = dbProducts.find(
                         (p: any) =>
-                            (item.item_id && p.id === item.item_id) ||
+                            (item.product_id && p.id === item.product_id) ||
                             (p.name && item.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
                     );
                     if (matchedProduct && matchedProduct.id) {
                         const currentStock = Number(matchedProduct.stock_quantity) || 0;
-                        const newStock = currentStock - (Number(item.quantity) || 0);
+                        const newStock = Math.max(0, currentStock - (Number(item.quantity) || 0));
                         try {
                             await offlineMutate({
                                 table: "products",
@@ -526,6 +709,7 @@ export function useConvertSaleOrderToInvoice(userId?: string) {
             queryClient.invalidateQueries({ queryKey: ["sale_orders", userId] });
             queryClient.invalidateQueries({ queryKey: ["sales", userId] });
             queryClient.invalidateQueries({ queryKey: ["products", userId] });
+            queryClient.invalidateQueries({ queryKey: ["parties", userId] });
             queryClient.invalidateQueries({ queryKey: ["sale_order_relations", variables.saleOrder.id] });
         },
     });
@@ -543,6 +727,7 @@ export interface ProcureSaleOrderToPOParams {
     };
     procureItems: {
         item_id?: string;
+        product_id?: string;
         name: string;
         quantity: number; // quantity procured on this PO
         price: number;
@@ -574,6 +759,7 @@ export function useProcureSaleOrderToPO(userId?: string) {
                 const tax = ((it.tax_rate || 0) * sub) / 100;
                 return {
                     id: crypto.randomUUID(),
+                    product_id: it.product_id,
                     name: it.name,
                     quantity: it.quantity,
                     price: it.price,
@@ -654,20 +840,24 @@ export function useProcureSaleOrderToPO(userId?: string) {
 
             // 4. Create junction link in sale_order_purchase_orders
             const junctionId = crypto.randomUUID();
-            await offlineMutate({
-                table: "sale_order_purchase_orders",
-                action: "insert",
-                recordId: junctionId,
-                payload: {
-                    id: junctionId,
-                    user_id: userId,
-                    sale_order_id: saleOrder.id,
-                    purchase_order_id: poId,
-                    procured_items: procureItems,
-                    created_at: now,
-                },
-                userId,
-            });
+            try {
+                await offlineMutate({
+                    table: "sale_order_purchase_orders",
+                    action: "insert",
+                    recordId: junctionId,
+                    payload: {
+                        id: junctionId,
+                        user_id: userId,
+                        sale_order_id: saleOrder.id,
+                        purchase_order_id: poId,
+                        procured_items: procureItems,
+                        created_at: now,
+                    },
+                    userId,
+                });
+            } catch (juncErr) {
+                console.warn("[useProcureSaleOrderToPO] Junction record insert warning:", juncErr);
+            }
 
             return { poId, poNumber };
         },
@@ -683,6 +873,7 @@ export interface ConvertPurchaseOrderToBillParams {
     purchaseOrder: PurchaseOrder;
     receivedItems: {
         item_id?: string;
+        product_id?: string;
         name: string;
         quantity: number; // quantity received on this bill
         price: number;
@@ -734,6 +925,7 @@ export function useConvertPurchaseOrderToBill(userId?: string) {
             const purchasePayload = {
                 id: purchaseId,
                 user_id: userId,
+                party_id: purchaseOrder.party_id || null,
                 bill_number: billNumber,
                 vendor_name: purchaseOrder.vendor_name,
                 vendor_phone: purchaseOrder.vendor_phone || null,
@@ -760,7 +952,10 @@ export function useConvertPurchaseOrderToBill(userId?: string) {
             // 3. Update received_qty on Purchase Order items
             const updatedPOItems = (purchaseOrder.items || []).map((poItem) => {
                 const receivedNow = receivedItems.find(
-                    (r) => (r.item_id && r.item_id === poItem.id) || r.name.trim().toLowerCase() === poItem.name.trim().toLowerCase()
+                    (r) =>
+                        (r.item_id && poItem.id && r.item_id === poItem.id) ||
+                        (r.product_id && poItem.product_id && r.product_id === poItem.product_id) ||
+                        r.name.trim().toLowerCase() === poItem.name.trim().toLowerCase()
                 );
                 const addQty = receivedNow ? Number(receivedNow.quantity) || 0 : 0;
                 return {
@@ -787,26 +982,31 @@ export function useConvertPurchaseOrderToBill(userId?: string) {
 
             // 4. Create junction link in purchase_order_bills
             const junctionId = crypto.randomUUID();
-            await offlineMutate({
-                table: "purchase_order_bills",
-                action: "insert",
-                recordId: junctionId,
-                payload: {
-                    id: junctionId,
-                    user_id: userId,
-                    purchase_order_id: purchaseOrder.id,
-                    purchase_id: purchaseId,
-                    received_items: receivedItems,
-                    created_at: now,
-                },
-                userId,
-            });
+            try {
+                await offlineMutate({
+                    table: "purchase_order_bills",
+                    action: "insert",
+                    recordId: junctionId,
+                    payload: {
+                        id: junctionId,
+                        user_id: userId,
+                        purchase_order_id: purchaseOrder.id,
+                        purchase_id: purchaseId,
+                        received_items: receivedItems,
+                        created_at: now,
+                    },
+                    userId,
+                });
+            } catch (juncErr) {
+                console.warn("[useConvertPurchaseOrderToBill] Junction record insert warning:", juncErr);
+            }
 
             // 5. Add to inventory stock if requested
             if (addStock !== false && dbProducts && Array.isArray(dbProducts)) {
                 for (const item of receivedItems) {
                     const matchedProduct = dbProducts.find(
                         (p: any) =>
+                            (item.product_id && p.id === item.product_id) ||
                             (item.item_id && p.id === item.item_id) ||
                             (p.name && item.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
                     );
@@ -837,6 +1037,7 @@ export function useConvertPurchaseOrderToBill(userId?: string) {
             queryClient.invalidateQueries({ queryKey: ["purchase_orders", userId] });
             queryClient.invalidateQueries({ queryKey: ["purchases", userId] });
             queryClient.invalidateQueries({ queryKey: ["products", userId] });
+            queryClient.invalidateQueries({ queryKey: ["parties", userId] });
             queryClient.invalidateQueries({ queryKey: ["purchase_order_relations", variables.purchaseOrder.id] });
         },
     });

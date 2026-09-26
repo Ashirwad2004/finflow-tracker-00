@@ -6,7 +6,7 @@ import { sqliteService } from "@/core/offline/sqliteService";
 import { format, subMonths, isSameMonth } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
 import { RevenueAnalytics } from "@/features/business/components/RevenueAnalytics";
 import {
@@ -55,6 +55,7 @@ export default function BusinessDashboard() {
             const localData = await sqliteService.getAll<any>("sales", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["sales", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -86,6 +87,7 @@ export default function BusinessDashboard() {
             const localData = await sqliteService.getAll<any>("expenses", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["expenses", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -109,108 +111,130 @@ export default function BusinessDashboard() {
             const localData = await sqliteService.getAll<any>("purchases", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["purchases", user?.id]) || undefined,
         enabled: !!user
     });
 
-    // --- Data Aggregation ---
-    const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
-    const totalPurchases = purchases.reduce((sum, purchase) => sum + Number(purchase.total_amount || 0), 0);
-    const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
-    const grossProfit = totalRevenue - totalPurchases;
-    const netProfit = grossProfit - totalExpenses;
-    const cashFlow = netProfit; // Simplified
+    // --- Data Aggregation (Memoized for zero re-computation on dialog/layout triggers) ---
+    const { totalRevenue, totalPurchases, totalExpenses, grossProfit, netProfit, cashFlow } = useMemo(() => {
+        let rev = 0;
+        let pur = 0;
+        let exp = 0;
+
+        for (let i = 0; i < sales.length; i++) rev += Number(sales[i].total_amount || 0);
+        for (let i = 0; i < purchases.length; i++) pur += Number(purchases[i].total_amount || 0);
+        for (let i = 0; i < expenses.length; i++) exp += Number(expenses[i].amount || 0);
+
+        const gross = rev - pur;
+        const net = gross - exp;
+        return {
+            totalRevenue: rev,
+            totalPurchases: pur,
+            totalExpenses: exp,
+            grossProfit: gross,
+            netProfit: net,
+            cashFlow: net
+        };
+    }, [sales, purchases, expenses]);
 
     // Line Chart: P&L over last 6 months
-    const last6Months = Array.from({ length: 6 }, (_, i) => {
-        const d = subMonths(new Date(), 5 - i);
-        return d;
-    });
+    const chartData = useMemo(() => {
+        const last6Months = Array.from({ length: 6 }, (_, i) => subMonths(new Date(), 5 - i));
 
-    const chartData = last6Months.map(month => {
-        const monthSales = sales.filter(s => {
-            const date = parseValidDate(s.date);
-            return date ? isSameMonth(date, month) : false;
-        });
-        const monthPurchases = purchases.filter(p => {
-            const date = parseValidDate(p.date);
-            return date ? isSameMonth(date, month) : false;
-        });
-        const monthExpenses = expenses.filter(e => {
-            const date = parseValidDate(e.date);
-            return date ? isSameMonth(date, month) : false;
-        });
-        const rev = monthSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
-        const pur = monthPurchases.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
-        const exp = monthExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-        return {
-            name: format(month, 'MMM'),
-            revenue: rev,
-            purchases: pur,
-            expenses: exp
-        };
-    });
+        return last6Months.map(month => {
+            let rev = 0;
+            let pur = 0;
+            let exp = 0;
 
-    // Top Customers
-    const customerMap = new Map<string, number>();
-    sales.forEach(s => {
-        if (s.customer_name) {
-            customerMap.set(s.customer_name, (customerMap.get(s.customer_name) || 0) + Number(s.total_amount || 0));
+            for (let i = 0; i < sales.length; i++) {
+                const date = parseValidDate(sales[i].date);
+                if (date && isSameMonth(date, month)) rev += Number(sales[i].total_amount || 0);
+            }
+            for (let i = 0; i < purchases.length; i++) {
+                const date = parseValidDate(purchases[i].date);
+                if (date && isSameMonth(date, month)) pur += Number(purchases[i].total_amount || 0);
+            }
+            for (let i = 0; i < expenses.length; i++) {
+                const date = parseValidDate(expenses[i].date);
+                if (date && isSameMonth(date, month)) exp += Number(expenses[i].amount || 0);
+            }
+
+            return {
+                name: format(month, 'MMM'),
+                revenue: rev,
+                purchases: pur,
+                expenses: exp
+            };
+        });
+    }, [sales, purchases, expenses]);
+
+    // Top Customers & Doughnut Chart Data
+    const { topCustomers, pieData } = useMemo(() => {
+        const customerMap = new Map<string, number>();
+        for (let i = 0; i < sales.length; i++) {
+            const s = sales[i];
+            if (s.customer_name) {
+                customerMap.set(s.customer_name, (customerMap.get(s.customer_name) || 0) + Number(s.total_amount || 0));
+            }
         }
-    });
 
-    const topCustomers = Array.from(customerMap.entries())
-        .map(([name, total]) => ({ name, revenue: total }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 3); // Top 3
+        const top = Array.from(customerMap.entries())
+            .map(([name, total]) => ({ name, revenue: total }))
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 3); // Top 3
 
-    // Doughnut Chart Data (Revenue by Top Customers)
-    let pieData = [...topCustomers].map(c => ({ name: c.name, value: c.revenue }));
-    const topRevenueSum = topCustomers.reduce((s, c) => s + c.revenue, 0);
-    const otherRevenue = totalRevenue - topRevenueSum;
-    if (otherRevenue > 0) {
-        pieData.push({ name: 'Other', value: otherRevenue });
-    }
-    if (pieData.length === 0) {
-        pieData = [{ name: 'No Data', value: 1 }];
-    }
+        let pData = top.map(c => ({ name: c.name, value: c.revenue }));
+        const topRevenueSum = top.reduce((s, c) => s + c.revenue, 0);
+        const otherRevenue = totalRevenue - topRevenueSum;
+        if (otherRevenue > 0) {
+            pData.push({ name: 'Other', value: otherRevenue });
+        }
+        if (pData.length === 0) {
+            pData = [{ name: 'No Data', value: 1 }];
+        }
+
+        return { topCustomers: top, pieData: pData };
+    }, [sales, totalRevenue]);
 
     const COLORS = ['#137fec', '#2dd4bf', '#64748b', '#cbd5e1'];
 
-    const combinedHistory = [
-        ...sales.flatMap(s => {
-            const date = parseValidDate(s.date);
-            return date ? [{
-                id: s.id,
-                type: 'sale',
-                title: `Invoice - ${s.customer_name}`,
-                ref: s.invoice_number,
-                amount: Number(s.total_amount),
-                date
-            }] : [];
-        }),
-        ...purchases.flatMap(p => {
-            const date = parseValidDate(p.date);
-            return date ? [{
-                id: p.id,
-                type: 'purchase',
-                title: `Purchase - ${p.vendor_name || 'Vendor'}`,
-                ref: p.bill_number || 'Bill',
-                amount: Number(p.total_amount),
-                date
-            }] : [];
-        }),
-        ...expenses.flatMap(e => {
-            const date = parseValidDate(e.date);
-            return date ? [{
-                id: e.id,
-                type: 'expense',
-                title: e.description || 'Expense',
-                ref: 'Receipt',
-                amount: Number(e.amount),
-                date
-            }] : [];
-        })
-    ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10);
+    const combinedHistory = useMemo(() => {
+        return [
+            ...sales.flatMap(s => {
+                const date = parseValidDate(s.date);
+                return date ? [{
+                    id: s.id,
+                    type: 'sale',
+                    title: `Invoice - ${s.customer_name}`,
+                    ref: s.invoice_number,
+                    amount: Number(s.total_amount),
+                    date
+                }] : [];
+            }),
+            ...purchases.flatMap(p => {
+                const date = parseValidDate(p.date);
+                return date ? [{
+                    id: p.id,
+                    type: 'purchase',
+                    title: `Purchase - ${p.vendor_name || 'Vendor'}`,
+                    ref: p.bill_number || 'Bill',
+                    amount: Number(p.total_amount),
+                    date
+                }] : [];
+            }),
+            ...expenses.flatMap(e => {
+                const date = parseValidDate(e.date);
+                return date ? [{
+                    id: e.id,
+                    type: 'expense',
+                    title: e.description || 'Expense',
+                    ref: 'Receipt',
+                    amount: Number(e.amount),
+                    date
+                }] : [];
+            })
+        ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10);
+    }, [sales, purchases, expenses]);
 
     return (
         <main className="px-4 lg:px-8 py-8 space-y-8 max-w-7xl mx-auto animate-fade-in font-display">

@@ -21,6 +21,8 @@ interface POSCartProps {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  onPay?: () => void;
+  isPaymentDisabled?: boolean;
 }
 
 export const POSCart: React.FC<POSCartProps> = ({
@@ -38,11 +40,13 @@ export const POSCart: React.FC<POSCartProps> = ({
   subtotal,
   taxAmount,
   totalAmount,
+  onPay,
+  isPaymentDisabled,
 }) => {
   const { formatCurrency } = useCurrency();
 
   return (
-    <div className="flex flex-col h-full bg-card border-l border-border/80 shadow-xs overflow-hidden font-display">
+    <div className="flex flex-col h-full min-h-0 bg-card border-l border-border/80 shadow-xs overflow-hidden font-display">
       {/* Customer Header */}
       <div className="p-3 border-b border-border/80 bg-muted/30 flex items-center justify-between gap-2">
         <button
@@ -77,10 +81,10 @@ export const POSCart: React.FC<POSCartProps> = ({
         )}
       </div>
 
-      {/* Cart Items List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[220px]">
+      {/* Cart Items List - Independently Scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 overscroll-contain">
         {items.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground select-none">
             <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mb-2.5 text-muted-foreground/60">
               <ShoppingCart className="w-6 h-6" />
             </div>
@@ -183,12 +187,12 @@ export const POSCart: React.FC<POSCartProps> = ({
         )}
       </div>
 
-      {/* Cart Calculation Footer */}
-      <div className="p-3.5 border-t border-border/80 bg-muted/30 space-y-2">
+      {/* Cart Calculation & Permanent Sticky Pay Footer */}
+      <div className="p-3.5 border-t border-border/80 bg-muted/30 shrink-0 space-y-3">
         <div className="space-y-1.5 text-xs">
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal ({items.length} items)</span>
-            <span className="font-mono">{formatCurrency(subtotal)}</span>
+            <span>Subtotal ({items.length} {items.length === 1 ? "item" : "items"})</span>
+            <span className="font-mono font-medium text-foreground">{formatCurrency(subtotal)}</span>
           </div>
 
           <div className="flex justify-between items-center text-muted-foreground">
@@ -212,17 +216,38 @@ export const POSCart: React.FC<POSCartProps> = ({
           {taxAmount > 0 && (
             <div className="flex justify-between text-muted-foreground">
               <span>Total GST</span>
-              <span className="font-mono">+{formatCurrency(taxAmount)}</span>
+              <span className="font-mono font-medium text-foreground">+{formatCurrency(taxAmount)}</span>
             </div>
           )}
 
           <div className="flex justify-between items-baseline pt-2 border-t border-border/80 font-bold">
             <span className="text-xs uppercase tracking-wider text-foreground">TOTAL PAYABLE</span>
-            <span className="text-xl font-black text-primary tracking-tight font-mono">
+            <span className="text-xl sm:text-2xl font-black text-primary tracking-tight font-mono">
               {formatCurrency(totalAmount)}
             </span>
           </div>
         </div>
+
+        {/* Permanent Sticky Pay Button */}
+        {onPay && (
+          <Button
+            type="button"
+            disabled={items.length === 0 || isPaymentDisabled}
+            onClick={onPay}
+            className="w-full h-12 sm:h-13 text-sm sm:text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 flex items-center justify-between px-4 sm:px-5 rounded-xl group transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
+              <span>Charge / Pay</span>
+              <kbd className="hidden sm:inline text-[10px] font-mono bg-primary-foreground/20 text-primary-foreground px-1.5 py-0.5 rounded border border-primary-foreground/30">
+                F4
+              </kbd>
+            </div>
+            <span className="text-base sm:text-xl font-black tracking-tight font-mono">
+              {formatCurrency(totalAmount)}
+            </span>
+          </Button>
+        )}
       </div>
     </div>
   );
