@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
@@ -273,21 +273,31 @@ export default function Inventory() {
             const localData = await sqliteService.getAll<Product>("products", userId);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<Product[]>(["products", userId]) || undefined,
         enabled: !!user && !!userId
     });
 
-    // Filter products based on search and stock status
-    const filteredProducts = products.filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-        if (!matchesSearch) return false;
+    // Filter products based on search and stock status (memoized for high catalog scale)
+    const filteredProducts = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        return products.filter(product => {
+            if (term) {
+                const matchesSearch =
+                    product.name.toLowerCase().includes(term) ||
+                    (product.barcode && product.barcode.toLowerCase().includes(term)) ||
+                    (product.sku && product.sku.toLowerCase().includes(term)) ||
+                    (product.category && product.category.toLowerCase().includes(term));
+                if (!matchesSearch) return false;
+            }
 
-        if (stockFilter === "stock") {
-            return product.stock_quantity > 0;
-        } else if (stockFilter === "non-stock") {
-            return product.stock_quantity <= 0;
-        }
-        return true;
-    });
+            if (stockFilter === "stock") {
+                return product.stock_quantity > 0;
+            } else if (stockFilter === "non-stock") {
+                return product.stock_quantity <= 0;
+            }
+            return true;
+        });
+    }, [products, searchTerm, stockFilter]);
 
     const buildProductRecord = (values: ProductFormValues, baseProduct?: Partial<Product> | null): Product => {
         const parseNumOrNull = (v: any) => {

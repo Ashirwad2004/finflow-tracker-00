@@ -176,6 +176,7 @@ const PartiesPage = () => {
             if (cached) return cached;
             return await sqliteService.getById<any>(user.id);
         },
+        initialData: () => queryClient.getQueryData<any>(["profile", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -187,6 +188,7 @@ const PartiesPage = () => {
             try {
                 const { data, error } = await getPartiesTable()
                     .select("*")
+                    .eq("user_id", user.id)
                     .order("name");
                 if (!error && data) return data as Party[];
             } catch (e) {
@@ -197,6 +199,7 @@ const PartiesPage = () => {
             const localData = await sqliteService.getAll<Party>("parties", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<Party[]>(["parties", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -220,6 +223,7 @@ const PartiesPage = () => {
             const localData = await sqliteService.getAll<any>("sales", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["sales", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -243,10 +247,11 @@ const PartiesPage = () => {
             const localData = await sqliteService.getAll<any>("purchases", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["purchases", user?.id]) || undefined,
         enabled: !!user
     });
 
-    // Calculate metrics for each party
+    // Calculate metrics for each party with O(N + S + P) linear pre-indexed lookups
     const partyLedgerMap = useMemo(() => {
         const map = new Map<string, {
             partySales: any[];
@@ -262,18 +267,98 @@ const PartiesPage = () => {
             totalRecords: number;
         }>();
 
-        for (const party of parties) {
+        // 1. Pre-index sales by party_id and lower-cased customer_name (O(S) linear pass)
+        const salesByPartyId = new Map<string, any[]>();
+        const salesByCustName = new Map<string, any[]>();
+        for (let i = 0; i < sales.length; i++) {
+            const s = sales[i];
+            if (s.party_id) {
+                let list = salesByPartyId.get(s.party_id);
+                if (!list) {
+                    list = [];
+                    salesByPartyId.set(s.party_id, list);
+                }
+                list.push(s);
+            }
+            if (s.customer_name) {
+                const normName = s.customer_name.trim().toLowerCase();
+                if (normName) {
+                    let list = salesByCustName.get(normName);
+                    if (!list) {
+                        list = [];
+                        salesByCustName.set(normName, list);
+                    }
+                    list.push(s);
+                }
+            }
+        }
+
+        // 2. Pre-index purchases by party_id and lower-cased vendor_name (O(P) linear pass)
+        const purchasesByPartyId = new Map<string, any[]>();
+        const purchasesByVendName = new Map<string, any[]>();
+        for (let i = 0; i < purchases.length; i++) {
+            const p = purchases[i];
+            if (p.party_id) {
+                let list = purchasesByPartyId.get(p.party_id);
+                if (!list) {
+                    list = [];
+                    purchasesByPartyId.set(p.party_id, list);
+                }
+                list.push(p);
+            }
+            if (p.vendor_name) {
+                const normName = p.vendor_name.trim().toLowerCase();
+                if (normName) {
+                    let list = purchasesByVendName.get(normName);
+                    if (!list) {
+                        list = [];
+                        purchasesByVendName.set(normName, list);
+                    }
+                    list.push(p);
+                }
+            }
+        }
+
+        // 3. Process parties with O(1) hash map lookups (O(N) total)
+        for (let i = 0; i < parties.length; i++) {
+            const party = parties[i];
             const pName = (party.name || "").trim().toLowerCase();
 
-            const partySales = sales.filter((s: any) =>
-                (s.party_id && s.party_id === party.id) ||
-                (s.customer_name && s.customer_name.trim().toLowerCase() === pName)
-            );
+            // Fast O(1) sales retrieval with deduplication
+            const salesById = salesByPartyId.get(party.id) || [];
+            const salesByName = pName ? (salesByCustName.get(pName) || []) : [];
+            let partySales: any[];
+            if (salesById.length === 0) {
+                partySales = salesByName;
+            } else if (salesByName.length === 0) {
+                partySales = salesById;
+            } else {
+                const seenSales = new Set(salesById);
+                partySales = [...salesById];
+                for (let j = 0; j < salesByName.length; j++) {
+                    if (!seenSales.has(salesByName[j])) {
+                        partySales.push(salesByName[j]);
+                    }
+                }
+            }
 
-            const partyPurchases = purchases.filter((p: any) =>
-                (p.party_id && p.party_id === party.id) ||
-                (p.vendor_name && p.vendor_name.trim().toLowerCase() === pName)
-            );
+            // Fast O(1) purchases retrieval with deduplication
+            const purchasesById = purchasesByPartyId.get(party.id) || [];
+            const purchasesByName = pName ? (purchasesByVendName.get(pName) || []) : [];
+            let partyPurchases: any[];
+            if (purchasesById.length === 0) {
+                partyPurchases = purchasesByName;
+            } else if (purchasesByName.length === 0) {
+                partyPurchases = purchasesById;
+            } else {
+                const seenPurchases = new Set(purchasesById);
+                partyPurchases = [...purchasesById];
+                for (let j = 0; j < purchasesByName.length; j++) {
+                    if (!seenPurchases.has(purchasesByName[j])) {
+                        partyPurchases.push(purchasesByName[j]);
+                    }
+                }
+            }
 
             let totalSalesAmount = 0;
             let totalSalesPaid = 0;
@@ -378,11 +463,16 @@ const PartiesPage = () => {
 
     // Filtered Parties
     const filteredParties = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
         return parties.filter(party => {
-            const matchesSearch = party.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (party.phone && party.phone.includes(searchTerm)) ||
-                (party.type && party.type.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (party.gst_number && party.gst_number.toLowerCase().includes(searchTerm.toLowerCase()));
+            let matchesSearch = true;
+            if (term) {
+                matchesSearch =
+                    (party.name || "").toLowerCase().includes(term) ||
+                    (party.phone ? party.phone.includes(term) : false) ||
+                    (party.type ? party.type.toLowerCase().includes(term) : false) ||
+                    (party.gst_number ? party.gst_number.toLowerCase().includes(term) : false);
+            }
 
             let matchesType = true;
             if (filterType === "Customer") matchesType = party.type === "customer";

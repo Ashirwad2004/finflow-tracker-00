@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { sqliteService } from "@/core/offline/sqliteService";
@@ -88,6 +88,7 @@ export function getDateRangeFromPreset(preset: DatePeriodPreset, customFrom?: Da
 export function useAccountingData() {
   const { user } = useAuth();
   const userId = user?.id;
+  const queryClient = useQueryClient();
 
   // Selected date range state
   const [periodPreset, setPeriodPreset] = useState<DatePeriodPreset>("this_month");
@@ -117,6 +118,7 @@ export function useAccountingData() {
       }
       return null;
     },
+    initialData: () => queryClient.getQueryData(["profile", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -137,6 +139,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("sales", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["sales", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -157,6 +160,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("purchases", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["purchases", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -177,6 +181,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("expenses", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["expenses", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -196,6 +201,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("products", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["products", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -215,6 +221,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("parties", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["parties", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -234,6 +241,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("lent_money", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["lent_money", userId]) || undefined,
     enabled: !!userId,
   });
 
@@ -253,6 +261,7 @@ export function useAccountingData() {
       }
       return (await sqliteService.getAll<any>("borrowed_money", userId)) || [];
     },
+    initialData: () => queryClient.getQueryData<any[]>(["borrowed_money", userId]) || undefined,
     enabled: !!userId,
   });
 

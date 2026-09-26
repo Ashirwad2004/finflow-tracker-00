@@ -40,28 +40,36 @@ const debouncedSaveToIndexedDB = (queryKey: any, data: any) => {
       clearTimeout(debounceTimeoutId);
     }
 
-    debounceTimeoutId = setTimeout(async () => {
-      try {
-        const updates = Object.entries(pendingCacheUpdate);
-        if (updates.length > 0) {
-          await db.transaction("rw", db.queryCache, async () => {
-            for (const [key, val] of updates) {
-              await db.queryCache.put({
-                key,
-                data: val,
-                updatedAt: Date.now()
-              });
-            }
-          });
-          console.log(`[Offline Cache] Persisted ${updates.length} batched updates to IndexedDB`);
+    debounceTimeoutId = setTimeout(() => {
+      const commitUpdates = async () => {
+        try {
+          const updates = Object.entries(pendingCacheUpdate);
+          if (updates.length > 0) {
+            await db.transaction("rw", db.queryCache, async () => {
+              for (const [key, val] of updates) {
+                await db.queryCache.put({
+                  key,
+                  data: val,
+                  updatedAt: Date.now()
+                });
+              }
+            });
+            console.log(`[Offline Cache] Persisted ${updates.length} batched updates to IndexedDB during idle`);
+          }
+        } catch (e) {
+          console.warn("[Offline Cache] Failed to write to IndexedDB:", e);
+        } finally {
+          pendingCacheUpdate = {};
+          debounceTimeoutId = null;
         }
-      } catch (e) {
-        console.warn("[Offline Cache] Failed to write to IndexedDB:", e);
-      } finally {
-        pendingCacheUpdate = {};
-        debounceTimeoutId = null;
+      };
+
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+        (window as any).requestIdleCallback(commitUpdates, { timeout: 2000 });
+      } else {
+        commitUpdates();
       }
-    }, 300); // 300ms batch debounce
+    }, 600); // 600ms batch debounce to avoid UI contention
   } catch (err) {
     console.warn("[Offline Cache] Error in debouncedSaveToIndexedDB:", err);
   }
@@ -127,6 +135,7 @@ export const useQueryCacheOffline = () => {
         const prefetchTasks = [
           // A. Profile
           async () => {
+            if (queryClient.getQueryData(["profile", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("profiles")
@@ -144,6 +153,7 @@ export const useQueryCacheOffline = () => {
 
           // B. Expenses
           async () => {
+            if (queryClient.getQueryData(["expenses", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("expenses")
@@ -169,6 +179,7 @@ export const useQueryCacheOffline = () => {
 
           // C. Sales (Invoices)
           async () => {
+            if (queryClient.getQueryData(["sales", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("sales")
@@ -186,6 +197,7 @@ export const useQueryCacheOffline = () => {
 
           // D. Purchases
           async () => {
+            if (queryClient.getQueryData(["purchases", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("purchases")
@@ -203,6 +215,7 @@ export const useQueryCacheOffline = () => {
 
           // E. Parties
           async () => {
+            if (queryClient.getQueryData(["parties", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("parties")
@@ -219,6 +232,7 @@ export const useQueryCacheOffline = () => {
 
           // F. Products (Inventory)
           async () => {
+            if (queryClient.getQueryData(["products", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("products")
@@ -235,6 +249,7 @@ export const useQueryCacheOffline = () => {
 
           // G. Categories (Expense selection helper)
           async () => {
+            if (queryClient.getQueryData(["categories"])) return;
             try {
               const { data } = await (supabase as any)
                 .from("categories")
@@ -251,6 +266,7 @@ export const useQueryCacheOffline = () => {
 
           // H. Lent Money
           async () => {
+            if (queryClient.getQueryData(["lent-money", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("lent_money")
@@ -259,9 +275,7 @@ export const useQueryCacheOffline = () => {
                 .order("created_at", { ascending: false });
               if (data) {
                 queryClient.setQueryData(["lent-money", userId], data);
-                console.log("[Offline Cache] Pre-fetched lent-money");
 
-                // Generate lent-money-parties
                 const pendingData = data.filter((record: any) => record.status === "pending");
                 const partyMap = new Map<string, any>();
                 pendingData.forEach((record: any) => {
@@ -277,7 +291,7 @@ export const useQueryCacheOffline = () => {
                   partyMap.set(name, current);
                 });
                 queryClient.setQueryData(["lent-money-parties", userId], Array.from(partyMap.values()));
-                console.log("[Offline Cache] Pre-fetched lent-money-parties");
+                console.log("[Offline Cache] Pre-fetched lent-money");
               }
             } catch (e) {
               console.warn("[Offline Cache] Pre-fetch failed for lent-money", e);
@@ -286,6 +300,7 @@ export const useQueryCacheOffline = () => {
 
           // I. Borrowed Money
           async () => {
+            if (queryClient.getQueryData(["borrowed-money", userId])) return;
             try {
               const { data } = await (supabase as any)
                 .from("borrowed_money")
@@ -294,9 +309,7 @@ export const useQueryCacheOffline = () => {
                 .order("created_at", { ascending: false });
               if (data) {
                 queryClient.setQueryData(["borrowed-money", userId], data);
-                console.log("[Offline Cache] Pre-fetched borrowed-money");
 
-                // Generate borrowed-money-parties
                 const pendingData = data.filter((record: any) => record.status === "pending");
                 const partyMap = new Map<string, any>();
                 pendingData.forEach((record: any) => {
@@ -312,98 +325,16 @@ export const useQueryCacheOffline = () => {
                   partyMap.set(name, current);
                 });
                 queryClient.setQueryData(["borrowed-money-parties", userId], Array.from(partyMap.values()));
-                console.log("[Offline Cache] Pre-fetched borrowed-money-parties");
+                console.log("[Offline Cache] Pre-fetched borrowed-money");
               }
             } catch (e) {
               console.warn("[Offline Cache] Pre-fetch failed for borrowed-money", e);
             }
           },
 
-          // J. Groups hierarchy
+          // J. Online orders pending count
           async () => {
-            try {
-              const { data: memberships } = await (supabase as any)
-                .from("group_members")
-                .select("group_id")
-                .eq("user_id", userId);
-              if (memberships && memberships.length > 0) {
-                const groupIds = memberships.map((m: any) => m.group_id);
-                const { data: groupsData } = await (supabase as any)
-                  .from("groups")
-                  .select("*")
-                  .in("id", groupIds);
-                if (groupsData) {
-                  queryClient.setQueryData(["groups", userId], groupsData);
-                  console.log("[Offline Cache] Pre-fetched groups");
-                  for (const group of groupsData) {
-                    queryClient.setQueryData(["group", group.id], group);
-                    const { data: mems } = await (supabase as any)
-                      .from("group_members")
-                      .select("*")
-                      .eq("group_id", group.id)
-                      .order("joined_at");
-                    if (mems) {
-                      queryClient.setQueryData(["group-members", group.id], mems);
-                    }
-                    const { data: exps } = await (supabase as any)
-                      .from("group_expenses")
-                      .select("*, categories(name, color, icon)")
-                      .eq("group_id", group.id)
-                      .order("date", { ascending: false });
-                    if (exps) {
-                      queryClient.setQueryData(["group-expenses", group.id], exps);
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.warn("[Offline Cache] Pre-fetch failed for groups hierarchy", e);
-            }
-          },
-
-          // K. All group members list
-          async () => {
-            try {
-              const { data } = await (supabase as any)
-                .from("group_members")
-                .select("group_id, user_id, username");
-              if (data) {
-                queryClient.setQueryData(["all-group-members"], data);
-                console.log("[Offline Cache] Pre-fetched all-group-members");
-              }
-            } catch (e) {
-              console.warn("[Offline Cache] Pre-fetch failed for all-group-members", e);
-            }
-          },
-
-          // L. Online orders
-          async () => {
-            try {
-              const { data } = await (supabase as any)
-                .from("online_orders")
-                .select(`
-                  *,
-                  online_order_items (
-                    id,
-                    product_id,
-                    quantity,
-                    price_at_time,
-                    products ( name )
-                  )
-                `)
-                .eq("store_id", userId)
-                .order("created_at", { ascending: false });
-              if (data) {
-                queryClient.setQueryData(["online_orders", userId], data);
-                console.log("[Offline Cache] Pre-fetched online orders");
-              }
-            } catch (e) {
-              console.warn("[Offline Cache] Pre-fetch failed for online orders", e);
-            }
-          },
-
-          // M. Online orders pending count
-          async () => {
+            if (queryClient.getQueryData(["online_orders_pending_count", userId])) return;
             try {
               const { count, error } = await (supabase as any)
                 .from("online_orders")
@@ -420,12 +351,17 @@ export const useQueryCacheOffline = () => {
           }
         ];
 
-        await Promise.all(prefetchTasks.map(task => task()));
-        console.log("[Offline Cache] Offline cache warm-up completed successfully!");
+        // Execute sequentially with 350ms idle breaks to keep browser UI frame rate at 60 FPS
+        for (const task of prefetchTasks) {
+          if (!navigator.onLine) break;
+          await task();
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+        console.log("[Offline Cache] Offline cache warm-up completed in background.");
       };
 
       warmUpOfflineCache();
-    }, 2000); // Start pre-fetching exactly 2 seconds after mount to avoid initial loading lag!
+    }, 4000); // 4-second idle delay gives immediate priority to current active screen render
 
     return () => {
       clearTimeout(delayTimeoutId);

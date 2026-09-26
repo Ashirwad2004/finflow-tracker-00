@@ -199,7 +199,7 @@ export default function POSPage() {
 
   // 1. Fetch Catalog Products
   const { data: products = [], isLoading: isProductsLoading } = useQuery<POSProduct[]>({
-    queryKey: ["pos_products", storeId],
+    queryKey: ["products", storeId],
     queryFn: async () => {
       if (!storeId) return [];
       try {
@@ -215,6 +215,7 @@ export default function POSPage() {
       const local = await sqliteService.getAll<POSProduct>("products", storeId);
       return local || [];
     },
+    initialData: () => queryClient.getQueryData<POSProduct[]>(["products", storeId]) || undefined,
     enabled: !!storeId,
   });
 
@@ -247,23 +248,28 @@ export default function POSPage() {
     return Array.from(set).sort();
   }, [products]);
 
-  // Filtered products for quick touch grid
+  // Filtered products for quick touch grid (optimized string lowering and early returns)
   const filteredGridProducts = useMemo(() => {
+    const q = productGridSearch.trim().toLowerCase();
     return products.filter((p) => {
       if (selectedCategory !== "all" && p.category !== selectedCategory) {
         return false;
       }
-      if (productGridSearch.trim()) {
-        const q = productGridSearch.toLowerCase();
+      if (q) {
         return (
           p.name.toLowerCase().includes(q) ||
-          p.barcode?.toLowerCase().includes(q) ||
-          p.sku?.toLowerCase().includes(q)
+          (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+          (p.sku && p.sku.toLowerCase().includes(q))
         );
       }
       return true;
     });
   }, [products, selectedCategory, productGridSearch]);
+
+  // Keep DOM lean on POS terminals by rendering up to 120 quick-touch items
+  const visibleGridProducts = useMemo(() => {
+    return filteredGridProducts.slice(0, 120);
+  }, [filteredGridProducts]);
 
   // Cart Calculations
   const { subtotal, taxAmount, totalAmount } = useMemo(() => {
@@ -541,7 +547,7 @@ export default function POSPage() {
         setIsPaymentOpen(false);
         setIsReceiptOpen(true);
         handleClearCart();
-        queryClient.invalidateQueries({ queryKey: ["pos_products", storeId] });
+        queryClient.invalidateQueries({ queryKey: ["products", storeId] });
         refetchShift();
       } else {
         // Offline Resilience Flow
@@ -600,7 +606,7 @@ export default function POSPage() {
         setIsPaymentOpen(false);
         setIsReceiptOpen(true);
         handleClearCart();
-        queryClient.invalidateQueries({ queryKey: ["pos_products", storeId] });
+        queryClient.invalidateQueries({ queryKey: ["products", storeId] });
       }
     } catch (err: any) {
       console.error("Failed to complete sale:", err);
@@ -928,57 +934,65 @@ export default function POSPage() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {filteredGridProducts.map((product) => {
-                    const isOutOfStock = (product.stock_quantity || 0) <= 0;
-                    const avatarStyle = getProductColor(product.name);
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {visibleGridProducts.map((product) => {
+                      const isOutOfStock = (product.stock_quantity || 0) <= 0;
+                      const avatarStyle = getProductColor(product.name);
 
-                    return (
-                      <div
-                        key={product.id}
-                        onClick={() => handleAddToCart(product)}
-                        className={`group relative p-3 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between select-none active:scale-[0.98] ${
-                          isOutOfStock ? "opacity-75" : ""
-                        }`}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2.5">
-                            <div
-                              className={`w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-bold uppercase shrink-0 ${avatarStyle}`}
+                      return (
+                        <div
+                          key={product.id}
+                          onClick={() => handleAddToCart(product)}
+                          className={`group relative p-3 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between select-none active:scale-[0.98] ${
+                            isOutOfStock ? "opacity-75" : ""
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className={`w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-bold uppercase shrink-0 ${avatarStyle}`}
+                              >
+                                {product.name.slice(0, 2)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-foreground text-xs sm:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                                  {product.name}
+                                </h3>
+                                <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">
+                                  {product.barcode ? product.barcode : (product.sku || "No Barcode")}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between">
+                            <div className="font-extrabold text-foreground text-sm font-mono">
+                              {formatCurrency(product.price)}
+                            </div>
+
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                (product.stock_quantity || 0) > 5
+                                  ? "bg-muted text-muted-foreground border-border/80"
+                                  : (product.stock_quantity || 0) > 0
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/40"
+                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40"
+                              }`}
                             >
-                              {product.name.slice(0, 2)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-foreground text-xs sm:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                                {product.name}
-                              </h3>
-                              <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">
-                                {product.barcode ? product.barcode : (product.sku || "No Barcode")}
-                              </p>
-                            </div>
+                              {product.stock_quantity} {product.unit || "pc"}
+                            </span>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between">
-                          <div className="font-extrabold text-foreground text-sm font-mono">
-                            {formatCurrency(product.price)}
-                          </div>
-
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                              (product.stock_quantity || 0) > 5
-                                ? "bg-muted text-muted-foreground border-border/80"
-                                : (product.stock_quantity || 0) > 0
-                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/40"
-                                : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40"
-                            }`}
-                          >
-                            {product.stock_quantity} {product.unit || "pc"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {filteredGridProducts.length > 120 && (
+                    <div className="p-3 text-center bg-muted/30 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                      Showing top 120 of {filteredGridProducts.length} items. Use barcode scanner or search to refine.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1174,7 +1188,7 @@ export default function POSPage() {
         onClose={() => setIsReturnOpen(false)}
         activeShiftId={activeShift?.id}
         onReturnSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["pos_products", storeId] });
+          queryClient.invalidateQueries({ queryKey: ["products", storeId] });
           refetchShift();
         }}
       />

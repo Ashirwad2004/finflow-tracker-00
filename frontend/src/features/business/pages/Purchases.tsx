@@ -100,6 +100,7 @@ export default function PurchasesPage() {
             if (error) throw error;
             return data;
         },
+        initialData: () => queryClient.getQueryData(["profile", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -119,6 +120,7 @@ export default function PurchasesPage() {
             }
             return (await sqliteService.getAll<any>("parties", user.id)) || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["parties", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -138,6 +140,7 @@ export default function PurchasesPage() {
             }
             return (await sqliteService.getAll<any>("products", user.id)) || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["products", user?.id]) || undefined,
         enabled: !!user,
     });
 
@@ -185,6 +188,7 @@ export default function PurchasesPage() {
             const localData = await sqliteService.getAll<Purchase>("purchases", user.id);
             return localData || [];
         },
+        initialData: () => queryClient.getQueryData<Purchase[]>(["purchases", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -392,25 +396,33 @@ export default function PurchasesPage() {
         return format(date, formatTemplate);
     };
 
-    // Calculate Metrics using system-wide overdue logic
-    const today = new Date();
-    const overdueDaysThreshold = getOverdueDaysThreshold();
+    // Calculate Metrics using system-wide overdue logic (memoized single-pass)
+    const { overdueTotal, outstandingTotal, spentThisMonth } = useMemo(() => {
+        const today = new Date();
+        let overdue = 0;
+        let outstanding = 0;
+        let spent = 0;
 
-    const overdueTotal = purchases
-        .filter(p => isRecordOverdue(p))
-        .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+        for (let i = 0; i < purchases.length; i++) {
+            const p = purchases[i];
+            const total = Number(p.total_amount || 0);
 
-    const outstandingTotal = purchases
-        .filter(p => p.status === 'pending' && !isRecordOverdue(p))
-        .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+            if (isRecordOverdue(p)) {
+                overdue += total;
+            } else if (p.status === 'pending') {
+                outstanding += total;
+            }
 
-    const spentThisMonth = purchases
-        .filter(p => {
-            if (!p.date) return false;
-            const d = new Date(p.date);
-            return p.status === 'paid' && !isNaN(d.getTime()) && isSameMonth(d, today);
-        })
-        .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+            if (p.status === 'paid' && p.date) {
+                const d = new Date(p.date);
+                if (!isNaN(d.getTime()) && isSameMonth(d, today)) {
+                    spent += total;
+                }
+            }
+        }
+
+        return { overdueTotal: overdue, outstandingTotal: outstanding, spentThisMonth: spent };
+    }, [purchases]);
 
     const sortedAndFilteredPurchases = useMemo(() => {
         const result = purchases.filter((purchase) => {

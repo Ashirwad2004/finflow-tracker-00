@@ -47,6 +47,14 @@ export function useSubscription() {
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
+    initialData: () => {
+      if (!user?.id) return { is_admin: false };
+      try {
+        const cached = localStorage.getItem(`cached_is_admin_${user.id}`);
+        if (cached !== null) return { is_admin: JSON.parse(cached) };
+      } catch {}
+      return undefined;
+    },
   });
 
   const isAdmin = profileData?.is_admin === true;
@@ -109,7 +117,15 @@ export function useSubscription() {
       };
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 5,
+    initialData: () => {
+      if (!user?.id) return null;
+      try {
+        const cached = localStorage.getItem(`cached_subscription_${user.id}`);
+        if (cached) return JSON.parse(cached) as SubscriptionInfo;
+      } catch {}
+      return undefined;
+    },
   });
 
   const plan = subStatus?.plan || "free";

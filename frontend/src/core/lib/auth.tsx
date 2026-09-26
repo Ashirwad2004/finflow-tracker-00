@@ -28,19 +28,41 @@ const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
+const getCachedSession = (): Session | null => {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.user) {
+            return parsed as Session;
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore parse or storage errors
+  }
+  return null;
+};
+
 export const AuthProvider = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialCachedSession = getCachedSession();
+  const [session, setSession] = useState<Session | null>(initialCachedSession);
+  const [user, setUser] = useState<User | null>(initialCachedSession?.user ?? null);
+  const [loading, setLoading] = useState(!initialCachedSession);
 
   useEffect(() => {
     let mounted = true;
 
-    // Get the existing session from localStorage
+    // Get the existing session from localStorage / Supabase
     const initializeAuth = async () => {
       try {
         const {

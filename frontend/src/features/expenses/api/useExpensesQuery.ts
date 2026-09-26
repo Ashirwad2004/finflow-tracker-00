@@ -41,6 +41,7 @@ export const useExpensesQuery = (userId: string | undefined, isBusinessMode: boo
             return localData || [];
         },
         enabled: !!userId && !isBusinessMode, // Prevent fetching before user exists or in business mode
+        initialData: () => queryClient.getQueryData<any[]>(["expenses", userId]) || undefined,
         staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
         refetchOnWindowFocus: true, // Syncs if the user goes to another tab and comes back
     });

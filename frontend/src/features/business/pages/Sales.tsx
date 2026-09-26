@@ -135,6 +135,7 @@ export default function SalesPage() {
             if (cached) return cached;
             return await sqliteService.getById<any>(user.id);
         },
+        initialData: () => queryClient.getQueryData(["profile", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -154,6 +155,7 @@ export default function SalesPage() {
             }
             return (await sqliteService.getAll<any>("parties", user.id)) || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["parties", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -173,6 +175,7 @@ export default function SalesPage() {
             }
             return (await sqliteService.getAll<any>("products", user.id)) || [];
         },
+        initialData: () => queryClient.getQueryData<any[]>(["products", user?.id]) || undefined,
         enabled: !!user,
     });
 
@@ -211,6 +214,7 @@ export default function SalesPage() {
                 return inv;
             }) as Sale[];
         },
+        initialData: () => queryClient.getQueryData<Sale[]>(["sales", user?.id]) || undefined,
         enabled: !!user
     });
 
@@ -621,51 +625,67 @@ export default function SalesPage() {
         return format(date, formatTemplate);
     };
 
-    // Calculate Metrics
-    const today = new Date();
+    // Calculate Metrics (memoized single-pass for high-volume invoice records)
+    const {
+        outstandingTotal,
+        overdueTotal,
+        paidThisMonth,
+        totalRevenue,
+        totalBilled,
+        collectionRate,
+        avgInvoiceValue
+    } = useMemo(() => {
+        const today = new Date();
+        let outstanding = 0;
+        let overdue = 0;
+        let paidMonth = 0;
+        let revenue = 0;
+        let billed = 0;
 
-    const outstandingTotal = invoices
-        .filter(inv => inv.status === 'pending' || inv.status === 'partial')
-        .reduce((sum, inv) => {
-            if (inv.status === 'partial') {
-                return sum + Number(inv.balance_due != null ? inv.balance_due : Math.max(0, inv.total_amount - (inv.amount_paid || 0)));
+        for (let i = 0; i < invoices.length; i++) {
+            const inv = invoices[i];
+            const total = Number(inv.total_amount || 0);
+            const paid = Number(inv.amount_paid || 0);
+            const balDue = Number(inv.balance_due != null ? inv.balance_due : Math.max(0, total - paid));
+
+            billed += total;
+
+            if (inv.status === 'pending' || inv.status === 'partial') {
+                outstanding += (inv.status === 'partial' ? balDue : total);
             }
-            return sum + Number(inv.total_amount || 0);
-        }, 0);
 
-    const overdueTotal = invoices
-        .filter(inv => inv.status === 'overdue')
-        .reduce((sum, inv) => sum + Number(inv.balance_due != null ? inv.balance_due : inv.total_amount || 0), 0);
+            if (inv.status === 'overdue') {
+                overdue += balDue;
+            }
 
-    const paidThisMonth = invoices
-        .filter(inv => {
-            if (!inv.date) return false;
-            const d = new Date(inv.date);
-            return !isNaN(d.getTime()) && isSameMonth(d, today);
-        })
-        .reduce((sum, inv) => {
-            if (inv.status === 'paid') return sum + Number(inv.total_amount || 0);
-            if (inv.status === 'partial') return sum + Number(inv.amount_paid || 0);
-            return sum;
-        }, 0);
+            if (inv.status === 'paid') {
+                revenue += total;
+            } else if (inv.status === 'partial') {
+                revenue += paid;
+            }
 
-    // Accountant-facing stats: actual collected cash from both paid and partial invoices
-    const totalRevenue = invoices
-        .reduce((sum, inv) => {
-            if (inv.status === 'paid') return sum + Number(inv.total_amount || 0);
-            if (inv.status === 'partial') return sum + Number(inv.amount_paid || 0);
-            return sum;
-        }, 0);
+            if (inv.date) {
+                const d = new Date(inv.date);
+                if (!isNaN(d.getTime()) && isSameMonth(d, today)) {
+                    if (inv.status === 'paid') paidMonth += total;
+                    else if (inv.status === 'partial') paidMonth += paid;
+                }
+            }
+        }
 
-    const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+        const rate = billed > 0 ? Math.round((revenue / billed) * 100) : 0;
+        const avg = invoices.length > 0 ? billed / invoices.length : 0;
 
-    const collectionRate = totalBilled > 0
-        ? Math.round((totalRevenue / totalBilled) * 100)
-        : 0;
-
-    const avgInvoiceValue = invoices.length > 0
-        ? totalBilled / invoices.length
-        : 0;
+        return {
+            outstandingTotal: outstanding,
+            overdueTotal: overdue,
+            paidThisMonth: paidMonth,
+            totalRevenue: revenue,
+            totalBilled: billed,
+            collectionRate: rate,
+            avgInvoiceValue: avg
+        };
+    }, [invoices]);
 
     const sortedAndFilteredInvoices = useMemo(() => {
         const filtered = invoices.filter((invoice) => {

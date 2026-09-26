@@ -200,8 +200,7 @@ export const processSyncQueue = async (userId: string): Promise<void> => {
           let shouldUpdateRemote = true;
           if (!TABLES_WITHOUT_UPDATED_AT.has(item.table)) {
             try {
-              const remoteRecord = await supabaseRepository.fetch(item.table, userId);
-              const existing = remoteRecord.find((r: any) => r.id === item.recordId);
+              const existing = await supabaseRepository.fetchById(item.table, item.recordId);
 
               if (existing && existing.updated_at && payload.updated_at) {
                 const remoteTime = new Date(existing.updated_at).getTime();

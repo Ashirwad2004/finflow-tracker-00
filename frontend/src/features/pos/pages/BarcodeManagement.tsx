@@ -74,7 +74,7 @@ export default function BarcodeManagementPage() {
 
   // Fetch products
   const { data: products = [], isLoading, refetch } = useQuery<POSProduct[]>({
-    queryKey: ["pos_products_barcodes", storeId],
+    queryKey: ["products", storeId],
     queryFn: async () => {
       if (!storeId) return [];
       try {
@@ -91,6 +91,7 @@ export default function BarcodeManagementPage() {
       const localData = await sqliteService.getAll<POSProduct>("products", storeId);
       return localData || [];
     },
+    initialData: () => queryClient.getQueryData<POSProduct[]>(["products", storeId]) || undefined,
     enabled: !!storeId,
   });
 
