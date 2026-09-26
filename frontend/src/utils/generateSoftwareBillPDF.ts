@@ -80,8 +80,8 @@ export function generateSoftwareBillPDF(data: SoftwareBillData) {
   doc.setFont("Helvetica", "normal");
   doc.setTextColor(slate600[0], slate600[1], slate600[2]);
   doc.text("Commercial Software Licensing Dept.", 14, 55);
-  doc.text("Portal: https://rupeebill.com", 14, 59);
-  doc.text("Support: support@rupeebill.com", 14, 63);
+  doc.text("Support: supportrupeebill@gmail.com", 14, 59);
+  doc.text("Helpline: +91 8102545007", 14, 63);
 
   // Right Column: Customer & Transaction
   doc.setFont("Helvetica", "bold");
@@ -242,7 +242,7 @@ export function generateSoftwareBillPDF(data: SoftwareBillData) {
   doc.setFont("Helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(slate400[0], slate400[1], slate400[2]);
-  doc.text("Thank you for choosing RupeeBill. For support or queries, email support@rupeebill.com.", 105, 285, { align: "center" });
+  doc.text("Thank you for choosing RupeeBill. For support or queries: supportrupeebill@gmail.com | Helpline: +91 8102545007", 105, 285, { align: "center" });
 
   // Save the PDF
   doc.save(`RupeeBill_Software_Bill_${data.billNumber}.pdf`);

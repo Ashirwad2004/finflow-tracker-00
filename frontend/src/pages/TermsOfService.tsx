@@ -108,7 +108,7 @@ export default function TermsOfService() {
 
         {/* Footer info inside Terms Page */}
         <div className="mt-16 text-center text-xs text-muted-foreground pt-8 border-t border-border/40">
-          <p className="mb-2">For custom enterprise agreements or commercial terms, reach out to corporate@rupeebill.com</p>
+          <p className="mb-2">For custom enterprise agreements, commercial terms, or any support query, reach out to <a href="mailto:supportrupeebill@gmail.com" className="text-primary hover:underline font-semibold">supportrupeebill@gmail.com</a> or Call/WhatsApp <a href="tel:8102545007" className="text-foreground hover:underline font-semibold">+91 8102545007</a></p>
           <p>© 2026 RupeeBill. All rights reserved.</p>
         </div>
       </main>

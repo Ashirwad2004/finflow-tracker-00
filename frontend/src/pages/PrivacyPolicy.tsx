@@ -114,7 +114,7 @@ export default function PrivacyPolicy() {
 
         {/* Footer info inside Privacy Page */}
         <div className="mt-16 text-center text-xs text-muted-foreground pt-8 border-t border-border/40">
-          <p className="mb-2">If you have any questions regarding your data security or need to request custom backup options, reach out to support@rupeebill.com</p>
+          <p className="mb-2">If you have any questions regarding your data security or need to request custom backup options, reach out to <a href="mailto:supportrupeebill@gmail.com" className="text-primary hover:underline font-semibold">supportrupeebill@gmail.com</a> or Call/WhatsApp <a href="tel:8102545007" className="text-foreground hover:underline font-semibold">+91 8102545007</a></p>
           <p>© 2026 RupeeBill. All rights reserved.</p>
         </div>
       </main>
