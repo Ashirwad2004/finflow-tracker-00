@@ -56,10 +56,126 @@ export const exportDetailedPartyPDF = (
             return;
         }
 
-        const doc = new jsPDF();
+        const bizContactParts: string[] = [];
+        if (businessDetails?.phone) bizContactParts.push(`Phone: ${safeStr(businessDetails.phone)}`);
+        if (businessDetails?.gst) bizContactParts.push(`GSTIN: ${safeStr(businessDetails.gst)}`);
+        if (businessDetails?.email) bizContactParts.push(`Email: ${safeStr(businessDetails.email)}`);
 
-        // --- Header ---
-        doc.setFontSize(20);
+        if (bizContactParts.length > 0) {
+            doc.text(bizContactParts.join(" | "), leftMargin, bizY);
+            bizY += 4.5;
+        }
+
+        // Horizontal Separator Line
+        currentY = Math.max(bizY + 2, 32);
+        doc.setDrawColor(226, 232, 240); // Slate-200
+        doc.setLineWidth(0.5);
+        doc.line(leftMargin, currentY, pageWidth - rightMargin, currentY);
+        currentY += 5;
+
+        // ============================================================
+        // 2. PARTY PROFILE & FINANCIAL POSITION DUAL-COLUMN CARD
+        // ============================================================
+        const boxStartY = currentY;
+        const boxWidth = (usableWidth - 6) / 2; // 88mm each
+
+        // Calculate Totals and Net Balance accurately:
+        // Distinguish Opening Balance b/f from Period Activity
+        let openingBfAmount = 0;
+        let hasBf = false;
+        let periodDebit = 0;
+        let periodCredit = 0;
+
+        data.forEach(tx => {
+            if (tx.id === 'opening-balance-bfwd') {
+                hasBf = true;
+                openingBfAmount = tx.runningBalance;
+            } else if (tx.type === 'opening_balance' && !hasBf) {
+                // If it's a regular opening balance without date range
+                hasBf = true;
+                openingBfAmount = (tx.debit || 0) - (tx.credit || 0);
+                periodDebit += (tx.debit || 0);
+                periodCredit += (tx.credit || 0);
+            } else {
+                periodDebit += (tx.debit || 0);
+                periodCredit += (tx.credit || 0);
+            }
+        });
+
+        // The final balance is the running balance of the last chronological transaction
+        const lastTx = data[data.length - 1];
+        const finalBalance = lastTx ? lastTx.runningBalance : 0;
+        const isDr = finalBalance > 0;
+        const isCr = finalBalance < 0;
+
+        // --- Left Column: Party Master Information ---
+        const partyBoxX = leftMargin;
+        let partyY = boxStartY + 4;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("STATEMENT FOR:", partyBoxX, partyY);
+        partyY += 4.5;
+
+
+        if (bizContactParts.length > 0) {
+            doc.text(bizContactParts.join(" | "), leftMargin, bizY);
+            bizY += 4.5;
+        }
+
+        // Horizontal Separator Line
+        currentY = Math.max(bizY + 2, 32);
+        doc.setDrawColor(226, 232, 240); // Slate-200
+        doc.setLineWidth(0.5);
+        doc.line(leftMargin, currentY, pageWidth - rightMargin, currentY);
+        currentY += 5;
+
+        // ============================================================
+        // 2. PARTY PROFILE & FINANCIAL POSITION DUAL-COLUMN CARD
+        // ============================================================
+        const boxStartY = currentY;
+        const boxWidth = (usableWidth - 6) / 2; // 88mm each
+
+        // Calculate Totals and Net Balance accurately:
+        // Distinguish Opening Balance b/f from Period Activity
+        let openingBfAmount = 0;
+        let hasBf = false;
+        let periodDebit = 0;
+        let periodCredit = 0;
+
+        data.forEach(tx => {
+            if (tx.id === 'opening-balance-bfwd') {
+                hasBf = true;
+                openingBfAmount = tx.runningBalance;
+            } else if (tx.type === 'opening_balance' && !hasBf) {
+                // If it's a regular opening balance without date range
+                hasBf = true;
+                openingBfAmount = (tx.debit || 0) - (tx.credit || 0);
+                periodDebit += (tx.debit || 0);
+                periodCredit += (tx.credit || 0);
+            } else {
+                periodDebit += (tx.debit || 0);
+                periodCredit += (tx.credit || 0);
+            }
+        });
+
+        // The final balance is the running balance of the last chronological transaction
+        const lastTx = data[data.length - 1];
+        const finalBalance = lastTx ? lastTx.runningBalance : 0;
+        const isDr = finalBalance > 0;
+        const isCr = finalBalance < 0;
+
+        // --- Left Column: Party Master Information ---
+        const partyBoxX = leftMargin;
+        let partyY = boxStartY + 4;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("STATEMENT FOR:", partyBoxX, partyY);
+        partyY += 4.5;
+
         doc.setFont("helvetica", "bold");
         doc.setTextColor(33, 33, 33);
         doc.text("PARTY LEDGER", 196, 20, { align: "right" });
