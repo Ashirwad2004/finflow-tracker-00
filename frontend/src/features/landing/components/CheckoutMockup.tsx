@@ -29,7 +29,7 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
             </div>
 
             <h3 className="text-2xl font-black mb-1 text-foreground">Select Payment Method</h3>
-            <p className="text-muted-foreground text-xs mb-6">All major Indian UPI apps, cards, and netbanking supported.</p>
+            <p className="text-muted-foreground text-xs mb-6">All major UPI apps, credit/debit cards, and netbanking supported.</p>
 
             {/* Payment options */}
             <div className="space-y-3">
@@ -150,7 +150,7 @@ export const CheckoutMockup = ({ onPayClick }: CheckoutMockupProps) => {
 
           <div className="mt-8 pt-6 border-t border-white/10 text-center">
             <div className="text-[11px] text-white/50">
-              Trusted by 10,000+ business owners across India
+              Trusted by thousands of growing businesses and modern merchants
             </div>
           </div>
         </div>

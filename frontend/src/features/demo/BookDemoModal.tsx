@@ -155,7 +155,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
                 <p className="text-muted-foreground mb-6 max-w-xs mx-auto">
                   We'll call you within <strong>24 hours</strong> to schedule your personalised demo.
                 </p>
-                <Button onClick={handleClose} className="rounded-full px-8">
+                <Button onClick={handleClose} className="rounded-full px-8 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0 shadow-md shadow-orange-500/25 font-bold">
                   Done
                 </Button>
               </motion.div>
@@ -170,15 +170,15 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
               transition={{ duration: 0.25 }}
             >
               {/* Top gradient stripe */}
-              <div className="h-1.5 w-full bg-gradient-to-r from-primary via-violet-500 to-blue-500" />
+              <div className="h-1.5 w-full bg-gradient-to-r from-red-600 via-orange-500 to-amber-500" />
 
               <div className="p-8">
                 <DialogHeader className="mb-6">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-lg shadow-primary/20">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg shadow-red-500/20">
                       <Sparkles className="w-5 h-5 text-white" />
                     </div>
-                    <div className="text-xs font-semibold uppercase tracking-widest text-primary">
+                    <div className="text-xs font-semibold uppercase tracking-widest text-red-600 dark:text-red-400">
                       Free Demo
                     </div>
                   </div>
@@ -278,7 +278,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
                   <Button
                     type="submit"
                     disabled={state === "loading" || !phone.trim()}
-                    className="w-full h-12 rounded-xl text-base font-semibold bg-gradient-to-r from-primary to-violet-600 border-0 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:opacity-95 transition-all hover:scale-[1.02]"
+                    className="w-full h-12 rounded-xl text-base font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-lg shadow-red-500/25 hover:opacity-95 transition-all hover:scale-[1.02]"
                   >
                     {state === "loading" ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
