@@ -35,6 +35,7 @@ import {
   Maximize2,
   Minimize2,
   PanelLeft,
+  X,
 } from "lucide-react";
 import { downloadReportCSV, printAccountingReport } from "../../utils/exportReportUtils";
 import { DetailedPartyReport } from "../DetailedPartyReport";
@@ -137,12 +138,25 @@ export const FinFlowReportsStudio: React.FC<{
   const { formatCurrency } = useCurrency();
 
   const [activeReportId, setActiveReportId] = useState<FinFlowReportId>(initialReportId);
+  const [selectedPartyForLedger, setSelectedPartyForLedger] = useState<string | null>(initialParty);
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [tableSearch, setTableSearch] = useState("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 1024;
+    }
+    return false;
+  });
   const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Sync initialParty prop changes
+  React.useEffect(() => {
+    if (initialParty) {
+      setSelectedPartyForLedger(initialParty);
+    }
+  }, [initialParty]);
 
   // Sync fullscreen state with document fullscreenchange
   React.useEffect(() => {
@@ -230,6 +244,9 @@ export const FinFlowReportsStudio: React.FC<{
     setActiveReportId(id);
     setCurrentPage(1);
     setTableSearch("");
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setIsSidebarCollapsed(true);
+    }
   };
 
   // =========================================================================
@@ -666,6 +683,15 @@ export const FinFlowReportsStudio: React.FC<{
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
               FinFlow Reports ({FINFLOW_REPORTS_MENU.length})
             </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden h-6 w-6 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              onClick={() => setIsSidebarCollapsed(true)}
+              title="Close report menu"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
           </div>
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
@@ -744,89 +770,94 @@ export const FinFlowReportsStudio: React.FC<{
 
           {/* Controls: Date Picker + Search + Excel/Print */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Date Preset Dropdown */}
-            <Select
-              value={periodPreset}
-              onValueChange={(val) => setPeriodPreset(val as DatePeriodPreset)}
-            >
-              <SelectTrigger className="w-[155px] h-8 text-xs font-semibold bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
-                <SelectValue placeholder="Period" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="yesterday">Yesterday</SelectItem>
-                <SelectItem value="this_week">This Week</SelectItem>
-                <SelectItem value="this_month">This Month</SelectItem>
-                <SelectItem value="last_month">Last Month</SelectItem>
-                <SelectItem value="q1">Q1 (Apr–Jun)</SelectItem>
-                <SelectItem value="q2">Q2 (Jul–Sep)</SelectItem>
-                <SelectItem value="q3">Q3 (Oct–Dec)</SelectItem>
-                <SelectItem value="q4">Q4 (Jan–Mar)</SelectItem>
-                <SelectItem value="this_fy">Current FY (2025-26)</SelectItem>
-                <SelectItem value="last_fy">Previous FY (2024-25)</SelectItem>
-                <SelectItem value="all">All Dates</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Controls: Date Picker + Search + Excel/Print (For standard tabular registers) */}
+            {activeReportId !== "party_statement" && (
+              <>
+                {/* Date Preset Dropdown */}
+                <Select
+                  value={periodPreset}
+                  onValueChange={(val) => setPeriodPreset(val as DatePeriodPreset)}
+                >
+                  <SelectTrigger className="w-[155px] h-8 text-xs font-semibold bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
+                    <SelectValue placeholder="Period" />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="this_week">This Week</SelectItem>
+                    <SelectItem value="this_month">This Month</SelectItem>
+                    <SelectItem value="last_month">Last Month</SelectItem>
+                    <SelectItem value="q1">Q1 (Apr–Jun)</SelectItem>
+                    <SelectItem value="q2">Q2 (Jul–Sep)</SelectItem>
+                    <SelectItem value="q3">Q3 (Oct–Dec)</SelectItem>
+                    <SelectItem value="q4">Q4 (Jan–Mar)</SelectItem>
+                    <SelectItem value="this_fy">Current FY (2025-26)</SelectItem>
+                    <SelectItem value="last_fy">Previous FY (2024-25)</SelectItem>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            {/* If Custom Date Range, show From & To dates */}
-            {periodPreset === "custom" && (
-              <div className="flex items-center gap-1">
-                <Input
-                  type="date"
-                  className="w-32 h-8 text-xs bg-white dark:bg-slate-800"
-                  onChange={(e) =>
-                    setCustomRange((prev) => ({
-                      ...prev,
-                      from: e.target.value ? new Date(e.target.value) : undefined,
-                    }))
-                  }
-                />
-                <span className="text-xs text-slate-400">-</span>
-                <Input
-                  type="date"
-                  className="w-32 h-8 text-xs bg-white dark:bg-slate-800"
-                  onChange={(e) =>
-                    setCustomRange((prev) => ({
-                      ...prev,
-                      to: e.target.value ? new Date(e.target.value) : undefined,
-                    }))
-                  }
-                />
-              </div>
+                {/* If Custom Date Range, show From & To dates */}
+                {periodPreset === "custom" && (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="date"
+                      className="w-32 h-8 text-xs bg-white dark:bg-slate-800"
+                      onChange={(e) =>
+                        setCustomRange((prev) => ({
+                          ...prev,
+                          from: e.target.value ? new Date(e.target.value) : undefined,
+                        }))
+                      }
+                    />
+                    <span className="text-xs text-slate-400">-</span>
+                    <Input
+                      type="date"
+                      className="w-32 h-8 text-xs bg-white dark:bg-slate-800"
+                      onChange={(e) =>
+                        setCustomRange((prev) => ({
+                          ...prev,
+                          to: e.target.value ? new Date(e.target.value) : undefined,
+                        }))
+                      }
+                    />
+                  </div>
+                )}
+
+                {/* Quick in-table search box */}
+                <div className="relative">
+                  <Search className="w-3 h-3 absolute left-2.5 top-2.5 text-slate-400" />
+                  <Input
+                    placeholder="Filter table..."
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    className="pl-8 h-8 w-36 sm:w-44 text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700"
+                  />
+                </div>
+
+                {/* Excel Export Button */}
+                <Button
+                  size="sm"
+                  onClick={handleExportExcel}
+                  className="h-8 px-2.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Excel (CSV)
+                </Button>
+
+                {/* Print / PDF Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => printAccountingReport(activeReportMeta.label.toUpperCase())}
+                  className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-slate-300 dark:border-slate-700"
+                >
+                  <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                  Print / PDF
+                </Button>
+              </>
             )}
-
-            {/* Quick in-table search box */}
-            <div className="relative">
-              <Search className="w-3 h-3 absolute left-2.5 top-2.5 text-slate-400" />
-              <Input
-                placeholder="Filter table..."
-                value={tableSearch}
-                onChange={(e) => setTableSearch(e.target.value)}
-                className="pl-8 h-8 w-36 sm:w-44 text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700"
-              />
-            </div>
-
-            {/* Excel Export Button */}
-            <Button
-              size="sm"
-              onClick={handleExportExcel}
-              className="h-8 px-2.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              Excel (CSV)
-            </Button>
-
-            {/* Print / PDF Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => printAccountingReport(activeReportMeta.label.toUpperCase())}
-              className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-slate-300 dark:border-slate-700"
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-              Print / PDF
-            </Button>
 
             <Button
               variant="ghost"
@@ -847,7 +878,7 @@ export const FinFlowReportsStudio: React.FC<{
               title={isSidebarCollapsed ? "Show reports menu sidebar" : "Hide reports menu sidebar"}
             >
               <PanelLeft className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-              <span className="hidden sm:inline">{isSidebarCollapsed ? "Menu" : "Collapse"}</span>
+              <span className="inline">{isSidebarCollapsed ? "Menu" : "Collapse"}</span>
             </Button>
 
             {/* Full Screen Mode Toggle */}
@@ -881,6 +912,8 @@ export const FinFlowReportsStudio: React.FC<{
         <div
           className={`flex-1 min-h-0 flex flex-col ${
             [
+              "party_statement",
+              "party_outstanding",
               "pnl",
               "balance_sheet",
               "cash_flow",
@@ -982,14 +1015,20 @@ export const FinFlowReportsStudio: React.FC<{
           {/* REPORT: PARTY STATEMENT (DETAILED LEDGER)                         */}
           {/* =============================================================== */}
           {activeReportId === "party_statement" && (
-            <DetailedPartyReport initialPartyName={initialParty} />
+            <DetailedPartyReport
+              initialPartyName={selectedPartyForLedger || initialParty}
+              initialDateRange={activeDateRange}
+            />
           )}
 
           {/* =============================================================== */}
           {/* REPORT: PARTY OUTSTANDING                                        */}
           {/* =============================================================== */}
           {activeReportId === "party_outstanding" && (
-            <PartyReport onSelectPartyForLedger={(name) => setActiveReportId("party_statement")} />
+            <PartyReport onSelectPartyForLedger={(name) => {
+              setSelectedPartyForLedger(name);
+              setActiveReportId("party_statement");
+            }} />
           )}
 
           {/* =============================================================== */}
@@ -1198,7 +1237,7 @@ function SaleRegisterTable({ sales, search, formatCurrency }: any) {
 
       {/* Grid Table Container - Fills 100% remaining height with smooth internal scrolling */}
       <div className="flex-1 min-h-0 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto bg-white dark:bg-slate-900 shadow-xs scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
-        <table className="w-full text-left border-collapse text-xs">
+        <table className="w-full min-w-[700px] text-left border-collapse text-xs">
           <thead className="sticky top-0 z-20 shadow-xs">
             <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
               <th className="py-2.5 px-3 w-24 bg-slate-100 dark:bg-slate-800">Date</th>
@@ -1363,7 +1402,7 @@ function PurchaseRegisterTable({ purchases, search, formatCurrency }: any) {
       </div>
 
       <div className="flex-1 min-h-0 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto bg-white dark:bg-slate-900 shadow-xs scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
-        <table className="w-full text-left border-collapse text-xs">
+        <table className="w-full min-w-[700px] text-left border-collapse text-xs">
           <thead className="sticky top-0 z-20 shadow-xs">
             <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
               <th className="py-2.5 px-3 w-24 bg-slate-100 dark:bg-slate-800">Date</th>
