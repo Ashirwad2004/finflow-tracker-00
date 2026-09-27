@@ -81,10 +81,10 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
             <Button
               size="lg"
-              onClick={() => navigate("/auth")}
-              className="flex-1 font-bold shadow-md shadow-primary/20 text-sm h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => navigate("/auth?mode=signup")}
+              className="flex-1 font-bold shadow-lg shadow-orange-500/25 text-sm h-12 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
             >
-              <Sparkles className="mr-2 h-4 w-4" /> Start 100% Free Now
+              <Sparkles className="mr-2 h-4 w-4" /> Start Free Billing Now
             </Button>
             <Button
               size="lg"
@@ -115,7 +115,7 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             size="sm"
             variant="ghost"
             onClick={() => navigate("/pricing")}
-            className="text-xs font-bold text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+            className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20 shrink-0"
           >
             See Pricing &amp; Terms <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
           </Button>
@@ -127,7 +127,7 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             Need custom multi-store rollouts or employee cashier permissions?{" "}
             <button
               onClick={onBookDemo}
-              className="text-foreground font-semibold underline underline-offset-4 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+              className="text-foreground font-semibold underline underline-offset-4 hover:text-orange-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 rounded-sm"
             >
               Speak with our business rollout team (Free Consultation)
             </button>

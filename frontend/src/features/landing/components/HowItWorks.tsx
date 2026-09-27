@@ -178,7 +178,7 @@ export const HowItWorks: React.FC = () => {
           <Button
             size="lg"
             onClick={() => navigate("/auth")}
-            className="font-bold shadow-md shadow-primary/20 px-8 text-sm h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="font-bold shadow-lg shadow-orange-500/25 px-8 text-sm h-12 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
           >
             Start Billing Free in 2 Minutes <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

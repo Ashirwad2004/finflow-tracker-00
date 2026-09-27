@@ -182,16 +182,16 @@ export const VyaparFeatures: React.FC = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 shrink-0 ${
                       isSelected
-                        ? "bg-background text-foreground shadow-md border border-border/80 text-primary scale-[1.01]"
+                        ? "bg-orange-500 text-white shadow-md shadow-orange-500/25 border border-orange-500 scale-[1.01]"
                         : "text-muted-foreground hover:text-foreground hover:bg-background/50 border border-transparent"
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                    <Icon className={`w-4 h-4 ${isSelected ? "text-white" : "text-muted-foreground"}`} />
                     <span>{tab.title}</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                         isSelected
-                          ? "bg-primary/15 text-primary border border-primary/20"
+                          ? "bg-white/20 text-white border border-white/30"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
@@ -263,7 +263,7 @@ export const VyaparFeatures: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-                  <Button onClick={() => navigate("/auth")} className="font-bold text-xs sm:text-sm h-11 px-6 shadow-md shadow-primary/20">
+                  <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
                     Try POS Billing Free <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                   <Button
@@ -542,7 +542,7 @@ export const VyaparFeatures: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-                  <Button onClick={() => navigate("/auth")} className="font-bold text-xs sm:text-sm h-11 px-6 shadow-md shadow-primary/20">
+                  <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
                     Manage Inventory Free <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                   <Button
@@ -800,7 +800,7 @@ export const VyaparFeatures: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-                  <Button onClick={() => navigate("/auth")} className="font-bold text-xs sm:text-sm h-11 px-6 shadow-md shadow-primary/20">
+                  <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
                     Track Customer Dues Free <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                   <Button
@@ -1049,7 +1049,7 @@ export const VyaparFeatures: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-                  <Button onClick={() => navigate("/auth")} className="font-bold text-xs sm:text-sm h-11 px-6 shadow-md shadow-primary/20">
+                  <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
                     See Daybook Free <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                   <Button
@@ -1215,7 +1215,7 @@ export const VyaparFeatures: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-                  <Button onClick={() => navigate("/auth")} className="font-bold text-xs sm:text-sm h-11 px-6 shadow-md shadow-primary/20">
+                  <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
                     Export Tax Reports Free <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                   <Button
@@ -1409,7 +1409,7 @@ export const VyaparFeatures: React.FC = () => {
               </div>
             </div>
           </div>
-          <Button onClick={() => navigate("/auth")} className="font-bold text-xs sm:text-sm h-10 px-5 shrink-0">
+          <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-10 px-5 shrink-0 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
             Create Free Account <ArrowRight className="w-4 h-4 ml-1.5" />
           </Button>
         </div>

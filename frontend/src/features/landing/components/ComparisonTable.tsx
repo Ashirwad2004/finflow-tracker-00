@@ -146,7 +146,7 @@ export const ComparisonTable: React.FC = () => {
             </div>
             <Button
               onClick={() => navigate("/auth")}
-              className="font-bold text-xs sm:text-sm h-11 px-7 bg-primary text-primary-foreground shrink-0 shadow-sm"
+              className="font-bold text-xs sm:text-sm h-11 px-7 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shrink-0 shadow-lg shadow-orange-500/25 border-0"
             >
               Switch to RupeeBill 100% Free <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>

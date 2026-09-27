@@ -11,7 +11,7 @@ export const Footer: React.FC = () => {
         {/* Support Banner Card */}
         <div className="mb-12 p-5 sm:p-6 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-5 text-center md:text-left">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
               <Headphones className="w-5 h-5" />
             </div>
             <div>
@@ -43,7 +43,7 @@ export const Footer: React.FC = () => {
             </a>
             <a
               href="mailto:supportrupeebill@gmail.com"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 text-xs font-bold transition-colors"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>supportrupeebill@gmail.com</span>

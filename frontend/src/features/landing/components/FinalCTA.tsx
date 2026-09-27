@@ -25,15 +25,15 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({ onBookDemo }) => {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
             <Button
               size="lg"
-              onClick={() => navigate("/auth")}
-              className="w-full sm:w-auto h-13 px-8 text-base font-bold shadow-md shadow-primary/20 hover:shadow-primary/30 transition-all focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => navigate("/auth?mode=signup")}
+              className="w-full sm:w-auto h-12 sm:h-14 px-8 text-base font-bold bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0 shadow-lg shadow-orange-500/25 hover:scale-105 transition-all focus-visible:ring-2 focus-visible:ring-orange-500"
             >
-              Start 100% Free <ArrowRight className="ml-2 h-4 w-4" />
+              Start Free Billing <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button
               size="lg"
               onClick={onBookDemo}
-              className="w-full sm:w-auto h-13 px-7 text-base font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-lg shadow-red-500/25 transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-red-500"
+              className="w-full sm:w-auto h-12 sm:h-14 px-7 text-base font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-lg shadow-red-500/25 transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-red-500"
             >
               <Star className="mr-2 h-4 w-4 text-white fill-white" /> Book a Live Demo
             </Button>
@@ -68,7 +68,7 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({ onBookDemo }) => {
             </a>
             <a
               href="mailto:supportrupeebill@gmail.com"
-              className="font-bold text-primary hover:underline inline-flex items-center gap-1 bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20"
+              className="font-bold text-orange-600 dark:text-orange-400 hover:underline inline-flex items-center gap-1 bg-orange-500/10 px-2.5 py-1 rounded-md border border-orange-500/20"
             >
               ✉️ supportrupeebill@gmail.com
             </a>

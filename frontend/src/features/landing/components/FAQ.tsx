@@ -117,16 +117,16 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
               <Button
                 size="sm"
                 onClick={onBookDemo}
-                className="flex-1 sm:flex-none text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-sm transition-all hover:scale-105"
+                className="flex-1 sm:flex-none text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-md shadow-red-500/25 transition-all hover:scale-105"
               >
                 <Star className="mr-1.5 h-3.5 w-3.5 fill-white text-white" /> Book a Demo
               </Button>
               <Button
                 size="sm"
-                onClick={() => navigate("/auth")}
-                className="flex-1 sm:flex-none text-xs font-semibold shadow-sm"
+                onClick={() => navigate("/auth?mode=signup")}
+                className="flex-1 sm:flex-none text-xs font-bold bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0 shadow-md shadow-orange-500/25 transition-all hover:scale-105"
               >
-                Start 100% Free <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                Start Free Billing <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -163,14 +163,14 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
 
             <a
               href="mailto:supportrupeebill@gmail.com"
-              className="p-3 rounded-xl bg-primary/5 hover:bg-primary/10 border border-primary/20 flex items-center gap-3 transition-colors text-left"
+              className="p-3 rounded-xl bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/20 flex items-center gap-3 transition-colors text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                 <Mail className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <span className="text-[10px] text-muted-foreground block">Email Support</span>
-                <span className="font-bold text-primary truncate block text-[11px]">supportrupeebill@gmail.com</span>
+                <span className="font-bold text-orange-600 dark:text-orange-400 truncate block text-[11px]">supportrupeebill@gmail.com</span>
               </div>
             </a>
           </div>

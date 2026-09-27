@@ -108,16 +108,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onBookDemo }) => {
           <Button
             size="sm"
             onClick={onBookDemo}
-            className="hidden md:inline-flex text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-sm transition-all hover:scale-105"
+            className="hidden md:inline-flex text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-md shadow-red-500/25 transition-all hover:scale-105"
           >
             <Star className="mr-1.5 h-3.5 w-3.5 fill-white text-white" /> Book Demo
           </Button>
           <Button
             size="sm"
-            onClick={() => navigate("/auth")}
-            className="text-xs sm:text-sm font-semibold shadow-sm"
+            onClick={() => navigate("/auth?mode=signup")}
+            className="text-xs sm:text-sm font-bold bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0"
           >
-            Start Billing Free <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            Start Free Billing <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Button>
         </div>
 
@@ -172,18 +172,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onBookDemo }) => {
             <Button
               onClick={() => {
                 setMobileMenuOpen(false);
-                navigate("/auth");
+                navigate("/auth?mode=signup");
               }}
-              className="w-full h-11 text-sm font-semibold shadow-sm"
+              className="w-full h-11 text-sm font-bold bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0"
             >
-              Start Billing Free <ArrowRight className="ml-1.5 h-4 w-4" />
+              Start Free Billing <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
             <Button
               onClick={() => {
                 setMobileMenuOpen(false);
                 onBookDemo();
               }}
-              className="w-full h-11 text-sm font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-sm"
+              className="w-full h-11 text-sm font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-md shadow-red-500/25"
             >
               <Star className="mr-2 h-4 w-4 fill-white text-white" /> Book a Demo
             </Button>
@@ -222,7 +222,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onBookDemo }) => {
             </div>
             <a
               href="mailto:supportrupeebill@gmail.com"
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-background border border-border font-semibold text-primary text-[11px]"
+              className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-background border border-border font-semibold text-orange-600 dark:text-orange-400 text-[11px]"
             >
               <Mail className="w-3.5 h-3.5" /> supportrupeebill@gmail.com
             </a>

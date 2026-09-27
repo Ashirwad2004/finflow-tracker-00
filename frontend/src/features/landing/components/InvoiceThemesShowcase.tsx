@@ -62,12 +62,12 @@ export const InvoiceThemesShowcase: React.FC = () => {
                 onClick={() => setSelectedFormat(fmt.id)}
                 className={`p-4 rounded-2xl border text-left transition-all ${
                   isSelected
-                    ? "bg-card border-primary shadow-md shadow-primary/10 ring-2 ring-primary/20"
+                    ? "bg-card border-orange-500 shadow-md shadow-orange-500/15 ring-2 ring-orange-500/20"
                     : "bg-muted/30 border-border hover:bg-muted/70 hover:border-border/80"
                 }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2.5 ${
-                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  isSelected ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground"
                 }`}>
                   <Icon className="w-4 h-4" />
                 </div>
@@ -327,7 +327,7 @@ export const InvoiceThemesShowcase: React.FC = () => {
           <Button
             size="lg"
             onClick={() => navigate("/auth")}
-            className="font-bold shadow-md shadow-primary/20 px-8 text-sm h-12 bg-primary text-primary-foreground"
+            className="font-bold shadow-lg shadow-orange-500/25 px-8 text-sm h-12 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
           >
             Start Printing Bills in Your Format <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

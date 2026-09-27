@@ -133,7 +133,7 @@ export const BusinessTypes: React.FC = () => {
                 onClick={() => setSelectedIndustry(i)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
                   isSelected
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-105"
+                    ? "bg-orange-500 text-white shadow-md shadow-orange-500/20 scale-105"
                     : "bg-muted/50 border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
@@ -150,12 +150,12 @@ export const BusinessTypes: React.FC = () => {
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
                   <current.icon className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="text-xl sm:text-2xl font-black text-foreground">{current.name}</h3>
-                  <p className="text-xs text-primary font-semibold">{current.tagline}</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">{current.tagline}</p>
                 </div>
               </div>
 
@@ -171,7 +171,7 @@ export const BusinessTypes: React.FC = () => {
               <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <Button
                   onClick={() => navigate("/auth")}
-                  className="font-bold text-xs h-11 px-6 shadow-sm"
+                  className="font-bold text-xs h-11 px-6 shadow-md shadow-orange-500/25 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
                 >
                   Start Billing Free for {current.name.split(" ")[0]} <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                 </Button>

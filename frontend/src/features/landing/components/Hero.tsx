@@ -63,16 +63,16 @@ export const Hero: React.FC<HeroProps> = ({ onBookDemo }) => {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-2xl mx-auto mb-8">
           <Button
             size="lg"
-            onClick={() => navigate("/auth")}
-            className="w-full sm:w-auto h-13 px-8 text-base font-bold shadow-md shadow-primary/20 hover:scale-[1.01] transition-transform bg-primary text-primary-foreground"
+            onClick={() => navigate("/auth?mode=signup")}
+            className="w-full sm:w-auto h-12 sm:h-14 px-8 text-base font-bold shadow-lg shadow-orange-500/25 hover:scale-[1.01] transition-transform bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
           >
-            Start Billing 100% Free <ArrowRight className="ml-2 h-4 w-4" />
+            Start Free Billing <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
 
           <Button
             size="lg"
             onClick={onBookDemo}
-            className="w-full sm:w-auto h-13 px-7 text-base font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-md shadow-red-500/20 hover:scale-[1.01] transition-transform"
+            className="w-full sm:w-auto h-12 sm:h-14 px-7 text-base font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-lg shadow-red-500/25 hover:scale-[1.01] transition-transform"
           >
             <Star className="mr-2 h-4 w-4 fill-white text-white" /> Book Free Live Demo
           </Button>
@@ -81,7 +81,7 @@ export const Hero: React.FC<HeroProps> = ({ onBookDemo }) => {
             size="lg"
             variant="outline"
             onClick={() => scrollToSection("features")}
-            className="w-full sm:w-auto h-13 px-6 text-base font-semibold border-border hover:bg-muted"
+            className="w-full sm:w-auto h-12 sm:h-14 px-6 text-base font-semibold border-border hover:bg-muted text-foreground"
           >
             See All Features ↓
           </Button>
