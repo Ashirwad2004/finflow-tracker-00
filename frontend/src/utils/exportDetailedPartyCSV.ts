@@ -2,6 +2,27 @@ import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { LedgerTransaction } from "@/features/business/components/DetailedPartyReport";
 
+export interface BusinessDetailsCSV {
+    name?: string;
+    address?: string;
+    phone?: string;
+    gst?: string;
+    email?: string;
+}
+
+export interface PartyDetailsCSV {
+    name?: string;
+    phone?: string;
+    gst?: string;
+    address?: string;
+    type?: string;
+}
+
+const safeStr = (text: any): string => {
+    if (text == null) return "";
+    return String(text).trim();
+};
+
 const parseSafeDate = (d: any): Date => {
     if (!d) return new Date();
     if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
@@ -24,7 +45,7 @@ const getVoucherTypeLabel = (type: string): string => {
     switch (type) {
         case 'sale': return 'Sales Invoice';
         case 'purchase': return 'Purchase Bill';
-        case 'payment_received': return 'Payment In';
+        case 'payment_received': return 'Payment In (Receipt)';
         case 'payment_made': return 'Payment Out';
         case 'credit_note': return 'Credit Note';
         case 'debit_note': return 'Debit Note';
@@ -37,108 +58,154 @@ export const exportDetailedPartyCSV = (
     data: LedgerTransaction[],
     partyName: string,
     dateRange?: { from?: Date; to?: Date },
-    businessDetails?: { name?: string; address?: string; phone?: string; gst?: string }
+    businessDetails?: BusinessDetailsCSV,
+    partyDetails?: PartyDetailsCSV
 ) => {
-    if (!data || data.length === 0) {
-        alert("No ledger data to export.");
-        return;
-    }
+    try {
+        const sheetData: any[][] = [];
 
-    const titleRow = [`PARTY LEDGER STATEMENT - ${(partyName || "Party").toUpperCase()}`];
-    const bizRow = [
-        businessDetails?.name
-            ? `${businessDetails.name} ${businessDetails.phone ? `| Ph: ${businessDetails.phone}` : ""} ${
-                  businessDetails.gst ? `| GSTIN: ${businessDetails.gst}` : ""
-              }`
-            : "FinFlow Business Ledger",
-    ];
+        // 1. Business Header
+        const bizName = safeStr(businessDetails?.name) || "RupeeBill Business";
+        sheetData.push([bizName.toUpperCase()]);
+        
+        const bizDetailsLine = [
+            businessDetails?.address ? `Address: ${businessDetails.address}` : "",
+            businessDetails?.phone ? `Ph: ${businessDetails.phone}` : "",
+            businessDetails?.gst ? `GSTIN: ${businessDetails.gst}` : "",
+            businessDetails?.email ? `Email: ${businessDetails.email}` : ""
+        ].filter(Boolean).join(" | ");
+        
+        if (bizDetailsLine) {
+            sheetData.push([bizDetailsLine]);
+        }
+        sheetData.push([]); // Blank row
 
-    let rangeStr = "All Time (Complete History)";
-    if (dateRange?.from && dateRange?.to) {
-        rangeStr = `${format(dateRange.from, "dd MMM yyyy")} to ${format(dateRange.to, "dd MMM yyyy")}`;
-    } else if (dateRange?.from) {
-        rangeStr = `Since ${format(dateRange.from, "dd MMM yyyy")}`;
-    } else if (dateRange?.to) {
-        rangeStr = `Up to ${format(dateRange.to, "dd MMM yyyy")}`;
-    }
-    const dateRow = [`Period: ${rangeStr} | Generated: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`];
-    const emptyRow: any[] = [];
+        // 2. Statement Title & Party Info
+        sheetData.push([`PARTY STATEMENT / LEDGER - ${safeStr(partyName).toUpperCase()}`]);
 
-    // Define Headers
-    const headers = [
-        "Date",
-        "Particulars / Voucher Reference",
-        "Voucher Type",
-        "Debit (Dr) (₹)",
-        "Credit (Cr) (₹)",
-        "Running Balance (₹)",
-        "Dr / Cr",
-        "Status",
-    ];
+        const partyMetaLine = [
+            `Party: ${safeStr(partyName)}`,
+            partyDetails?.phone ? `Mobile: ${partyDetails.phone}` : "",
+            partyDetails?.gst ? `GSTIN: ${partyDetails.gst}` : "",
+            partyDetails?.type ? `Category: ${partyDetails.type.toUpperCase()}` : "",
+            partyDetails?.address ? `Address: ${partyDetails.address}` : ""
+        ].filter(Boolean).join(" | ");
+        sheetData.push([partyMetaLine]);
 
-    let totalDebit = 0;
-    let totalCredit = 0;
+        let rangeStr = "All Time (Complete History)";
+        if (dateRange?.from && dateRange?.to) {
+            rangeStr = `${format(dateRange.from, "dd MMM yyyy")} to ${format(dateRange.to, "dd MMM yyyy")}`;
+        } else if (dateRange?.from) {
+            rangeStr = `Since ${format(dateRange.from, "dd MMM yyyy")}`;
+        } else if (dateRange?.to) {
+            rangeStr = `Up to ${format(dateRange.to, "dd MMM yyyy")}`;
+        }
+        sheetData.push([`Period: ${rangeStr} | Generated: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`]);
+        sheetData.push([]); // Blank row
 
-    // Process Data
-    const dataRows = data.map((tx) => {
-        const debit = Number(tx.debit || 0);
-        const credit = Number(tx.credit || 0);
-        totalDebit += debit;
-        totalCredit += credit;
+        // 3. Table Column Headers
+        sheetData.push([
+            "Date",
+            "Particulars / Voucher Reference",
+            "Voucher Type",
+            "Debit (Dr) (₹)",
+            "Credit (Cr) (₹)",
+            "Running Balance (₹)",
+            "Dr / Cr",
+            "Status"
+        ]);
 
-        const bal = tx.runningBalance;
-        const balSuffix = bal > 0 ? "Dr" : bal < 0 ? "Cr" : "Nil";
+        let periodDebit = 0;
+        let periodCredit = 0;
 
-        return [
-            format(parseSafeDate(tx.date), "dd/MM/yyyy"),
-            tx.ref || "-",
-            getVoucherTypeLabel(tx.type),
-            debit > 0 ? debit : 0,
-            credit > 0 ? credit : 0,
-            Math.abs(bal),
-            balSuffix,
-            (tx.status || "settled").toUpperCase(),
+        if (!data || data.length === 0) {
+            sheetData.push(["-", "No transaction records found for this period", "-", 0, 0, 0, "Nil", "Settled"]);
+        } else {
+            data.forEach((tx) => {
+                const debit = Number(tx.debit || 0);
+                const credit = Number(tx.credit || 0);
+                
+                // Exclude b/f row from period turnover
+                if (tx.id !== 'opening-balance-bfwd') {
+                    periodDebit += debit;
+                    periodCredit += credit;
+                }
+
+                const bal = tx.runningBalance;
+                const balType = bal > 0 ? "Dr" : bal < 0 ? "Cr" : "Nil";
+
+                let dateFormatted = "-";
+                try {
+                    dateFormatted = format(parseSafeDate(tx.date), "dd/MM/yyyy");
+                } catch {
+                    dateFormatted = safeStr(tx.date);
+                }
+
+                sheetData.push([
+                    dateFormatted,
+                    safeStr(tx.ref),
+                    getVoucherTypeLabel(tx.type),
+                    debit > 0 ? debit : 0,
+                    credit > 0 ? credit : 0,
+                    Math.abs(bal),
+                    balType,
+                    (tx.status || "settled").toUpperCase()
+                ]);
+            });
+        }
+
+        // 4. Summary Rows
+        const lastTx = data && data.length > 0 ? data[data.length - 1] : null;
+        const closingBal = lastTx ? lastTx.runningBalance : 0;
+        const closingBalType = closingBal > 0 ? "Dr (Receivable)" : closingBal < 0 ? "Cr (Payable)" : "Nil (Settled)";
+
+        sheetData.push([]); // Blank row
+        sheetData.push([
+            "TOTAL",
+            "Total Period Turnover",
+            "",
+            periodDebit,
+            periodCredit,
+            "",
+            "",
+            ""
+        ]);
+
+        sheetData.push([
+            "NET CLOSING POSITION",
+            closingBalType,
+            "",
+            "",
+            "",
+            Math.abs(closingBal),
+            closingBal > 0 ? "Dr" : closingBal < 0 ? "Cr" : "Nil",
+            closingBal === 0 ? "SETTLED" : "PENDING"
+        ]);
+
+        // Create Workbook
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Auto-fit column widths
+        worksheet["!cols"] = [
+            { wch: 14 }, // Date
+            { wch: 42 }, // Particulars
+            { wch: 22 }, // Voucher Type
+            { wch: 18 }, // Debit
+            { wch: 18 }, // Credit
+            { wch: 20 }, // Running Balance
+            { wch: 16 }, // Dr/Cr
+            { wch: 14 }  // Status
         ];
-    });
 
-    const finalBalance = data[data.length - 1]?.runningBalance ?? (totalDebit - totalCredit);
-    const totalsRow = [
-        "TOTAL",
-        "Closing Position",
-        "",
-        totalDebit,
-        totalCredit,
-        Math.abs(finalBalance),
-        finalBalance > 0 ? "Dr (Receivable)" : finalBalance < 0 ? "Cr (Payable)" : "Nil (Settled)",
-        "",
-    ];
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Party Ledger");
 
-    const wsData = [
-        titleRow,
-        bizRow,
-        dateRow,
-        emptyRow,
-        headers,
-        ...dataRows,
-        emptyRow,
-        totalsRow,
-    ];
+        const sanitizedFileName = safeStr(partyName).replace(/[^a-zA-Z0-9]/g, "_") || "Party";
+        const dateStamp = format(new Date(), "yyyyMMdd");
+        XLSX.writeFile(workbook, `Ledger_${sanitizedFileName}_${dateStamp}.xlsx`);
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    ws["!cols"] = [
-        { wch: 14 }, // Date
-        { wch: 38 }, // Particulars
-        { wch: 18 }, // Type
-        { wch: 18 }, // Debit
-        { wch: 18 }, // Credit
-        { wch: 20 }, // Running Balance
-        { wch: 16 }, // Dr / Cr
-        { wch: 14 }, // Status
-    ];
-
-    const sanitizedFileName = (partyName || "Party").replace(/[^a-zA-Z0-9]/g, "_");
-    XLSX.utils.book_append_sheet(wb, ws, "Ledger");
-    XLSX.writeFile(wb, `ledger_${sanitizedFileName}_${format(new Date(), "yyyyMMdd")}.xlsx`);
+    } catch (e) {
+        console.error("[exportDetailedPartyCSV] Error generating Excel file:", e);
+        alert("Failed to export Excel file. Please try again.");
+    }
 };

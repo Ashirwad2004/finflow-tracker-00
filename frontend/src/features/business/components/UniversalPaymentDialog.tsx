@@ -56,6 +56,7 @@ export interface UniversalPaymentDialogProps {
   mode: "payment_in" | "payment_out"; // 'payment_in' = Sales Receipt, 'payment_out' = Purchase Payment
   initialBill?: BillPaymentTarget | null;
   initialPartyId?: string | null;
+  initialPartyName?: string | null;
   onSuccess?: (result: any) => void;
 }
 
@@ -65,6 +66,7 @@ export function UniversalPaymentDialog({
   mode,
   initialBill,
   initialPartyId,
+  initialPartyName,
   onSuccess,
 }: UniversalPaymentDialogProps) {
   const { toast } = useToast();
@@ -274,12 +276,22 @@ export function UniversalPaymentDialog({
         setSelectedPartyId(initialPartyId);
         setSelectedBillId("");
         setPaymentAmount("");
+      } else if (initialPartyName) {
+        const norm = initialPartyName.trim().toLowerCase();
+        const matched = parties.find(
+          (p: any) => (p.name || "").trim().toLowerCase() === norm
+        );
+        if (matched) {
+          setSelectedPartyId(matched.id);
+        }
+        setSelectedBillId("");
+        setPaymentAmount("");
       } else {
         setSelectedBillId("");
         setPaymentAmount("");
       }
     }
-  }, [open, initialBill, initialPartyId, parties]);
+  }, [open, initialBill, initialPartyId, initialPartyName, parties]);
 
   // When party changes, auto-select first bill if available in with_bill mode
   const handlePartySelect = (partyId: string) => {

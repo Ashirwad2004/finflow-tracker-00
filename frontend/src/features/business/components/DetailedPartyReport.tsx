@@ -11,8 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     Search,
@@ -21,7 +21,6 @@ import {
     FileSpreadsheet,
     CalendarIcon,
     ArrowRightLeft,
-    PlusCircle,
     MessageCircle,
     Phone,
     MapPin,
@@ -31,13 +30,14 @@ import {
     ArrowDownLeft,
     ArrowUpRight,
     ArrowUpDown,
-    Filter
+    Filter,
+    Printer,
+    ChevronDown
 } from "lucide-react";
 
 import { exportDetailedPartyPDF } from "@/utils/exportDetailedPartyPDF";
 import { exportDetailedPartyCSV } from "@/utils/exportDetailedPartyCSV";
 import { parsePaymentTranscript } from "@/features/business/utils/paymentTranscript";
-import { UniversalPaymentDialog } from "@/features/business/components/UniversalPaymentDialog";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
 import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 import { cn } from "@/core/lib/utils";
@@ -80,33 +80,72 @@ export const parseSafeDate = (d: any): Date => {
 export interface DetailedPartyReportProps {
     initialPartyName?: string | null;
     initialPartyId?: string | null;
+    initialDateRange?: { from?: Date; to?: Date };
 }
 
-export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: DetailedPartyReportProps) => {
-    const { formatCurrency } = useCurrency();
+export const DetailedPartyReport = ({ initialPartyName, initialPartyId, initialDateRange }: DetailedPartyReportProps) => {
+    const { formatCurrency, currency } = useCurrency();
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
     const [selectedParty, setSelectedParty] = useState<string>("all");
     const [partySearch, setPartySearch] = useState<string>("");
     const [viewOrder, setViewOrder] = useState<"chronological" | "reverse">("chronological");
+    const [datePreset, setDatePreset] = useState<string>("all");
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-        from: undefined,
-        to: undefined
+        from: initialDateRange?.from,
+        to: initialDateRange?.to
     });
-
-    // Payment Dialog state
-    const [paymentModal, setPaymentModal] = useState<{
-        open: boolean;
-        mode: "payment_in" | "payment_out";
-        partyId?: string;
-    }>({
-        open: false,
-        mode: "payment_in"
-    });
+    const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
     const [showWhatsAppReminderModal, setShowWhatsAppReminderModal] = useState(false);
     const { data: connStatus } = useWhatsAppStatus();
+
+    const handleDatePresetChange = (preset: string) => {
+        setDatePreset(preset);
+        const now = new Date();
+        if (preset === "all") {
+            setDateRange({ from: undefined, to: undefined });
+        } else if (preset === "this_month") {
+            setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        } else if (preset === "last_month") {
+            const lastM = subMonths(now, 1);
+            setDateRange({ from: startOfMonth(lastM), to: endOfMonth(lastM) });
+        } else if (preset === "last_90_days") {
+            setDateRange({ from: subDays(now, 90), to: now });
+        } else if (preset === "this_fy") {
+            const yr = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+            setDateRange({ from: new Date(yr, 3, 1), to: new Date(yr + 1, 2, 31, 23, 59, 59) });
+        } else if (preset === "last_fy") {
+            const yr = now.getMonth() >= 3 ? now.getFullYear() - 1 : now.getFullYear() - 2;
+            setDateRange({ from: new Date(yr, 3, 1), to: new Date(yr + 1, 2, 31, 23, 59, 59) });
+        }
+    };
+
+    // Synchronize initialDateRange if passed from parent
+    useEffect(() => {
+        if (initialDateRange && (initialDateRange.from || initialDateRange.to)) {
+            setDateRange({ from: initialDateRange.from, to: initialDateRange.to });
+            setDatePreset("custom");
+        }
+    }, [initialDateRange?.from, initialDateRange?.to]);
+
+    // Computed label for single unified date range button
+    const dateButtonLabel = useMemo(() => {
+        if (dateRange.from && dateRange.to) {
+            return `${format(dateRange.from, "dd MMM yyyy")} - ${format(dateRange.to, "dd MMM yyyy")}`;
+        }
+        if (dateRange.from) return `From ${format(dateRange.from, "dd MMM yyyy")}`;
+        if (dateRange.to) return `Until ${format(dateRange.to, "dd MMM yyyy")}`;
+        switch (datePreset) {
+            case "this_month": return "This Month";
+            case "last_month": return "Last Month";
+            case "last_90_days": return "Last 90 Days";
+            case "this_fy": return "Current FY";
+            case "last_fy": return "Previous FY";
+            default: return "All Dates";
+        }
+    }, [dateRange, datePreset]);
 
     // Fetch Profile for Business Details
     const { data: profile } = useQuery({
@@ -269,14 +308,14 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
     useEffect(() => {
         if (initialPartyName && initialPartyName !== "all") {
             setSelectedParty(initialPartyName.trim());
-        } else if (initialPartyId) {
+        } else if (initialPartyId && uniqueParties.length > 0) {
             const match = uniqueParties.find(p => p.id === initialPartyId);
             if (match) setSelectedParty(match.name);
         } else if (selectedParty === "all" && uniqueParties.length > 0) {
             // Default to first party so ledger is instantly visible
             setSelectedParty(uniqueParties[0].name);
         }
-    }, [initialPartyName, initialPartyId, uniqueParties]);
+    }, [initialPartyName, initialPartyId, uniqueParties.length]);
 
     // Selected Party Master Record (if found)
     const activePartyRecord = useMemo(() => {
@@ -286,6 +325,28 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
             p.name && p.name.trim().toLowerCase() === normSelected
         ) || uniqueParties.find(p => p.name.trim().toLowerCase() === normSelected) || null;
     }, [selectedParty, partiesDirectory, uniqueParties]);
+
+    const partyDetails = useMemo(() => {
+        if (!activePartyRecord) return { name: selectedParty };
+        return {
+            name: activePartyRecord.name || selectedParty,
+            phone: activePartyRecord.phone || (activePartyRecord as any).mobile || "",
+            gst: activePartyRecord.gst || (activePartyRecord as any).gst_number || (activePartyRecord as any).gstin || "",
+            address: (activePartyRecord as any).billing_address || (activePartyRecord as any).address || "",
+            type: activePartyRecord.type || (activePartyRecord as any).party_type || "Party"
+        };
+    }, [activePartyRecord, selectedParty]);
+
+    const businessDetails = useMemo(() => {
+        if (!profile) return undefined;
+        return {
+            name: (profile as any).business_name || "RupeeBill Business",
+            address: (profile as any).business_address || "",
+            phone: (profile as any).business_phone || "",
+            gst: (profile as any).gst_number || "",
+            email: (profile as any).business_email || ""
+        };
+    }, [profile]);
 
     // Filtered Parties for quick-search
     const filteredPartyOptions = useMemo(() => {
@@ -299,14 +360,15 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
     }, [uniqueParties, partySearch]);
 
     // Build CA-Grade Double-Entry Chronological Ledger for Selected Party
-    const { fullLedger, closingBalance, totalPeriodDebit, totalPeriodCredit, hasBroughtForward } = useMemo(() => {
+    const { fullLedger, closingBalance, totalPeriodDebit, totalPeriodCredit, hasBroughtForward, initialBroughtForward } = useMemo(() => {
         if (!selectedParty || selectedParty === "all") {
             return {
                 fullLedger: [],
                 closingBalance: 0,
                 totalPeriodDebit: 0,
                 totalPeriodCredit: 0,
-                hasBroughtForward: false
+                hasBroughtForward: false,
+                initialBroughtForward: 0
             };
         }
 
@@ -435,11 +497,13 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
                     type: 'sale'
                 });
 
+                let totalVoucherAmount = 0;
                 if (payments && payments.length > 0) {
                     payments.forEach((voucher: any, idx: number) => {
                         const vDate = voucher.date || txDate;
                         const vAmount = Number(voucher.amount) || 0;
                         if (vAmount > 0) {
+                            totalVoucherAmount += vAmount;
                             const method = (voucher.payment_method || sale.payment_method || 'Cash').toUpperCase();
                             const refInfo = voucher.reference_number ? ` (Ref: ${voucher.reference_number})` : '';
                             rawTransactions.push({
@@ -459,19 +523,22 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
                             });
                         }
                     });
-                } else if (paid > 0) {
-                    // Fallback for invoice generated with upfront payment
+                }
+
+                const unvoucheredPaid = Math.max(0, paid - totalVoucherAmount);
+                if (unvoucheredPaid > 0) {
+                    // Fallback for invoice generated with upfront payment or residual paid amount
                     rawTransactions.push({
                         id: `sale-pmt-init-${sale.id}`,
                         date: txDate,
                         type: 'payment_received',
-                        amount: paid,
-                        amount_paid: paid,
+                        amount: unvoucheredPaid,
+                        amount_paid: unvoucheredPaid,
                         balance_due: 0,
                         status: 'paid',
                         ref: `Receipt against #${sale.invoice_number || 'INV'} (${sale.payment_method || 'Cash/Bank'})`,
                         debit: 0,
-                        credit: paid,
+                        credit: unvoucheredPaid,
                         payment_method: sale.payment_method,
                         voucher_number: sale.invoice_number
                     });
@@ -572,11 +639,13 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
                     type: 'purchase'
                 });
 
+                let totalVoucherAmount = 0;
                 if (payments && payments.length > 0) {
                     payments.forEach((voucher: any, idx: number) => {
                         const vDate = voucher.date || txDate;
                         const vAmount = Number(voucher.amount) || 0;
                         if (vAmount > 0) {
+                            totalVoucherAmount += vAmount;
                             const method = (voucher.payment_method || purchase.payment_method || 'Cash').toUpperCase();
                             const refInfo = voucher.reference_number ? ` (Ref: ${voucher.reference_number})` : '';
                             rawTransactions.push({
@@ -596,18 +665,21 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
                             });
                         }
                     });
-                } else if (paid > 0) {
-                    // Fallback for bill generated with upfront payment
+                }
+
+                const unvoucheredPaid = Math.max(0, paid - totalVoucherAmount);
+                if (unvoucheredPaid > 0) {
+                    // Fallback for bill generated with upfront payment or residual paid amount
                     rawTransactions.push({
                         id: `pur-pmt-init-${purchase.id}`,
                         date: txDate,
                         type: 'payment_made',
-                        amount: paid,
-                        amount_paid: paid,
+                        amount: unvoucheredPaid,
+                        amount_paid: unvoucheredPaid,
                         balance_due: 0,
                         status: 'paid',
                         ref: `Payment against Bill #${purchase.bill_number || 'BILL'} (${purchase.payment_method || 'Cash/Bank'})`,
-                        debit: paid,
+                        debit: unvoucheredPaid,
                         credit: 0,
                         payment_method: purchase.payment_method,
                         voucher_number: purchase.bill_number
@@ -704,7 +776,8 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
             closingBalance: currentBalance,
             totalPeriodDebit: periodDr,
             totalPeriodCredit: periodCr,
-            hasBroughtForward: hasBF
+            hasBroughtForward: hasBF,
+            initialBroughtForward: initialBroughtForward
         };
     }, [sales, purchases, partiesDirectory, selectedParty, dateRange, activePartyRecord]);
 
@@ -739,497 +812,505 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
     };
 
     return (
-        <div className="space-y-6">
-            <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
-                <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                            <CardTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                                <ArrowRightLeft className="w-5 h-5 text-primary" />
-                                Detailed Party Ledger
-                            </CardTitle>
-                            <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                Verified CA double-entry statement showing every invoice, payment voucher, and running balance.
-                            </CardDescription>
-                        </div>
-
-                        {/* Top Action Quick Buttons */}
-                        {selectedParty !== "all" && activePartyRecord && (
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                    size="sm"
-                                    onClick={() => setPaymentModal({ open: true, mode: "payment_in", partyId: activePartyRecord.id })}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8 px-2.5 shadow-xs"
-                                >
-                                    <PlusCircle className="w-3.5 h-3.5 mr-1" />
-                                    Payment In (Receipt)
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={() => setPaymentModal({ open: true, mode: "payment_out", partyId: activePartyRecord.id })}
-                                    className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold h-8 px-2.5 shadow-xs"
-                                >
-                                    <PlusCircle className="w-3.5 h-3.5 mr-1" />
-                                    Payment Out
-                                </Button>
-                            </div>
-                        )}
+        <div className="space-y-4 w-full min-w-0 max-w-full">
+            {/* Top Unified Single-Row Action Toolbar */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 bg-slate-50/80 dark:bg-slate-900/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 w-full min-w-0">
+                {/* Left: Party Selector + Single Unified Date Filter */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 min-w-0">
+                    {/* Party Selector with Search */}
+                    <div className="w-full sm:w-64 md:w-72 shrink-0">
+                        <Select value={selectedParty} onValueChange={setSelectedParty}>
+                            <SelectTrigger className="w-full h-9 text-xs font-semibold bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-2xs">
+                                <SelectValue placeholder="Select Customer or Vendor" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-80 w-[calc(100vw-32px)] sm:w-80 max-w-[340px]">
+                                <div className="p-2 border-b">
+                                    <div className="flex items-center px-2 py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 gap-1.5">
+                                        <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search party by name or phone..."
+                                            value={partySearch}
+                                            onChange={(e) => setPartySearch(e.target.value)}
+                                            className="w-full bg-transparent text-xs outline-none"
+                                            onClick={(e) => e.stopPropagation()}
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                </div>
+                                <SelectItem value="all" className="font-semibold text-muted-foreground py-2">
+                                    -- Select a Party --
+                                </SelectItem>
+                                {filteredPartyOptions.map(p => (
+                                    <SelectItem key={p.name} value={p.name} className="py-2 cursor-pointer">
+                                        <div className="flex items-center justify-between w-full gap-2">
+                                            <span className="font-medium text-slate-900 dark:text-slate-100 truncate">{p.name}</span>
+                                            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono shrink-0">
+                                                {p.type}
+                                            </span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {/* Filter & Selector Controls */}
-                    <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
-                        {/* Party Selector with Search */}
-                        <div className="w-full lg:w-80">
-                            <Select value={selectedParty} onValueChange={setSelectedParty}>
-                                <SelectTrigger className="w-full h-10 font-semibold bg-background border-slate-200 dark:border-slate-800">
-                                    <SelectValue placeholder="Select a Customer or Vendor" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-80">
-                                    <div className="p-2 border-b">
-                                        <div className="flex items-center px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 gap-1.5">
-                                            <Search className="w-3.5 h-3.5 text-muted-foreground" />
-                                            <input
-                                                type="text"
-                                                placeholder="Search party by name or phone..."
-                                                value={partySearch}
-                                                onChange={(e) => setPartySearch(e.target.value)}
-                                                className="w-full bg-transparent text-xs outline-none"
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                        </div>
-                                    </div>
-                                    <SelectItem value="all" className="font-semibold text-muted-foreground">-- Select a Party --</SelectItem>
-                                    {filteredPartyOptions.map(p => (
-                                        <SelectItem key={p.name} value={p.name} className="py-2">
-                                            <div className="flex items-center justify-between w-full gap-2">
-                                                <span className="font-medium text-slate-900 dark:text-slate-100">{p.name}</span>
-                                                <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
-                                                    {p.type}
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Date Range Picker with Quick presets */}
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        className={cn(
-                                            "w-[230px] justify-start text-left font-normal bg-background h-10 text-xs border-slate-200 dark:border-slate-800",
-                                            !dateRange.from && "text-muted-foreground"
-                                        )}
-                                        disabled={selectedParty === "all"}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                                        {dateRange?.from ? (
-                                            dateRange.to ? (
-                                                <>
-                                                    {format(dateRange.from, "dd MMM yy")} - {format(dateRange.to, "dd MMM yy")}
-                                                </>
-                                            ) : (
-                                                `From ${format(dateRange.from, "dd MMM yy")}`
-                                            )
-                                        ) : (
-                                            <span>Filter by date range</span>
-                                        )}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <div className="p-2 border-b flex flex-wrap gap-1 bg-slate-50 dark:bg-slate-900">
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-7 text-xs"
-                                            onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}
-                                        >
-                                            This Month
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-7 text-xs"
-                                            onClick={() => setDateRange({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) })}
-                                        >
-                                            Last Month
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-7 text-xs"
-                                            onClick={() => setDateRange({ from: subDays(new Date(), 90), to: new Date() })}
-                                        >
-                                            Last 90 Days
-                                        </Button>
-                                    </div>
-                                    <Calendar
-                                        initialFocus
-                                        mode="range"
-                                        defaultMonth={dateRange?.from}
-                                        selected={{ from: dateRange.from, to: dateRange.to }}
-                                        onSelect={(range: any) => setDateRange({ from: range?.from, to: range?.to })}
-                                        numberOfMonths={2}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-
-                            {(dateRange.from || dateRange.to) && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setDateRange({ from: undefined, to: undefined })}
-                                    className="h-10 text-xs text-muted-foreground hover:text-foreground"
-                                >
-                                    Reset Dates
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* View Order Toggle & Export in single right cluster */}
-                        <div className="flex items-center gap-2 ml-auto">
+                    {/* Single Unified Date Filter Popover */}
+                    <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
+                        <PopoverTrigger asChild>
                             <Button
                                 variant="outline"
-                                size="sm"
-                                onClick={() => setViewOrder(prev => prev === "chronological" ? "reverse" : "chronological")}
-                                className="h-10 text-xs border-slate-200 dark:border-slate-800 gap-1.5"
-                                title="Toggle Chronological / Latest first"
-                                disabled={selectedParty === "all"}
+                                className="h-9 px-3 text-xs font-medium border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 gap-2 shrink-0 shadow-2xs w-full sm:w-auto justify-between"
                             >
-                                <ArrowUpDown className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Order:</span>
-                                <span className="font-semibold capitalize">{viewOrder === "chronological" ? "Oldest First (CA)" : "Latest First"}</span>
+                                <div className="flex items-center gap-1.5 truncate">
+                                    <CalendarIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                        {dateButtonLabel}
+                                    </span>
+                                </div>
+                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1 opacity-70" />
                             </Button>
-
-                            {/* Export Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="default"
-                                        className="h-10 text-xs font-semibold shadow-xs"
-                                        disabled={selectedParty === "all" || fullLedger.length === 0}
-                                    >
-                                        <Download className="w-3.5 h-3.5 mr-1.5" />
-                                        Export Ledger
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 text-xs">
-                                    <DropdownMenuItem
-                                        className="cursor-pointer py-2 text-xs"
-                                        onClick={() => exportDetailedPartyPDF(
-                                            fullLedger,
-                                            selectedParty,
-                                            dateRange,
-                                            profile ? {
-                                                name: (profile as any).business_name,
-                                                address: (profile as any).business_address,
-                                                phone: (profile as any).business_phone,
-                                                gst: (profile as any).gst_number
-                                            } : undefined
-                                        )}
-                                    >
-                                        <FileText className="w-4 h-4 mr-2 text-rose-500" />
-                                        Download PDF Statement
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        className="cursor-pointer py-2 text-xs"
-                                        onClick={() => exportDetailedPartyCSV(
-                                            fullLedger,
-                                            selectedParty,
-                                            dateRange,
-                                            profile ? {
-                                                name: (profile as any).business_name,
-                                                address: (profile as any).business_address,
-                                                phone: (profile as any).business_phone,
-                                                gst: (profile as any).gst_number
-                                            } : undefined
-                                        )}
-                                    >
-                                        <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
-                                        Download Excel (.xlsx)
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
-                    </div>
-                </CardHeader>
-
-                <CardContent className="p-4 sm:p-6">
-                    {partiesLoading || salesLoading || purchasesLoading ? (
-                        <div className="text-center py-20 text-muted-foreground animate-pulse text-sm">
-                            Loading verified ledger data...
-                        </div>
-                    ) : selectedParty === "all" ? (
-                        <div className="text-center py-24 text-muted-foreground bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                            <ArrowRightLeft className="w-10 h-10 mx-auto mb-3 opacity-30 text-primary" />
-                            <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">No Party Selected</p>
-                            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                                Select any customer or vendor above to generate their complete double-entry ledger statement.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {/* Party Profile & Financial Position Strip */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                {/* Party Master Card */}
-                                <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
-                                    <div>
-                                        <div className="flex items-center justify-between gap-1.5">
-                                            <h3 className="font-bold text-slate-900 dark:text-white truncate text-sm">
-                                                {selectedParty}
-                                            </h3>
-                                            <Badge variant="outline" className="text-[10px] uppercase font-mono shrink-0">
-                                                {activePartyRecord?.type || "Party"}
-                                            </Badge>
-                                        </div>
-                                        <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                                            {activePartyRecord?.phone && (
-                                                <div className="flex items-center gap-1.5 truncate">
-                                                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                                                    <span>{activePartyRecord.phone}</span>
-                                                </div>
-                                            )}
-                                            {activePartyRecord?.gst && (
-                                                <div className="flex items-center gap-1.5 truncate">
-                                                    <Building className="w-3 h-3 text-slate-400 shrink-0" />
-                                                    <span className="font-mono text-[11px]">GSTIN: {activePartyRecord.gst}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {activePartyRecord?.phone && closingBalance > 0 && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={sendWhatsAppReminder}
-                                            className="mt-3 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold h-7 gap-1 w-full"
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[calc(100vw-32px)] sm:w-80 p-3.5 max-w-[340px]" align="start">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Select Date Range</span>
+                                    {(dateRange.from || dateRange.to || datePreset !== "all") && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDateRange({ from: undefined, to: undefined });
+                                                setDatePreset("all");
+                                            }}
+                                            className="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
                                         >
-                                            <MessageCircle className="w-3.5 h-3.5" />
-                                            WhatsApp Reminder
-                                        </Button>
+                                            Reset to All
+                                        </button>
                                     )}
                                 </div>
 
-                                {/* Period Debit (Dr) Turnover */}
-                                <div className="p-3.5 rounded-xl bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/60 flex flex-col justify-between">
-                                    <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-300">
-                                        <span>Total Debit (Dr)</span>
-                                        <ArrowUpRight className="w-4 h-4 text-blue-600" />
-                                    </div>
-                                    <div className="mt-2">
-                                        <div className="text-xl font-bold font-mono text-blue-700 dark:text-blue-300">
-                                            {formatCurrency(totalPeriodDebit)}
+                                {/* Preset Pills */}
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {[
+                                        { id: "all", label: "All Dates" },
+                                        { id: "this_month", label: "This Month" },
+                                        { id: "last_month", label: "Last Month" },
+                                        { id: "last_90_days", label: "Last 90 Days" },
+                                        { id: "this_fy", label: "Current FY" },
+                                        { id: "last_fy", label: "Previous FY" },
+                                    ].map((preset) => {
+                                        const isActive = datePreset === preset.id && (preset.id === "all" ? (!dateRange.from && !dateRange.to) : true);
+                                        return (
+                                            <Button
+                                                key={preset.id}
+                                                size="sm"
+                                                variant={isActive ? "default" : "outline"}
+                                                className="h-7 text-xs font-medium justify-center"
+                                                onClick={() => {
+                                                    handleDatePresetChange(preset.id);
+                                                    setIsDatePopoverOpen(false);
+                                                }}
+                                            >
+                                                {preset.label}
+                                            </Button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Custom Date Inputs */}
+                                <div className="pt-2 border-t space-y-2">
+                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                                        Custom Period
+                                    </span>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-muted-foreground font-medium">From</label>
+                                            <Input
+                                                type="date"
+                                                className="h-8 text-xs font-mono"
+                                                value={dateRange.from ? format(dateRange.from, "yyyy-MM-dd") : ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value ? new Date(e.target.value) : undefined;
+                                                    setDatePreset("custom");
+                                                    setDateRange(prev => ({ ...prev, from: val }));
+                                                }}
+                                            />
                                         </div>
-                                        <p className="text-[10px] text-blue-600/80 dark:text-blue-400/80 mt-0.5">
-                                            Invoiced / Disbursements
-                                        </p>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-muted-foreground font-medium">To</label>
+                                            <Input
+                                                type="date"
+                                                className="h-8 text-xs font-mono"
+                                                value={dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value ? new Date(e.target.value) : undefined;
+                                                    setDatePreset("custom");
+                                                    setDateRange(prev => ({ ...prev, to: val }));
+                                                }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Period Credit (Cr) Turnover */}
-                                <div className="p-3.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/60 flex flex-col justify-between">
-                                    <div className="flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                                        <span>Total Credit (Cr)</span>
-                                        <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
-                                    </div>
-                                    <div className="mt-2">
-                                        <div className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
-                                            {formatCurrency(totalPeriodCredit)}
-                                        </div>
-                                        <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
-                                            Collections / Purchase Bills
-                                        </p>
-                                    </div>
+                                <div className="pt-2 border-t flex justify-end">
+                                    <Button
+                                        size="sm"
+                                        className="h-7 text-xs px-3 font-semibold"
+                                        onClick={() => setIsDatePopoverOpen(false)}
+                                    >
+                                        Done
+                                    </Button>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* Right: Order Toggle + Print + Export */}
+                <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 shrink-0 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60 dark:border-slate-800/60">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setViewOrder(prev => prev === "chronological" ? "reverse" : "chronological")}
+                        className="h-9 px-2 sm:px-3 text-xs border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 gap-1.5 font-medium shadow-2xs flex-1 sm:flex-initial justify-center"
+                        title="Toggle Chronological / Latest first"
+                        disabled={selectedParty === "all"}
+                    >
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span className="hidden sm:inline text-slate-500">Order:</span>
+                        <span className="font-semibold hidden md:inline">{viewOrder === "chronological" ? "Oldest First (CA)" : "Latest First"}</span>
+                        <span className="font-semibold md:hidden">{viewOrder === "chronological" ? "Oldest" : "Latest"}</span>
+                    </Button>
+
+                    {/* Direct Print */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportDetailedPartyPDF(
+                            fullLedger,
+                            selectedParty,
+                            dateRange,
+                            businessDetails,
+                            partyDetails,
+                            { isPrint: true }
+                        )}
+                        className="h-9 px-2.5 sm:px-3 text-xs border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 gap-1.5 font-medium shadow-2xs flex-1 sm:flex-initial justify-center"
+                        disabled={selectedParty === "all" || fullLedger.length === 0}
+                        title="Print Statement (A4 CA Standard)"
+                    >
+                        <Printer className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>Print</span>
+                    </Button>
+
+                    {/* Export Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                size="sm"
+                                className="h-9 px-2.5 sm:px-3 text-xs font-semibold gap-1.5 shadow-2xs flex-1 sm:flex-initial justify-center"
+                                disabled={selectedParty === "all" || fullLedger.length === 0}
+                            >
+                                <Download className="w-3.5 h-3.5 shrink-0" />
+                                <span>Export</span>
+                                <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52 text-xs">
+                            <DropdownMenuItem
+                                className="cursor-pointer py-2 text-xs"
+                                onClick={() => exportDetailedPartyPDF(
+                                    fullLedger,
+                                    selectedParty,
+                                    dateRange,
+                                    businessDetails,
+                                    partyDetails
+                                )}
+                            >
+                                <FileText className="w-4 h-4 mr-2 text-rose-500" />
+                                <span>Download PDF Statement</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                className="cursor-pointer py-2 text-xs"
+                                onClick={() => exportDetailedPartyCSV(
+                                    fullLedger,
+                                    selectedParty,
+                                    dateRange,
+                                    businessDetails,
+                                    partyDetails
+                                )}
+                            >
+                                <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
+                                <span>Download Excel (.xlsx)</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </div>
+
+            {/* Content Body: Loading, Empty, or Ledger Statement */}
+            {partiesLoading || salesLoading || purchasesLoading ? (
+                <div className="text-center py-20 text-muted-foreground animate-pulse text-sm bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                    Loading verified ledger data...
+                </div>
+            ) : selectedParty === "all" ? (
+                <div className="text-center py-20 text-muted-foreground bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <ArrowRightLeft className="w-10 h-10 mx-auto mb-3 opacity-30 text-primary" />
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">No Party Selected</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                        Select any customer or vendor above to view their verified double-entry statement.
+                    </p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {/* Executive Party Summary Banner (Two-Tier Structure: Bulletproof on all viewports) */}
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 w-full shadow-2xs space-y-4">
+                        {/* 1. Header: Party Identity & Contact Information */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                            <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                        {selectedParty}
+                                    </h2>
+                                    <Badge 
+                                        variant="outline" 
+                                        className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 shrink-0"
+                                    >
+                                        {activePartyRecord?.type ? activePartyRecord.type.toUpperCase() : "PARTY"}
+                                    </Badge>
                                 </div>
 
-                                {/* Closing Net Balance */}
-                                <div className={cn(
-                                    "p-3.5 rounded-xl border flex flex-col justify-between",
-                                    closingBalance > 0
-                                        ? "bg-blue-50/60 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900"
-                                        : closingBalance < 0
-                                        ? "bg-amber-50/60 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900"
-                                        : "bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900"
-                                )}>
-                                    <div className="flex items-center justify-between text-xs font-bold">
-                                        <span className={cn(
-                                            closingBalance > 0 ? "text-blue-800 dark:text-blue-300" :
-                                            closingBalance < 0 ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300"
-                                        )}>
-                                            {closingBalance > 0 ? "Net Receivable (Dr)" : closingBalance < 0 ? "Net Payable (Cr)" : "Settled (Nil)"}
-                                        </span>
-                                        {closingBalance === 0 ? (
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                        ) : (
-                                            <ArrowRightLeft className="w-4 h-4 text-slate-500" />
-                                        )}
-                                    </div>
-                                    <div className="mt-2">
-                                        <div className={cn(
-                                            "text-2xl font-black font-mono",
-                                            closingBalance > 0 ? "text-blue-700 dark:text-blue-300" :
-                                            closingBalance < 0 ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"
-                                        )}>
-                                            {formatCurrency(Math.abs(closingBalance))} {closingBalance > 0 ? "Dr" : closingBalance < 0 ? "Cr" : ""}
+                                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 flex-wrap pt-0.5">
+                                    {activePartyRecord?.phone && (
+                                        <div className="flex items-center gap-1.5">
+                                            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            <span className="font-mono font-medium">{activePartyRecord.phone}</span>
                                         </div>
-                                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                                            {closingBalance > 0 ? "Party owes you money" : closingBalance < 0 ? "You owe money to party" : "Account fully reconciled"}
-                                        </p>
-                                    </div>
+                                    )}
+                                    {activePartyRecord?.gst && (
+                                        <div className="flex items-center gap-1.5">
+                                            <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            <span className="font-mono font-medium">GSTIN: {activePartyRecord.gst}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Ledger Table */}
-                            {fullLedger.length === 0 ? (
-                                <div className="text-center py-16 text-muted-foreground bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                                    <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">No transactions found</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                        There are no sales, purchases, or opening balances for this party in the selected date range.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xs">
-                                    <div className="overflow-x-auto">
-                                        <Table>
-                                            <TableHeader className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                                                <TableRow>
-                                                    <TableHead className="w-[110px] whitespace-nowrap">Date</TableHead>
-                                                    <TableHead className="min-w-[240px]">Particulars / Reference</TableHead>
-                                                    <TableHead className="w-[130px] whitespace-nowrap">Voucher Type</TableHead>
-                                                    <TableHead className="text-right text-blue-700 dark:text-blue-400 font-bold w-[120px] whitespace-nowrap">Debit (Dr)</TableHead>
-                                                    <TableHead className="text-right text-emerald-700 dark:text-emerald-400 font-bold w-[120px] whitespace-nowrap">Credit (Cr)</TableHead>
-                                                    <TableHead className="text-right bg-slate-100/70 dark:bg-slate-800/70 font-bold w-[140px] whitespace-nowrap">Running Balance</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                                                {displayLedger.map((tx) => {
-                                                    const isBF = tx.id === 'opening-balance-bfwd';
-                                                    const isOpeningMaster = tx.id.startsWith('open-bal-');
-                                                    const isDrEntry = tx.debit > 0;
-                                                    const isCrEntry = tx.credit > 0;
-
-                                                    return (
-                                                        <TableRow
-                                                            key={tx.id}
-                                                            className={cn(
-                                                                "transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40",
-                                                                (isBF || isOpeningMaster) && "bg-slate-50/60 dark:bg-slate-900/40 font-semibold"
-                                                            )}
-                                                        >
-                                                            {/* Date */}
-                                                            <TableCell className="font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                                                                {format(parseSafeDate(tx.date), "dd MMM yyyy")}
-                                                            </TableCell>
-
-                                                            {/* Particulars & Reference */}
-                                                            <TableCell>
-                                                                <div className="space-y-0.5">
-                                                                    <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
-                                                                        <span>{tx.ref}</span>
-                                                                        {tx.balance_due != null && tx.balance_due > 0 && tx.type === 'sale' && (
-                                                                            <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200">
-                                                                                Due: {formatCurrency(tx.balance_due)}
-                                                                            </Badge>
-                                                                        )}
-                                                                    </div>
-                                                                    {tx.notes && !tx.notes.includes("<!-- FINFLOW_PAYMENTS") && (
-                                                                        <div className="text-[11px] text-muted-foreground truncate max-w-md">
-                                                                            {tx.notes}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </TableCell>
-
-                                                            {/* Voucher Type Badge */}
-                                                            <TableCell className="whitespace-nowrap">
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className={cn(
-                                                                        "text-[10px] uppercase font-mono tracking-tight",
-                                                                        tx.type === 'sale' ? "border-blue-200 text-blue-700 bg-blue-50/50 dark:bg-blue-950/30" :
-                                                                        tx.type === 'purchase' ? "border-indigo-200 text-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/30" :
-                                                                        tx.type === 'payment_received' ? "border-emerald-200 text-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30" :
-                                                                        tx.type === 'payment_made' ? "border-amber-200 text-amber-700 bg-amber-50/50 dark:bg-amber-950/30" :
-                                                                        tx.type === 'credit_note' ? "border-rose-200 text-rose-700 bg-rose-50/50 dark:bg-rose-950/30" :
-                                                                        tx.type === 'debit_note' ? "border-teal-200 text-teal-700 bg-teal-50/50 dark:bg-teal-950/30" :
-                                                                        "border-slate-300 text-slate-700 bg-slate-100 dark:bg-slate-800"
-                                                                    )}
-                                                                >
-                                                                    {tx.type.replace('_', ' ')}
-                                                                </Badge>
-                                                            </TableCell>
-
-                                                            {/* Debit (Dr) */}
-                                                            <TableCell className="text-right font-mono font-medium text-blue-700 dark:text-blue-400">
-                                                                {isDrEntry ? formatCurrency(tx.debit) : "-"}
-                                                            </TableCell>
-
-                                                            {/* Credit (Cr) */}
-                                                            <TableCell className="text-right font-mono font-medium text-emerald-700 dark:text-emerald-400">
-                                                                {isCrEntry ? formatCurrency(tx.credit) : "-"}
-                                                            </TableCell>
-
-                                                            {/* Running Balance */}
-                                                            <TableCell className="text-right font-mono font-bold bg-slate-50/40 dark:bg-slate-900/40 border-l border-slate-200 dark:border-slate-800">
-                                                                <span className={cn(
-                                                                    tx.runningBalance > 0 ? "text-blue-700 dark:text-blue-400" :
-                                                                    tx.runningBalance < 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-600"
-                                                                )}>
-                                                                    {formatCurrency(Math.abs(tx.runningBalance))} {tx.runningBalance > 0 ? "Dr" : tx.runningBalance < 0 ? "Cr" : "Nil"}
-                                                                </span>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-
-                                    {/* Final Summary Row */}
-                                    <div className="bg-slate-100/90 dark:bg-slate-900/90 p-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-bold">
-                                        <div className="text-slate-600 dark:text-slate-400">
-                                            Total {displayLedger.length} transaction entries verified by CA double-entry rules.
-                                        </div>
-                                        <div className="flex items-center gap-4 font-mono">
-                                            <div className="text-blue-700 dark:text-blue-400">
-                                                Period Dr: {formatCurrency(totalPeriodDebit)}
-                                            </div>
-                                            <div className="text-emerald-700 dark:text-emerald-400">
-                                                Period Cr: {formatCurrency(totalPeriodCredit)}
-                                            </div>
-                                            <div className={cn(
-                                                "px-2 py-0.5 rounded",
-                                                closingBalance > 0 ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" :
-                                                closingBalance < 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-emerald-100 text-emerald-800"
-                                            )}>
-                                                Closing: {formatCurrency(Math.abs(closingBalance))} {closingBalance > 0 ? "Dr" : closingBalance < 0 ? "Cr" : "Nil"}
-                                            </div>
-                                        </div>
-                                    </div>
+                            {/* WhatsApp Reminder Button */}
+                            {activePartyRecord?.phone && closingBalance > 0 && (
+                                <div className="shrink-0 pt-1 sm:pt-0">
+                                    <button
+                                        type="button"
+                                        onClick={sendWhatsAppReminder}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-semibold text-xs transition-colors border border-emerald-200 dark:border-emerald-800 cursor-pointer shadow-2xs"
+                                    >
+                                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        <span>Send WhatsApp Reminder</span>
+                                    </button>
                                 </div>
                             )}
                         </div>
-                    )}
-                </CardContent>
-            </Card>
 
-            {/* Universal Payment In / Out Dialog for instant settlements */}
-            {paymentModal.open && (
-                <UniversalPaymentDialog
-                    open={paymentModal.open}
-                    onOpenChange={(open) => setPaymentModal(prev => ({ ...prev, open }))}
-                    mode={paymentModal.mode}
-                    initialPartyId={paymentModal.partyId}
-                    onSuccess={() => {
-                        queryClient.invalidateQueries({ queryKey: ["sales"] });
-                        queryClient.invalidateQueries({ queryKey: ["purchases"] });
-                        queryClient.invalidateQueries({ queryKey: ["parties"] });
-                    }}
-                />
+                        {/* 2. Three Financial Indicator Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
+                            {/* Card 1: Total Debit (Dr) */}
+                            <div className="bg-slate-50/70 dark:bg-slate-800/60 rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between">
+                                <div className="flex items-center justify-between gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Debit (Dr)</span>
+                                    <span className="text-[10px] font-mono font-bold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-950 px-1.5 py-0.5 rounded">Dr</span>
+                                </div>
+                                <div className="text-lg sm:text-2xl font-bold font-mono text-blue-700 dark:text-blue-400 mt-2 truncate" title={formatCurrency(totalPeriodDebit)}>
+                                    {formatCurrency(totalPeriodDebit)}
+                                </div>
+                                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Total Invoiced / Outward</div>
+                            </div>
+
+                            {/* Card 2: Total Credit (Cr) */}
+                            <div className="bg-slate-50/70 dark:bg-slate-800/60 rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between">
+                                <div className="flex items-center justify-between gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Credit (Cr)</span>
+                                    <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950 px-1.5 py-0.5 rounded">Cr</span>
+                                </div>
+                                <div className="text-lg sm:text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-400 mt-2 truncate" title={formatCurrency(totalPeriodCredit)}>
+                                    {formatCurrency(totalPeriodCredit)}
+                                </div>
+                                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Total Payments Received</div>
+                            </div>
+
+                            {/* Card 3: Net Closing Balance */}
+                            <div className={cn(
+                                "rounded-xl p-3.5 sm:p-4 border flex flex-col justify-between",
+                                closingBalance > 0
+                                    ? "bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+                                    : closingBalance < 0
+                                    ? "bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                                    : "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+                            )}>
+                                <div className="flex items-center justify-between gap-1">
+                                    <span className={cn(
+                                        "text-xs font-semibold uppercase tracking-wider",
+                                        closingBalance > 0 ? "text-blue-800 dark:text-blue-300" :
+                                        closingBalance < 0 ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300"
+                                    )}>
+                                        Closing Balance
+                                    </span>
+                                    <span className={cn(
+                                        "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded",
+                                        closingBalance > 0 ? "bg-blue-200/80 dark:bg-blue-900 text-blue-900 dark:text-blue-200" :
+                                        closingBalance < 0 ? "bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200" : "bg-emerald-200/80 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200"
+                                    )}>
+                                        {closingBalance > 0 ? "Dr" : closingBalance < 0 ? "Cr" : "Nil"}
+                                    </span>
+                                </div>
+                                <div className={cn(
+                                    "text-lg sm:text-2xl font-bold font-mono mt-2 truncate",
+                                    closingBalance > 0 ? "text-blue-700 dark:text-blue-300" :
+                                    closingBalance < 0 ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"
+                                )} title={formatCurrency(Math.abs(closingBalance))}>
+                                    {formatCurrency(Math.abs(closingBalance))}
+                                </div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                    {closingBalance > 0 ? "Net Receivable from Party" : closingBalance < 0 ? "Net Payable to Party" : "All Accounts Settled (Nil)"}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    {/* Ledger Table */}
+                    {fullLedger.length === 0 ? (
+                        <div className="text-center py-16 text-muted-foreground bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                            <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">No transactions found</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                There are no sales, purchases, or opening balances for this party in the selected date range.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xs w-full min-w-0 bg-white dark:bg-slate-900">
+                            <div className="overflow-x-auto w-full">
+                                <Table className="w-full min-w-[640px] sm:min-w-[720px]">
+                                    <TableHeader className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableRow>
+                                            <TableHead className="w-[100px] whitespace-nowrap">Date</TableHead>
+                                            <TableHead className="min-w-[200px]">Particulars / Reference</TableHead>
+                                            <TableHead className="w-[120px] whitespace-nowrap">Voucher Type</TableHead>
+                                            <TableHead className="text-right text-blue-700 dark:text-blue-400 font-bold w-[110px] whitespace-nowrap">Debit (Dr)</TableHead>
+                                            <TableHead className="text-right text-emerald-700 dark:text-emerald-400 font-bold w-[110px] whitespace-nowrap">Credit (Cr)</TableHead>
+                                            <TableHead className="text-right bg-slate-100/70 dark:bg-slate-800/70 font-bold w-[130px] whitespace-nowrap">Running Balance</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                        {displayLedger.map((tx) => {
+                                            const isBF = tx.id === 'opening-balance-bfwd';
+                                            const isOpeningMaster = tx.id.startsWith('open-bal-');
+                                            const isDrEntry = tx.debit > 0;
+                                            const isCrEntry = tx.credit > 0;
+
+                                            return (
+                                                <TableRow
+                                                    key={tx.id}
+                                                    className={cn(
+                                                        "transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40",
+                                                        (isBF || isOpeningMaster) && "bg-slate-50/60 dark:bg-slate-900/40 font-semibold"
+                                                    )}
+                                                >
+                                                    {/* Date */}
+                                                    <TableCell className="font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                        {format(parseSafeDate(tx.date), "dd MMM yyyy")}
+                                                    </TableCell>
+
+                                                    {/* Particulars & Reference */}
+                                                    <TableCell>
+                                                        <div className="space-y-0.5">
+                                                            <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+                                                                <span>{tx.ref}</span>
+                                                                {tx.balance_due != null && tx.balance_due > 0 && tx.type === 'sale' && (
+                                                                    <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200">
+                                                                        Due: {formatCurrency(tx.balance_due)}
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            {tx.notes && !tx.notes.includes("<!-- FINFLOW_PAYMENTS") && (
+                                                                <div className="text-[11px] text-muted-foreground truncate max-w-md">
+                                                                    {tx.notes}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+
+                                                    {/* Voucher Type Badge */}
+                                                    <TableCell className="whitespace-nowrap">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "text-[10px] uppercase font-mono tracking-tight",
+                                                                tx.type === 'sale' ? "border-blue-200 text-blue-700 bg-blue-50/50 dark:bg-blue-950/30" :
+                                                                tx.type === 'purchase' ? "border-indigo-200 text-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/30" :
+                                                                tx.type === 'payment_received' ? "border-emerald-200 text-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30" :
+                                                                tx.type === 'payment_made' ? "border-amber-200 text-amber-700 bg-amber-50/50 dark:bg-amber-950/30" :
+                                                                tx.type === 'credit_note' ? "border-rose-200 text-rose-700 bg-rose-50/50 dark:bg-rose-950/30" :
+                                                                tx.type === 'debit_note' ? "border-teal-200 text-teal-700 bg-teal-50/50 dark:bg-teal-950/30" :
+                                                                "border-slate-300 text-slate-700 bg-slate-100 dark:bg-slate-800"
+                                                            )}
+                                                        >
+                                                            {tx.type.replace('_', ' ')}
+                                                        </Badge>
+                                                    </TableCell>
+
+                                                    {/* Debit (Dr) */}
+                                                    <TableCell className="text-right font-mono font-medium text-blue-700 dark:text-blue-400">
+                                                        {isDrEntry ? formatCurrency(tx.debit) : "-"}
+                                                    </TableCell>
+
+                                                    {/* Credit (Cr) */}
+                                                    <TableCell className="text-right font-mono font-medium text-emerald-700 dark:text-emerald-400">
+                                                        {isCrEntry ? formatCurrency(tx.credit) : "-"}
+                                                    </TableCell>
+
+                                                    {/* Running Balance */}
+                                                    <TableCell className="text-right font-mono font-bold bg-slate-50/40 dark:bg-slate-900/40 border-l border-slate-200 dark:border-slate-800">
+                                                        <span className={cn(
+                                                            tx.runningBalance > 0 ? "text-blue-700 dark:text-blue-400" :
+                                                            tx.runningBalance < 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-600"
+                                                        )}>
+                                                            {formatCurrency(Math.abs(tx.runningBalance))} {tx.runningBalance > 0 ? "Dr" : tx.runningBalance < 0 ? "Cr" : "Nil"}
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            {/* Final Summary Row */}
+                            <div className="bg-slate-100/90 dark:bg-slate-900/90 p-3 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 text-xs font-bold w-full min-w-0">
+                                <div className="text-slate-600 dark:text-slate-400 text-[11px] sm:text-xs">
+                                    Total <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{displayLedger.length}</span> verified entries
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 font-mono text-[11px] sm:text-xs w-full md:w-auto justify-between md:justify-end">
+                                    {dateRange.from && initialBroughtForward !== 0 && (
+                                        <div className="text-slate-600 dark:text-slate-400">
+                                            Opening: {formatCurrency(Math.abs(initialBroughtForward))} {initialBroughtForward > 0 ? "Dr" : "Cr"}
+                                        </div>
+                                    )}
+                                    <div className="text-blue-700 dark:text-blue-400">
+                                        Dr: {formatCurrency(totalPeriodDebit)}
+                                    </div>
+                                    <div className="text-emerald-700 dark:text-emerald-400">
+                                        Cr: {formatCurrency(totalPeriodCredit)}
+                                    </div>
+                                    <div className={cn(
+                                        "px-2 py-0.5 rounded font-semibold",
+                                        closingBalance > 0 ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" :
+                                        closingBalance < 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                    )}>
+                                        Closing: {formatCurrency(Math.abs(closingBalance))} {closingBalance > 0 ? "Dr" : closingBalance < 0 ? "Cr" : "Nil"}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    </div>
             )}
 
             {showWhatsAppReminderModal && activePartyRecord && (
@@ -1240,10 +1321,9 @@ export const DetailedPartyReport = ({ initialPartyName, initialPartyId }: Detail
                     recipientName={selectedParty}
                     recipientPhone={activePartyRecord.phone}
                     metadata={{
-                        customer_name: selectedParty,
-                        customer_phone: activePartyRecord.phone,
+                        party_id: activePartyRecord.id,
                         outstanding_amount: closingBalance,
-                        currency_symbol: (currency as any)?.symbol || "₹",
+                        currency_symbol: currency?.symbol || "₹",
                     }}
                     defaultMessage={`Dear ${selectedParty},\n\nThis is a friendly reminder from ${(profile as any)?.business_name || "our office"} regarding your outstanding balance of ${formatCurrency(closingBalance)} as per your current ledger statement. Please arrange the payment at your earliest convenience.\n\nThank you!`}
                 />
