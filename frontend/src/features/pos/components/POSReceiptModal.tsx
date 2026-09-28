@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { ThermalReceipt } from "@/features/business/components/ThermalReceipt";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
+import { printThermalReceipt } from "@/utils/printThermalReceipt";
 import { Printer, Download, Share2, PlusCircle, CheckCircle2, ArrowRight, MessageCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
@@ -58,8 +59,15 @@ export const POSReceiptModal: React.FC<POSReceiptModalProps> = ({
     },
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    try {
+      toast.loading("Sending thermal receipt to printer...", { id: "pos-receipt-print" });
+      await printThermalReceipt(receiptPayload);
+      toast.success("Receipt sent to printer machine!", { id: "pos-receipt-print" });
+    } catch (err) {
+      console.error("Thermal print error:", err);
+      toast.error("Failed to print receipt", { id: "pos-receipt-print" });
+    }
   };
 
   const handleDownloadPDF = async () => {

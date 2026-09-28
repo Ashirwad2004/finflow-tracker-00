@@ -611,7 +611,7 @@ export const handleContinuationPage = (
 export const generateInvoicePDF = async (
     data: InvoiceDetails,
     options?: { 
-        action?: 'download' | 'preview' | 'base64', 
+        action?: 'download' | 'preview' | 'print' | 'base64', 
         theme?: InvoicePdfTheme, 
         documentType?: UniversalDocumentType,
         documentTitle?: string, 
@@ -1701,6 +1701,13 @@ export const generateInvoicePDF = async (
             doc.save(`${data.invoice_number}.pdf`);
         } else if (action === 'base64') {
             return doc.output('datauristring');
+        } else if (action === 'print') {
+            try {
+                doc.autoPrint();
+            } catch (autoPrintErr) {
+                console.warn("jsPDF autoPrint failed, falling back to bloburl", autoPrintErr);
+            }
+            return doc.output('bloburl');
         } else {
             return doc.output('bloburl');
         }

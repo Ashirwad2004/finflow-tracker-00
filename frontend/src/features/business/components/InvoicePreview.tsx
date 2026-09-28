@@ -24,6 +24,7 @@ import {
   convertAmountToIndianWords,
   InvoiceDetails,
 } from "@/utils/generateInvoicePDF";
+import { printInvoiceDirectly } from "@/utils/directPrint";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { SalesSettings } from "@/core/hooks/use-sales-settings";
@@ -201,27 +202,15 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   const handlePrint = async () => {
     setIsPrinting(true);
     try {
-      const url = await generateInvoicePDF(pdfPayload, {
-        action: "preview",
+      toast.loading("Sending invoice to printer...", { id: "print-preview" });
+      await printInvoiceDirectly(pdfPayload, {
         documentType: "invoice",
         showPartyPreviousBalance: salesSettings?.showPartyPreviousBalance,
       });
-
-      if (url) {
-        const printWindow = window.open(String(url), "_blank");
-        if (printWindow) {
-          printWindow.onload = () => {
-            try {
-              printWindow.print();
-            } catch (e) {
-              console.warn("Auto-print preview window onload:", e);
-            }
-          };
-        }
-      }
+      toast.success("Print job sent to printer machine!", { id: "print-preview" });
     } catch (err) {
       console.error("Print error:", err);
-      window.print();
+      toast.error("Failed to print invoice", { id: "print-preview" });
     } finally {
       setIsPrinting(false);
     }
