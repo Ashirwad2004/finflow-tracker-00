@@ -80,7 +80,25 @@ async def add_security_headers(request: Request, call_next):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+@app.get("/")
+async def root():
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "health": "/health",
+        "docs": "/docs" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
+        "api": settings.API_V1_STR
+    }
+
+
 @app.get("/health")
 @limiter.limit("5/minute")
 async def health_check(request: Request):
     return {"status": "ok", "message": "Backend runtime initialized!"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("src.main:app", host="0.0.0.0", port=port, reload=False)
+
