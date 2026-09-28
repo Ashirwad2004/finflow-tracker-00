@@ -1,9 +1,10 @@
 import logging
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from src.core.config import settings
 from src.core.limiter import limiter
-from src.api.deps import get_current_user
+from src.api.deps import get_current_user, get_tenant_context
 from src.schemas.reports import (
     BalanceSheetRequest,
     BalanceSheetResponse,
@@ -245,3 +246,108 @@ async def generate_cash_flow(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate Cash Flow Statement",
         ) from exc
+
+
+# =============================================================================
+# Authoritative Multi-Tenant Database Reports (Server-Authoritative)
+# =============================================================================
+
+@router.get("/profit-loss", response_model=ProfitAndLossResponse)
+@limiter.limit("30/minute")
+async def get_profit_and_loss(
+    request: Request,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> ProfitAndLossResponse:
+    """Authoritative P&L report computed directly from store database records."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_profit_and_loss(
+        store_id=store_id, start_date=start_date, end_date=end_date
+    )
+
+
+@router.get("/trial-balance", response_model=TrialBalanceResponse)
+@limiter.limit("30/minute")
+async def get_trial_balance(
+    request: Request,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> TrialBalanceResponse:
+    """Authoritative Trial Balance computed directly from store database records."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_trial_balance(
+        store_id=store_id, start_date=start_date, end_date=end_date
+    )
+
+
+@router.get("/balance-sheet", response_model=BalanceSheetResponse)
+@limiter.limit("30/minute")
+async def get_balance_sheet(
+    request: Request,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> BalanceSheetResponse:
+    """Authoritative Balance Sheet computed directly from store database records."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_balance_sheet(store_id=store_id)
+
+
+@router.get("/receivables-aging", response_model=ReceivablesAgingResponse)
+@limiter.limit("30/minute")
+async def get_receivables_aging(
+    request: Request,
+    ref_date: Optional[str] = None,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> ReceivablesAgingResponse:
+    """Authoritative Receivables Aging computed directly from store invoices."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_receivables_aging(
+        store_id=store_id, ref_date=ref_date
+    )
+
+
+@router.get("/sales")
+@limiter.limit("30/minute")
+async def get_sales_report(
+    request: Request,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> Dict[str, Any]:
+    """Authoritative Sales Summary and KPI report computed server-side."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_sales_report(
+        store_id=store_id, start_date=start_date, end_date=end_date
+    )
+
+
+@router.get("/purchases")
+@limiter.limit("30/minute")
+async def get_purchases_report(
+    request: Request,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> Dict[str, Any]:
+    """Authoritative Purchases Summary and KPI report computed server-side."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_purchases_report(
+        store_id=store_id, start_date=start_date, end_date=end_date
+    )
+
+
+@router.get("/ledger/{party_id}")
+@limiter.limit("30/minute")
+async def get_party_ledger(
+    party_id: str,
+    request: Request,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> Dict[str, Any]:
+    """Authoritative party running balance and statement computed server-side."""
+    store_id, _ = tenant_context
+    return ReportsService.get_authoritative_party_ledger(
+        store_id=store_id, party_id=party_id, start_date=start_date, end_date=end_date
+    )

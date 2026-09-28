@@ -1,9 +1,14 @@
+import hmac
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import HTMLResponse
 
 from src.api.deps import get_current_user
+from src.core.config import settings
+from src.core.limiter import limiter
 from src.core.supabase import supabase_client
 from src.services.whatsapp.service import WhatsAppService
 from src.services.whatsapp.exceptions import (
@@ -85,45 +90,6 @@ def _handle_whatsapp_exceptions(exc: Exception):
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
-from fastapi.responses import HTMLResponse
-from src.api.deps import get_current_user, get_optional_user
-
-def _resolve_default_store() -> tuple[str, str]:
-    """Fallback store and user id when accessed directly from browser without auth token."""
-    if supabase_client:
-        try:
-            # 1. Prefer store from existing whatsapp_connections table
-            res = (
-                supabase_client.table("whatsapp_connections")
-                .select("store_id, user_id")
-                .order("updated_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            rows = getattr(res, "data", None)
-            if isinstance(rows, list) and len(rows) > 0:
-                first = rows[0]
-                if isinstance(first, dict):
-                    s_id = str(first.get("store_id") or "")
-                    u_id = str(first.get("user_id") or s_id)
-                    if s_id:
-                        return s_id, u_id
-        except Exception:
-            pass
-        try:
-            res = supabase_client.table("profiles").select("user_id").limit(1).execute()
-            rows = getattr(res, "data", None)
-            if isinstance(rows, list) and len(rows) > 0:
-                first = rows[0]
-                if isinstance(first, dict):
-                    uid = str(first.get("user_id") or "")
-                    if uid:
-                        return uid, uid
-        except Exception:
-            pass
-    return "40b8bb83-85ff-4d10-93bc-505674de156d", "40b8bb83-85ff-4d10-93bc-505674de156d"
-
-
 @router.get("/status", response_model=WhatsAppConnectionResponse)
 async def get_whatsapp_status(
     user_info: dict = Depends(get_current_user),
@@ -141,24 +107,15 @@ async def get_whatsapp_status(
 @router.api_route("/connect", methods=["GET", "POST"])
 async def connect_whatsapp(
     request: Request,
-    user_info: dict | None = Depends(get_optional_user),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Initiates WhatsApp session with OpenWA gateway and returns QR code / connection status.
-    Supports both POST and GET (for direct browser verification).
+    Requires authenticated tenant context.
     """
     accept_header = request.headers.get("accept", "")
     is_html_browser = "text/html" in accept_header
-
-    if user_info:
-        store_id, user_id = _resolve_tenant_context(user_info)
-    elif is_html_browser:
-        store_id, user_id = _resolve_default_store()
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization token",
-        )
+    store_id, user_id = _resolve_tenant_context(user_info)
 
     # If accessed from browser and store is already connected, display verified connected page
     if is_html_browser:
@@ -377,15 +334,13 @@ async def connect_whatsapp(
 @router.get("/qr", response_model=WhatsAppQRCodeResponse)
 async def get_whatsapp_qr(
     request: Request,
-    user_info: dict | None = Depends(get_optional_user),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Fetches the latest QR code for scanning.
+    Requires authenticated tenant context.
     """
-    if user_info:
-        store_id, _ = _resolve_tenant_context(user_info)
-    else:
-        store_id, _ = _resolve_default_store()
+    store_id, _ = _resolve_tenant_context(user_info)
 
     try:
         conn = await whatsapp_service.get_status(store_id)
@@ -550,22 +505,45 @@ async def get_message_logs(
 
 
 @router.post("/webhook")
+@limiter.limit("120/minute")
 async def openwa_webhook(request: Request):
     """
     Event-driven webhook for OpenWA session and message state synchronization.
-    Supports events like session:ready, session:disconnected, etc.
+    Requires constant-time HMAC/secret verification if OPENWA_WEBHOOK_SECRET is set.
     """
+    if settings.OPENWA_WEBHOOK_SECRET:
+        secret_header = (
+            request.headers.get("X-Webhook-Secret")
+            or request.headers.get("X-OpenWA-Secret")
+            or (request.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        )
+        if not secret_header or not hmac.compare_digest(secret_header, settings.OPENWA_WEBHOOK_SECRET):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing webhook secret",
+            )
+
     try:
         body = await request.json()
     except Exception:
         body = {}
 
-    event = body.get("event") or body.get("type") or "unknown"
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook body format")
+
+    event = str(body.get("event") or body.get("type") or "unknown")
     session_id = body.get("session") or body.get("sessionId")
+    if not session_id or not isinstance(session_id, str):
+        return {"received": True, "event": event, "status": "ignored_no_session"}
+
+    # Validate session format to prevent injection attacks (alphanumeric, hyphens, underscores)
+    if not re.match(r"^finflow_store_[a-zA-Z0-9_\-]+$", session_id):
+        logger.warning("Rejected OpenWA webhook with invalid session ID format: %s", session_id)
+        return {"received": True, "event": event, "status": "ignored_invalid_session"}
+
     logger.info("Received OpenWA webhook event '%s' for session '%s'", event, session_id)
 
-    # If session matches finflow_store_<clean_store_id>
-    if session_id and session_id.startswith("finflow_store_") and supabase_client:
+    if supabase_client:
         try:
             if event in ("session:ready", "session:authenticated", "session.ready"):
                 supabase_client.table("whatsapp_connections").update({

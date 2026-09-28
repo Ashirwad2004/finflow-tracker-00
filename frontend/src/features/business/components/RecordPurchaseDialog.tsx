@@ -14,6 +14,7 @@ import { offlineMutate } from "@/core/offline/apiService";
 import { getOverdueDaysThreshold } from "@/core/utils/overdue";
 import { v4 as uuidv4 } from "uuid";
 import { useAuth } from "@/core/lib/auth";
+import { purchasesApi, CreatePurchasePayload } from "@/core/api/purchases";
 
 // Modular Subcomponents
 import { PurchaseHeader } from "./purchase/PurchaseHeader";
@@ -37,6 +38,7 @@ interface RecordPurchaseDialogProps {
 interface PurchaseFormValues {
     vendor_name: string;
     vendor_phone: string;
+    vendor_email?: string;
     vendor_gstin: string;
     place_of_supply: string;
     bill_number: string;
@@ -795,6 +797,60 @@ export const RecordPurchaseDialog = ({
             }
 
             const purchaseId = purchaseToEdit ? purchaseToEdit.id : uuidv4();
+
+            // ------------------------------------------------
+            // 1. AUTHORITATIVE SERVER API PURCHASE CREATION
+            // ------------------------------------------------
+            if (!purchaseToEdit && navigator.onLine) {
+                try {
+                    const cachedProducts: any[] = queryClient.getQueryData(["products", user.id]) || [];
+                    const authoritativePurchase = await purchasesApi.recordPurchase({
+                        party_id: null,
+                        vendor_name: values.vendor_name.trim(),
+                        vendor_phone: values.vendor_phone?.trim() || null,
+                        vendor_email: values.vendor_email?.trim() || null,
+                        vendor_gstin: values.vendor_gstin?.trim()?.toUpperCase() || null,
+                        place_of_supply: values.place_of_supply?.trim() || null,
+                        bill_number: values.bill_number?.trim() || null,
+                        date: values.date,
+                        due_date: values.due_date || null,
+                        items: finalItemsList.map((item) => ({
+                            product_id: cachedProducts.find(
+                                (p: any) => p.name?.toLowerCase() === item.description.trim().toLowerCase()
+                            )?.id,
+                            name: item.description.trim(),
+                            description: item.description.trim(),
+                            quantity: Number(item.quantity || 1),
+                            price: Number(item.price || 0),
+                            discount: Number(item.discount || 0),
+                            tax_rate: item.tax_rate !== undefined ? Number(item.tax_rate) : undefined,
+                            unit: item.unit || "pc",
+                        })),
+                        discount_amount: Number(values.discount_amount || 0),
+                        tax_rate: Number(values.tax_rate || 0),
+                        status: values.payment_status || "paid",
+                        amount_paid: Number(values.amount_paid || 0),
+                        notes: values.notes || null,
+                        attachment_url: values.attachment_url || null,
+                    });
+
+                    if (authoritativePurchase && authoritativePurchase.id) {
+                        queryClient.invalidateQueries({ queryKey: ["purchases", user.id] });
+                        queryClient.invalidateQueries({ queryKey: ["products", user.id] });
+                        queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
+                        queryClient.invalidateQueries({ queryKey: ["api-purchases"] });
+                        return {
+                            purchaseId: authoritativePurchase.id,
+                            purchaseData: authoritativePurchase,
+                            productSyncs: [],
+                            userId: user.id,
+                        };
+                    }
+                } catch (apiErr) {
+                    console.warn("[RecordPurchase] Server authoritative purchase API error, falling back to local queue:", apiErr);
+                }
+            }
+
             const calcSubtotal = finalItemsList.reduce(
                 (sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0),
                 0

@@ -37,6 +37,7 @@ import { sqliteService } from "@/core/offline/sqliteService";
 import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
 import { v4 as uuidv4 } from "uuid";
 import { useAuth } from "@/core/lib/auth";
+import { invoicesApi, CreateInvoicePayload } from "@/core/api/invoices";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
@@ -712,6 +713,14 @@ export const CreateInvoiceDialog = ({
             if (!user) return null;
 
             try {
+                if (navigator.onLine) {
+                    try {
+                        const nextNum = await invoicesApi.getNextInvoiceNumber(salesSettings?.invoiceNumberPrefix ?? "INV-");
+                        if (nextNum) return nextNum;
+                    } catch {
+                        // fallback to DB
+                    }
+                }
                 const { data, error } = await supabase
                     .from("sales" as any)
                     .select("invoice_number")
@@ -1359,6 +1368,76 @@ export const CreateInvoiceDialog = ({
                         profileData = data;
                     } catch {
                         // Empty profile fallback.
+                    }
+                }
+
+                // ------------------------------------------------
+                // 1. AUTHORITATIVE SERVER API INVOICE CREATION
+                // ------------------------------------------------
+                if (!invoiceToEdit && navigator.onLine) {
+                    try {
+                        const authoritativeRes = await invoicesApi.createInvoice({
+                            party_id: null,
+                            customer_name: values.customer_name?.trim() || "Cash Customer",
+                            customer_phone: values.customer_phone?.trim() || null,
+                            customer_email: values.customer_email?.trim() || null,
+                            customer_gstin: values.customer_gstin?.trim()?.toUpperCase() || null,
+                            place_of_supply: values.place_of_supply?.trim() || null,
+                            billing_address: values.billing_address?.trim() || null,
+                            shipping_address: values.shipping_address?.trim() || null,
+                            date: values.date,
+                            due_date: values.due_date || null,
+                            items: isQuickBilling ? [
+                                {
+                                    name: values.quick_item_name?.trim() || "General Sale",
+                                    description: values.quick_item_name?.trim() || "General Sale",
+                                    quantity: 1,
+                                    price: (Number(values.quick_total_amount) || 0) / (1 + (Number(values.tax_rate) || 0) / 100),
+                                    tax_rate: Number(values.tax_rate) || 0,
+                                }
+                            ] : values.items.filter((it) => it.description?.trim()).map((it) => {
+                                const matched = (dbProducts as any[]).find(
+                                    (p: any) => p.name?.trim().toLowerCase() === it.description?.trim().toLowerCase()
+                                );
+                                return {
+                                    product_id: matched?.id,
+                                    name: it.description,
+                                    description: it.description,
+                                    quantity: Number(it.quantity) || 1,
+                                    price: Number(it.price) || 0,
+                                    discount: Number(it.discount) || 0,
+                                    tax_rate: it.tax_rate !== undefined ? Number(it.tax_rate) : undefined,
+                                    unit: it.unit || "pc",
+                                    hsn_code: it.hsn_code || "",
+                                };
+                            }),
+                            overall_discount: Number(values.overall_discount) || 0,
+                            tax_rate: Number(values.tax_rate) || 0,
+                            is_item_wise_tax: isItemWiseTax,
+                            round_off: !!salesSettings?.roundOffTotal,
+                            status: values.status,
+                            amount_paid: Number(values.amount_paid) || 0,
+                            payment_method: values.status === "paid" || (values.status === "partial" && (Number(values.amount_paid) || 0) > 0) ? "cash" : null,
+                            notes: values.notes || null,
+                            document_type: values.document_type || "invoice",
+                            invoice_number_prefix: salesSettings?.invoiceNumberPrefix || "INV-",
+                            custom_invoice_number: values.invoice_number?.trim() || null,
+                        });
+
+                        if (authoritativeRes && authoritativeRes.id) {
+                            queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
+                            queryClient.invalidateQueries({ queryKey: ["products", user.id] });
+                            queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
+                            queryClient.invalidateQueries({ queryKey: ["api-invoices"] });
+
+                            return {
+                                ...values,
+                                ...authoritativeRes,
+                                profile: profileData,
+                            };
+                        }
+                    } catch (apiErr: any) {
+                        console.warn("[CreateInvoice] Server authoritative invoice API threw exception, falling back to local queue:", apiErr);
                     }
                 }
 

@@ -253,7 +253,7 @@ class POSService:
         try:
             # Fetch derived summary from immutable transactions, fallback gracefully
             try:
-                summary = cls.get_shift_summary(shift_id)
+                summary = cls.get_shift_summary(shift_id, store_id=store_id)
             except Exception:
                 summary = {"expected_cash": 0.0, "total_sales": 0.0}
 
@@ -295,15 +295,34 @@ class POSService:
             ) from exc
 
     @classmethod
-    def get_shift_summary(cls, shift_id: str) -> Dict[str, Any]:
+    def get_shift_summary(cls, shift_id: str, store_id: Optional[str] = None) -> Dict[str, Any]:
         """Dynamically computes shift totals and expected cash from immutable records."""
         cls._ensure_supabase()
         try:
+            # Multi-tenant IDOR check: Verify caller owns this shift
+            if store_id:
+                shift_verify = (
+                    supabase_client.table("pos_shifts")
+                    .select("id, store_id")
+                    .eq("id", shift_id)
+                    .maybe_single()
+                    .execute()
+                )
+                verify_row = getattr(shift_verify, "data", None)
+                if not verify_row or not isinstance(verify_row, dict) or str(verify_row.get("store_id")) != store_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Shift not found or access denied",
+                    )
+
             res: Any = supabase_client.rpc("pos_get_shift_summary", {"p_shift_id": shift_id}).execute()
             data = getattr(res, "data", None)
             if not data or not isinstance(data, dict):
                 # Fallback to shift row baseline
-                shift_res: Any = supabase_client.table("pos_shifts").select("*").eq("id", shift_id).maybe_single().execute()
+                shift_query = supabase_client.table("pos_shifts").select("*").eq("id", shift_id)
+                if store_id:
+                    shift_query = shift_query.eq("store_id", store_id)
+                shift_res: Any = shift_query.maybe_single().execute()
                 shift_row = getattr(shift_res, "data", None)
                 if not shift_row or not isinstance(shift_row, dict):
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift not found")
@@ -326,7 +345,10 @@ class POSService:
         except Exception as exc:
             logger.warning("Dynamic shift summary fallback for %s: %s", shift_id, exc)
             try:
-                shift_res = supabase_client.table("pos_shifts").select("*").eq("id", shift_id).maybe_single().execute()
+                shift_query = supabase_client.table("pos_shifts").select("*").eq("id", shift_id)
+                if store_id:
+                    shift_query = shift_query.eq("store_id", store_id)
+                shift_res = shift_query.maybe_single().execute()
                 shift_row = getattr(shift_res, "data", None)
                 if shift_row and isinstance(shift_row, dict):
                     return {

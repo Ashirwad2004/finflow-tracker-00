@@ -50,7 +50,17 @@ app.add_middleware(
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "X-Requested-With",
+        "Origin",
+        "X-Webhook-Secret",
+        "X-OpenWA-Secret",
+        "X-Razorpay-Signature",
+        "X-Idempotency-Key",
+    ],
 )
 
 

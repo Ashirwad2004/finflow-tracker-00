@@ -70,6 +70,42 @@ async def get_optional_user(
     return await get_current_user(credentials)
 
 
+async def get_tenant_context(
+    user_info: dict = Depends(get_current_user),
+) -> tuple[str, str]:
+    """
+    Enforces strict multi-tenant isolation.
+    Returns (store_id, caller_user_id).
+    If caller is a salesman, store_id resolves to their assigned store.
+    """
+    user_id = user_info.get("user_id")
+    email = user_info.get("email")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    store_id = user_id
+    if supabase_client and email:
+        try:
+            sm_res = (
+                supabase_client.table("store_salesmen")
+                .select("store_id, is_active")
+                .eq("salesman_email", email.lower())
+                .maybe_single()
+                .execute()
+            )
+            sm_data = getattr(sm_res, "data", None)
+            if isinstance(sm_data, dict):
+                if sm_data.get("is_active") is not False and sm_data.get("store_id"):
+                    store_id = str(sm_data["store_id"])
+        except Exception as exc:
+            logger.debug("Error checking salesman status: %s", exc)
+
+    return store_id, user_id
+
+
 async def require_admin(
     user_info: dict = Depends(get_current_user),
 ) -> dict:

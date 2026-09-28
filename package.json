@@ -10,7 +10,7 @@
     "dev": "concurrently \"npm run dev --workspace=frontend\" \"python run-backend.py\"",
     "frontend:dev": "npm run dev --workspace=frontend",
     "backend:dev": "python run-backend.py",
-    "test:backend": "pytest backend/tests -v",
+    "test:backend": "python -m pytest backend/tests -v",
     "build": "npm run build --workspace=frontend",
     "lint": "npm run lint --workspace=frontend",
     "preview": "npm run preview --workspace=frontend",
@@ -21,12 +21,5 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
-  },
-  "dependencies": {
-    "@supabase/server": "^1.6.1",
-    "d3-shape": "^3.2.0",
-    "lucide-react": "^1.46.0",
-    "pytest": "^1.0.0",
-    "recharts": "^3.10.1"
   }
 }
