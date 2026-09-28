@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
+import { printInvoiceDirectly } from "@/utils/directPrint";
 import { 
     Search, 
     MoreHorizontal, 
@@ -22,7 +23,8 @@ import {
     ScrollText, 
     ArrowUpRight,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    Printer
 } from "lucide-react";
 import { toast } from "sonner";
 import { RecordPurchaseDialog } from "@/features/business/components/RecordPurchaseDialog";
@@ -254,6 +256,46 @@ export default function PurchasesPage() {
 
         if (url) {
             window.open(String(url), '_blank');
+        }
+    };
+
+    const handlePrint = async (purchase: Purchase) => {
+        const billNumber = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
+        try {
+            toast.loading("Sending purchase bill to printer...", { id: "print-purchase" });
+            await printInvoiceDirectly({
+                invoice_number: billNumber,
+                date: purchase.date || (purchase as any).created_at,
+                due_date: purchase.due_date,
+                status: purchase.status,
+                amount_paid: purchase.amount_paid,
+                balance_due: purchase.balance_due,
+                customer_name: purchase.vendor_name,
+                customer_phone: purchase.vendor_phone,
+                customer_email: purchase.vendor_email,
+                customer_gstin: purchase.vendor_gstin,
+                items: purchase.items || [],
+                subtotal: purchase.subtotal || purchase.total_amount,
+                discount_amount: purchase.discount_amount || 0,
+                tax_amount: purchase.tax_amount || 0,
+                total_amount: purchase.total_amount,
+                tax_rate: purchase.tax_rate || 0,
+                business_details: profile ? {
+                    name: (profile as any).business_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone,
+                    gst: (profile as any).gst_number,
+                    logo_url: (profile as any).business_logo,
+                    signature_url: (profile as any).signature_url
+                } : undefined
+            }, { 
+                documentType: 'purchase_bill', 
+                documentTitle: 'PURCHASE BILL' 
+            });
+            toast.success("Print job sent to printer machine!", { id: "print-purchase" });
+        } catch (err) {
+            console.error("Print purchase error:", err);
+            toast.error("Failed to print purchase bill", { id: "print-purchase" });
         }
     };
 
@@ -718,6 +760,9 @@ export default function PurchasesPage() {
                                                     <DropdownMenuItem onClick={() => setTranscriptPurchase(getPurchasePaymentTarget(purchase))} className="cursor-pointer">
                                                         <ScrollText className="w-4 h-4 mr-2 text-slate-500" /> Payment Transcript
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handlePrint(purchase)}>
+                                                        <Printer className="w-4 h-4 mr-2" /> Print Bill
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuItem onClick={() => handlePreview(purchase)}>
                                                         <Eye className="w-4 h-4 mr-2" /> Preview PDF
                                                     </DropdownMenuItem>
@@ -926,11 +971,11 @@ export default function PurchasesPage() {
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); handlePreview(purchase); }}
+                                                        onClick={(e) => { e.stopPropagation(); handlePrint(purchase); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"
-                                                        title="Preview PDF"
+                                                        title="Print Bill"
                                                     >
-                                                        <FileText className="w-4 h-4" />
+                                                        <Printer className="w-4 h-4" />
                                                     </button>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -954,6 +999,10 @@ export default function PurchasesPage() {
                                                             >
                                                                 <ScrollText className="w-4 h-4 mr-2 text-slate-500" />
                                                                 Payment Transcript / Ledger
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handlePrint(purchase)}>
+                                                                <Printer className="w-4 h-4 mr-2" />
+                                                                Print Bill
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handlePreview(purchase)}>
                                                                 <Eye className="w-4 h-4 mr-2" />

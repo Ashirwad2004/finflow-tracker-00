@@ -3,8 +3,9 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
+import { printInvoiceDirectly } from "@/utils/directPrint";
 import { generateEInvoiceJSON, downloadJSON } from "@/core/utils/einvoiceGenerator";
-import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle, ReceiptIndianRupee, ScrollText, ArrowDownLeft, ShoppingBag } from "lucide-react";
+import { Search, MoreHorizontal, FileText, Download, Pencil, Filter, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Clock, Eye, Trash2, Share2, Settings2, Info, MessageSquare, QrCode, Mail, MessageCircle, ReceiptIndianRupee, ScrollText, ArrowDownLeft, ShoppingBag, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { dispatchJob, subscribeToJob, JobEvent } from "@/core/utils/jobQueue";
 import { CreateInvoiceDialog } from "@/features/business/components/CreateInvoiceDialog";
@@ -346,6 +347,60 @@ export default function SalesPage() {
 
         if (url) {
             window.open(String(url), '_blank');
+        }
+    };
+
+    const handlePrint = async (invoice: Sale) => {
+        const prevBal = getPartyPreviousBalance(invoice);
+        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+        try {
+            toast.loading("Sending invoice to printer...", { id: "print-invoice" });
+            await printInvoiceDirectly({
+                invoice_number: invoice.invoice_number,
+                date: invoice.date || (invoice as any).created_at,
+                due_date: invoice.due_date || undefined,
+                status: invoice.status,
+                amount_paid: invoice.amount_paid,
+                balance_due: invoice.balance_due,
+                payment_method: (invoice as any).payment_method,
+                previous_balance: prevBal,
+                total_due_balance: prevBal + curDue,
+                customer_name: invoice.customer_name,
+                customer_phone: invoice.customer_phone,
+                customer_email: invoice.customer_email,
+                customer_gstin: invoice.customer_gstin,
+                items: (invoice.items || []).map(item => ({
+                    description: item.description || item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.total ?? item.amount ?? (item.quantity * item.price),
+                    hsn_code: item.hsn_code,
+                    unit: item.unit,
+                })),
+                subtotal: invoice.subtotal || invoice.total_amount,
+                discount_amount: invoice.discount_amount || 0,
+                tax_amount: invoice.tax_amount || 0,
+                total_amount: invoice.total_amount,
+                tax_rate: invoice.tax_rate || 0,
+                irn: (invoice as any).irn,
+                eway_bill_number: (invoice as any).eway_bill_number,
+                qr_code: (invoice as any).qr_code,
+                business_details: profile ? {
+                    name: (profile as any).business_name,
+                    address: (profile as any).business_address,
+                    phone: (profile as any).business_phone,
+                    gst: (profile as any).gst_number,
+                    logo_url: (profile as any).business_logo,
+                    signature_url: (profile as any).signature_url
+                } : undefined
+            }, {
+                documentType: 'invoice',
+                showPartyPreviousBalance: settings.showPartyPreviousBalance
+            });
+            toast.success("Print job sent to printer machine!", { id: "print-invoice" });
+        } catch (err) {
+            console.error("Print invoice error:", err);
+            toast.error("Failed to print invoice", { id: "print-invoice" });
         }
     };
 
@@ -1089,11 +1144,11 @@ export default function SalesPage() {
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); handlePreview(invoice); }}
+                                                        onClick={(e) => { e.stopPropagation(); handlePrint(invoice); }}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-all"
-                                                        title="Preview PDF"
+                                                        title="Print Invoice"
                                                     >
-                                                        <FileText className="w-4 h-4" />
+                                                        <Printer className="w-4 h-4" />
                                                     </button>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -1117,6 +1172,10 @@ export default function SalesPage() {
                                                             >
                                                                 <ScrollText className="w-4 h-4 mr-2 text-slate-500" />
                                                                 Payment Transcript / Ledger
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handlePrint(invoice)}>
+                                                                <Printer className="w-4 h-4 mr-2" />
+                                                                Print Invoice
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => handlePreview(invoice)}>
                                                                 <Eye className="w-4 h-4 mr-2" />

@@ -3,24 +3,37 @@ import { createRoot } from 'react-dom/client';
 import { ThermalReceipt } from '@/features/business/components/ThermalReceipt';
 
 export const printThermalReceipt = async (data: any) => {
-    // 1. Create a hidden iframe to hold the receipt
+    // 1. Remove previous print frame if any
+    const oldIframe = document.getElementById('finflow-thermal-print-frame');
+    if (oldIframe && oldIframe.parentNode) {
+        oldIframe.parentNode.removeChild(oldIframe);
+    }
+
+    // 2. Create a hidden iframe to hold the receipt
     const iframe = document.createElement('iframe');
-    // Hide it but don't use display: none; otherwise print might fail in some browsers
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
+    iframe.id = 'finflow-thermal-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '-9999px';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
     iframe.style.border = 'none';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
 
     document.body.appendChild(iframe);
 
-    // 2. Get the iframe document
+    // 3. Get the iframe document
     const iframeDoc = iframe.contentWindow?.document;
     if (!iframeDoc) {
-        document.body.removeChild(iframe);
+        if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+        }
         throw new Error("Unable to access iframe document for printing.");
     }
 
-    // 3. Write basic HTML structure with Tailwind CDN and custom print CSS
+    // 4. Write basic HTML structure with Tailwind and offline print styles
     iframeDoc.open();
     iframeDoc.write(`
         <!DOCTYPE html>
@@ -40,14 +53,14 @@ export const printThermalReceipt = async (data: any) => {
                     -webkit-font-smoothing: none;
                 }
 
-                /* Force monospace globally in the iframe */
                 * {
+                    box-sizing: border-box;
                     font-family: 'Courier Prime', 'Courier New', Courier, monospace !important;
                 }
 
                 @media print {
                     @page {
-                        /* Standard 80mm thermal paper width. Length is auto. */
+                        /* Standard 80mm thermal paper width. Length is dynamic. */
                         size: 80mm auto;
                         margin: 0;
                     }
@@ -56,12 +69,10 @@ export const printThermalReceipt = async (data: any) => {
                         padding: 0;
                         width: 80mm;
                     }
-                    /* Ensure background graphics (watermarks/crumpled effects) print */
                     * {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
-                    /* Hide scrollbars */
                     ::-webkit-scrollbar {
                         display: none;
                     }
@@ -75,38 +86,35 @@ export const printThermalReceipt = async (data: any) => {
     `);
     iframeDoc.close();
 
-    // 4. Wait for styles to load (especially Tailwind and fonts)
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // 5. Wait for styles to settle
+    await new Promise(resolve => setTimeout(resolve, 400));
 
-    // 5. Render the React component into the iframe
+    // 6. Render the React component into the iframe
     const rootElement = iframeDoc.getElementById('receipt-root');
     if (rootElement) {
         const root = createRoot(rootElement);
-        // We wrap in a promise to wait for React to finish rendering
         await new Promise<void>((resolve) => {
             root.render(
-                <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '10px 5px' }}>
+                <div style={{ width: '100%', maxWidth: '320px', margin: '0 auto', padding: '10px 4px' }}>
                     <ThermalReceipt data={data} />
                 </div>
             );
-            // Give React a moment to flush to DOM
-            setTimeout(resolve, 100);
+            setTimeout(resolve, 150);
         });
     }
 
-    // 6. Trigger print dialog
+    // 7. Trigger print directly to printer
     try {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
     } catch (e) {
-        console.error("Print failed", e);
+        console.error("Thermal print error:", e);
     }
 
-    // 7. Cleanup after printing (or if user cancels)
-    // We add a slight delay to ensure the print dialog has fully opened before removing the iframe
+    // 8. Retain iframe for 60 seconds so print spooler completes buffering
     setTimeout(() => {
         if (document.body.contains(iframe)) {
             document.body.removeChild(iframe);
         }
-    }, 1000);
+    }, 60000);
 };

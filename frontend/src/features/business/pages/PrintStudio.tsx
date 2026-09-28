@@ -54,6 +54,7 @@ import {
     resolveDocumentDescriptor
 } from "@/utils/generateInvoicePDF";
 import { printThermalReceipt } from "@/utils/printThermalReceipt";
+import { printInvoiceDirectly, printPdfDirectly } from "@/utils/directPrint";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -1113,12 +1114,13 @@ const PrintStudioPage = () => {
         };
 
         if (selectedTheme === 'thermal') {
-            toast.success(`Preparing thermal POS receipt ${invoiceDetails.invoice_number}...`);
+            toast.loading(`Printing thermal POS receipt ${invoiceDetails.invoice_number}...`, { id: "ps-print" });
             await printThermalReceipt(invoiceDetails);
+            toast.success("Thermal receipt dispatched to printer!", { id: "ps-print" });
         } else {
-            toast.success(`Generating PDF via ${themeMeta[selectedTheme].name} template...`);
-            await generateInvoicePDF(invoiceDetails, { 
-                action: 'download', 
+            toast.loading(`Sending ${themeMeta[selectedTheme].name} invoice to printer...`, { id: "ps-print" });
+            await printInvoiceDirectly(invoiceDetails, { 
+                action: 'print', 
                 theme: selectedTheme as InvoicePdfTheme, 
                 documentType: selectedDocType,
                 pageSize, 
@@ -1132,7 +1134,63 @@ const PrintStudioPage = () => {
                 showItemTaxRateOnBill: showItemTaxRate,
                 showPartyPreviousBalance
             });
+            toast.success("Print job sent to printer machine!", { id: "ps-print" });
         }
+    };
+
+    const handleDownloadSale = async (sale: any) => {
+        const invoiceDetails: InvoiceDetails = {
+            invoice_number: sale.invoice_number || `DOC-${sale.id.slice(0, 6).toUpperCase()}`,
+            date: sale.date || sale.created_at,
+            due_date: sale.due_date,
+            status: sale.status,
+            amount_paid: sale.amount_paid,
+            balance_due: sale.balance_due,
+            payment_method: sale.payment_method,
+            customer_name: sale.customer_name,
+            customer_phone: sale.customer_phone,
+            customer_email: sale.customer_email,
+            customer_gstin: sale.customer_gstin,
+            items: sale.items || [],
+            subtotal: sale.subtotal || sale.total_amount,
+            discount_amount: sale.discount_amount || 0,
+            tax_rate: sale.tax_rate || 0,
+            tax_amount: sale.tax_amount || 0,
+            total_amount: sale.total_amount,
+            previous_balance: sale.previous_balance,
+            total_due_balance: sale.total_due_balance,
+            business_details: profile ? {
+                name: profile.business_name || profile.display_name || "My Business",
+                address: profile.business_address || undefined,
+                phone: profile.business_phone || profile.phone || undefined,
+                gst: profile.gst_number || undefined,
+                logo_url: profile.business_logo || undefined,
+                signature_url: profile.signature_url || undefined,
+                bank_name: activeBankAccount?.bankName,
+                bank_account_no: activeBankAccount?.accountNumber,
+                bank_ifsc: activeBankAccount?.ifscCode,
+                bank_branch: activeBankAccount?.branchName,
+                upi_id: printUpiQr ? (upiIdInput || profile?.upi_id || undefined) : undefined
+            } : undefined
+        };
+
+        toast.loading(`Downloading PDF...`, { id: "ps-download" });
+        await generateInvoicePDF(invoiceDetails, { 
+            action: 'download', 
+            theme: selectedTheme === 'thermal' ? 'startup-gradient' : selectedTheme as InvoicePdfTheme, 
+            documentType: selectedDocType,
+            pageSize, 
+            customTerms, 
+            fontSizeFactor,
+            printBankDetails,
+            bankDetails: activeBankAccount || undefined,
+            selectedBankAccountId: selectedBankId,
+            printUpiQr,
+            upiId: upiIdInput || profile?.upi_id,
+            showItemTaxRateOnBill: showItemTaxRate,
+            showPartyPreviousBalance
+        });
+        toast.success("Invoice downloaded!", { id: "ps-download" });
     };
 
     const { formatCurrency } = useCurrency();
@@ -1574,8 +1632,19 @@ const PrintStudioPage = () => {
                                     className="bg-primary hover:bg-primary/95 text-white font-bold rounded-lg text-xs h-8.5 px-3 flex items-center gap-1.5 flex-1 sm:flex-initial"
                                 >
                                     <Printer className="w-3.5 h-3.5" />
-                                    {selectedTheme === 'thermal' ? 'Print Thermal' : `Download ${resolveDocumentDescriptor(selectedDocType, undefined, activeSaleData?.invoice_number).title}`}
+                                    {selectedTheme === 'thermal' ? 'Print Thermal' : 'Print to Machine'}
                                 </Button>
+                                
+                                {selectedTheme !== 'thermal' && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => handleDownloadSale(activeSaleData)}
+                                        className="rounded-lg text-xs h-8.5 border-border flex items-center gap-1.5 flex-1 sm:flex-initial"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        Download PDF
+                                    </Button>
+                                )}
                                 
                                 {selectedTheme !== 'thermal' && (
                                     <Button
