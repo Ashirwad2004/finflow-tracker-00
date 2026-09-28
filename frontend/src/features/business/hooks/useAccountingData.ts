@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { sqliteService } from "@/core/offline/sqliteService";
+import { reportsApi } from "@/core/api/reports";
 import {
   startOfDay,
   endOfDay,
@@ -321,9 +322,45 @@ export function useAccountingData() {
   }, [allProducts]);
 
   // =========================================================================
+  // 1. Authoritative Server-side P&L Query
+  const { data: serverPnl } = useQuery({
+    queryKey: ["server-pnl", userId, activeDateRange.from?.toISOString(), activeDateRange.to?.toISOString()],
+    queryFn: async () => {
+      if (!userId || !navigator.onLine) return null;
+      try {
+        return await reportsApi.getProfitAndLoss({
+          start_date: activeDateRange.from ? activeDateRange.from.toISOString().split("T")[0] : undefined,
+          end_date: activeDateRange.to ? activeDateRange.to.toISOString().split("T")[0] : undefined,
+        });
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!userId,
+    staleTime: 60000,
+  });
+
+  // =========================================================================
   // 1. PROFIT AND LOSS STATEMENT (Schedule III / Ind AS Compliant)
   // =========================================================================
   const profitAndLoss = useMemo(() => {
+    if (serverPnl) {
+      return {
+        grossSalesRevenue: serverPnl.revenue_from_operations,
+        salesReturns: serverPnl.sales_returns,
+        netRevenue: serverPnl.net_revenue,
+        purchasesCost: serverPnl.purchases_cost,
+        directExpensesTotal: serverPnl.direct_expenses,
+        costOfGoodsSold: serverPnl.cost_of_goods_sold,
+        grossProfit: serverPnl.gross_profit,
+        grossProfitMarginPct: serverPnl.gross_profit_margin_pct,
+        indirectCategories: serverPnl.indirect_expenses || {},
+        indirectExpensesTotal: serverPnl.total_indirect_expenses,
+        netProfitBeforeTax: serverPnl.net_profit_before_tax,
+        netProfitMarginPct: serverPnl.net_profit_margin_pct,
+      };
+    }
+
     let grossSalesRevenue = 0;
     let salesReturns = 0;
     let directExpensesTotal = 0;
@@ -385,7 +422,7 @@ export function useAccountingData() {
       netProfitBeforeTax,
       netProfitMarginPct,
     };
-  }, [filteredSales, filteredPurchases, filteredExpenses]);
+  }, [filteredSales, filteredPurchases, filteredExpenses, serverPnl]);
 
   // =========================================================================
   // 2. BILL-WISE PROFIT REPORT

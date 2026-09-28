@@ -1,1 +1,1 @@
-# Schemas module initialization
+"""Pydantic schemas and request/response models."""

@@ -459,10 +459,11 @@ async def verify_payment(
         if payment.get("order_id"):
             supabase_client.table("online_orders").update({"status": "accepted"}).eq("id", payment["order_id"]).execute()
 
-        # Handle subscription logic
+        # Handle subscription logic - strictly enforce server-authoritative payment notes
         notes = payment.get("notes") or {}
-        plan_id = notes.get("planId") or payload.planId
-        if plan_id:
+        plan_id = notes.get("planId") or notes.get("plan_id")
+        allowed_plans = {"starter", "pro", "business", "premium"}
+        if plan_id and plan_id in allowed_plans:
             now = datetime.now(timezone.utc)
             # RupeeBill Business license: 6 months (183 days) for flat ₹299
             period_end = now + timedelta(days=183)

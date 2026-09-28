@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from fastapi import HTTPException, status
+from src.core.supabase import supabase_client
 from src.schemas.reports import (
     AgingBucket,
     BalanceSheetResponse,
@@ -780,3 +782,176 @@ class ReportsService:
             net_cash_generated=round(net_cash, 2),
             closing_cash_and_bank_estimate=round(closing_estimate, 2),
         )
+
+    # =========================================================================
+    # Authoritative Database Aggregation Methods (Multi-Tenant, Direct Query)
+    # =========================================================================
+
+    @staticmethod
+    def _fetch_tenant_data(store_id: str, table_name: str, start_date: Optional[str] = None, end_date: Optional[str] = None, date_col: str = "date") -> list[dict[str, Any]]:
+        if supabase_client is None:
+            return []
+        query = supabase_client.table(table_name).select("*").eq("user_id", store_id)
+        if start_date:
+            query = query.gte(date_col, start_date)
+        if end_date:
+            query = query.lte(date_col, end_date)
+        res = query.execute()
+        return getattr(res, "data", []) or []
+
+    @classmethod
+    def get_authoritative_profit_and_loss(cls, store_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> ProfitAndLossResponse:
+        sales = cls._fetch_tenant_data(store_id, "sales", start_date, end_date)
+        purchases = cls._fetch_tenant_data(store_id, "purchases", start_date, end_date)
+        expenses = cls._fetch_tenant_data(store_id, "expenses", start_date, end_date)
+        products = cls._fetch_tenant_data(store_id, "products")
+        return cls.generate_profit_and_loss(sales=sales, purchases=purchases, expenses=expenses, products=products)
+
+    @classmethod
+    def get_authoritative_trial_balance(cls, store_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> TrialBalanceResponse:
+        sales = cls._fetch_tenant_data(store_id, "sales", start_date, end_date)
+        purchases = cls._fetch_tenant_data(store_id, "purchases", start_date, end_date)
+        expenses = cls._fetch_tenant_data(store_id, "expenses", start_date, end_date)
+        products = cls._fetch_tenant_data(store_id, "products")
+        parties = cls._fetch_tenant_data(store_id, "parties")
+        lent = cls._fetch_tenant_data(store_id, "lent_money")
+        borrowed = cls._fetch_tenant_data(store_id, "borrowed_money")
+        return cls.generate_trial_balance(sales=sales, purchases=purchases, expenses=expenses, products=products, parties=parties, lent=lent, borrowed=borrowed)
+
+    @classmethod
+    def get_authoritative_balance_sheet(cls, store_id: str) -> BalanceSheetResponse:
+        sales = cls._fetch_tenant_data(store_id, "sales")
+        purchases = cls._fetch_tenant_data(store_id, "purchases")
+        expenses = cls._fetch_tenant_data(store_id, "expenses")
+        products = cls._fetch_tenant_data(store_id, "products")
+        parties = cls._fetch_tenant_data(store_id, "parties")
+        lent = cls._fetch_tenant_data(store_id, "lent_money")
+        borrowed = cls._fetch_tenant_data(store_id, "borrowed_money")
+        return cls.generate_balance_sheet(sales=sales, purchases=purchases, expenses=expenses, products=products, parties=parties, lent=lent, borrowed=borrowed)
+
+    @classmethod
+    def get_authoritative_receivables_aging(cls, store_id: str, ref_date: Optional[str] = None) -> ReceivablesAgingResponse:
+        sales = cls._fetch_tenant_data(store_id, "sales")
+        return cls.generate_receivables_aging(sales=sales, ref_date=ref_date)
+
+    @classmethod
+    def get_authoritative_sales_report(cls, store_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> dict[str, Any]:
+        sales = cls._fetch_tenant_data(store_id, "sales", start_date, end_date)
+        total_revenue = sum(float(s.get("total_amount") or 0.0) for s in sales if s.get("status") != "cancelled")
+        total_paid = sum(float(s.get("amount_paid") or 0.0) for s in sales if s.get("status") != "cancelled")
+        total_balance_due = sum(float(s.get("balance_due") or 0.0) for s in sales if s.get("status") != "cancelled")
+        total_tax = sum(float(s.get("tax_amount") or 0.0) for s in sales if s.get("status") != "cancelled")
+        paid_count = sum(1 for s in sales if s.get("status") == "paid")
+        partial_count = sum(1 for s in sales if s.get("status") == "partial")
+        pending_count = sum(1 for s in sales if s.get("status") == "pending")
+
+        return {
+            "period_start": start_date,
+            "period_end": end_date,
+            "total_invoices": len(sales),
+            "total_revenue": round(total_revenue, 2),
+            "total_collected": round(total_paid, 2),
+            "total_outstanding": round(total_balance_due, 2),
+            "total_tax_collected": round(total_tax, 2),
+            "paid_invoices_count": paid_count,
+            "partial_invoices_count": partial_count,
+            "pending_invoices_count": pending_count,
+            "invoices": sales,
+        }
+
+    @classmethod
+    def get_authoritative_purchases_report(cls, store_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> dict[str, Any]:
+        purchases = cls._fetch_tenant_data(store_id, "purchases", start_date, end_date)
+        total_cost = sum(float(p.get("total_amount") or 0.0) for p in purchases)
+        total_paid = sum(float(p.get("amount_paid") or 0.0) for p in purchases)
+        total_balance_due = sum(float(p.get("balance_due") or 0.0) for p in purchases)
+        total_tax = sum(float(p.get("tax_amount") or 0.0) for p in purchases)
+
+        return {
+            "period_start": start_date,
+            "period_end": end_date,
+            "total_bills": len(purchases),
+            "total_purchases_cost": round(total_cost, 2),
+            "total_paid": round(total_paid, 2),
+            "total_outstanding_payable": round(total_balance_due, 2),
+            "total_input_tax": round(total_tax, 2),
+            "bills": purchases,
+        }
+
+    @classmethod
+    def get_authoritative_party_ledger(cls, store_id: str, party_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> dict[str, Any]:
+        if supabase_client is None:
+            return {"party": None, "transactions": [], "opening_balance": 0.0, "closing_balance": 0.0}
+
+        party_res = supabase_client.table("parties").select("*").eq("id", party_id).eq("user_id", store_id).maybe_single().execute()
+        party = getattr(party_res, "data", None)
+        if not party:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Party not found or unauthorized")
+
+        sales_res = supabase_client.table("sales").select("*").eq("party_id", party_id).eq("user_id", store_id).order("date", desc=False).execute()
+        purchases_res = supabase_client.table("purchases").select("*").eq("party_id", party_id).eq("user_id", store_id).order("date", desc=False).execute()
+
+        sales = getattr(sales_res, "data", []) or []
+        purchases = getattr(purchases_res, "data", []) or []
+
+        open_bal = float(party.get("opening_balance") or 0.0)
+        is_receivable = party.get("opening_balance_type") == "to_receive" if party.get("opening_balance_type") else party.get("type") != "vendor"
+        running_bal = open_bal if is_receivable else -open_bal
+
+        transactions = []
+        for s in sales:
+            tot = float(s.get("total_amount") or 0.0)
+            paid = float(s.get("amount_paid") or (tot if s.get("status") == "paid" else 0.0))
+            doc_type = (s.get("document_type") or "invoice").lower()
+            if doc_type == "credit_note":
+                running_bal -= tot
+                debit = 0.0
+                credit = tot
+            elif doc_type == "debit_note":
+                running_bal += tot
+                debit = tot
+                credit = 0.0
+            elif doc_type == "receipt":
+                running_bal -= paid
+                debit = 0.0
+                credit = paid
+            else:
+                running_bal += tot - paid
+                debit = tot
+                credit = paid
+
+            transactions.append({
+                "id": str(s.get("id")),
+                "date": s.get("date"),
+                "voucher_type": doc_type.upper(),
+                "voucher_no": s.get("invoice_number"),
+                "debit": debit,
+                "credit": credit,
+                "balance": round(running_bal, 2),
+                "notes": s.get("notes"),
+            })
+
+        for p in purchases:
+            tot = float(p.get("total_amount") or 0.0)
+            paid = float(p.get("amount_paid") or (tot if p.get("status") == "paid" else 0.0))
+            running_bal -= (tot - paid)
+            transactions.append({
+                "id": str(p.get("id")),
+                "date": p.get("date"),
+                "voucher_type": "PURCHASE",
+                "voucher_no": p.get("bill_number"),
+                "debit": paid,
+                "credit": tot,
+                "balance": round(running_bal, 2),
+                "notes": p.get("notes"),
+            })
+
+        transactions.sort(key=lambda t: str(t.get("date") or ""))
+
+        return {
+            "party": party,
+            "opening_balance": round(open_bal if is_receivable else -open_bal, 2),
+            "closing_balance": round(running_bal, 2),
+            "total_transactions": len(transactions),
+            "transactions": transactions,
+        }

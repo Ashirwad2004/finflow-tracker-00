@@ -38,6 +38,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { offlineMutate } from "@/core/offline/apiService";
 import { supabase } from "@/core/integrations/supabase/client";
 import { sqliteService } from "@/core/offline/sqliteService";
+import { invoicesApi } from "@/core/api/invoices";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
 import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 import {
@@ -455,15 +456,32 @@ export function UniversalPaymentDialog({
           updatePayload.payment_method = paymentMethod;
         }
 
-        const { error } = await offlineMutate({
-          table: tableName,
-          action: "update",
-          recordId: activeBill.id,
-          payload: updatePayload,
-          userId: user.id,
-        });
+        let syncedViaApi = false;
+        if (isReceipt && navigator.onLine) {
+          try {
+            await invoicesApi.updateInvoice(activeBill.id, {
+              amount_paid: billSettlement.newAmountPaid,
+              status: billSettlement.newStatus,
+              payment_method: paymentMethod,
+              notes: encodedNotes,
+            });
+            syncedViaApi = true;
+          } catch (apiErr) {
+            console.warn("[PaymentDialog] Backend invoice update fallback to offlineMutate:", apiErr);
+          }
+        }
 
-        if (error) throw error;
+        if (!syncedViaApi) {
+          const { error } = await offlineMutate({
+            table: tableName,
+            action: "update",
+            recordId: activeBill.id,
+            payload: updatePayload,
+            userId: user.id,
+          });
+
+          if (error) throw error;
+        }
 
         // Optimistic query cache update
         const queryKey = [tableName, user.id];

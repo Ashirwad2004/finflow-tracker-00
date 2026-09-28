@@ -129,7 +129,7 @@ async def get_current_shift(
     shift_id = str(shift_item.get("id", ""))
     summary = None
     try:
-        summary = POSService.get_shift_summary(shift_id)
+        summary = POSService.get_shift_summary(shift_id, store_id=store_id)
     except Exception as exc:
         logger.warning("Could not compute dynamic summary for shift %s: %s", shift_id, exc)
         summary = {
@@ -154,7 +154,8 @@ async def get_shift_summary_endpoint(
     user_info: dict = Depends(get_current_user),
 ):
     """Dynamically calculates shift totals from immutable sales and cash transactions."""
-    return POSService.get_shift_summary(shift_id)
+    store_id, _ = _resolve_tenant_context(user_info)
+    return POSService.get_shift_summary(shift_id, store_id=store_id)
 
 
 @router.post("/cash-movements", status_code=status.HTTP_201_CREATED)
