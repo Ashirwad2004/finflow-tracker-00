@@ -2110,16 +2110,20 @@ export const CreateInvoiceDialog = ({
                 if (shouldSendWhatsApp) {
                     (async () => {
                         try {
+                            const curDue = Number(data.balance_due != null ? data.balance_due : Math.max(0, Number(data.total_amount || 0) - Number(data.amount_paid || 0)));
+                            const showPartyBalance = salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance ?? false;
+
                             const base64Uri = await generateInvoicePDF({
                                 invoice_number: data.invoice_number,
                                 date: data.date || data.created_at,
                                 due_date: data.due_date || undefined,
                                 status: data.status,
-                                amount_paid: data.amount_paid,
-                                balance_due: data.balance_due,
+                                amount_paid: Number(data.amount_paid ?? (data.status === "paid" ? data.total_amount : 0)),
+                                balance_due: curDue,
                                 payment_method: data.payment_method,
                                 previous_balance: data.previous_balance,
                                 total_due_balance: data.total_due_balance,
+                                party_pending_balance: (data as any).party_pending_balance ?? data.total_due_balance,
                                 customer_name: data.customer_name,
                                 customer_phone: data.customer_phone,
                                 customer_email: data.customer_email,
@@ -2132,10 +2136,11 @@ export const CreateInvoiceDialog = ({
                                     hsn_code: it.hsn_code,
                                     unit: it.unit,
                                 })),
-                                subtotal: data.subtotal,
-                                discount_amount: data.discount_amount || 0,
-                                tax_amount: data.tax_amount || 0,
+                                subtotal: data.subtotal ?? data.total_amount,
+                                discount_amount: data.discount_amount ?? 0,
+                                tax_amount: data.tax_amount ?? 0,
                                 total_amount: data.total_amount,
+                                tax_rate: (data as any).tax_rate ?? 0,
                                 notes: data.notes,
                                 business_details: profile ? {
                                     name: profile.business_name,
@@ -2145,7 +2150,7 @@ export const CreateInvoiceDialog = ({
                                     logo_url: profile.business_logo,
                                     signature_url: profile.signature_url,
                                 } : undefined,
-                            }, { action: "base64", documentType: "invoice", showPartyPreviousBalance: (salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance), showPartyPendingBalance: (salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance) });
+                            }, { action: "base64", documentType: "invoice", showPartyPreviousBalance: showPartyBalance, showPartyPendingBalance: showPartyBalance });
 
                             await sendInvoiceMutation.mutateAsync({
                                 invoice_id: data.id,

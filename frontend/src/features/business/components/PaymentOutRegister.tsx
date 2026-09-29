@@ -18,21 +18,30 @@ import {
   Filter,
   ArrowUpRight,
   Share2,
+  Printer,
+  Trash2,
 } from "lucide-react";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
 import {
   UnifiedPaymentTransaction,
   extractAllPaymentOutTransactions,
   getPaymentMethodDetails,
+  removePaymentVoucherFromBill,
   PaymentMethodType,
 } from "../utils/paymentTranscript";
 import { Button } from "@/components/ui/button";
+import { PaymentReceiptModal } from "./PaymentReceiptModal";
+import { PaymentReceiptDetails, generatePaymentReceiptPDF } from "@/utils/generatePaymentReceiptPDF";
 
 interface PaymentOutRegisterProps {
   purchases: any[];
   parties: any[];
+  profile?: any;
   onOpenRecordPaymentOut: () => void;
   onOpenTranscript?: (purchaseRecord: any) => void;
   onPreviewPurchase?: (purchaseRecord: any) => void;
@@ -41,17 +50,27 @@ interface PaymentOutRegisterProps {
 export function PaymentOutRegister({
   purchases,
   parties,
+  profile,
   onOpenRecordPaymentOut,
   onOpenTranscript,
   onPreviewPurchase,
 }: PaymentOutRegisterProps) {
   const { formatCurrency } = useCurrency();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "this_month" | "this_year">("all");
   const [modeFilter, setModeFilter] = useState<string>("all");
   const [selectedPartyFilter, setSelectedPartyFilter] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Voucher Modal State
+  const [activeReceiptModalData, setActiveReceiptModalData] = useState<{
+    data: PaymentReceiptDetails;
+    voucherId?: string;
+    linkedBillId?: string;
+  } | null>(null);
 
   // 1. Extract each and every payment out transaction across all vendors
   const allTransactions = useMemo(() => {
@@ -128,9 +147,186 @@ export function PaymentOutRegister({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Open Voucher Modal
+  const handleOpenReceiptModal = (tx: UnifiedPaymentTransaction, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const party = parties.find(
+      (p: any) =>
+        (tx.partyId && p.id === tx.partyId) ||
+        (p.name && p.name.trim().toLowerCase() === tx.partyName.trim().toLowerCase())
+    );
+
+    const linkedBillsList = tx.linkedBillNumber
+      ? [
+          {
+            billNumber: tx.linkedBillNumber,
+            date: tx.rawBillRecord?.date || tx.date,
+            totalAmount: Number(tx.rawBillRecord?.total_amount || tx.amount),
+            allocatedAmount: tx.amount,
+            remainingBalance: Number(tx.rawBillRecord?.balance_due || 0),
+          },
+        ]
+      : undefined;
+
+    const receiptDetails: PaymentReceiptDetails = {
+      voucherNumber: tx.voucherNumber,
+      type: "payment",
+      date: tx.date,
+      time: tx.time,
+      amount: tx.amount,
+      paymentMethod: tx.paymentMethod,
+      referenceNumber: tx.referenceNumber,
+      notes: tx.notes,
+      partyName: tx.partyName,
+      partyPhone: tx.partyPhone || party?.phone || null,
+      partyEmail: party?.email || null,
+      partyGstin: tx.partyGstin || party?.gst_number || null,
+      partyAddress: party?.address || null,
+      linkedBills: linkedBillsList,
+      businessDetails: profile
+        ? {
+            name: profile.business_name,
+            address: profile.business_address,
+            phone: profile.business_phone,
+            email: profile.email,
+            gst: profile.gst_number,
+            logo_url: profile.business_logo,
+          }
+        : undefined,
+    };
+
+    setActiveReceiptModalData({
+      data: receiptDetails,
+      voucherId: tx.id,
+      linkedBillId: tx.linkedBillId,
+    });
+  };
+
+  // Quick Direct Print
+  const handleQuickPrintReceipt = async (tx: UnifiedPaymentTransaction, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const party = parties.find(
+      (p: any) =>
+        (tx.partyId && p.id === tx.partyId) ||
+        (p.name && p.name.trim().toLowerCase() === tx.partyName.trim().toLowerCase())
+    );
+
+    const receiptDetails: PaymentReceiptDetails = {
+      voucherNumber: tx.voucherNumber,
+      type: "payment",
+      date: tx.date,
+      time: tx.time,
+      amount: tx.amount,
+      paymentMethod: tx.paymentMethod,
+      referenceNumber: tx.referenceNumber,
+      notes: tx.notes,
+      partyName: tx.partyName,
+      partyPhone: tx.partyPhone || party?.phone || null,
+      partyEmail: party?.email || null,
+      partyGstin: tx.partyGstin || party?.gst_number || null,
+      partyAddress: party?.address || null,
+      linkedBills: tx.linkedBillNumber
+        ? [
+            {
+              billNumber: tx.linkedBillNumber,
+              date: tx.rawBillRecord?.date || tx.date,
+              totalAmount: Number(tx.rawBillRecord?.total_amount || tx.amount),
+              allocatedAmount: tx.amount,
+              remainingBalance: Number(tx.rawBillRecord?.balance_due || 0),
+            },
+          ]
+        : undefined,
+      businessDetails: profile
+        ? {
+            name: profile.business_name,
+            address: profile.business_address,
+            phone: profile.business_phone,
+            email: profile.email,
+            gst: profile.gst_number,
+            logo_url: profile.business_logo,
+          }
+        : undefined,
+    };
+
+    try {
+      toast.loading(`Printing voucher ${tx.voucherNumber}...`, { id: "quick-print-vch" });
+      await generatePaymentReceiptPDF(receiptDetails, { action: "print" });
+      toast.success("Voucher sent to printer!", { id: "quick-print-vch" });
+    } catch (err: any) {
+      toast.error("Print failed: " + err?.message, { id: "quick-print-vch" });
+    }
+  };
+
+  // Void / Delete Voucher with Ledger Reversal
+  const handleDeleteVoucher = async (
+    voucherNo: string,
+    voucherId?: string,
+    _linkedBillId?: string
+  ) => {
+    if (!user?.id) return;
+    const targetTx = allTransactions.find(
+      (tx) => tx.voucherNumber === voucherNo || tx.id === voucherId
+    );
+    if (!targetTx) return;
+
+    const raw = targetTx.rawBillRecord;
+    if (!raw) return;
+
+    if (targetTx.linkedBillId && !targetTx.isWithoutBill) {
+      // Revert voucher from linked purchase bill
+      const { updatedNotes, newAmountPaid, newBalanceDue, newStatus } =
+        removePaymentVoucherFromBill(raw.notes, targetTx.id || voucherNo, {
+          total_amount: Number(raw.total_amount || 0),
+          amount_paid: Number(raw.amount_paid || 0),
+          balance_due: Number(raw.balance_due || 0),
+          status: raw.status,
+          date: raw.date,
+          due_date: raw.due_date,
+          type: "purchase",
+        });
+
+      const updatePayload = {
+        ...raw,
+        notes: updatedNotes,
+        amount_paid: newAmountPaid,
+        balance_due: newBalanceDue,
+        status: newStatus,
+      };
+
+      await offlineMutate({
+        table: "purchases",
+        action: "update",
+        recordId: raw.id,
+        payload: updatePayload,
+        userId: user.id,
+      });
+
+      queryClient.setQueryData(["purchases", user.id], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((p: any) => (p.id === raw.id ? { ...p, ...updatePayload } : p));
+      });
+    } else {
+      // Standalone on-account payment: delete row
+      await offlineMutate({
+        table: "purchases",
+        action: "delete",
+        recordId: raw.id,
+        userId: user.id,
+      });
+
+      queryClient.setQueryData(["purchases", user.id], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((p: any) => p.id !== raw.id);
+      });
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["purchases", user.id] });
+    queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
+  };
+
   return (
     <div className="space-y-4">
-      {/* Top Metrics Strip (FinFlow Style) */}
+      {/* Top Metrics Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between">
           <div>
@@ -141,7 +337,7 @@ export function PaymentOutRegister({
               {formatCurrency(metrics.totalAmount)}
             </p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              {metrics.count} total vendor disbursements
+              {metrics.count} total disbursements
             </p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
@@ -152,12 +348,12 @@ export function PaymentOutRegister({
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Paid in Cash
+              Cash Paid
             </p>
             <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
               {formatCurrency(metrics.cashAmount)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Physical Cash Paid</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Paid in Cash</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
             <Banknote className="w-5 h-5" />
@@ -167,28 +363,28 @@ export function PaymentOutRegister({
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Bank & Online / UPI
+              Bank & Online Paid
             </p>
             <p className="text-xl font-black text-purple-600 dark:text-purple-400 mt-0.5">
               {formatCurrency(metrics.onlineAmount)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Bank Transfers / UPI</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">NEFT / RTGS / UPI</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
             <QrCode className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-4 rounded-xl text-white shadow-sm flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-indigo-600 to-slate-800 p-4 rounded-xl text-white shadow-sm flex flex-col justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-100 block">
               Quick Action
             </span>
-            <p className="text-sm font-extrabold text-white mt-0.5">Record Payment Out</p>
+            <p className="text-sm font-extrabold text-white mt-0.5">Record New Payment Out</p>
           </div>
           <button
             onClick={onOpenRecordPaymentOut}
-            className="mt-2 w-full py-1.5 px-3 bg-white text-indigo-700 hover:bg-indigo-50 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all"
+            className="mt-2 w-full py-1.5 px-3 bg-white text-indigo-700 hover:bg-indigo-50 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Add Payment Out</span>
@@ -252,10 +448,10 @@ export function PaymentOutRegister({
             ))}
           </select>
 
-          {/* Big Indigo Action Button */}
+          {/* Action Button */}
           <Button
             onClick={onOpenRecordPaymentOut}
-            className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
+            className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Payment Out</span>
@@ -263,7 +459,7 @@ export function PaymentOutRegister({
         </div>
       </div>
 
-      {/* FinFlow-Style Transactions Table */}
+      {/* Transactions Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -271,7 +467,7 @@ export function PaymentOutRegister({
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <th className="px-4 py-3">Date & Time</th>
                 <th className="px-4 py-3">Payment Voucher #</th>
-                <th className="px-4 py-3">Party / Vendor</th>
+                <th className="px-4 py-3">Vendor / Supplier</th>
                 <th className="px-4 py-3">Payment Mode</th>
                 <th className="px-4 py-3">Settlement Type</th>
                 <th className="px-4 py-3">Reference / Narration</th>
@@ -313,7 +509,8 @@ export function PaymentOutRegister({
                   return (
                     <tr
                       key={tx.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group"
+                      onClick={() => handleOpenReceiptModal(tx)}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer"
                     >
                       {/* Date & Time */}
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -345,10 +542,10 @@ export function PaymentOutRegister({
                         </div>
                       </td>
 
-                      {/* Party Name */}
+                      {/* Vendor Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 flex items-center justify-center font-bold text-[11px] shrink-0">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 flex items-center justify-center font-bold text-[11px] shrink-0">
                             {tx.partyName.substring(0, 2).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -381,7 +578,7 @@ export function PaymentOutRegister({
                       {/* Settlement Type */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {tx.isWithoutBill || !tx.linkedBillNumber ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                             On Account / Advance
                           </span>
                         ) : (
@@ -408,20 +605,30 @@ export function PaymentOutRegister({
                       {/* Actions */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
-                          {tx.rawBillRecord && onOpenTranscript && (
-                            <button
-                              onClick={() => onOpenTranscript(tx.rawBillRecord)}
-                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                              title="View Payment Transcript / Ledger"
-                            >
-                              <Receipt className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => handleOpenReceiptModal(tx, e)}
+                            className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded text-slate-400 hover:text-indigo-600 transition-colors"
+                            title="View Payment Voucher"
+                          >
+                            <Receipt className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={(e) => handleQuickPrintReceipt(tx, e)}
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                            title="Direct Print Voucher"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+
                           {tx.rawBillRecord && onPreviewPurchase && (
                             <button
-                              onClick={() => onPreviewPurchase(tx.rawBillRecord)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPreviewPurchase(tx.rawBillRecord);
+                              }}
                               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-colors"
-                              title="Preview Document PDF"
+                              title="Preview Linked Bill PDF"
                             >
                               <FileText className="w-4 h-4" />
                             </button>
@@ -436,6 +643,18 @@ export function PaymentOutRegister({
           </table>
         </div>
       </div>
+
+      {/* Payment Voucher Modal */}
+      {activeReceiptModalData && (
+        <PaymentReceiptModal
+          open={!!activeReceiptModalData}
+          onOpenChange={(isOpen) => !isOpen && setActiveReceiptModalData(null)}
+          receiptData={activeReceiptModalData.data}
+          voucherId={activeReceiptModalData.voucherId}
+          linkedBillId={activeReceiptModalData.linkedBillId}
+          onDeleteVoucher={handleDeleteVoucher}
+        />
+      )}
     </div>
   );
 }

@@ -77,6 +77,9 @@ import { PartyImportExportDialog } from "../components/PartyImportExportDialog";
 import { CreateInvoiceDialog } from "../components/CreateInvoiceDialog";
 import { RecordPurchaseDialog } from "../components/RecordPurchaseDialog";
 import { TableLoadingRows } from "@/components/shared/PageStates";
+import { UniversalPaymentDialog } from "../components/UniversalPaymentDialog";
+import { PaymentReceiptModal, PaymentReceiptDetails } from "../components/PaymentReceiptModal";
+import { parsePaymentNotes } from "../utils/paymentTranscript";
 
 export type SettlementType = "sale" | "purchase";
 
@@ -152,6 +155,15 @@ const PartiesPage = () => {
     const [paymentNotes, setPaymentNotes] = useState<string>("");
     const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
+    // Universal Multi-Bill Settlement & Advance Voucher Dialog States
+    const [isUniversalPaymentOpen, setIsUniversalPaymentOpen] = useState(false);
+    const [universalPaymentType, setUniversalPaymentType] = useState<"in" | "out">("in");
+    const [universalPaymentBillId, setUniversalPaymentBillId] = useState<string | undefined>(undefined);
+
+    // View Voucher / Receipt Details Modal
+    const [selectedVoucherForView, setSelectedVoucherForView] = useState<PaymentReceiptDetails | null>(null);
+    const [isViewVoucherOpen, setIsViewVoucherOpen] = useState(false);
 
     // Delete Alert States
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -511,15 +523,16 @@ const PartiesPage = () => {
         activePartyMetrics.partySales.forEach((s: any) => {
             const currentPaid = Number(s.amount_paid || (s.status === 'paid' ? s.total_amount : 0));
             const balDue = Number(s.balance_due != null ? s.balance_due : (s.status === 'paid' ? 0 : Math.max(0, (Number(s.total_amount) || 0) - currentPaid)));
+            const isReceiptDoc = (s.document_type || '').toLowerCase() === 'receipt';
             list.push({
                 id: s.id,
-                docType: 'sale',
-                docNumber: s.invoice_number || 'INV',
+                docType: isReceiptDoc ? 'receipt' : 'sale',
+                docNumber: s.invoice_number || (isReceiptDoc ? 'REC' : 'INV'),
                 date: s.date || s.created_at,
                 total: Number(s.total_amount) || 0,
-                paid: currentPaid,
-                balanceDue: balDue,
-                status: s.status,
+                paid: isReceiptDoc ? Number(s.total_amount) : currentPaid,
+                balanceDue: isReceiptDoc ? 0 : balDue,
+                status: isReceiptDoc ? 'paid' : s.status,
                 raw: s
             });
         });
@@ -527,15 +540,16 @@ const PartiesPage = () => {
         activePartyMetrics.partyPurchases.forEach((p: any) => {
             const currentPaid = Number(p.amount_paid || (p.status === 'paid' ? p.total_amount : 0));
             const balDue = Number(p.balance_due != null ? p.balance_due : (p.status === 'paid' ? 0 : Math.max(0, (Number(p.total_amount) || 0) - currentPaid)));
+            const isPaymentDoc = (p.document_type || '').toLowerCase() === 'payment';
             list.push({
                 id: p.id,
-                docType: 'purchase',
-                docNumber: p.bill_number || 'BILL',
+                docType: isPaymentDoc ? 'payment' : 'purchase',
+                docNumber: p.bill_number || (isPaymentDoc ? 'PMT' : 'BILL'),
                 date: p.date || p.created_at,
                 total: Number(p.total_amount) || 0,
-                paid: currentPaid,
-                balanceDue: balDue,
-                status: p.status,
+                paid: isPaymentDoc ? Number(p.total_amount) : currentPaid,
+                balanceDue: isPaymentDoc ? 0 : balDue,
+                status: isPaymentDoc ? 'paid' : p.status,
                 raw: p
             });
         });
@@ -561,8 +575,8 @@ const PartiesPage = () => {
 
         list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        if (activeTab === "sales") return list.filter(t => t.docType === 'sale' || (t.docType === 'opening_balance' && t.isReceivable));
-        if (activeTab === "purchases") return list.filter(t => t.docType === 'purchase' || (t.docType === 'opening_balance' && !t.isReceivable));
+        if (activeTab === "sales") return list.filter(t => t.docType === 'sale' || t.docType === 'receipt' || (t.docType === 'opening_balance' && t.isReceivable));
+        if (activeTab === "purchases") return list.filter(t => t.docType === 'purchase' || t.docType === 'payment' || (t.docType === 'opening_balance' && !t.isReceivable));
         return list;
     }, [activeParty, activePartyMetrics, activeTab]);
 
@@ -732,6 +746,43 @@ const PartiesPage = () => {
             toast({ title: "Error deleting party", description: error.message, variant: "destructive" });
         }
     });
+
+    // Open Universal Multi-Bill Settlement or Advance Payment Dialog
+    const handleOpenUniversalPayment = (type: "in" | "out", billId?: string) => {
+        setUniversalPaymentType(type);
+        setUniversalPaymentBillId(billId);
+        setIsUniversalPaymentOpen(true);
+    };
+
+    // Open Payment Receipt / Voucher Modal for preview, printing, download, or sharing
+    const handleViewPartyVoucher = (txn: any) => {
+        const raw = txn.raw;
+        if (!raw) return;
+        const isReceipt = txn.docType === 'receipt';
+        const notesParsed = parsePaymentNotes(raw.notes);
+        const voucher: PaymentReceiptDetails = {
+            voucherNumber: raw.invoice_number || raw.bill_number || (isReceipt ? 'REC-001' : 'PMT-001'),
+            date: raw.date || raw.created_at,
+            type: isReceipt ? 'receipt' : 'payment',
+            partyName: activeParty?.name || raw.customer_name || raw.vendor_name || 'Party',
+            partyPhone: activeParty?.phone || raw.customer_phone || undefined,
+            partyGstin: activeParty?.gst_number || undefined,
+            amount: Number(raw.total_amount) || Number(raw.amount_paid) || 0,
+            paymentMethod: raw.payment_method || 'cash',
+            referenceNumber: notesParsed.referenceNumber,
+            notes: notesParsed.notes,
+            partyCurrentBalance: activePartyMetrics ? (isReceipt ? activePartyMetrics.receivable : activePartyMetrics.payable) : undefined,
+            businessDetails: profile ? {
+                name: (profile as any).business_name,
+                address: (profile as any).business_address,
+                phone: (profile as any).business_phone,
+                gst: (profile as any).gst_number,
+                logo_url: (profile as any).business_logo
+            } : undefined
+        };
+        setSelectedVoucherForView(voucher);
+        setIsViewVoucherOpen(true);
+    };
 
     // Unified Settlement recording inside Party Statement (Receive Collections & Pay Bills)
     const handleOpenSettlement = (item: any, type: SettlementType) => {
@@ -934,8 +985,8 @@ const PartiesPage = () => {
             date: invoice.date || invoice.created_at,
             due_date: invoice.due_date,
             status: invoice.status,
-            amount_paid: invoice.amount_paid,
-            balance_due: invoice.balance_due,
+            amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+            balance_due: curDue,
             payment_method: invoice.payment_method,
             previous_balance: prevBal,
             total_due_balance: partyTotalDue,
@@ -952,11 +1003,11 @@ const PartiesPage = () => {
                 hsn_code: item.hsn_code,
                 unit: item.unit,
             })),
-            subtotal: invoice.subtotal || invoice.total_amount,
-            discount_amount: invoice.discount_amount || 0,
-            tax_amount: invoice.tax_amount || 0,
+            subtotal: invoice.subtotal ?? invoice.total_amount,
+            discount_amount: invoice.discount_amount ?? 0,
+            tax_amount: invoice.tax_amount ?? 0,
             total_amount: invoice.total_amount,
-            tax_rate: invoice.tax_rate || 0,
+            tax_rate: invoice.tax_rate ?? 0,
             irn: invoice.irn,
             eway_bill_number: invoice.eway_bill_number,
             qr_code: invoice.qr_code,
@@ -986,8 +1037,8 @@ const PartiesPage = () => {
             date: invoice.date || invoice.created_at,
             due_date: invoice.due_date,
             status: invoice.status,
-            amount_paid: invoice.amount_paid,
-            balance_due: invoice.balance_due,
+            amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+            balance_due: curDue,
             payment_method: invoice.payment_method,
             previous_balance: prevBal,
             total_due_balance: partyTotalDue,
@@ -1004,11 +1055,11 @@ const PartiesPage = () => {
                 hsn_code: item.hsn_code,
                 unit: item.unit,
             })),
-            subtotal: invoice.subtotal || invoice.total_amount,
-            discount_amount: invoice.discount_amount || 0,
-            tax_amount: invoice.tax_amount || 0,
+            subtotal: invoice.subtotal ?? invoice.total_amount,
+            discount_amount: invoice.discount_amount ?? 0,
+            tax_amount: invoice.tax_amount ?? 0,
             total_amount: invoice.total_amount,
-            tax_rate: invoice.tax_rate || 0,
+            tax_rate: invoice.tax_rate ?? 0,
             irn: invoice.irn,
             eway_bill_number: invoice.eway_bill_number,
             qr_code: invoice.qr_code,
@@ -1028,13 +1079,14 @@ const PartiesPage = () => {
     };
 
     const handleDownloadPurchasePDF = (purchase: any) => {
+        const curDue = Number(purchase.balance_due != null ? purchase.balance_due : Math.max(0, Number(purchase.total_amount || 0) - Number(purchase.amount_paid || 0)));
         generateInvoicePDF({
             invoice_number: purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`,
             date: purchase.date || purchase.created_at,
             due_date: purchase.due_date,
             status: purchase.status,
-            amount_paid: purchase.amount_paid,
-            balance_due: purchase.balance_due,
+            amount_paid: Number(purchase.amount_paid ?? (purchase.status === "paid" ? purchase.total_amount : 0)),
+            balance_due: curDue,
             payment_method: "cash",
             customer_name: purchase.vendor_name || activeParty?.name || "Vendor",
             customer_phone: purchase.vendor_phone || activeParty?.phone,
@@ -1048,11 +1100,11 @@ const PartiesPage = () => {
                 hsn_code: item.hsn_code,
                 unit: item.unit,
             })),
-            subtotal: purchase.subtotal || purchase.total_amount,
-            discount_amount: purchase.discount_amount || 0,
-            tax_amount: purchase.tax_amount || 0,
+            subtotal: purchase.subtotal ?? purchase.total_amount,
+            discount_amount: purchase.discount_amount ?? 0,
+            tax_amount: purchase.tax_amount ?? 0,
             total_amount: purchase.total_amount,
-            tax_rate: purchase.tax_rate || 0,
+            tax_rate: purchase.tax_rate ?? 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -1065,13 +1117,14 @@ const PartiesPage = () => {
     };
 
     const handlePreviewPurchasePDF = async (purchase: any) => {
+        const curDue = Number(purchase.balance_due != null ? purchase.balance_due : Math.max(0, Number(purchase.total_amount || 0) - Number(purchase.amount_paid || 0)));
         const url = await generateInvoicePDF({
             invoice_number: purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`,
             date: purchase.date || purchase.created_at,
             due_date: purchase.due_date,
             status: purchase.status,
-            amount_paid: purchase.amount_paid,
-            balance_due: purchase.balance_due,
+            amount_paid: Number(purchase.amount_paid ?? (purchase.status === "paid" ? purchase.total_amount : 0)),
+            balance_due: curDue,
             payment_method: "cash",
             customer_name: purchase.vendor_name || activeParty?.name || "Vendor",
             customer_phone: purchase.vendor_phone || activeParty?.phone,
@@ -1085,11 +1138,11 @@ const PartiesPage = () => {
                 hsn_code: item.hsn_code,
                 unit: item.unit,
             })),
-            subtotal: purchase.subtotal || purchase.total_amount,
-            discount_amount: purchase.discount_amount || 0,
-            tax_amount: purchase.tax_amount || 0,
+            subtotal: purchase.subtotal ?? purchase.total_amount,
+            discount_amount: purchase.discount_amount ?? 0,
+            tax_amount: purchase.tax_amount ?? 0,
             total_amount: purchase.total_amount,
-            tax_rate: purchase.tax_rate || 0,
+            tax_rate: purchase.tax_rate ?? 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -1508,28 +1561,29 @@ const PartiesPage = () => {
 
                                         {/* Action Buttons (Clean & Proportional - Never Overflowing) */}
                                         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                                            {/* Settlement Button */}
-                                            {activePartyMetrics.receivable > 0 && (
+                                            {/* Payment In (Customer Collection / Advance Receipt) */}
+                                            {activeParty.type !== 'vendor' && (
                                                 <Button
                                                     size="sm"
-                                                    onClick={handleQuickReceivePartyPayment}
+                                                    onClick={() => handleOpenUniversalPayment("in")}
                                                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
-                                                    title={`Receive Payment from ${activeParty.name}`}
+                                                    title={`Record Payment In / Collection from ${activeParty.name}`}
                                                 >
                                                     <ArrowDownLeft className="w-3.5 h-3.5" />
-                                                    <span>Receive Money</span>
+                                                    <span>+ Payment In</span>
                                                 </Button>
                                             )}
 
-                                            {activePartyMetrics.payable > 0 && (
+                                            {/* Payment Out (Supplier Disbursement / Advance Payment) */}
+                                            {activeParty.type !== 'customer' && (
                                                 <Button
                                                     size="sm"
-                                                    onClick={handleQuickPayVendor}
+                                                    onClick={() => handleOpenUniversalPayment("out")}
                                                     className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
-                                                    title={`Pay Vendor ${activeParty.name}`}
+                                                    title={`Record Payment Out / Disbursement to ${activeParty.name}`}
                                                 >
                                                     <ArrowUpRight className="w-3.5 h-3.5" />
-                                                    <span>Pay Vendor</span>
+                                                    <span>+ Payment Out</span>
                                                 </Button>
                                             )}
 
@@ -1783,6 +1837,9 @@ const PartiesPage = () => {
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                                                         {activePartyTransactions.map((txn: any) => {
                                                             const isSale = txn.docType === 'sale';
+                                                            const isPurchase = txn.docType === 'purchase';
+                                                            const isReceipt = txn.docType === 'receipt';
+                                                            const isPayment = txn.docType === 'payment';
                                                             const isOpening = txn.docType === 'opening_balance';
                                                             const isFullyPaid = isOpening ? false : (txn.status === 'paid' || txn.balanceDue <= 0);
                                                             const isPartial = isOpening ? false : (txn.status === 'partial' || (txn.paid > 0 && txn.balanceDue > 0));
@@ -1799,11 +1856,15 @@ const PartiesPage = () => {
                                                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${
                                                                             isOpening
                                                                                 ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                                                                : isReceipt
+                                                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                                                : isPayment
+                                                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
                                                                                 : isSale
                                                                                 ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
                                                                                 : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                                                                         }`}>
-                                                                            {isOpening ? 'Opening' : isSale ? 'Sale' : 'Purchase'}
+                                                                            {isOpening ? 'Opening' : isReceipt ? 'Payment In' : isPayment ? 'Payment Out' : isSale ? 'Sale' : 'Purchase'}
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-2.5 py-2 text-right font-black font-mono text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
@@ -1829,6 +1890,10 @@ const PartiesPage = () => {
                                                                                     : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
                                                                             }`}>
                                                                                 {txn.isReceivable ? 'To Collect' : 'To Pay'}
+                                                                            </span>
+                                                                        ) : (isReceipt || isPayment) ? (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
+                                                                                Settled
                                                                             </span>
                                                                         ) : (
                                                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
@@ -1856,28 +1921,42 @@ const PartiesPage = () => {
                                                                                 </Button>
                                                                             )}
 
-                                                                            {/* Quick Settlement Button */}
+                                                                            {/* Quick Multi-Bill Settlement Buttons */}
                                                                             {!isOpening && isSale && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
-                                                                                    onClick={() => handleOpenSettlement(txn.raw, "sale")}
+                                                                                    onClick={() => handleOpenUniversalPayment("in", txn.raw.id)}
                                                                                     className="h-6 sm:h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs flex items-center gap-0.5"
-                                                                                    title={`Receive payment from ${activeParty?.name || 'Customer'}`}
+                                                                                    title={`Receive payment for #${txn.docNumber}`}
                                                                                 >
                                                                                     <ArrowDownLeft className="w-3 h-3" />
                                                                                     <span>Receive</span>
                                                                                 </Button>
                                                                             )}
 
-                                                                            {!isOpening && !isSale && txn.balanceDue > 0 && (
+                                                                            {!isOpening && isPurchase && txn.balanceDue > 0 && (
                                                                                 <Button
                                                                                     size="sm"
-                                                                                    onClick={() => handleOpenSettlement(txn.raw, "purchase")}
+                                                                                    onClick={() => handleOpenUniversalPayment("out", txn.raw.id)}
                                                                                     className="h-6 sm:h-7 px-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs flex items-center gap-0.5"
-                                                                                    title={`Pay vendor ${activeParty?.name || 'Supplier'}`}
+                                                                                    title={`Pay bill #${txn.docNumber}`}
                                                                                 >
                                                                                     <ArrowUpRight className="w-3 h-3" />
                                                                                     <span>Pay</span>
+                                                                                </Button>
+                                                                            )}
+
+                                                                            {/* View Voucher / Receipt Button for Payment In / Out */}
+                                                                            {(isReceipt || isPayment) && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="outline"
+                                                                                    onClick={() => handleViewPartyVoucher(txn)}
+                                                                                    className="h-6 sm:h-7 px-2 text-[10px] sm:text-[11px] font-semibold flex items-center gap-1 border-slate-300 dark:border-slate-700"
+                                                                                    title={isReceipt ? "View Payment Receipt" : "View Payment Voucher"}
+                                                                                >
+                                                                                    <Eye className="w-3 h-3 text-slate-500" />
+                                                                                    <span>Receipt</span>
                                                                                 </Button>
                                                                             )}
 
@@ -1895,20 +1974,32 @@ const PartiesPage = () => {
                                                                                         </Button>
                                                                                     </DropdownMenuTrigger>
                                                                                     <DropdownMenuContent align="end" className="w-36 text-xs">
-                                                                                        <DropdownMenuItem
-                                                                                            onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
-                                                                                            className="cursor-pointer py-1.5"
-                                                                                        >
-                                                                                            <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                                                                                            <span>View PDF</span>
-                                                                                        </DropdownMenuItem>
-                                                                                        <DropdownMenuItem
-                                                                                            onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
-                                                                                            className="cursor-pointer py-1.5"
-                                                                                        >
-                                                                                            <Download className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                                                                                            <span>Download</span>
-                                                                                        </DropdownMenuItem>
+                                                                                        {(isReceipt || isPayment) ? (
+                                                                                            <DropdownMenuItem
+                                                                                                onClick={() => handleViewPartyVoucher(txn)}
+                                                                                                className="cursor-pointer py-1.5"
+                                                                                            >
+                                                                                                <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                                                                                <span>View Receipt</span>
+                                                                                            </DropdownMenuItem>
+                                                                                        ) : (
+                                                                                            <>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
+                                                                                                    className="cursor-pointer py-1.5"
+                                                                                                >
+                                                                                                    <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                                                                                    <span>View PDF</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
+                                                                                                    className="cursor-pointer py-1.5"
+                                                                                                >
+                                                                                                    <Download className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                                                                                    <span>Download</span>
+                                                                                                </DropdownMenuItem>
+                                                                                            </>
+                                                                                        )}
                                                                                     </DropdownMenuContent>
                                                                                 </DropdownMenu>
                                                                             )}
@@ -2142,6 +2233,31 @@ const PartiesPage = () => {
                         })()}
                     </DialogContent>
                 </Dialog>
+
+                {/* Enterprise Multi-Bill Settlement & Advance Voucher Dialog */}
+                <UniversalPaymentDialog
+                    open={isUniversalPaymentOpen}
+                    onOpenChange={setIsUniversalPaymentOpen}
+                    mode={universalPaymentType === "in" ? "payment_in" : "payment_out"}
+                    initialType={universalPaymentType}
+                    initialPartyId={activeParty?.id}
+                    initialBillId={universalPaymentBillId}
+                    onSuccess={() => {
+                        if (user?.id) {
+                            queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
+                            queryClient.invalidateQueries({ queryKey: ["purchases", user.id] });
+                            queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
+                        }
+                    }}
+                />
+
+                {/* View Voucher / Receipt Details Modal */}
+                <PaymentReceiptModal
+                    open={isViewVoucherOpen}
+                    onOpenChange={setIsViewVoucherOpen}
+                    receiptData={selectedVoucherForView}
+                    voucher={selectedVoucherForView}
+                />
 
                 {/* Delete Confirmation Alert */}
                 <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

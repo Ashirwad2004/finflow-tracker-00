@@ -227,23 +227,28 @@ export default function PurchasesPage() {
     const handlePreview = async (purchase: Purchase) => {
         // Map purchase fields to invoice generator
         const billNumber = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
+        const curDue = Number(
+            purchase.balance_due != null
+                ? purchase.balance_due
+                : Math.max(0, Number(purchase.total_amount || 0) - Number(purchase.amount_paid ?? 0))
+        );
         const url = await generateInvoicePDF({
             invoice_number: billNumber,
             date: purchase.date || (purchase as any).created_at,
             due_date: purchase.due_date,
             status: purchase.status,
-            amount_paid: purchase.amount_paid,
-            balance_due: purchase.balance_due,
+            amount_paid: Number(purchase.amount_paid ?? (purchase.status === "paid" ? purchase.total_amount : 0)),
+            balance_due: curDue,
             customer_name: purchase.vendor_name, // Mapping Vendor to Customer field in the PDF
             customer_phone: purchase.vendor_phone,
             customer_email: purchase.vendor_email,
             customer_gstin: purchase.vendor_gstin,
             items: purchase.items || [],
-            subtotal: purchase.subtotal || purchase.total_amount,
-            discount_amount: purchase.discount_amount || 0,
-            tax_amount: purchase.tax_amount || 0,
+            subtotal: purchase.subtotal ?? purchase.total_amount,
+            discount_amount: purchase.discount_amount ?? 0,
+            tax_amount: purchase.tax_amount ?? 0,
             total_amount: purchase.total_amount,
-            tax_rate: purchase.tax_rate || 0,
+            tax_rate: purchase.tax_rate ?? 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -261,6 +266,11 @@ export default function PurchasesPage() {
 
     const handlePrint = async (purchase: Purchase) => {
         const billNumber = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
+        const curDue = Number(
+            purchase.balance_due != null
+                ? purchase.balance_due
+                : Math.max(0, Number(purchase.total_amount || 0) - Number(purchase.amount_paid ?? 0))
+        );
         try {
             toast.loading("Sending purchase bill to printer...", { id: "print-purchase" });
             await printInvoiceDirectly({
@@ -268,18 +278,18 @@ export default function PurchasesPage() {
                 date: purchase.date || (purchase as any).created_at,
                 due_date: purchase.due_date,
                 status: purchase.status,
-                amount_paid: purchase.amount_paid,
-                balance_due: purchase.balance_due,
+                amount_paid: Number(purchase.amount_paid ?? (purchase.status === "paid" ? purchase.total_amount : 0)),
+                balance_due: curDue,
                 customer_name: purchase.vendor_name,
                 customer_phone: purchase.vendor_phone,
                 customer_email: purchase.vendor_email,
                 customer_gstin: purchase.vendor_gstin,
                 items: purchase.items || [],
-                subtotal: purchase.subtotal || purchase.total_amount,
-                discount_amount: purchase.discount_amount || 0,
-                tax_amount: purchase.tax_amount || 0,
+                subtotal: purchase.subtotal ?? purchase.total_amount,
+                discount_amount: purchase.discount_amount ?? 0,
+                tax_amount: purchase.tax_amount ?? 0,
                 total_amount: purchase.total_amount,
-                tax_rate: purchase.tax_rate || 0,
+                tax_rate: purchase.tax_rate ?? 0,
                 business_details: profile ? {
                     name: (profile as any).business_name,
                     address: (profile as any).business_address,
@@ -301,23 +311,28 @@ export default function PurchasesPage() {
 
     const handleDownload = (purchase: Purchase) => {
         const billNumber = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
+        const curDue = Number(
+            purchase.balance_due != null
+                ? purchase.balance_due
+                : Math.max(0, Number(purchase.total_amount || 0) - Number(purchase.amount_paid ?? 0))
+        );
         generateInvoicePDF({
             invoice_number: billNumber,
             date: purchase.date || (purchase as any).created_at,
             due_date: purchase.due_date,
             status: purchase.status,
-            amount_paid: purchase.amount_paid,
-            balance_due: purchase.balance_due,
+            amount_paid: Number(purchase.amount_paid ?? (purchase.status === "paid" ? purchase.total_amount : 0)),
+            balance_due: curDue,
             customer_name: purchase.vendor_name,
             customer_phone: purchase.vendor_phone,
             customer_email: purchase.vendor_email,
             customer_gstin: purchase.vendor_gstin,
             items: purchase.items || [],
-            subtotal: purchase.subtotal || purchase.total_amount,
-            discount_amount: purchase.discount_amount || 0,
-            tax_amount: purchase.tax_amount || 0,
+            subtotal: purchase.subtotal ?? purchase.total_amount,
+            discount_amount: purchase.discount_amount ?? 0,
+            tax_amount: purchase.tax_amount ?? 0,
             total_amount: purchase.total_amount,
-            tax_rate: purchase.tax_rate || 0,
+            tax_rate: purchase.tax_rate ?? 0,
             business_details: profile ? {
                 name: (profile as any).business_name,
                 address: (profile as any).business_address,
@@ -332,23 +347,28 @@ export default function PurchasesPage() {
     const handleShare = async (purchase: Purchase) => {
         try {
             const billString = purchase.bill_number || `BILL-${purchase.id.substring(0, 6).toUpperCase()}`;
+            const curDue = Number(
+                purchase.balance_due != null
+                    ? purchase.balance_due
+                    : Math.max(0, Number(purchase.total_amount || 0) - Number(purchase.amount_paid ?? 0))
+            );
             const url = await generateInvoicePDF({
                 invoice_number: billString,
                 date: purchase.date || (purchase as any).created_at,
                 due_date: purchase.due_date,
                 status: purchase.status,
-                amount_paid: purchase.amount_paid,
-                balance_due: purchase.balance_due,
+                amount_paid: Number(purchase.amount_paid ?? (purchase.status === "paid" ? purchase.total_amount : 0)),
+                balance_due: curDue,
                 customer_name: purchase.vendor_name,
                 customer_phone: purchase.vendor_phone,
                 customer_email: purchase.vendor_email,
                 customer_gstin: purchase.vendor_gstin,
                 items: purchase.items || [],
-                subtotal: purchase.subtotal || purchase.total_amount,
-                discount_amount: purchase.discount_amount || 0,
-                tax_amount: purchase.tax_amount || 0,
+                subtotal: purchase.subtotal ?? purchase.total_amount,
+                discount_amount: purchase.discount_amount ?? 0,
+                tax_amount: purchase.tax_amount ?? 0,
                 total_amount: purchase.total_amount,
-                tax_rate: purchase.tax_rate || 0,
+                tax_rate: purchase.tax_rate ?? 0,
                 business_details: profile ? {
                     name: (profile as any).business_name,
                     address: (profile as any).business_address,
