@@ -18,21 +18,31 @@ import {
   Filter,
   ArrowDownLeft,
   Share2,
+  Printer,
+  Trash2,
 } from "lucide-react";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
+import { invoicesApi } from "@/core/api/invoices";
 import {
   UnifiedPaymentTransaction,
   extractAllPaymentInTransactions,
   getPaymentMethodDetails,
+  removePaymentVoucherFromBill,
   PaymentMethodType,
 } from "../utils/paymentTranscript";
 import { Button } from "@/components/ui/button";
+import { PaymentReceiptModal } from "./PaymentReceiptModal";
+import { PaymentReceiptDetails, generatePaymentReceiptPDF } from "@/utils/generatePaymentReceiptPDF";
 
 interface PaymentInRegisterProps {
   sales: any[];
   parties: any[];
+  profile?: any;
   onOpenRecordPaymentIn: () => void;
   onOpenTranscript?: (saleRecord: any) => void;
   onPreviewInvoice?: (saleRecord: any) => void;
@@ -41,17 +51,27 @@ interface PaymentInRegisterProps {
 export function PaymentInRegister({
   sales,
   parties,
+  profile,
   onOpenRecordPaymentIn,
   onOpenTranscript,
   onPreviewInvoice,
 }: PaymentInRegisterProps) {
   const { formatCurrency } = useCurrency();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "this_month" | "this_year">("all");
   const [modeFilter, setModeFilter] = useState<string>("all");
   const [selectedPartyFilter, setSelectedPartyFilter] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Receipt Modal State
+  const [activeReceiptModalData, setActiveReceiptModalData] = useState<{
+    data: PaymentReceiptDetails;
+    voucherId?: string;
+    linkedBillId?: string;
+  } | null>(null);
 
   // 1. Extract each and every payment in transaction across all parties
   const allTransactions = useMemo(() => {
@@ -128,9 +148,198 @@ export function PaymentInRegister({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Open Receipt Modal
+  const handleOpenReceiptModal = (tx: UnifiedPaymentTransaction, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const party = parties.find(
+      (p: any) =>
+        (tx.partyId && p.id === tx.partyId) ||
+        (p.name && p.name.trim().toLowerCase() === tx.partyName.trim().toLowerCase())
+    );
+
+    const linkedBillsList = tx.linkedBillNumber
+      ? [
+          {
+            billNumber: tx.linkedBillNumber,
+            date: tx.rawBillRecord?.date || tx.date,
+            totalAmount: Number(tx.rawBillRecord?.total_amount || tx.amount),
+            allocatedAmount: tx.amount,
+            remainingBalance: Number(tx.rawBillRecord?.balance_due || 0),
+          },
+        ]
+      : undefined;
+
+    const receiptDetails: PaymentReceiptDetails = {
+      voucherNumber: tx.voucherNumber,
+      type: "receipt",
+      date: tx.date,
+      time: tx.time,
+      amount: tx.amount,
+      paymentMethod: tx.paymentMethod,
+      referenceNumber: tx.referenceNumber,
+      notes: tx.notes,
+      partyName: tx.partyName,
+      partyPhone: tx.partyPhone || party?.phone || null,
+      partyEmail: party?.email || null,
+      partyGstin: tx.partyGstin || party?.gst_number || null,
+      partyAddress: party?.address || null,
+      linkedBills: linkedBillsList,
+      businessDetails: profile
+        ? {
+            name: profile.business_name,
+            address: profile.business_address,
+            phone: profile.business_phone,
+            email: profile.email,
+            gst: profile.gst_number,
+            logo_url: profile.business_logo,
+          }
+        : undefined,
+    };
+
+    setActiveReceiptModalData({
+      data: receiptDetails,
+      voucherId: tx.id,
+      linkedBillId: tx.linkedBillId,
+    });
+  };
+
+  // Quick Direct Print
+  const handleQuickPrintReceipt = async (tx: UnifiedPaymentTransaction, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const party = parties.find(
+      (p: any) =>
+        (tx.partyId && p.id === tx.partyId) ||
+        (p.name && p.name.trim().toLowerCase() === tx.partyName.trim().toLowerCase())
+    );
+
+    const receiptDetails: PaymentReceiptDetails = {
+      voucherNumber: tx.voucherNumber,
+      type: "receipt",
+      date: tx.date,
+      time: tx.time,
+      amount: tx.amount,
+      paymentMethod: tx.paymentMethod,
+      referenceNumber: tx.referenceNumber,
+      notes: tx.notes,
+      partyName: tx.partyName,
+      partyPhone: tx.partyPhone || party?.phone || null,
+      partyEmail: party?.email || null,
+      partyGstin: tx.partyGstin || party?.gst_number || null,
+      partyAddress: party?.address || null,
+      linkedBills: tx.linkedBillNumber
+        ? [
+            {
+              billNumber: tx.linkedBillNumber,
+              date: tx.rawBillRecord?.date || tx.date,
+              totalAmount: Number(tx.rawBillRecord?.total_amount || tx.amount),
+              allocatedAmount: tx.amount,
+              remainingBalance: Number(tx.rawBillRecord?.balance_due || 0),
+            },
+          ]
+        : undefined,
+      businessDetails: profile
+        ? {
+            name: profile.business_name,
+            address: profile.business_address,
+            phone: profile.business_phone,
+            email: profile.email,
+            gst: profile.gst_number,
+            logo_url: profile.business_logo,
+          }
+        : undefined,
+    };
+
+    try {
+      toast.loading(`Printing receipt ${tx.voucherNumber}...`, { id: "quick-print" });
+      await generatePaymentReceiptPDF(receiptDetails, { action: "print" });
+      toast.success("Receipt sent to printer!", { id: "quick-print" });
+    } catch (err: any) {
+      toast.error("Print failed: " + err?.message, { id: "quick-print" });
+    }
+  };
+
+  // Void / Delete Voucher with Ledger Reversal
+  const handleDeleteVoucher = async (
+    voucherNo: string,
+    voucherId?: string,
+    _linkedBillId?: string
+  ) => {
+    if (!user?.id) return;
+    const targetTx = allTransactions.find(
+      (tx) => tx.voucherNumber === voucherNo || tx.id === voucherId
+    );
+    if (!targetTx) return;
+
+    const raw = targetTx.rawBillRecord;
+    if (!raw) return;
+
+    if (targetTx.linkedBillId && !targetTx.isWithoutBill) {
+      // Revert voucher from linked bill
+      const { updatedNotes, newAmountPaid, newBalanceDue, newStatus } =
+        removePaymentVoucherFromBill(raw.notes, targetTx.id || voucherNo, {
+          total_amount: Number(raw.total_amount || 0),
+          amount_paid: Number(raw.amount_paid || 0),
+          balance_due: Number(raw.balance_due || 0),
+          status: raw.status,
+          date: raw.date,
+          due_date: raw.due_date,
+          type: "sale",
+        });
+
+      const updatePayload = {
+        ...raw,
+        notes: updatedNotes,
+        amount_paid: newAmountPaid,
+        balance_due: newBalanceDue,
+        status: newStatus,
+      };
+
+      if (navigator.onLine) {
+        try {
+          await invoicesApi.updateInvoice(raw.id, {
+            notes: updatedNotes,
+            amount_paid: newAmountPaid,
+            status: newStatus,
+          });
+        } catch (e) {
+          console.warn("Backend update invoice fallback:", e);
+        }
+      }
+
+      await offlineMutate({
+        table: "sales",
+        action: "update",
+        recordId: raw.id,
+        payload: updatePayload,
+        userId: user.id,
+      });
+
+      queryClient.setQueryData(["sales", user.id], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((s: any) => (s.id === raw.id ? { ...s, ...updatePayload } : s));
+      });
+    } else {
+      // Standalone on-account receipt: delete row
+      await offlineMutate({
+        table: "sales",
+        action: "delete",
+        recordId: raw.id,
+        userId: user.id,
+      });
+
+      queryClient.setQueryData(["sales", user.id], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((s: any) => s.id !== raw.id);
+      });
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
+    queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
+  };
+
   return (
     <div className="space-y-4">
-      {/* Top Metrics Strip (FinFlow Style) */}
+      {/* Top Metrics Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between">
           <div>
@@ -188,7 +397,7 @@ export function PaymentInRegister({
           </div>
           <button
             onClick={onOpenRecordPaymentIn}
-            className="mt-2 w-full py-1.5 px-3 bg-white text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all"
+            className="mt-2 w-full py-1.5 px-3 bg-white text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Add Payment In</span>
@@ -252,10 +461,10 @@ export function PaymentInRegister({
             ))}
           </select>
 
-          {/* Big Green Action Button */}
+          {/* Action Button */}
           <Button
             onClick={onOpenRecordPaymentIn}
-            className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
+            className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Payment In</span>
@@ -263,7 +472,7 @@ export function PaymentInRegister({
         </div>
       </div>
 
-      {/* FinFlow-Style Transactions Table */}
+      {/* Transactions Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -313,7 +522,8 @@ export function PaymentInRegister({
                   return (
                     <tr
                       key={tx.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group"
+                      onClick={() => handleOpenReceiptModal(tx)}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer"
                     >
                       {/* Date & Time */}
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -408,20 +618,30 @@ export function PaymentInRegister({
                       {/* Actions */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
-                          {tx.rawBillRecord && onOpenTranscript && (
-                            <button
-                              onClick={() => onOpenTranscript(tx.rawBillRecord)}
-                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                              title="View Payment Transcript / Ledger"
-                            >
-                              <Receipt className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => handleOpenReceiptModal(tx, e)}
+                            className="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded text-slate-400 hover:text-emerald-600 transition-colors"
+                            title="View Payment Receipt Voucher"
+                          >
+                            <Receipt className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={(e) => handleQuickPrintReceipt(tx, e)}
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                            title="Direct Print Receipt"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+
                           {tx.rawBillRecord && onPreviewInvoice && (
                             <button
-                              onClick={() => onPreviewInvoice(tx.rawBillRecord)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPreviewInvoice(tx.rawBillRecord);
+                              }}
                               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-primary transition-colors"
-                              title="Preview Document PDF"
+                              title="Preview Linked Document PDF"
                             >
                               <FileText className="w-4 h-4" />
                             </button>
@@ -436,6 +656,18 @@ export function PaymentInRegister({
           </table>
         </div>
       </div>
+
+      {/* Payment Receipt Modal */}
+      {activeReceiptModalData && (
+        <PaymentReceiptModal
+          open={!!activeReceiptModalData}
+          onOpenChange={(isOpen) => !isOpen && setActiveReceiptModalData(null)}
+          receiptData={activeReceiptModalData.data}
+          voucherId={activeReceiptModalData.voucherId}
+          linkedBillId={activeReceiptModalData.linkedBillId}
+          onDeleteVoucher={handleDeleteVoucher}
+        />
+      )}
     </div>
   );
 }

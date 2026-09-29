@@ -258,25 +258,21 @@ export default function SalesPage() {
     };
 
     const getPartyPreviousBalance = (invoice: Sale) => {
-        if ((invoice as any).previous_balance !== undefined && (invoice as any).previous_balance !== null && Number((invoice as any).previous_balance) !== 0) {
-            return Number((invoice as any).previous_balance);
-        }
         const custName = (invoice.customer_name || "").trim().toLowerCase();
         if (!custName || ["cash customer", "cash sale", "walk-in", "cash"].includes(custName)) return 0;
         const party = parties.find((p: any) => 
             (invoice.party_id && p.id === invoice.party_id) || 
             (p.name && p.name.trim().toLowerCase() === custName)
         );
-        if (!party) return 0;
 
-        const openBal = Number(party.opening_balance) || 0;
-        const isOpeningReceivable = party.opening_balance_type ? party.opening_balance_type === "to_receive" : party.type !== "vendor";
+        const openBal = Number(party?.opening_balance) || 0;
+        const isOpeningReceivable = party?.opening_balance_type ? party.opening_balance_type === "to_receive" : party?.type !== "vendor";
         let prevBal = isOpeningReceivable ? openBal : -openBal;
 
         // All OTHER sales/invoices for this customer/party excluding current invoice
         const otherInvoices = invoices.filter((inv: any) => {
             if (inv.id && invoice.id && inv.id === invoice.id) return false;
-            const match = (inv.party_id && party.id && inv.party_id === party.id) ||
+            const match = (party?.id && inv.party_id && inv.party_id === party.id) ||
                           (inv.customer_name && inv.customer_name.trim().toLowerCase() === custName);
             return match;
         });
@@ -304,14 +300,20 @@ export default function SalesPage() {
 
     const handlePreview = async (invoice: Sale) => {
         const prevBal = getPartyPreviousBalance(invoice);
-        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+        const curDue = Number(
+            invoice.balance_due != null
+                ? invoice.balance_due
+                : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0))
+        );
+        const showPartyBalance = settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance ?? false;
+
         const url = await generateInvoicePDF({
             invoice_number: invoice.invoice_number,
-            date: invoice.date || (invoice as any).created_at,
-            due_date: invoice.due_date || undefined,
+            date: invoice.date ?? (invoice as any).created_at,
+            due_date: invoice.due_date ?? undefined,
             status: invoice.status,
-            amount_paid: invoice.amount_paid,
-            balance_due: invoice.balance_due,
+            amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+            balance_due: curDue,
             payment_method: (invoice as any).payment_method,
             previous_balance: prevBal,
             total_due_balance: prevBal + curDue,
@@ -328,11 +330,11 @@ export default function SalesPage() {
                 hsn_code: item.hsn_code,
                 unit: item.unit,
             })),
-            subtotal: invoice.subtotal || invoice.total_amount,
-            discount_amount: invoice.discount_amount || 0,
-            tax_amount: invoice.tax_amount || 0,
+            subtotal: invoice.subtotal ?? invoice.total_amount,
+            discount_amount: invoice.discount_amount ?? 0,
+            tax_amount: invoice.tax_amount ?? 0,
             total_amount: invoice.total_amount,
-            tax_rate: invoice.tax_rate || 0,
+            tax_rate: invoice.tax_rate ?? 0,
             irn: (invoice as any).irn,
             eway_bill_number: (invoice as any).eway_bill_number,
             qr_code: (invoice as any).qr_code,
@@ -344,7 +346,12 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
+        }, {
+            action: 'preview',
+            documentType: 'invoice',
+            showPartyPreviousBalance: showPartyBalance,
+            showPartyPendingBalance: showPartyBalance
+        });
 
         if (url) {
             window.open(String(url), '_blank');
@@ -353,16 +360,22 @@ export default function SalesPage() {
 
     const handlePrint = async (invoice: Sale) => {
         const prevBal = getPartyPreviousBalance(invoice);
-        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+        const curDue = Number(
+            invoice.balance_due != null
+                ? invoice.balance_due
+                : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0))
+        );
+        const showPartyBalance = settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance ?? false;
+
         try {
             toast.loading("Sending invoice to printer...", { id: "print-invoice" });
             await printInvoiceDirectly({
                 invoice_number: invoice.invoice_number,
-                date: invoice.date || (invoice as any).created_at,
-                due_date: invoice.due_date || undefined,
+                date: invoice.date ?? (invoice as any).created_at,
+                due_date: invoice.due_date ?? undefined,
                 status: invoice.status,
-                amount_paid: invoice.amount_paid,
-                balance_due: invoice.balance_due,
+                amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+                balance_due: curDue,
                 payment_method: (invoice as any).payment_method,
                 previous_balance: prevBal,
                 total_due_balance: prevBal + curDue,
@@ -379,11 +392,11 @@ export default function SalesPage() {
                     hsn_code: item.hsn_code,
                     unit: item.unit,
                 })),
-                subtotal: invoice.subtotal || invoice.total_amount,
-                discount_amount: invoice.discount_amount || 0,
-                tax_amount: invoice.tax_amount || 0,
+                subtotal: invoice.subtotal ?? invoice.total_amount,
+                discount_amount: invoice.discount_amount ?? 0,
+                tax_amount: invoice.tax_amount ?? 0,
                 total_amount: invoice.total_amount,
-                tax_rate: invoice.tax_rate || 0,
+                tax_rate: invoice.tax_rate ?? 0,
                 irn: (invoice as any).irn,
                 eway_bill_number: (invoice as any).eway_bill_number,
                 qr_code: (invoice as any).qr_code,
@@ -397,8 +410,8 @@ export default function SalesPage() {
                 } : undefined
             }, {
                 documentType: 'invoice',
-                showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance),
-                showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance)
+                showPartyPreviousBalance: showPartyBalance,
+                showPartyPendingBalance: showPartyBalance
             });
             toast.success("Print job sent to printer machine!", { id: "print-invoice" });
         } catch (err) {
@@ -409,14 +422,20 @@ export default function SalesPage() {
 
     const handleDownload = (invoice: Sale) => {
         const prevBal = getPartyPreviousBalance(invoice);
-        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+        const curDue = Number(
+            invoice.balance_due != null
+                ? invoice.balance_due
+                : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0))
+        );
+        const showPartyBalance = settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance ?? false;
+
         generateInvoicePDF({
             invoice_number: invoice.invoice_number,
-            date: invoice.date || (invoice as any).created_at,
-            due_date: invoice.due_date || undefined,
+            date: invoice.date ?? (invoice as any).created_at,
+            due_date: invoice.due_date ?? undefined,
             status: invoice.status,
-            amount_paid: invoice.amount_paid,
-            balance_due: invoice.balance_due,
+            amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+            balance_due: curDue,
             payment_method: (invoice as any).payment_method,
             previous_balance: prevBal,
             total_due_balance: prevBal + curDue,
@@ -433,11 +452,11 @@ export default function SalesPage() {
                 hsn_code: item.hsn_code,
                 unit: item.unit,
             })),
-            subtotal: invoice.subtotal || invoice.total_amount,
-            discount_amount: invoice.discount_amount || 0,
-            tax_amount: invoice.tax_amount || 0,
+            subtotal: invoice.subtotal ?? invoice.total_amount,
+            discount_amount: invoice.discount_amount ?? 0,
+            tax_amount: invoice.tax_amount ?? 0,
             total_amount: invoice.total_amount,
-            tax_rate: invoice.tax_rate || 0,
+            tax_rate: invoice.tax_rate ?? 0,
             irn: (invoice as any).irn,
             eway_bill_number: (invoice as any).eway_bill_number,
             qr_code: (invoice as any).qr_code,
@@ -449,21 +468,32 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
+        }, {
+            action: 'download',
+            documentType: 'invoice',
+            showPartyPreviousBalance: showPartyBalance,
+            showPartyPendingBalance: showPartyBalance
+        });
         toast.success(`Invoice ${invoice.invoice_number} downloaded.`);
     };
 
     const handleShare = async (invoice: Sale) => {
         try {
             const prevBal = getPartyPreviousBalance(invoice);
-            const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+            const curDue = Number(
+                invoice.balance_due != null
+                    ? invoice.balance_due
+                    : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0))
+            );
+            const showPartyBalance = settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance ?? false;
+
             const url = await generateInvoicePDF({
                 invoice_number: invoice.invoice_number,
-                date: invoice.date || (invoice as any).created_at,
-                due_date: invoice.due_date || undefined,
+                date: invoice.date ?? (invoice as any).created_at,
+                due_date: invoice.due_date ?? undefined,
                 status: invoice.status,
-                amount_paid: invoice.amount_paid,
-                balance_due: invoice.balance_due,
+                amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+                balance_due: curDue,
                 payment_method: (invoice as any).payment_method,
                 previous_balance: prevBal,
                 total_due_balance: prevBal + curDue,
@@ -473,18 +503,18 @@ export default function SalesPage() {
                 customer_email: invoice.customer_email,
                 customer_gstin: invoice.customer_gstin,
                 items: (invoice.items || []).map(item => ({
-                description: item.description || item.name,
-                quantity: item.quantity,
-                price: item.price,
-                total: item.total ?? item.amount ?? (item.quantity * item.price),
-                hsn_code: item.hsn_code,
-                unit: item.unit,
-            })),
-                subtotal: invoice.subtotal || invoice.total_amount,
-                discount_amount: invoice.discount_amount || 0,
-                tax_amount: invoice.tax_amount || 0,
+                    description: item.description || item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.total ?? item.amount ?? (item.quantity * item.price),
+                    hsn_code: item.hsn_code,
+                    unit: item.unit,
+                })),
+                subtotal: invoice.subtotal ?? invoice.total_amount,
+                discount_amount: invoice.discount_amount ?? 0,
+                tax_amount: invoice.tax_amount ?? 0,
                 total_amount: invoice.total_amount,
-                tax_rate: invoice.tax_rate || 0,
+                tax_rate: invoice.tax_rate ?? 0,
                 irn: (invoice as any).irn,
                 eway_bill_number: (invoice as any).eway_bill_number,
                 qr_code: (invoice as any).qr_code,
@@ -496,7 +526,12 @@ export default function SalesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
+            }, {
+                action: 'preview',
+                documentType: 'invoice',
+                showPartyPreviousBalance: showPartyBalance,
+                showPartyPendingBalance: showPartyBalance
+            });
 
             if (url) {
                 const response = await fetch(String(url));
@@ -525,14 +560,20 @@ export default function SalesPage() {
         setWhatsappInvoice(invoice);
         try {
             const prevBal = getPartyPreviousBalance(invoice);
-            const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid || 0)));
+            const curDue = Number(
+                invoice.balance_due != null
+                    ? invoice.balance_due
+                    : Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0))
+            );
+            const showPartyBalance = settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance ?? false;
+
             const base64Uri = await generateInvoicePDF({
                 invoice_number: invoice.invoice_number,
-                date: invoice.date || (invoice as any).created_at,
-                due_date: invoice.due_date || undefined,
+                date: invoice.date ?? (invoice as any).created_at,
+                due_date: invoice.due_date ?? undefined,
                 status: invoice.status,
-                amount_paid: invoice.amount_paid,
-                balance_due: invoice.balance_due,
+                amount_paid: Number(invoice.amount_paid ?? (invoice.status === "paid" ? invoice.total_amount : 0)),
+                balance_due: curDue,
                 payment_method: (invoice as any).payment_method,
                 previous_balance: prevBal,
                 total_due_balance: prevBal + curDue,
@@ -549,10 +590,11 @@ export default function SalesPage() {
                     hsn_code: item.hsn_code,
                     unit: item.unit,
                 })),
-                subtotal: invoice.subtotal || invoice.total_amount,
-                discount_amount: invoice.discount_amount || 0,
-                tax_amount: invoice.tax_amount || 0,
+                subtotal: invoice.subtotal ?? invoice.total_amount,
+                discount_amount: invoice.discount_amount ?? 0,
+                tax_amount: invoice.tax_amount ?? 0,
                 total_amount: invoice.total_amount,
+                tax_rate: invoice.tax_rate ?? 0,
                 business_details: profile ? {
                     name: (profile as any).business_name,
                     address: (profile as any).business_address,
@@ -561,7 +603,12 @@ export default function SalesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'base64', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
+            }, {
+                action: 'base64',
+                documentType: 'invoice',
+                showPartyPreviousBalance: showPartyBalance,
+                showPartyPendingBalance: showPartyBalance
+            });
 
             if (base64Uri && typeof base64Uri === 'string') {
                 setWhatsappPdfBase64(base64Uri);

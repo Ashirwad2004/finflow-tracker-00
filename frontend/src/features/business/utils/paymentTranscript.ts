@@ -26,6 +26,7 @@ export interface BillPaymentVoucher {
   amount: number;
   payment_method: PaymentMethodType;
   reference_number?: string; // UTR Number, Cheque #, or Bank Ref
+  referenceNumber?: string; // Alias for reference_number
   notes?: string;
   balance_before: number;
   balance_after: number;
@@ -50,6 +51,29 @@ const TAG_REGEX = /<!--\s*FINFLOW_PAYMENTS:(.*?)\s*-->/s;
  * If no embedded vouchers exist but amount_paid > 0, synthesizes the initial voucher
  * so legacy data is seamlessly represented in the accounting ledger.
  */
+export function parsePaymentNotes(notes?: string | null): {
+  referenceNumber?: string;
+  notes?: string;
+  settledBills?: Array<{
+    billNumber: string;
+    billDate?: string;
+    billTotal: number;
+    settledAmount: number;
+    remainingDue: number;
+  }>;
+} {
+  if (!notes) return {};
+  const { cleanNotes, payments } = parsePaymentTranscript(notes, {
+    total_amount: 0,
+    type: "sale",
+  });
+  const latest = payments.length > 0 ? payments[payments.length - 1] : undefined;
+  return {
+    referenceNumber: latest?.reference_number || latest?.referenceNumber,
+    notes: cleanNotes || latest?.notes,
+  };
+}
+
 export function parsePaymentTranscript(
   notes: string | null | undefined,
   bill: BillContext
@@ -375,4 +399,109 @@ export function extractAllPaymentOutTransactions(purchases: any[]): UnifiedPayme
     const timeB = new Date(b.date).getTime();
     return timeB - timeA;
   });
+}
+
+/**
+ * Removes a payment voucher from a bill's notes transcript and recalculates the bill's
+ * payment totals and settlement status.
+ */
+export function removePaymentVoucherFromBill(
+  notes: string | null | undefined,
+  voucherId: string,
+  billContext: BillContext
+): {
+  updatedNotes: string;
+  newAmountPaid: number;
+  newBalanceDue: number;
+  newStatus: "paid" | "partial" | "pending" | "overdue";
+  removedVoucher: BillPaymentVoucher | null;
+} {
+  const { cleanNotes, payments } = parsePaymentTranscript(notes, billContext);
+  const voucherIndex = payments.findIndex(
+    (p) => p.id === voucherId || p.voucher_number === voucherId
+  );
+
+  if (voucherIndex === -1) {
+    return {
+      updatedNotes: notes || "",
+      newAmountPaid: Number(billContext.amount_paid || 0),
+      newBalanceDue: Number(billContext.balance_due || 0),
+      newStatus: (billContext.status as any) || "pending",
+      removedVoucher: null,
+    };
+  }
+
+  const removedVoucher = payments[voucherIndex];
+  const remainingPayments = payments.filter((_, idx) => idx !== voucherIndex);
+  const updatedNotes = encodePaymentTranscript(cleanNotes, remainingPayments);
+
+  // Recalculate amount_paid: sum of remaining vouchers
+  const total = Number(billContext.total_amount || 0);
+  const sumRemaining = remainingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const newAmountPaid = Math.max(0, Math.min(total, Math.round(sumRemaining * 100) / 100));
+  const newBalanceDue = Math.max(0, Math.round((total - newAmountPaid) * 100) / 100);
+
+  let isOverdue = false;
+  if (billContext.due_date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(billContext.due_date);
+    due.setHours(0, 0, 0, 0);
+    if (due < today && newBalanceDue > 0) {
+      isOverdue = true;
+    }
+  }
+
+  let newStatus: "paid" | "partial" | "pending" | "overdue" = "pending";
+  if (newBalanceDue <= 0.001 && total > 0) {
+    newStatus = "paid";
+  } else if (newAmountPaid > 0 && newAmountPaid < total) {
+    newStatus = "partial";
+  } else if (newAmountPaid <= 0) {
+    newStatus = isOverdue ? "overdue" : "pending";
+  }
+
+  return {
+    updatedNotes,
+    newAmountPaid,
+    newBalanceDue,
+    newStatus,
+    removedVoucher,
+  };
+}
+
+/**
+ * Standard CA/Accounting FIFO (First-In, First-Out) Auto-Allocation.
+ * Allocates payment against oldest unpaid bills first.
+ */
+export function autoAllocateFIFO(
+  bills: Array<{ id: string; balanceDue: number }>,
+  paymentAmount: number
+): {
+  allocations: Record<string, number>;
+  totalAllocated: number;
+  unallocatedAmount: number;
+} {
+  const allocations: Record<string, number> = {};
+  let remaining = Math.max(0, Number(paymentAmount) || 0);
+  let totalAllocated = 0;
+
+  for (const bill of bills) {
+    if (remaining <= 0) {
+      allocations[bill.id] = 0;
+      continue;
+    }
+    const due = Math.max(0, Number(bill.balanceDue) || 0);
+    const allocate = Math.min(due, remaining);
+    const rounded = Math.round(allocate * 100) / 100;
+    allocations[bill.id] = rounded;
+    remaining = Math.round((remaining - rounded) * 100) / 100;
+    totalAllocated = Math.round((totalAllocated + rounded) * 100) / 100;
+  }
+
+  return {
+    allocations,
+    totalAllocated,
+    unallocatedAmount: Math.max(0, remaining),
+  };
 }
