@@ -47,17 +47,35 @@ supabase.auth.onAuthStateChange((_event, session) => {
   inMemoryToken = session?.access_token ?? null;
 });
 
+// Normalize and resolve backend base URL
+export const resolveApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === "string" && envUrl.trim() !== "") {
+    return envUrl.trim().replace(/\/+$/, "").replace(/\/api\/v1\/?$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const runtimeUrl = localStorage.getItem("finflow_backend_api_url");
+    if (runtimeUrl && runtimeUrl.trim() !== "") {
+      return runtimeUrl.trim().replace(/\/+$/, "").replace(/\/api\/v1\/?$/, "");
+    }
+  }
+  return "";
+};
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "",
+  baseURL: resolveApiBaseUrl(),
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Request Interceptor: Attach bearer token
+// Request Interceptor: Attach bearer token and ensure baseURL
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    if (!config.baseURL) {
+      config.baseURL = resolveApiBaseUrl();
+    }
     // If in-memory token not yet set, attempt to retrieve from session
     if (!inMemoryToken) {
       try {
@@ -86,6 +104,14 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
+
+    if (error.response?.status === 405) {
+      console.error(
+        `[FinFlow API 405 Error] Method Not Allowed for ${originalRequest?.method?.toUpperCase() || "REQUEST"} to ` +
+        `"${originalRequest?.baseURL || ""}${originalRequest?.url || ""}".\n` +
+        `This typically happens when VITE_API_URL is missing or misconfigured in production, causing API requests to hit the static frontend host rather than your Render backend URL (e.g. https://<service>.onrender.com).`
+      );
+    }
 
     if (!error.response || error.response.status !== 401 || !originalRequest) {
       return Promise.reject(error);

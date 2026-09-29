@@ -55,7 +55,15 @@ async def pos_health():
     return {"status": "ok", "service": "FinFlow Retail POS & Barcode Engine"}
 
 
+@router.get("/sales")
+@router.get("/sales/", include_in_schema=False)
+async def pos_sales_info():
+    """Informational endpoint to avoid 405 on GET /sales probe requests."""
+    return {"status": "ok", "service": "FinFlow POS Sales Engine", "message": "Submit an HTTP POST with sale details to complete a transaction."}
+
+
 @router.post("/sales", status_code=status.HTTP_201_CREATED)
+@router.post("/sales/", status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def complete_pos_sale(
     request: POSSaleCreateRequest,
     user_info: dict = Depends(get_current_user),
@@ -66,6 +74,7 @@ async def complete_pos_sale(
 
 
 @router.post("/sales/{sale_id}/return")
+@router.post("/sales/{sale_id}/return/", include_in_schema=False)
 async def process_pos_return(
     sale_id: str,
     request: POSReturnRequest,
@@ -79,6 +88,7 @@ async def process_pos_return(
 
 
 @router.post("/shifts/open", status_code=status.HTTP_201_CREATED)
+@router.post("/shifts/open/", status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def open_pos_shift(
     request: POSShiftOpenRequest,
     user_info: dict = Depends(get_current_user),
@@ -89,6 +99,7 @@ async def open_pos_shift(
 
 
 @router.post("/shifts/{shift_id}/close")
+@router.post("/shifts/{shift_id}/close/", include_in_schema=False)
 async def close_pos_shift(
     shift_id: str,
     request: POSShiftCloseRequest,
@@ -100,6 +111,7 @@ async def close_pos_shift(
 
 
 @router.get("/shifts/current")
+@router.get("/shifts/current/", include_in_schema=False)
 async def get_current_shift(
     user_info: dict = Depends(get_current_user),
 ):
@@ -149,6 +161,7 @@ async def get_current_shift(
 
 
 @router.get("/shifts/{shift_id}/summary")
+@router.get("/shifts/{shift_id}/summary/", include_in_schema=False)
 async def get_shift_summary_endpoint(
     shift_id: str,
     user_info: dict = Depends(get_current_user),
@@ -159,6 +172,7 @@ async def get_shift_summary_endpoint(
 
 
 @router.post("/cash-movements", status_code=status.HTTP_201_CREATED)
+@router.post("/cash-movements/", status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def record_cash_movement_endpoint(
     request: POSCashMovementRequest,
     user_info: dict = Depends(get_current_user),
@@ -169,6 +183,7 @@ async def record_cash_movement_endpoint(
 
 
 @router.post("/barcodes/generate")
+@router.post("/barcodes/generate/", include_in_schema=False)
 async def generate_barcode_endpoint(
     request: BarcodeGenerateRequest,
     user_info: dict = Depends(get_current_user),
@@ -179,6 +194,7 @@ async def generate_barcode_endpoint(
 
 
 @router.post("/barcodes/bulk-generate")
+@router.post("/barcodes/bulk-generate/", include_in_schema=False)
 async def bulk_generate_barcodes_endpoint(
     request: BarcodeBulkGenerateRequest,
     user_info: dict = Depends(get_current_user),
@@ -189,6 +205,7 @@ async def bulk_generate_barcodes_endpoint(
 
 
 @router.post("/barcodes/validate")
+@router.post("/barcodes/validate/", include_in_schema=False)
 async def validate_barcode_endpoint(
     request: BarcodeValidateRequest,
     user_info: dict = Depends(get_current_user),
@@ -196,3 +213,4 @@ async def validate_barcode_endpoint(
     """Validates barcode format, check digit, and tenant uniqueness."""
     store_id, _ = _resolve_tenant_context(user_info)
     return POSService.validate_barcode(store_id=store_id, request=request)
+

@@ -48,19 +48,11 @@ app.add_exception_handler(RateLimitExceeded, cast(Any, _rate_limit_exceeded_hand
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.onrender\.com|.*\.pages\.dev|.*\.netlify\.app)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=[
-        "Authorization",
-        "Content-Type",
-        "Accept",
-        "X-Requested-With",
-        "Origin",
-        "X-Webhook-Secret",
-        "X-OpenWA-Secret",
-        "X-Razorpay-Signature",
-        "X-Idempotency-Key",
-    ],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
