@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
     Printer, 
     LayoutTemplate, 
@@ -69,6 +69,12 @@ const themeMeta: Record<InvoiceTheme, { name: string; desc: string; color: strin
         color: "bg-gradient-to-r from-indigo-500 to-pink-500 text-white",
         class: "border-indigo-200 hover:border-indigo-400"
     },
+    "sale-invoice": { 
+        name: "Sale Invoice", 
+        desc: "Vyapar-style professional GST Tax Invoice with sky-blue header, dual metadata columns, and itemized tax grid.", 
+        color: "bg-sky-500 text-white border border-sky-400",
+        class: "border-sky-300 hover:border-sky-500"
+    },
     "tally-accounting": { 
         name: "Tally ERP Standard", 
         desc: "Classic Indian GST Tax invoice with dual quadrants, HSN summary, and bank details.", 
@@ -104,6 +110,7 @@ const sampleSale = {
     balance_due: 5340,
     previous_balance: 8500,
     total_due_balance: 13840,
+    party_pending_balance: 13840,
     status: "partial",
     payment_method: "upi",
     items: [
@@ -131,6 +138,7 @@ const samplePurchaseBill = {
     balance_due: 22480,
     previous_balance: 15000,
     total_due_balance: 37480,
+    party_pending_balance: 37480,
     status: "partial",
     payment_method: "bank_transfer",
     items: [
@@ -157,8 +165,9 @@ const sampleSaleOrder = {
     total_amount: 61950,
     amount_paid: 30000,
     balance_due: 31950,
-    previous_balance: 0,
-    total_due_balance: 31950,
+    previous_balance: 12500,
+    total_due_balance: 44450,
+    party_pending_balance: 44450,
     status: "confirmed",
     payment_method: "upi",
     items: [
@@ -185,8 +194,9 @@ const samplePurchaseOrder = {
     total_amount: 88500,
     amount_paid: 0,
     balance_due: 88500,
-    previous_balance: 0,
-    total_due_balance: 88500,
+    previous_balance: 20000,
+    total_due_balance: 108500,
+    party_pending_balance: 108500,
     status: "sent",
     payment_method: "cheque",
     items: [
@@ -209,6 +219,7 @@ const InvoiceMockPreview = ({
     upiId,
     showItemTaxRate,
     showPartyPreviousBalance,
+    showPartyPendingBalance,
     documentType = 'invoice'
 }: { 
     sale: any; 
@@ -223,6 +234,7 @@ const InvoiceMockPreview = ({
     upiId?: string;
     showItemTaxRate?: boolean;
     showPartyPreviousBalance?: boolean;
+    showPartyPendingBalance?: boolean;
     documentType?: UniversalDocumentType;
 }) => {
     const descriptor = resolveDocumentDescriptor(documentType, undefined, sale?.invoice_number);
@@ -246,8 +258,16 @@ const InvoiceMockPreview = ({
         : Math.max(0, totalAmount - amountPaid);
     const isPartial = sale.status === 'partial' || (amountPaid > 0 && balanceDue > 0);
 
-    const partyPrevBal = sale.previous_balance !== undefined ? Number(sale.previous_balance) : 8500;
-    const partyClosingDue = sale.total_due_balance !== undefined ? Number(sale.total_due_balance) : (partyPrevBal + balanceDue);
+    const isPartyBalEnabled = showPartyPendingBalance !== undefined ? showPartyPendingBalance : (showPartyPreviousBalance ?? true);
+    const isCashCustomer = ["cash customer", "cash sale", "walk-in", "cash"].includes((sale.customer_name || "").trim().toLowerCase());
+    const shouldRenderPartyBal = isPartyBalEnabled && !isCashCustomer;
+
+    const partyPrevBal = (sale.previous_balance !== undefined && sale.previous_balance !== null) 
+        ? Number(sale.previous_balance) 
+        : (sale.customer_name && !isCashCustomer ? 8500 : 0);
+    const partyClosingDue = (sale.party_pending_balance !== undefined && sale.party_pending_balance !== null)
+        ? Number(sale.party_pending_balance)
+        : ((sale.total_due_balance !== undefined && sale.total_due_balance !== null) ? Number(sale.total_due_balance) : (partyPrevBal + balanceDue));
 
     const effectiveUpi = (upiId || profile?.upi_id || localStorage.getItem("rupeebill_upi_id") || "").trim();
     const amountToPay = balanceDue > 0 ? balanceDue : totalAmount;
@@ -268,7 +288,316 @@ const InvoiceMockPreview = ({
     const cgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
     const sgst = taxAmount > 0 ? (taxAmount / 2).toFixed(2) : "0.00";
 
-    // 1. TALLY ERP GST TAX INVOICE PREVIEW
+    // 1. VYAPAR "SALE INVOICE" PREVIEW
+    if (theme === 'sale-invoice') {
+        const totalQty = items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 1), 0);
+        const totalGst = items.reduce((acc: number, it: any) => {
+            const lineTot = Number(it.total ?? (Number(it.quantity || 1) * Number(it.price || 0)));
+            const tr = it.tax_rate !== undefined ? Number(it.tax_rate) : taxRate;
+            return acc + (lineTot * tr / 100);
+        }, 0);
+
+        return (
+            <div className={cn(
+                "bg-white text-black p-4 mx-auto font-sans text-xs border border-black shadow-lg w-full flex flex-col justify-between select-none transition-all duration-300",
+                pageSize === 'a5' ? "max-w-[500px] min-h-[530px]" : "max-w-[700px] min-h-[750px]"
+            )}>
+                {/* Outer border container */}
+                <div className="border border-black flex-1 flex flex-col justify-between">
+                    
+                    {/* Header: Company Name & Address (Sky Blue Background #D9F0FC) */}
+                    <div className="bg-[#D9F0FC] border-b border-black p-3 space-y-1">
+                        <div>
+                            <span className="font-bold text-xs">Company Name: </span>
+                            <span className="font-extrabold text-sm">{bizName}</span>
+                        </div>
+                        <div className="text-[10px]">
+                            <span className="font-bold">Address: </span>
+                            <span>{profile?.business_address || "Store Address Not Specified"}</span>
+                        </div>
+                        <div className="grid grid-cols-2 text-[10px] pt-0.5">
+                            <div>
+                                <span className="font-bold">Phone No.: </span>
+                                <span>{profile?.business_phone || "-"}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Email ID: </span>
+                                <span>{profile?.email || "-"}</span>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 text-[10px]">
+                            <div>
+                                <span className="font-bold">GSTIN No.: </span>
+                                <span>{profile?.gst_number || "-"}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">State: </span>
+                                <span>{profile?.state || sale.place_of_supply || "State"}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Ribbon Title Bar: TAX INVOICE */}
+                    <div className="bg-[#98D5F7] border-b border-black text-center py-1 font-black text-xs uppercase tracking-wider text-black">
+                        {descriptor.title || "TAX INVOICE"}
+                    </div>
+
+                    {/* Bill Details & Invoice Details Split Box */}
+                    <div className="grid grid-cols-12 border-b border-black text-[10px]">
+                        {/* Left 7 cols: Bill Details */}
+                        <div className="col-span-7 p-2.5 border-r border-black space-y-1">
+                            <span className="font-bold text-[11px] block">Bill Details</span>
+                            <div>
+                                <span className="font-bold">Party Name: </span>
+                                <span className="font-semibold">{sale.customer_name || "Cash Customer"}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Address: </span>
+                                <span>{sale.billing_address || sale.customer_address || "-"}</span>
+                            </div>
+                            <div className="grid grid-cols-2 pt-0.5">
+                                <div>
+                                    <span className="font-bold">Phone No.: </span>
+                                    <span>{sale.customer_phone || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="font-bold">Email ID: </span>
+                                    <span>{sale.customer_email || "-"}</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2">
+                                <div>
+                                    <span className="font-bold">GSTIN No.: </span>
+                                    <span>{sale.customer_gstin || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="font-bold">State: </span>
+                                    <span>{sale.place_of_supply || profile?.state || "State"}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right 5 cols: Invoice Details */}
+                        <div className="col-span-5 p-2.5 space-y-1">
+                            <span className="font-bold text-[11px] block">Invoice Details</span>
+                            <div>
+                                <span className="font-bold">Invoice No.: </span>
+                                <span className="font-semibold">{sale.invoice_number}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Invoice Date: </span>
+                                <span>{dateFormatted}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Time: </span>
+                                <span>{format(new Date(), "hh:mm a")}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Place of Supply: </span>
+                                <span>{sale.place_of_supply || profile?.state || "State"}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">PO Date: </span>
+                                <span>-</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">PO Number: </span>
+                                <span>-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Items Table with Vyapar Columns */}
+                    <div className="border-b border-black overflow-x-auto flex-1">
+                        <table className="w-full text-left text-[9px] border-collapse">
+                            <thead>
+                                <tr className="bg-[#D9F0FC] border-b border-black text-[9px] font-bold text-black text-center">
+                                    <th className="p-1 border-r border-black w-8">Sl. No.</th>
+                                    <th className="p-1 border-r border-black text-left">Item Name</th>
+                                    <th className="p-1 border-r border-black w-12">HSN/SAC</th>
+                                    <th className="p-1 border-r border-black w-10">Batch No.</th>
+                                    <th className="p-1 border-r border-black w-10">Exp. Date</th>
+                                    <th className="p-1 border-r border-black w-10 text-right">MRP</th>
+                                    <th className="p-1 border-r border-black w-8">QTY</th>
+                                    <th className="p-1 border-r border-black w-8">Unit</th>
+                                    <th className="p-1 border-r border-black w-12 text-right">Price/Unit</th>
+                                    <th className="p-1 border-r border-black w-8">Disc</th>
+                                    <th className="p-1 border-r border-black w-10">GST Rate</th>
+                                    <th className="p-1 border-r border-black w-12 text-right">GST Amt</th>
+                                    <th className="p-1 text-right w-14">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-black/30">
+                                {items.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={13} className="p-4 text-center text-muted-foreground italic">No items listed</td>
+                                    </tr>
+                                ) : (
+                                    items.map((it: any, idx: number) => {
+                                        const q = Number(it.quantity) || 1;
+                                        const p = Number(it.price) || 0;
+                                        const d = Number(it.discount || 0);
+                                        const itTax = it.tax_rate !== undefined ? Number(it.tax_rate) : taxRate;
+                                        const lineTot = Number(it.total ?? (q * p * (1 - d / 100)));
+                                        const gAmt = lineTot * (itTax / 100);
+
+                                        return (
+                                            <tr key={idx} className="align-middle">
+                                                <td className="p-1 border-r border-black text-center">{idx + 1}</td>
+                                                <td className="p-1 border-r border-black font-semibold text-slate-800">{it.description}</td>
+                                                <td className="p-1 border-r border-black text-center font-mono">{it.hsn_code || "-"}</td>
+                                                <td className="p-1 border-r border-black text-center">-</td>
+                                                <td className="p-1 border-r border-black text-center">-</td>
+                                                <td className="p-1 border-r border-black text-right">{p > 0 ? p.toFixed(2) : "-"}</td>
+                                                <td className="p-1 border-r border-black text-center">{q}</td>
+                                                <td className="p-1 border-r border-black text-center">{it.unit || "PCS"}</td>
+                                                <td className="p-1 border-r border-black text-right">{p.toFixed(2)}</td>
+                                                <td className="p-1 border-r border-black text-center">{d > 0 ? `${d}%` : "-"}</td>
+                                                <td className="p-1 border-r border-black text-center">{itTax > 0 ? `${itTax}%` : "0%"}</td>
+                                                <td className="p-1 border-r border-black text-right">{gAmt.toFixed(2)}</td>
+                                                <td className="p-1 text-right font-bold text-slate-900">{lineTot.toFixed(2)}</td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                                {/* Total Row */}
+                                <tr className="bg-slate-50 font-bold border-t border-black">
+                                    <td className="p-1 border-r border-black text-center"></td>
+                                    <td className="p-1 border-r border-black font-extrabold">Total</td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black text-center font-extrabold">{totalQty}</td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black"></td>
+                                    <td className="p-1 border-r border-black text-right font-extrabold">{totalGst.toFixed(2)}</td>
+                                    <td className="p-1 text-right font-extrabold">{Number(totalAmount).toFixed(2)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Bottom Split Section: Left (Notes, Words, Terms) & Right (Totals & Signature) */}
+                    <div className="grid grid-cols-12 min-h-[140px]">
+                        {/* Left 7 cols: Description, Words, Terms */}
+                        <div className="col-span-7 border-r border-black flex flex-col justify-between">
+                            <div className="p-2 space-y-1">
+                                <div className="text-[10px]">
+                                    <span className="font-bold">Description: </span>
+                                    <span>{sale.notes || "Goods once sold will not be taken back."}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="bg-[#D9F0FC] border-y border-black px-2 py-0.5 font-bold text-[9px]">
+                                    Invoice Amount In Words:
+                                </div>
+                                <div className="px-2 py-1 text-[9px] font-semibold uppercase">
+                                    {convertAmountToIndianWords(totalAmount)}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="bg-[#D9F0FC] border-y border-black px-2 py-0.5 font-bold text-[9px]">
+                                    Terms and Conditions:
+                                </div>
+                                <div className="px-2 py-1 text-[8px] text-slate-600">
+                                    {customTerms || descriptor.defaultDeclaration}
+                                </div>
+                            </div>
+
+                            {/* Bank Details / UPI if enabled */}
+                            {(printBankDetails && bankAccount?.bankName) || (descriptor.enableUpiQr && printUpiQr && effectiveUpi) ? (
+                                <div className="border-t border-black/20 p-2 flex items-center justify-between text-[8px] bg-slate-50/50">
+                                    <div>
+                                        {printBankDetails && bankAccount?.bankName && (
+                                            <p className="font-semibold">Bank: {bankAccount.bankName} | A/c: {bankAccount.accountNumber} | IFSC: {bankAccount.ifscCode || ''}</p>
+                                        )}
+                                        {descriptor.enableUpiQr && printUpiQr && effectiveUpi && (
+                                            <p className="font-mono pt-0.5">UPI: {effectiveUpi}</p>
+                                        )}
+                                    </div>
+                                    {descriptor.enableUpiQr && printUpiQr && effectiveUpi && (
+                                        <div className="bg-white p-0.5 border border-black/20 rounded">
+                                            <QRCodeSVG value={upiUri} size={38} level="M" />
+                                        </div>
+                                    )}
+                                </div>
+                            ) : null}
+                        </div>
+
+                        {/* Right 5 cols: Sub Total, Discount, Total, Received, Balance, Party Pending & Signature */}
+                        <div className="col-span-5 flex flex-col justify-between">
+                            <div className="p-2.5 space-y-1 text-[10px] border-b border-black">
+                                <div className="flex justify-between">
+                                    <span>Sub Total</span>
+                                    <span>{formatCurrency(subtotal).replace("Rs. ","")}</span>
+                                </div>
+                                {discount > 0 && (
+                                    <div className="flex justify-between text-rose-700">
+                                        <span>Discount</span>
+                                        <span>-{formatCurrency(discount).replace("Rs. ","")}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between font-bold text-xs pt-0.5">
+                                    <span>Total Amount</span>
+                                    <span>{formatCurrency(totalAmount).replace("Rs. ","")}</span>
+                                </div>
+                                <div className="flex justify-between text-emerald-800">
+                                    <span>Received</span>
+                                    <span>{formatCurrency(amountPaid).replace("Rs. ","")}</span>
+                                </div>
+                                <div className="flex justify-between font-bold pt-0.5">
+                                    <span>Balance Amount:</span>
+                                    <span>{formatCurrency(balanceDue).replace("Rs. ","")}</span>
+                                </div>
+
+                                {/* Party Pending Balance (when enabled) */}
+                                {shouldRenderPartyBal && (
+                                    <div className="border-t border-dashed border-black/40 pt-1 mt-1 space-y-0.5 text-[9px]">
+                                        <div className="flex justify-between text-slate-600">
+                                            <span>Previous Pending:</span>
+                                            <span>
+                                                {partyPrevBal > 0 
+                                                    ? `${formatCurrency(partyPrevBal).replace("Rs. ","")} Dr`
+                                                    : partyPrevBal < 0 
+                                                        ? `${formatCurrency(Math.abs(partyPrevBal)).replace("Rs. ","")} Cr` 
+                                                        : "0.00"}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between font-bold text-black">
+                                            <span>{partyClosingDue < 0 ? "Advance Balance:" : "Pending Balance:"}</span>
+                                            <span>
+                                                {partyClosingDue > 0 
+                                                    ? `${formatCurrency(partyClosingDue).replace("Rs. ","")} Dr`
+                                                    : partyClosingDue < 0 
+                                                        ? `${formatCurrency(Math.abs(partyClosingDue)).replace("Rs. ","")} Cr` 
+                                                        : "0.00"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Company Seal & Signature Box */}
+                            <div className="p-2 text-center flex flex-col items-center justify-end min-h-[60px]">
+                                {profile?.signature_url && (
+                                    <img src={profile.signature_url} alt="Signature" className="h-8 max-w-[120px] object-contain mb-1" />
+                                )}
+                                <span className="font-bold text-[9px] block">Company Seal & Signature</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        );
+    }
+
+    // 2. TALLY ERP GST TAX INVOICE PREVIEW
     if (theme === 'tally-accounting') {
         return (
             <div className={cn(
@@ -470,11 +799,11 @@ const InvoiceMockPreview = ({
                                 <span>{descriptor.balanceLabel}</span>
                                 <span>{balanceDue > 0 ? formatCurrency(balanceDue).replace("Rs. ","") : "0.00 (PAID)"}</span>
                             </div>
-                            {showPartyPreviousBalance && (
+                            {shouldRenderPartyBal && (
                                 <>
                                     <div className="border-t border-dashed border-black/30 my-0.5"></div>
                                     <div className="flex justify-between text-[10px] text-slate-700">
-                                        <span>Previous Balance</span>
+                                        <span>Previous Pending</span>
                                         <span>
                                             {partyPrevBal > 0 
                                                 ? `${formatCurrency(partyPrevBal).replace("Rs. ","")} Dr` 
@@ -484,13 +813,13 @@ const InvoiceMockPreview = ({
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-[11px] font-black text-rose-800 bg-rose-50/70 px-1 py-0.5 rounded-xs border border-rose-200 mt-0.5">
-                                        <span>Total Net Due</span>
+                                        <span>Pending Balance</span>
                                         <span>
                                             {partyClosingDue > 0 
                                                 ? `${formatCurrency(partyClosingDue).replace("Rs. ","")} Dr` 
                                                 : partyClosingDue < 0 
                                                     ? `${formatCurrency(Math.abs(partyClosingDue)).replace("Rs. ","")} Cr` 
-                                                    : "0.00 (Settled)"}
+                                                    : "0.00 (SETTLED)"}
                                         </span>
                                     </div>
                                 </>
@@ -570,11 +899,11 @@ const InvoiceMockPreview = ({
                         <span>{descriptor.balanceLabel.toUpperCase()}</span>
                         <span>{balanceDue > 0 ? `₹${balanceDue.toFixed(2)} (PENDING)` : "₹0.00 (PAID)"}</span>
                     </div>
-                    {showPartyPreviousBalance && (
+                    {shouldRenderPartyBal && (
                         <>
                             <div className="border-b border-dashed border-black/40 my-1"></div>
                             <div className="flex justify-between text-[10px] text-slate-700">
-                                <span>PREV BAL:</span>
+                                <span>PREV PENDING:</span>
                                 <span>
                                     {partyPrevBal > 0 
                                         ? `₹${partyPrevBal.toFixed(2)} Dr` 
@@ -584,13 +913,13 @@ const InvoiceMockPreview = ({
                                 </span>
                             </div>
                             <div className="flex justify-between text-[11px] font-black">
-                                <span>TOTAL NET DUE:</span>
+                                <span>PENDING BAL:</span>
                                 <span>
                                     {partyClosingDue > 0 
                                         ? `₹${partyClosingDue.toFixed(2)} Dr` 
                                         : partyClosingDue < 0 
                                             ? `₹${Math.abs(partyClosingDue).toFixed(2)} Cr` 
-                                            : "₹0.00"}
+                                            : "₹0.00 (SETTLED)"}
                                 </span>
                             </div>
                         </>
@@ -655,6 +984,14 @@ const InvoiceMockPreview = ({
             accentText: "text-slate-900",
             accentBg: "bg-slate-100",
             tableHead: "bg-zinc-800 text-white",
+            totalBox: "border-black bg-white",
+            font: "font-sans"
+        },
+        "sale-invoice": {
+            header: "bg-[#D9F0FC] text-slate-900 border-b border-black",
+            accentText: "text-sky-800",
+            accentBg: "bg-sky-50",
+            tableHead: "bg-[#D9F0FC] text-slate-900",
             totalBox: "border-black bg-white",
             font: "font-sans"
         },
@@ -832,10 +1169,10 @@ const InvoiceMockPreview = ({
                         <span>{descriptor.balanceLabel}</span>
                         <span>{balanceDue > 0 ? formatCurrency(balanceDue) : "₹0.00 (Fully Settled)"}</span>
                     </div>
-                    {showPartyPreviousBalance && (
+                    {shouldRenderPartyBal && (
                         <div className="mt-2 pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-1">
                             <div className="flex justify-between px-3 py-1 text-xs text-slate-600 dark:text-slate-400">
-                                <span>Party Previous Balance</span>
+                                <span>Previous Pending</span>
                                 <span className="font-semibold">
                                     {partyPrevBal > 0 
                                         ? `${formatCurrency(partyPrevBal)} Dr` 
@@ -845,7 +1182,7 @@ const InvoiceMockPreview = ({
                                 </span>
                             </div>
                             <div className="flex justify-between px-3 py-1.5 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/50 text-xs font-black text-indigo-950 dark:text-indigo-200 shadow-xs">
-                                <span>Total Closing Due</span>
+                                <span>Pending Balance</span>
                                 <span className="text-sm font-extrabold text-indigo-700 dark:text-indigo-300">
                                     {partyClosingDue > 0 
                                         ? `${formatCurrency(partyClosingDue)} Dr` 
@@ -943,16 +1280,19 @@ const PrintStudioPage = () => {
         toast.success(checked ? "Product Tax % enabled on bills/invoices" : "Product Tax % hidden from bills/invoices");
     };
 
-    // Party Previous Balance Preferences
+    // Party Previous / Pending Balance Preferences
     const [showPartyPreviousBalance, setShowPartyPreviousBalance] = useState<boolean>(() => {
+        const savedPending = localStorage.getItem("rupeebill_show_party_pending_balance");
+        if (savedPending !== null) return savedPending !== "false";
         const saved = localStorage.getItem("rupeebill_show_party_previous_balance");
         return saved !== "false";
     });
 
     const handleShowPartyPreviousBalanceToggle = (checked: boolean) => {
         setShowPartyPreviousBalance(checked);
+        localStorage.setItem("rupeebill_show_party_pending_balance", checked ? "true" : "false");
         localStorage.setItem("rupeebill_show_party_previous_balance", checked ? "true" : "false");
-        toast.success(checked ? "Party previous balance enabled on invoices" : "Party previous balance hidden from invoices");
+        toast.success(checked ? "Party pending balance enabled on invoices" : "Party pending balance hidden from invoices");
     };
 
     const [upiIdInput, setUpiIdInput] = useState<string>(() => {
@@ -1046,6 +1386,110 @@ const PrintStudioPage = () => {
         enabled: !!user,
     });
 
+    // Fetch parties directory for resolving party pending balances
+    const { data: parties = [] } = useQuery({
+        queryKey: ["parties", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("parties")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("name", { ascending: true });
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[PrintStudio] Parties fetch fallback:", e);
+            }
+            return [];
+        },
+        enabled: !!user
+    });
+
+    // Fetch all sales for accurate historical party ledger balance calculation
+    const { data: allSales = [] } = useQuery({
+        queryKey: ["all_sales_for_balance", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data, error } = await (supabase as any)
+                    .from("sales")
+                    .select("id, party_id, customer_name, total_amount, amount_paid, balance_due, status, document_type, date, created_at")
+                    .eq("user_id", user.id);
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn("[PrintStudio] Sales fetch fallback:", e);
+            }
+            return [];
+        },
+        enabled: !!user
+    });
+
+    const getPartyBalanceForSale = useCallback((sale: any) => {
+        if (!sale) return { previous_balance: 0, party_pending_balance: 0 };
+        
+        // If sale already has an explicit non-zero previous balance passed (e.g. mock sample)
+        if (sale.previous_balance !== undefined && sale.previous_balance !== null && Number(sale.previous_balance) !== 0) {
+            const pb = Number(sale.previous_balance);
+            const curDue = Number(sale.balance_due != null ? sale.balance_due : Math.max(0, Number(sale.total_amount || 0) - Number(sale.amount_paid || 0)));
+            const pd = sale.party_pending_balance !== undefined ? Number(sale.party_pending_balance) : (sale.total_due_balance !== undefined ? Number(sale.total_due_balance) : (pb + curDue));
+            return { previous_balance: pb, party_pending_balance: pd };
+        }
+
+        const custName = (sale.customer_name || "").trim().toLowerCase();
+        if (!custName || ["cash customer", "cash sale", "walk-in", "cash"].includes(custName)) {
+            const curDue = Number(sale.balance_due != null ? sale.balance_due : Math.max(0, Number(sale.total_amount || 0) - Number(sale.amount_paid || 0)));
+            return { previous_balance: 0, party_pending_balance: curDue };
+        }
+
+        const party = (parties as any[]).find((p: any) => 
+            (sale.party_id && p.id === sale.party_id) || 
+            (p.name && p.name.trim().toLowerCase() === custName)
+        );
+
+        const openBal = Number(party?.opening_balance) || 0;
+        const isOpeningReceivable = party?.opening_balance_type ? party.opening_balance_type === "to_receive" : party?.type !== "vendor";
+        let prevBal = isOpeningReceivable ? openBal : -openBal;
+
+        const salesList = (allSales.length > 0 ? allSales : recentSales) as any[];
+
+        const otherSales = salesList.filter((s: any) => {
+            if (s.id && sale.id && s.id === sale.id) return false;
+            const match = (s.party_id && party?.id && s.party_id === party.id) ||
+                          (s.customer_name && s.customer_name.trim().toLowerCase() === custName);
+            return match;
+        });
+
+        otherSales.forEach((s: any) => {
+            const statusStr = (s.status || "").toLowerCase();
+            if (statusStr === "draft" || statusStr === "cancelled") return;
+            const tot = Number(s.total_amount) || 0;
+            const pd = Number(s.amount_paid != null ? s.amount_paid : (statusStr === "paid" ? tot : 0));
+            const due = Number(s.balance_due != null ? s.balance_due : Math.max(0, tot - pd));
+            const docType = (s.document_type || "invoice").toLowerCase();
+            if (docType === "receipt") {
+                prevBal = Math.max(0, prevBal - (tot || pd));
+            } else if (docType === "credit_note") {
+                prevBal -= tot;
+            } else if (docType === "debit_note") {
+                prevBal += tot;
+            } else {
+                prevBal += due;
+            }
+        });
+
+        // Fallback for mock preview if user has a named party but no other sales yet
+        if (prevBal === 0 && (!sale.id || sale.id.startsWith("sample-"))) {
+            prevBal = 8500;
+        }
+
+        const curDue = Number(sale.balance_due != null ? sale.balance_due : Math.max(0, Number(sale.total_amount || 0) - Number(sale.amount_paid || 0)));
+        return {
+            previous_balance: prevBal,
+            party_pending_balance: prevBal + curDue
+        };
+    }, [parties, allSales, recentSales]);
+
     useEffect(() => {
         if (profile?.upi_id && !upiIdInput) {
             setUpiIdInput(profile.upi_id);
@@ -1071,13 +1515,22 @@ const PrintStudioPage = () => {
     }, [recentSales, selectedSale]);
 
     const activeSaleData = useMemo(() => {
-        if (selectedDocType === 'purchase_bill') return samplePurchaseBill;
-        if (selectedDocType === 'sale_order') return sampleSaleOrder;
-        if (selectedDocType === 'purchase_order') return samplePurchaseOrder;
-        return selectedSale || sampleSale;
-    }, [selectedSale, selectedDocType]);
+        let baseSale = selectedSale || sampleSale;
+        if (selectedDocType === 'purchase_bill') baseSale = samplePurchaseBill;
+        else if (selectedDocType === 'sale_order') baseSale = sampleSaleOrder;
+        else if (selectedDocType === 'purchase_order') baseSale = samplePurchaseOrder;
+
+        const { previous_balance, party_pending_balance } = getPartyBalanceForSale(baseSale);
+        return {
+            ...baseSale,
+            previous_balance,
+            party_pending_balance,
+            total_due_balance: party_pending_balance
+        };
+    }, [selectedSale, selectedDocType, getPartyBalanceForSale]);
 
     const handlePrintSale = async (sale: any) => {
+        const { previous_balance, party_pending_balance } = getPartyBalanceForSale(sale);
         const invoiceDetails: InvoiceDetails = {
             invoice_number: sale.invoice_number || `INV-${sale.id.slice(0, 6).toUpperCase()}`,
             date: sale.date || sale.created_at,
@@ -1090,18 +1543,23 @@ const PrintStudioPage = () => {
             customer_phone: sale.customer_phone,
             customer_email: sale.customer_email,
             customer_gstin: sale.customer_gstin,
+            customer_address: sale.customer_address || sale.billing_address,
+            place_of_supply: sale.place_of_supply,
             items: sale.items || [],
             subtotal: sale.subtotal || sale.total_amount,
             discount_amount: sale.discount_amount || 0,
             tax_rate: sale.tax_rate || 0,
             tax_amount: sale.tax_amount || 0,
             total_amount: sale.total_amount,
-            previous_balance: sale.previous_balance,
-            total_due_balance: sale.total_due_balance,
+            previous_balance: previous_balance,
+            total_due_balance: party_pending_balance,
+            party_pending_balance: party_pending_balance,
             business_details: profile ? {
                 name: profile.business_name || profile.display_name || "My Business",
                 address: profile.business_address || undefined,
                 phone: profile.business_phone || profile.phone || undefined,
+                email: profile.email || undefined,
+                state: profile.state || undefined,
                 gst: profile.gst_number || undefined,
                 logo_url: profile.business_logo || undefined,
                 signature_url: profile.signature_url || undefined,
@@ -1132,13 +1590,16 @@ const PrintStudioPage = () => {
                 printUpiQr,
                 upiId: upiIdInput || profile?.upi_id,
                 showItemTaxRateOnBill: showItemTaxRate,
-                showPartyPreviousBalance
+                showPartyPreviousBalance,
+                showPartyPendingBalance: showPartyPreviousBalance,
+                profile
             });
             toast.success("Print job sent to printer machine!", { id: "ps-print" });
         }
     };
 
     const handleDownloadSale = async (sale: any) => {
+        const { previous_balance, party_pending_balance } = getPartyBalanceForSale(sale);
         const invoiceDetails: InvoiceDetails = {
             invoice_number: sale.invoice_number || `DOC-${sale.id.slice(0, 6).toUpperCase()}`,
             date: sale.date || sale.created_at,
@@ -1151,18 +1612,23 @@ const PrintStudioPage = () => {
             customer_phone: sale.customer_phone,
             customer_email: sale.customer_email,
             customer_gstin: sale.customer_gstin,
+            customer_address: sale.customer_address || sale.billing_address,
+            place_of_supply: sale.place_of_supply,
             items: sale.items || [],
             subtotal: sale.subtotal || sale.total_amount,
             discount_amount: sale.discount_amount || 0,
             tax_rate: sale.tax_rate || 0,
             tax_amount: sale.tax_amount || 0,
             total_amount: sale.total_amount,
-            previous_balance: sale.previous_balance,
-            total_due_balance: sale.total_due_balance,
+            previous_balance: previous_balance,
+            total_due_balance: party_pending_balance,
+            party_pending_balance: party_pending_balance,
             business_details: profile ? {
                 name: profile.business_name || profile.display_name || "My Business",
                 address: profile.business_address || undefined,
                 phone: profile.business_phone || profile.phone || undefined,
+                email: profile.email || undefined,
+                state: profile.state || undefined,
                 gst: profile.gst_number || undefined,
                 logo_url: profile.business_logo || undefined,
                 signature_url: profile.signature_url || undefined,
@@ -1188,7 +1654,9 @@ const PrintStudioPage = () => {
             printUpiQr,
             upiId: upiIdInput || profile?.upi_id,
             showItemTaxRateOnBill: showItemTaxRate,
-            showPartyPreviousBalance
+            showPartyPreviousBalance,
+            showPartyPendingBalance: showPartyPreviousBalance,
+            profile
         });
         toast.success("Invoice downloaded!", { id: "ps-download" });
     };
@@ -1523,12 +1991,12 @@ const PrintStudioPage = () => {
                             </p>
                         </div>
 
-                        {/* 7. Party Previous Balance Card */}
+                        {/* 7. Show Party Pending Balance Card */}
                         <div className="bg-card rounded-xl border shadow-sm p-4 space-y-3 shrink-0">
                             <div className="flex items-center justify-between border-b pb-2">
                                 <h2 className="text-sm font-bold flex items-center gap-2">
                                     <Wallet className="w-3.5 h-3.5 text-primary" />
-                                    7. Party Previous Balance
+                                    7. Show Party Pending Balance
                                 </h2>
                                 <Switch 
                                     checked={showPartyPreviousBalance}
@@ -1537,8 +2005,8 @@ const PrintStudioPage = () => {
                             </div>
                             <p className="text-[10px] text-muted-foreground leading-snug">
                                 {showPartyPreviousBalance 
-                                    ? "Displaying party's prior pending balance and total closing due at the bottom of bills." 
-                                    : "Prior ledger balance is hidden. Only current bill amount is shown."}
+                                    ? "Displaying party's overall pending balance and closing net balance at the bottom of bills." 
+                                    : "Party pending balance is hidden. Only current bill amount is shown."}
                             </p>
                         </div>
 
@@ -1673,6 +2141,7 @@ const PrintStudioPage = () => {
                                                     total_amount: activeSaleData.total_amount,
                                                     previous_balance: activeSaleData.previous_balance,
                                                     total_due_balance: activeSaleData.total_due_balance,
+                                                    party_pending_balance: activeSaleData.party_pending_balance,
                                                     business_details: profile ? {
                                                         name: profile.business_name || profile.display_name || "My Business",
                                                         address: profile.business_address || undefined,
@@ -1700,7 +2169,8 @@ const PrintStudioPage = () => {
                                                     printUpiQr,
                                                     upiId: upiIdInput || profile?.upi_id,
                                                     showItemTaxRateOnBill: showItemTaxRate,
-                                                    showPartyPreviousBalance
+                                                    showPartyPreviousBalance,
+                                                    showPartyPendingBalance: showPartyPreviousBalance
                                                 }
                                             );
                                         }}
@@ -1768,6 +2238,7 @@ const PrintStudioPage = () => {
                                             upiId={upiIdInput || profile?.upi_id}
                                             showItemTaxRate={showItemTaxRate}
                                             showPartyPreviousBalance={showPartyPreviousBalance}
+                                            showPartyPendingBalance={showPartyPreviousBalance}
                                             documentType={selectedDocType}
                                         />
                                     </div>

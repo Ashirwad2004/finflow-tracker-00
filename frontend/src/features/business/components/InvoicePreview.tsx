@@ -160,9 +160,11 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
         : Math.max(0, totalAmt - paidAmt);
     const prevBal = Number(invoice?.previous_balance || 0);
     const closingDue =
-      invoice?.total_due_balance != null
-        ? Number(invoice.total_due_balance)
-        : prevBal + dueAmt;
+      invoice?.party_pending_balance !== undefined
+        ? Number(invoice.party_pending_balance)
+        : (invoice?.total_due_balance != null
+          ? Number(invoice.total_due_balance)
+          : prevBal + dueAmt);
 
     return {
       invoice_number: invoice?.invoice_number || "INV-DRAFT",
@@ -177,6 +179,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       payment_method: invoice?.payment_method || "cash",
       previous_balance: prevBal,
       total_due_balance: closingDue,
+      party_pending_balance: closingDue,
       customer_name: invoice?.customer_name || "Cash Customer",
       customer_phone: invoice?.customer_phone || "",
       customer_email: invoice?.customer_email || "",
@@ -203,9 +206,11 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
     setIsPrinting(true);
     try {
       toast.loading("Sending invoice to printer...", { id: "print-preview" });
+      const isPartyBalEnabled = salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance;
       await printInvoiceDirectly(pdfPayload, {
         documentType: "invoice",
-        showPartyPreviousBalance: salesSettings?.showPartyPreviousBalance,
+        showPartyPreviousBalance: isPartyBalEnabled,
+        showPartyPendingBalance: isPartyBalEnabled,
       });
       toast.success("Print job sent to printer machine!", { id: "print-preview" });
     } catch (err) {
@@ -219,10 +224,12 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
+      const isPartyBalEnabled = salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance;
       await generateInvoicePDF(pdfPayload, {
         action: "download",
         documentType: "invoice",
-        showPartyPreviousBalance: salesSettings?.showPartyPreviousBalance,
+        showPartyPreviousBalance: isPartyBalEnabled,
+        showPartyPendingBalance: isPartyBalEnabled,
       });
       toast.success(`Invoice ${pdfPayload.invoice_number} downloaded.`);
     } catch (err) {
@@ -236,10 +243,12 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   const handleOpenWhatsApp = async () => {
     setIsPreparingWhatsApp(true);
     try {
+      const isPartyBalEnabled = salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance;
       const base64Uri = await generateInvoicePDF(pdfPayload, {
         action: "base64",
         documentType: "invoice",
-        showPartyPreviousBalance: salesSettings?.showPartyPreviousBalance,
+        showPartyPreviousBalance: isPartyBalEnabled,
+        showPartyPendingBalance: isPartyBalEnabled,
       });
 
       if (base64Uri && typeof base64Uri === "string") {
@@ -722,21 +731,60 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 </span>
               </div>
 
-              {/* Prior Balance & Total Closing Balance if enabled or present */}
-              {pdfPayload.previous_balance ? (
-                <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-1">
-                  <div className="flex justify-between py-0.5 text-[11px] text-slate-500">
-                    <span>Previous Outstanding:</span>
-                    <span>{formatCurrency(pdfPayload.previous_balance)}</span>
+              {/* Party Pending Balance Box when enabled */}
+              {(() => {
+                const isPartyBalEnabled = salesSettings?.showPartyPendingBalance !== undefined
+                  ? salesSettings.showPartyPendingBalance
+                  : (salesSettings?.showPartyPreviousBalance !== undefined
+                    ? salesSettings.showPartyPreviousBalance
+                    : (localStorage.getItem("rupeebill_show_party_pending_balance") !== null
+                      ? localStorage.getItem("rupeebill_show_party_pending_balance") !== "false"
+                      : localStorage.getItem("rupeebill_show_party_previous_balance") !== "false"));
+
+                const custName = (pdfPayload.customer_name || "").trim().toLowerCase();
+                const isAnon = !custName || 
+                  custName === "cash customer" || 
+                  custName === "cash sale" || 
+                  custName === "walk-in" || 
+                  custName === "walk-in guest" || 
+                  custName === "cash";
+
+                if (!isPartyBalEnabled || isAnon) return null;
+
+                const pendingBal = pdfPayload.party_pending_balance !== undefined
+                  ? Number(pdfPayload.party_pending_balance)
+                  : Number(pdfPayload.total_due_balance || 0);
+                const prevBal = Number(pdfPayload.previous_balance || 0);
+
+                return (
+                  <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-1">
+                    <div className="flex justify-between py-0.5 text-[11px] text-slate-500">
+                      <span>Previous Pending:</span>
+                      <span className={prevBal > 0 ? "text-slate-700 dark:text-slate-300 font-medium" : prevBal < 0 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-slate-600 dark:text-slate-400 font-medium"}>
+                        {prevBal < 0 ? `-${formatCurrency(Math.abs(prevBal))} (Advance)` : prevBal > 0 ? `${formatCurrency(prevBal)} Dr` : formatCurrency(0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 text-xs font-bold text-slate-900 dark:text-white">
+                      <span>
+                        {pendingBal < 0 ? "Advance Balance:" : "Pending Balance:"}
+                      </span>
+                      <span className={
+                        pendingBal > 0
+                          ? "text-rose-600 dark:text-rose-400 font-extrabold"
+                          : pendingBal < 0
+                            ? "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                            : "text-slate-600 dark:text-slate-400 font-bold"
+                      }>
+                        {pendingBal < 0
+                          ? `${formatCurrency(Math.abs(pendingBal))} Cr`
+                          : pendingBal > 0
+                            ? `${formatCurrency(pendingBal)} Dr`
+                            : formatCurrency(0)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between py-1 text-xs font-bold text-slate-900 dark:text-white">
-                    <span>Total Closing Balance:</span>
-                    <span className="text-rose-600 dark:text-rose-400 font-extrabold">
-                      {formatCurrency(pdfPayload.total_due_balance || 0)}
-                    </span>
-                  </div>
-                </div>
-              ) : null}
+                );
+              })()}
             </div>
           </div>
 

@@ -920,6 +920,15 @@ const PartiesPage = () => {
     };
 
     const handleDownloadInvoicePDF = (invoice: any) => {
+        const party = activeParty || parties.find((p: any) => 
+            (invoice.party_id && p.id === invoice.party_id) || 
+            (p.name && p.name.trim().toLowerCase() === (invoice.customer_name || '').trim().toLowerCase())
+        );
+        const ledger = party ? partyLedgerMap.get(party.id) : null;
+        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0)));
+        const partyTotalDue = ledger ? (ledger.receivable - ledger.payable) : (Number(party?.opening_balance || 0) + curDue);
+        const prevBal = partyTotalDue - curDue;
+
         generateInvoicePDF({
             invoice_number: invoice.invoice_number,
             date: invoice.date || invoice.created_at,
@@ -928,6 +937,9 @@ const PartiesPage = () => {
             amount_paid: invoice.amount_paid,
             balance_due: invoice.balance_due,
             payment_method: invoice.payment_method,
+            previous_balance: prevBal,
+            total_due_balance: partyTotalDue,
+            party_pending_balance: partyTotalDue,
             customer_name: invoice.customer_name,
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
@@ -956,10 +968,19 @@ const PartiesPage = () => {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download' });
+        }, { action: 'download', showPartyPendingBalance: true, showPartyPreviousBalance: true });
     };
 
     const handlePreviewInvoicePDF = async (invoice: any) => {
+        const party = activeParty || parties.find((p: any) => 
+            (invoice.party_id && p.id === invoice.party_id) || 
+            (p.name && p.name.trim().toLowerCase() === (invoice.customer_name || '').trim().toLowerCase())
+        );
+        const ledger = party ? partyLedgerMap.get(party.id) : null;
+        const curDue = Number(invoice.balance_due != null ? invoice.balance_due : Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0)));
+        const partyTotalDue = ledger ? (ledger.receivable - ledger.payable) : (Number(party?.opening_balance || 0) + curDue);
+        const prevBal = partyTotalDue - curDue;
+
         const url = await generateInvoicePDF({
             invoice_number: invoice.invoice_number,
             date: invoice.date || invoice.created_at,
@@ -968,6 +989,9 @@ const PartiesPage = () => {
             amount_paid: invoice.amount_paid,
             balance_due: invoice.balance_due,
             payment_method: invoice.payment_method,
+            previous_balance: prevBal,
+            total_due_balance: partyTotalDue,
+            party_pending_balance: partyTotalDue,
             customer_name: invoice.customer_name,
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
@@ -996,7 +1020,7 @@ const PartiesPage = () => {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview' });
+        }, { action: 'preview', showPartyPendingBalance: true, showPartyPreviousBalance: true });
 
         if (url) {
             window.open(String(url), '_blank');

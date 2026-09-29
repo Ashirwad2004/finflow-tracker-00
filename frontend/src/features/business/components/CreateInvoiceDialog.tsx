@@ -1318,6 +1318,7 @@ export const CreateInvoiceDialog = ({
             total_amount: totalAmount,
             previous_balance: partyPreviousBalance,
             total_due_balance: partyClosingDue,
+            party_pending_balance: partyClosingDue,
             notes: values.notes,
             profile: profile,
         };
@@ -1377,7 +1378,7 @@ export const CreateInvoiceDialog = ({
                 if (!invoiceToEdit && navigator.onLine) {
                     try {
                         const authoritativeRes = await invoicesApi.createInvoice({
-                            party_id: null,
+                            party_id: selectedParty?.id || null,
                             customer_name: values.customer_name?.trim() || "Cash Customer",
                             customer_phone: values.customer_phone?.trim() || null,
                             customer_email: values.customer_email?.trim() || null,
@@ -1794,6 +1795,7 @@ export const CreateInvoiceDialog = ({
                             : null,
                     previous_balance: partyPreviousBalance,
                     total_due_balance: partyClosingDue,
+                    party_pending_balance: partyClosingDue,
                     irn:
                         values.irn || null,
                     eway_bill_number:
@@ -2143,7 +2145,7 @@ export const CreateInvoiceDialog = ({
                                     logo_url: profile.business_logo,
                                     signature_url: profile.signature_url,
                                 } : undefined,
-                            }, { action: "base64", documentType: "invoice", showPartyPreviousBalance: salesSettings?.showPartyPreviousBalance });
+                            }, { action: "base64", documentType: "invoice", showPartyPreviousBalance: (salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance), showPartyPendingBalance: (salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance) });
 
                             await sendInvoiceMutation.mutateAsync({
                                 invoice_id: data.id,
@@ -2751,7 +2753,7 @@ export const CreateInvoiceDialog = ({
                                 )}
 
                                 {/* FinFlow CA-Grade Party Previous Due & Net Balance Box */}
-                                {salesSettings?.showPartyPreviousBalance && watchCustomerName.trim() && (
+                                {((salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance) ?? true) && watchCustomerName.trim() && !["cash customer", "cash sale", "walk-in", "cash"].includes(watchCustomerName.trim().toLowerCase()) && (
                                     <div className="p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/50 to-slate-50 dark:from-indigo-950/20 dark:to-slate-900 dark:border-indigo-800/60 shadow-xs space-y-2 mt-3">
                                         <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">
                                             <span className="flex items-center gap-1.5">
@@ -2764,7 +2766,7 @@ export const CreateInvoiceDialog = ({
                                         </div>
 
                                         <div className="flex justify-between items-center text-xs">
-                                            <span className="text-slate-600 dark:text-slate-400">Previous Balance:</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Previous Pending:</span>
                                             <span className={`font-semibold ${partyPreviousBalance > 0 ? "text-rose-600 dark:text-rose-400" : partyPreviousBalance < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700"}`}>
                                                 {partyPreviousBalance > 0 
                                                     ? `${formatCurrency(partyPreviousBalance)} Dr (Pending)` 
@@ -2784,7 +2786,7 @@ export const CreateInvoiceDialog = ({
                                         <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
                                             <div>
                                                 <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight block">
-                                                    Total Closing Balance:
+                                                    Pending Balance:
                                                 </span>
                                                 <span className="text-[10px] text-slate-400">
                                                     (Previous + Current Bill)
@@ -3735,7 +3737,7 @@ export const CreateInvoiceDialog = ({
                                     </div>
 
                                     {/* FinFlow CA-Grade Party Previous Due & Net Balance Box */}
-                                    {salesSettings?.showPartyPreviousBalance && watchCustomerName.trim() && (
+                                    {((salesSettings?.showPartyPendingBalance ?? salesSettings?.showPartyPreviousBalance) ?? true) && watchCustomerName.trim() && !["cash customer", "cash sale", "walk-in", "cash"].includes(watchCustomerName.trim().toLowerCase()) && (
                                         <div className="mt-3 p-3.5 rounded-lg border border-indigo-200/80 bg-gradient-to-b from-indigo-50/50 to-slate-50 dark:from-indigo-950/20 dark:to-slate-900 dark:border-indigo-800/60 shadow-xs space-y-2">
                                             <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1.5">
                                                 <span className="flex items-center gap-1.5">
@@ -3748,7 +3750,7 @@ export const CreateInvoiceDialog = ({
                                             </div>
 
                                             <div className="flex justify-between items-center text-xs">
-                                                <span className="text-slate-600 dark:text-slate-400">Previous Balance:</span>
+                                                <span className="text-slate-600 dark:text-slate-400">Previous Pending:</span>
                                                 <span className={`font-semibold ${partyPreviousBalance > 0 ? "text-rose-600 dark:text-rose-400" : partyPreviousBalance < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700"}`}>
                                                     {partyPreviousBalance > 0 
                                                         ? `${formatCurrency(partyPreviousBalance)} Dr (Pending)` 
@@ -3768,7 +3770,7 @@ export const CreateInvoiceDialog = ({
                                             <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
                                                 <div>
                                                     <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight block">
-                                                        Total Closing Balance:
+                                                        Pending Balance:
                                                     </span>
                                                     <span className="text-[10px] text-slate-400">
                                                         (Previous + Current Bill)
