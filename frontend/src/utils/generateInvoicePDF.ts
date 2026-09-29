@@ -1595,7 +1595,7 @@ export const generateInvoicePDF = async (
             let finalY = (doc as any).lastAutoTable.finalY;
 
             // 5. Footer & Totals Section
-            const footerHeight = (Boolean(resolvedBank || upiQrBase64) ? 75 : 58) * scale;
+            const footerHeight = (resolvedBank || upiQrBase64 ? 75 : 58) * scale;
             finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, borderDark, 'tally-accounting', data.invoice_number, bizName, footerHeight);
 
             const footerStartY = Math.max(finalY, pageHeight - saleMarginY - footerHeight);
