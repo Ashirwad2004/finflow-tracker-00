@@ -16,7 +16,9 @@ export interface DirectPrintOptions {
     upiId?: string;
     showItemTaxRateOnBill?: boolean;
     showPartyPreviousBalance?: boolean;
+    showPartyPendingBalance?: boolean;
     forceThermal?: boolean;
+    profile?: any;
 }
 
 /**

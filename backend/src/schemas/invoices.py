@@ -77,3 +77,8 @@ class InvoiceResponse(BaseModel):
     document_type: Optional[str] = "invoice"
     items: List[Dict[str, Any]] = Field(default_factory=list)
     notes: Optional[str] = None
+    party_pending_balance: Optional[float] = None
+    previous_balance: Optional[float] = None
+    total_due_balance: Optional[float] = None
+    show_party_pending_balance: Optional[bool] = None
+

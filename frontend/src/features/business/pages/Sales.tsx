@@ -258,11 +258,11 @@ export default function SalesPage() {
     };
 
     const getPartyPreviousBalance = (invoice: Sale) => {
-        if ((invoice as any).previous_balance !== undefined && (invoice as any).previous_balance !== null) {
+        if ((invoice as any).previous_balance !== undefined && (invoice as any).previous_balance !== null && Number((invoice as any).previous_balance) !== 0) {
             return Number((invoice as any).previous_balance);
         }
         const custName = (invoice.customer_name || "").trim().toLowerCase();
-        if (!custName) return 0;
+        if (!custName || ["cash customer", "cash sale", "walk-in", "cash"].includes(custName)) return 0;
         const party = parties.find((p: any) => 
             (invoice.party_id && p.id === invoice.party_id) || 
             (p.name && p.name.trim().toLowerCase() === custName)
@@ -273,25 +273,25 @@ export default function SalesPage() {
         const isOpeningReceivable = party.opening_balance_type ? party.opening_balance_type === "to_receive" : party.type !== "vendor";
         let prevBal = isOpeningReceivable ? openBal : -openBal;
 
-        const invDate = new Date(invoice.date || (invoice as any).created_at || 0).getTime();
-        const priorInvoices = invoices.filter((inv: any) => {
-            if (inv.id === invoice.id) return false;
+        // All OTHER sales/invoices for this customer/party excluding current invoice
+        const otherInvoices = invoices.filter((inv: any) => {
+            if (inv.id && invoice.id && inv.id === invoice.id) return false;
             const match = (inv.party_id && party.id && inv.party_id === party.id) ||
                           (inv.customer_name && inv.customer_name.trim().toLowerCase() === custName);
-            if (!match) return false;
-            const d = new Date(inv.date || inv.created_at || 0).getTime();
-            return d < invDate;
+            return match;
         });
 
-        priorInvoices.forEach((inv: any) => {
+        otherInvoices.forEach((inv: any) => {
+            const statusStr = (inv.status || "").toLowerCase();
+            if (statusStr === "draft" || statusStr === "cancelled") return;
             const tot = Number(inv.total_amount) || 0;
-            const pd = Number(inv.amount_paid != null ? inv.amount_paid : (inv.status === "paid" ? tot : 0));
+            const pd = Number(inv.amount_paid != null ? inv.amount_paid : (statusStr === "paid" ? tot : 0));
             const due = Number(inv.balance_due != null ? inv.balance_due : Math.max(0, tot - pd));
             const docType = (inv.document_type || "invoice").toLowerCase();
             if (docType === "receipt") {
                 prevBal = Math.max(0, prevBal - (tot || pd));
             } else if (docType === "credit_note") {
-                prevBal = prevBal - tot;
+                prevBal -= tot;
             } else if (docType === "debit_note") {
                 prevBal += tot;
             } else {
@@ -315,6 +315,7 @@ export default function SalesPage() {
             payment_method: (invoice as any).payment_method,
             previous_balance: prevBal,
             total_due_balance: prevBal + curDue,
+            party_pending_balance: prevBal + curDue,
             customer_name: invoice.customer_name,
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
@@ -343,7 +344,7 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+        }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
 
         if (url) {
             window.open(String(url), '_blank');
@@ -365,6 +366,7 @@ export default function SalesPage() {
                 payment_method: (invoice as any).payment_method,
                 previous_balance: prevBal,
                 total_due_balance: prevBal + curDue,
+                party_pending_balance: prevBal + curDue,
                 customer_name: invoice.customer_name,
                 customer_phone: invoice.customer_phone,
                 customer_email: invoice.customer_email,
@@ -395,7 +397,8 @@ export default function SalesPage() {
                 } : undefined
             }, {
                 documentType: 'invoice',
-                showPartyPreviousBalance: settings.showPartyPreviousBalance
+                showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance),
+                showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance)
             });
             toast.success("Print job sent to printer machine!", { id: "print-invoice" });
         } catch (err) {
@@ -417,6 +420,7 @@ export default function SalesPage() {
             payment_method: (invoice as any).payment_method,
             previous_balance: prevBal,
             total_due_balance: prevBal + curDue,
+            party_pending_balance: prevBal + curDue,
             customer_name: invoice.customer_name,
             customer_phone: invoice.customer_phone,
             customer_email: invoice.customer_email,
@@ -445,7 +449,7 @@ export default function SalesPage() {
                 logo_url: (profile as any).business_logo,
                 signature_url: (profile as any).signature_url
             } : undefined
-        }, { action: 'download', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+        }, { action: 'download', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
         toast.success(`Invoice ${invoice.invoice_number} downloaded.`);
     };
 
@@ -463,6 +467,7 @@ export default function SalesPage() {
                 payment_method: (invoice as any).payment_method,
                 previous_balance: prevBal,
                 total_due_balance: prevBal + curDue,
+                party_pending_balance: prevBal + curDue,
                 customer_name: invoice.customer_name,
                 customer_phone: invoice.customer_phone,
                 customer_email: invoice.customer_email,
@@ -491,7 +496,7 @@ export default function SalesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+            }, { action: 'preview', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
 
             if (url) {
                 const response = await fetch(String(url));
@@ -531,6 +536,7 @@ export default function SalesPage() {
                 payment_method: (invoice as any).payment_method,
                 previous_balance: prevBal,
                 total_due_balance: prevBal + curDue,
+                party_pending_balance: prevBal + curDue,
                 customer_name: invoice.customer_name,
                 customer_phone: invoice.customer_phone,
                 customer_email: invoice.customer_email,
@@ -555,7 +561,7 @@ export default function SalesPage() {
                     logo_url: (profile as any).business_logo,
                     signature_url: (profile as any).signature_url
                 } : undefined
-            }, { action: 'base64', documentType: 'invoice', showPartyPreviousBalance: settings.showPartyPreviousBalance });
+            }, { action: 'base64', documentType: 'invoice', showPartyPreviousBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance), showPartyPendingBalance: (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) });
 
             if (base64Uri && typeof base64Uri === 'string') {
                 setWhatsappPdfBase64(base64Uri);
@@ -1517,27 +1523,29 @@ export default function SalesPage() {
                                 </select>
                             </div>
 
-                            {/* Show Party Previous Due Balance on Invoices */}
+                            {/* Show Party Pending Balance on Invoices */}
                             <div className="flex items-start justify-between gap-4 p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-2">
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Show Party Previous Balance</p>
-                                        {settings.showPartyPreviousBalance && (
-                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">Active</span>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">Show Party Pending Balance</p>
+                                        {(settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) ? (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">ON</span>
+                                        ) : (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700">OFF</span>
                                         )}
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Display customer's pending previous balance, current bill due, and total closing balance at the bottom of bills and printed invoices for transparent party accounting.
+                                        When creating, viewing, or printing an invoice, show the customer&apos;s / party&apos;s current total pending balance on the invoice.
                                     </p>
                                 </div>
                                 <button
-                                    type="button" role="switch" aria-checked={settings.showPartyPreviousBalance}
-                                    onClick={() => updateSetting("showPartyPreviousBalance", !settings.showPartyPreviousBalance)}
+                                    type="button" role="switch" aria-checked={settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance}
+                                    onClick={() => updateSetting("showPartyPendingBalance", !(settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance))}
                                     className={`relative flex-shrink-0 mt-0.5 inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                                        settings.showPartyPreviousBalance ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                                        (settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) ? "border-primary bg-primary" : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
                                     }`}
                                 >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${settings.showPartyPreviousBalance ? "translate-x-5" : "translate-x-0.5"}`} />
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${(settings.showPartyPendingBalance ?? settings.showPartyPreviousBalance) ? "translate-x-5" : "translate-x-0.5"}`} />
                                 </button>
                             </div>
 

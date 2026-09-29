@@ -8,6 +8,8 @@ from src.schemas.invoices import (
     InvoiceUpdateRequest,
     InvoiceResponse,
 )
+from src.services.parties import PartyService
+from src.services.settings import SettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,19 @@ class InvoiceService:
             custom_invoice_number=request.custom_invoice_number,
         )
 
+        store_settings = SettingsService.get_sales_settings(store_id)
+        result["show_party_pending_balance"] = store_settings.get("show_party_pending_balance", True)
+        total_party_bal = PartyService.calculate_party_pending_balance(
+            store_id=store_id,
+            party_id=result.get("party_id") or request.party_id,
+            customer_name=result.get("customer_name") or request.customer_name,
+        )
+        result["party_pending_balance"] = total_party_bal
+        cur_due = float(result.get("balance_due") if result.get("balance_due") is not None else max(0.0, float(result.get("total_amount") or 0.0) - float(result.get("amount_paid") or 0.0)))
+        if total_party_bal is not None:
+            result["previous_balance"] = round(total_party_bal - cur_due, 2)
+            result["total_due_balance"] = total_party_bal
+
         return result
 
     @classmethod
@@ -107,6 +122,19 @@ class InvoiceService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invoice not found or unauthorized",
             )
+        store_settings = SettingsService.get_sales_settings(store_id)
+        invoice["show_party_pending_balance"] = store_settings.get("show_party_pending_balance", True)
+        total_party_bal = PartyService.calculate_party_pending_balance(
+            store_id=store_id,
+            party_id=invoice.get("party_id"),
+            customer_name=invoice.get("customer_name"),
+        )
+        invoice["party_pending_balance"] = total_party_bal
+        cur_due = float(invoice.get("balance_due") if invoice.get("balance_due") is not None else max(0.0, float(invoice.get("total_amount") or 0.0) - float(invoice.get("amount_paid") or 0.0)))
+        if total_party_bal is not None:
+            invoice["previous_balance"] = round(total_party_bal - cur_due, 2)
+            invoice["total_due_balance"] = total_party_bal
+
         return invoice
 
     @classmethod

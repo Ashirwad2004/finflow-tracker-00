@@ -59,6 +59,15 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ data, className 
         return offsets[Math.floor(Math.random() * offsets.length)];
     };
 
+    const isPartyBalEnabled = localStorage.getItem("rupeebill_show_party_pending_balance") !== null
+        ? localStorage.getItem("rupeebill_show_party_pending_balance") !== "false"
+        : localStorage.getItem("rupeebill_show_party_previous_balance") !== "false";
+    const custName = (data.customer_name || "").trim().toLowerCase();
+    const isAnonymousCustomer = !custName || ["cash customer", "cash sale", "walk-in", "cash"].includes(custName);
+    const shouldShowPartyBalance = isPartyBalEnabled && !isAnonymousCustomer;
+    const prevBal = Number(data.previous_balance || 0);
+    const pendingBal = Number(data.party_pending_balance !== undefined ? data.party_pending_balance : ((data.total_due_balance !== undefined ? Number(data.total_due_balance) : (prevBal + balanceDue))));
+
     return (
         <div
             className={`thermal-receipt bg-[#fdfdfd] text-black p-4 mx-auto font-mono text-sm shadow-md relative overflow-hidden ${className}`}
@@ -175,6 +184,19 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ data, className 
                         <div className={`flex justify-between font-bold text-xs mt-0.5 ${getRandomOffset()}`}>
                             <span>BALANCE DUE</span>
                             <span>{Number(data.balance_due) > 0 ? `₹${Number(data.balance_due).toFixed(2)} (PENDING)` : "₹0.00 (PAID)"}</span>
+                        </div>
+                    )}
+
+                    {shouldShowPartyBalance && (
+                        <div className="pt-1 mt-1 border-t border-dashed border-black/60 text-xs space-y-0.5">
+                            <div className={`flex justify-between text-slate-700 ${getRandomOffset()}`}>
+                                <span>PREV PENDING:</span>
+                                <span>₹{prevBal.toFixed(2)}</span>
+                            </div>
+                            <div className={`flex justify-between font-bold ${getRandomOffset()}`}>
+                                <span>PENDING BAL:</span>
+                                <span>₹{pendingBal.toFixed(2)}</span>
+                            </div>
                         </div>
                     )}
                 </div>

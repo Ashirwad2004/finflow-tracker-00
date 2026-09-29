@@ -43,6 +43,20 @@ async def get_party(
     return PartyService.get_party(store_id=store_id, party_id=party_id)
 
 
+@router.get("/{party_id}/pending-balance", status_code=status.HTTP_200_OK)
+async def get_party_pending_balance(
+    party_id: str,
+    tenant_context: tuple[str, str] = Depends(get_tenant_context),
+) -> Dict[str, Any]:
+    """Retrieves server-authoritative current pending balance for party."""
+    store_id, _ = tenant_context
+    balance = PartyService.calculate_party_pending_balance(store_id=store_id, party_id=party_id)
+    return {
+        "party_id": party_id,
+        "party_pending_balance": balance,
+    }
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_party(
     request: PartyCreateRequest,
