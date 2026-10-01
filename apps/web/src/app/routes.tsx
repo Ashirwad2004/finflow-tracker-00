@@ -7,7 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { PageLoader, MerchantRoute, SalesmanRoute, AdminRoute } from "./guards";
 
 // Lazy-loaded pages
-const Index = lazy(() => import("@/pages/public/Index"));
+const Index = lazy(() => import("@/pages/public/LandingPage"));
 const Auth = lazy(() => import("@/features/auth/Auth"));
 const SalesmanLogin = lazy(() => import("@/features/auth/SalesmanLogin"));
 const SalesmanDashboard = lazy(() => import("@/features/salesman/pages/SalesmanDashboard"));

@@ -1,4 +1,4 @@
-export { default as Index } from "./Index";
+export { default as LandingPage, default as Index } from "./LandingPage";
 export { default as NotFound } from "./NotFound";
 export { default as Pricing } from "./Pricing";
 export { default as PrivacyPolicy } from "./PrivacyPolicy";
