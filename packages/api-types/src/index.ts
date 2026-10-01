@@ -3,6 +3,8 @@
  * Generated and shared TypeScript contracts derived from the FastAPI backend schema.
  */
 
+export * from "./generated";
+
 export interface ApiResponse<T = any> {
   status: string;
   data?: T;

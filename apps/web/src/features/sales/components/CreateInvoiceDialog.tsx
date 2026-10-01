@@ -25,6 +25,7 @@ import { useWhatsAppSendInvoice } from "@/features/whatsapp/hooks/useWhatsApp";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { SmartSaleInput } from "./SmartSaleInput";
 import { CustomerSection } from "./CustomerSection";
+import { InvoiceTotalsFooter } from "./create-invoice";
 import { ProductCombobox, ProductItem } from "@/features/purchases/components/purchase/ProductCombobox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
@@ -3809,60 +3810,14 @@ export const CreateInvoiceDialog = ({
                         FOOTER
                     ================================================== */}
 
-                    <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 sticky bottom-0 z-20 mt-auto rounded-b-md flex-wrap">
-                        {/* Auto-WhatsApp on Save Toggle */}
-                        <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-emerald-700 transition-colors bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                            <input
-                                type="checkbox"
-                                checked={sendWhatsApp}
-                                onChange={(e) => setSendWhatsApp(e.target.checked)}
-                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600"
-                            />
-                            <MessageCircle className="w-4 h-4 text-emerald-600" />
-                            <span>Send WhatsApp on Save</span>
-                        </label>
-
-                        <div className="flex items-center gap-2.5 ml-auto">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="min-w-[90px] border-slate-300 bg-white"
-                                onClick={() =>
-                                    onOpenChange(
-                                        false
-                                    )
-                                }
-                            >
-                                Cancel
-                            </Button>
-
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
-                                onClick={handlePreviewDraft}
-                            >
-                                <Eye className="w-4 h-4 mr-1.5 text-slate-500" />
-                                Preview
-                            </Button>
-
-                            <Button
-                                type="submit"
-                                className="min-w-[130px] bg-slate-800 hover:bg-slate-900 text-white shadow-sm"
-                                disabled={
-                                    createInvoiceMutation.isPending
-                                }
-                            >
-                                {createInvoiceMutation.isPending && (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                )}
-
-                                {invoiceToEdit
-                                    ? "Update Invoice"
-                                    : "Save Invoice"}
-                            </Button>
-                        </div>
-                    </div>
+                    <InvoiceTotalsFooter
+                        sendWhatsApp={sendWhatsApp}
+                        onSendWhatsAppChange={setSendWhatsApp}
+                        onCancel={() => onOpenChange(false)}
+                        onPreview={handlePreviewDraft}
+                        isPending={createInvoiceMutation.isPending}
+                        isEditing={Boolean(invoiceToEdit)}
+                    />
                 </form>
                     </>
                 )}
