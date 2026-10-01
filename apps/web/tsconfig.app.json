@@ -23,6 +23,10 @@
 
     "paths": {
       "@/*": ["./src/*"],
+      "@rupaybill/api-types": ["../../packages/api-types/src/index.ts"],
+      "@rupaybill/api-types/*": ["../../packages/api-types/src/*"],
+      "@rupeebill/api-types": ["../../packages/api-types/src/index.ts"],
+      "@rupeebill/api-types/*": ["../../packages/api-types/src/*"],
       "*": ["./*"]
     },
     "forceConsistentCasingInFileNames": true

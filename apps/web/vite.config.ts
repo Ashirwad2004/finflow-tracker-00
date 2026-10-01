@@ -52,6 +52,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@rupaybill/api-types": path.resolve(__dirname, "../../packages/api-types/src/index.ts"),
+      "@rupeebill/api-types": path.resolve(__dirname, "../../packages/api-types/src/index.ts"),
     },
   },
   build: {

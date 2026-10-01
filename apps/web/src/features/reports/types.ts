@@ -7,6 +7,11 @@ export type {
   BalanceSheetReport,
   ReceivablesAgingReport,
 } from "@/core/api/reports";
+export type {
+  BalanceSheetRequest,
+  BalanceSheetResponse,
+  AgingBucket,
+} from "@rupaybill/api-types";
 
 export interface ReportFilterOptions {
   period?: import("./hooks/useAccountingData").DatePeriodPreset;

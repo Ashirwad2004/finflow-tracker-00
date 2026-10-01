@@ -3,6 +3,7 @@ import { RouteObject } from "react-router-dom";
 import { MerchantRoute } from "@/app/guards";
 
 const InventoryPage = lazy(() => import("./pages/InventoryPage"));
+const BarcodeManagementPage = lazy(() => import("@/features/pos/pages/BarcodeManagement"));
 
 export const inventoryRoutes: RouteObject[] = [
   {
@@ -10,6 +11,14 @@ export const inventoryRoutes: RouteObject[] = [
     element: (
       <MerchantRoute>
         <InventoryPage />
+      </MerchantRoute>
+    ),
+  },
+  {
+    path: "/inventory/barcodes",
+    element: (
+      <MerchantRoute>
+        <BarcodeManagementPage />
       </MerchantRoute>
     ),
   },
