@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
-import { LedgerTransaction } from "@/features/business/components/DetailedPartyReport";
+import { LedgerTransaction } from "@/features/parties/components/DetailedPartyReport";
 
 export interface BusinessDetails {
     name: string;

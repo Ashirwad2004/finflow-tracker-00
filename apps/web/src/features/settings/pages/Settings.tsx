@@ -11,7 +11,7 @@ import { useCurrency, CURRENCIES } from "@/core/contexts/CurrencyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Globe, Download, Loader2, FileJson, FileSpreadsheet, Sliders, Bell, Clock, CreditCard, Sparkles, ShieldCheck, MessageCircle } from "lucide-react";
 import { getOverdueDaysThreshold, setOverdueDaysThreshold } from "@/core/utils/overdue";
-import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
+import { BusinessDetailsDialog } from "../components/BusinessDetailsDialog";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useAuth } from "@/core/lib/auth";
 import { useToast } from "@/core/hooks/use-toast";

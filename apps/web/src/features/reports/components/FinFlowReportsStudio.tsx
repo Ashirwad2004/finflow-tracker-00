@@ -40,8 +40,8 @@ import {
 import { downloadReportCSV, printAccountingReport } from "../utils/exportReportUtils";
 import { DetailedPartyReport } from "@/features/parties/components/DetailedPartyReport";
 import { PartyReport } from "@/features/parties/components/PartyReport";
-import { SalesOrderRegister } from "@/features/business/components/orders/SalesOrderRegister";
-import { PurchaseOrderRegister } from "@/features/business/components/orders/PurchaseOrderRegister";
+import { SalesOrderRegister } from "@/features/sales/components/SalesOrderRegister";
+import { PurchaseOrderRegister } from "@/features/purchases/components/PurchaseOrderRegister";
 import { useAuth } from "@/core/lib/auth";
 
 export type FinFlowReportId =

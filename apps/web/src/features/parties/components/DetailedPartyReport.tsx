@@ -37,7 +37,7 @@ import {
 
 import { exportDetailedPartyPDF } from "@/utils/exportDetailedPartyPDF";
 import { exportDetailedPartyCSV } from "@/utils/exportDetailedPartyCSV";
-import { parsePaymentTranscript } from "@/features/business/utils/paymentTranscript";
+import { parsePaymentTranscript } from "@/features/payments";
 import { SendWhatsAppDialog } from "@/features/whatsapp/components/SendWhatsAppDialog";
 import { useWhatsAppStatus } from "@/features/whatsapp/hooks/useWhatsApp";
 import { cn } from "@/core/lib/utils";

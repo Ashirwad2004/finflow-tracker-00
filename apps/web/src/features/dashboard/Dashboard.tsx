@@ -52,12 +52,12 @@ import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
 import { businessMenuItems } from "@/components/layout/AppSidebar";
 import { cn } from "@/core/lib/utils";
-const BusinessDashboard = lazy(() => import("@/features/business/pages/BusinessDashboard"));
+const BusinessDashboard = lazy(() => import("./BusinessDashboard"));
 import { useBusiness } from "@/core/contexts/BusinessContext";
 import { motion } from "framer-motion";
 import { AnimatedCounter, DashboardCard } from "@/features/dashboard/DashboardComponents";
 import { OnboardingDialog } from "@/features/settings/components/OnboardingDialog";
-import { BusinessDetailsDialog } from "@/features/business/components/BusinessDetailsDialog";
+import { BusinessDetailsDialog } from "@/features/settings/components/BusinessDetailsDialog";
 import { useExpensesQuery } from "@/features/expenses/api/useExpensesQuery";
 
 import { LoansDebtsOverview } from "./LoansDebtsOverview";

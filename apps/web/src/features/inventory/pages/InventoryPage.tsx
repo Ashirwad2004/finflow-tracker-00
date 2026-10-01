@@ -57,8 +57,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useItemSettings } from "@/core/hooks/use-item-settings";
 import { useSalesSettings } from "@/core/hooks/use-sales-settings";
 import { useProductsRealtime } from "@/core/hooks/useProductsRealtime";
-import { ProductImageUpload } from "@/features/business/components/ProductImageUpload";
-import { ExcelImportDialog } from "@/features/business/components/ExcelImportDialog";
+import { ProductImageUpload } from "../components/ProductImageUpload";
+import { ExcelImportDialog } from "../components/ExcelImportDialog";
 import { generateProductContent } from "@/core/integrations/ai/gemini";
 
 interface Product {

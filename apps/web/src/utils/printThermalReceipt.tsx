@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ThermalReceipt } from '@/features/business/components/ThermalReceipt';
+import { ThermalReceipt } from '@/features/sales/components/ThermalReceipt';
 
 export const printThermalReceipt = async (data: any) => {
     // 1. Remove previous print frame if any

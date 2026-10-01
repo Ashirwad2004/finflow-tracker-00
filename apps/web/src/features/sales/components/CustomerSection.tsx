@@ -18,7 +18,7 @@ import {
     Wallet 
 } from "lucide-react";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { PartyDialog } from "@/features/business/components/PartyDialog";
+import { PartyDialog } from "@/features/parties/components/PartyDialog";
 import { offlineMutate } from "@/core/offline/apiService";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/core/hooks/use-toast";

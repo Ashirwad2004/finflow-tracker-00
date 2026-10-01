@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ThermalReceipt } from "@/features/business/components/ThermalReceipt";
+import { ThermalReceipt } from "@/features/sales/components/ThermalReceipt";
 import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
 import { printThermalReceipt } from "@/utils/printThermalReceipt";
 import { Printer, Download, Share2, PlusCircle, CheckCircle2, ArrowRight, MessageCircle, Loader2 } from "lucide-react";

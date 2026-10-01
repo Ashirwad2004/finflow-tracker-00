@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
-import { LedgerTransaction } from "@/features/business/components/DetailedPartyReport";
+import { LedgerTransaction } from "@/features/parties/components/DetailedPartyReport";
 
 export interface BusinessDetailsCSV {
     name?: string;
