@@ -17,6 +17,8 @@
     "test:backend": "python -m pytest apps/api/tests -v",
     "build": "npm run build --workspace=apps/web",
     "lint": "npm run lint --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/web",
+    "types:generate": "npm run generate --workspace=packages/api-types",
     "preview": "npm run preview --workspace=apps/web",
     "server": "node apps/web/server.js",
     "docker:build": "docker-compose build",

@@ -9,6 +9,7 @@
     "build": "vite build && node inject-sw-assets.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "start": "node server.js"
   },
