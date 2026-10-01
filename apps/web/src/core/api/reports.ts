@@ -1,66 +1,46 @@
 import { apiClient } from "./apiClient";
+import type {
+  ProfitAndLossResponse,
+  TrialBalanceResponse,
+  BalanceSheetResponse,
+  ReceivablesAgingResponse,
+  CashFlowStatementResponse,
+  GSTR1ReportResponse,
+  GSTR2BReportResponse,
+  GSTR3BSummaryResponse,
+  GSTR9AnnualReportResponse,
+  ProfitAndLossRequest,
+  TrialBalanceRequest,
+  BalanceSheetRequest,
+  ReceivablesAgingRequest,
+  CashFlowStatementRequest,
+  GSTR1ReportRequest,
+  GSTR2BReportRequest,
+  GSTR3BReportRequest,
+  GSTR9ReportRequest,
+} from "@rupaybill/api-types";
 
-export interface ProfitAndLossReport {
-  revenue_from_operations: number;
-  sales_returns: number;
-  net_revenue: number;
-  opening_stock_value: number;
-  purchases_cost: number;
-  direct_expenses: number;
-  closing_stock_value: number;
-  cost_of_goods_sold: number;
-  gross_profit: number;
-  gross_profit_margin_pct: number;
-  indirect_expenses: Record<string, number>;
-  total_indirect_expenses: number;
-  net_profit_before_tax: number;
-  net_profit_margin_pct: number;
-}
-
-export interface TrialBalanceItem {
-  account_name: string;
-  account_type: string;
-  debit_amount: number;
-  credit_amount: number;
-}
-
-export interface TrialBalanceReport {
-  items: TrialBalanceItem[];
-  total_debit: number;
-  total_credit: number;
-  is_balanced: boolean;
-  difference: number;
-}
-
-export interface BalanceSheetReport {
-  current_assets: Record<string, number>;
-  total_current_assets: number;
-  non_current_assets: Record<string, number>;
-  total_non_current_assets: number;
-  total_assets: number;
-  current_liabilities: Record<string, number>;
-  total_current_liabilities: number;
-  non_current_liabilities: Record<string, number>;
-  total_non_current_liabilities: number;
-  total_liabilities: number;
-  proprietor_capital: number;
-  current_period_profit: number;
-  total_equity: number;
-  total_liabilities_and_equity: number;
-  is_balanced: boolean;
-}
-
-export interface ReceivablesAgingReport {
-  ref_date: string;
-  total_receivable: number;
-  buckets: Record<string, number>;
-  customer_breakdown: Array<{
+// Backward-compatible type aliases
+export type ProfitAndLossReport = ProfitAndLossResponse;
+export type TrialBalanceReport = TrialBalanceResponse;
+export type BalanceSheetReport = BalanceSheetResponse;
+export type ReceivablesAgingReport = ReceivablesAgingResponse & {
+  ref_date?: string;
+  total_receivable?: number;
+  customer_breakdown?: Array<{
     customer_id?: string;
     customer_name: string;
     phone?: string;
     total_due: number;
     bucket: string;
   }>;
+};
+
+export interface TrialBalanceItem {
+  account_name: string;
+  account_type: string;
+  debit_amount: number;
+  credit_amount: number;
 }
 
 export interface SalesSummaryReport {
@@ -106,6 +86,7 @@ export interface PartyLedgerReport {
 }
 
 export const reportsApi = {
+  // Authoritative Server-Side Reports
   getProfitAndLoss: async (params?: {
     start_date?: string;
     end_date?: string;
@@ -157,6 +138,52 @@ export const reportsApi = {
     const res = await apiClient.get<PartyLedgerReport>(`/api/v1/reports/ledger/${partyId}`, {
       params,
     });
+    return res.data;
+  },
+
+  // Client-Supplied Report Calculation Engines
+  calculateProfitAndLoss: async (payload: ProfitAndLossRequest): Promise<ProfitAndLossResponse> => {
+    const res = await apiClient.post<ProfitAndLossResponse>("/api/v1/reports/profit-loss", payload);
+    return res.data;
+  },
+
+  calculateTrialBalance: async (payload: TrialBalanceRequest): Promise<TrialBalanceResponse> => {
+    const res = await apiClient.post<TrialBalanceResponse>("/api/v1/reports/trial-balance", payload);
+    return res.data;
+  },
+
+  calculateBalanceSheet: async (payload: BalanceSheetRequest): Promise<BalanceSheetResponse> => {
+    const res = await apiClient.post<BalanceSheetResponse>("/api/v1/reports/balance-sheet", payload);
+    return res.data;
+  },
+
+  calculateReceivablesAging: async (payload: ReceivablesAgingRequest): Promise<ReceivablesAgingResponse> => {
+    const res = await apiClient.post<ReceivablesAgingResponse>("/api/v1/reports/receivables-aging", payload);
+    return res.data;
+  },
+
+  calculateCashFlow: async (payload: CashFlowStatementRequest): Promise<CashFlowStatementResponse> => {
+    const res = await apiClient.post<CashFlowStatementResponse>("/api/v1/reports/cash-flow", payload);
+    return res.data;
+  },
+
+  generateGSTR1: async (payload: GSTR1ReportRequest): Promise<GSTR1ReportResponse> => {
+    const res = await apiClient.post<GSTR1ReportResponse>("/api/v1/reports/gstr1", payload);
+    return res.data;
+  },
+
+  generateGSTR2B: async (payload: GSTR2BReportRequest): Promise<GSTR2BReportResponse> => {
+    const res = await apiClient.post<GSTR2BReportResponse>("/api/v1/reports/gstr2b", payload);
+    return res.data;
+  },
+
+  generateGSTR3B: async (payload: GSTR3BReportRequest): Promise<GSTR3BSummaryResponse> => {
+    const res = await apiClient.post<GSTR3BSummaryResponse>("/api/v1/reports/gstr3b", payload);
+    return res.data;
+  },
+
+  generateGSTR9: async (payload: GSTR9ReportRequest): Promise<GSTR9AnnualReportResponse> => {
+    const res = await apiClient.post<GSTR9AnnualReportResponse>("/api/v1/reports/gstr9", payload);
     return res.data;
   },
 };

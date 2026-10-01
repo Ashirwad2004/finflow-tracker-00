@@ -4,6 +4,7 @@ import { sqliteService } from "@/core/offline/sqliteService";
 import { offlineMutate } from "@/core/offline/apiService";
 import { PaymentRecord, PaymentCreatePayload, PaymentType } from "./types";
 import { v4 as uuidv4 } from "uuid";
+export { paymentsApi } from "@/core/api/payments";
 
 export const paymentKeys = {
   all: ["payments"] as const,
