@@ -160,3 +160,7 @@ export { posRoutes } from "@/features/pos/routes";
 export { loyaltyRoutes } from "@/features/loyalty/routes";
 export { storefrontRoutes } from "@/features/storefront/routes";
 export { printStudioRoutes } from "@/features/print-studio/routes";
+export { expensesRoutes } from "@/features/expenses/routes";
+export { loansRoutes } from "@/features/loans/routes";
+export { groupsRoutes } from "@/features/groups/routes";
+export { trashRoutes } from "@/features/trash/routes";
