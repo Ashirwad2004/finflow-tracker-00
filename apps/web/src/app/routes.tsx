@@ -7,7 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { PageLoader, MerchantRoute, SalesmanRoute, AdminRoute } from "./guards";
 
 // Lazy-loaded pages
-const Index = lazy(() => import("@/pages/Index"));
+const Index = lazy(() => import("@/pages/public/Index"));
 const Auth = lazy(() => import("@/features/auth/Auth"));
 const SalesmanLogin = lazy(() => import("@/features/auth/SalesmanLogin"));
 const SalesmanDashboard = lazy(() => import("@/features/salesman/pages/SalesmanDashboard"));
@@ -19,7 +19,7 @@ const LentMoney = lazy(() => import("@/features/loans/pages/LentMoney"));
 const BorrowedMoney = lazy(() => import("@/features/loans/pages/BorrowedMoney"));
 const RecentlyDeletedPage = lazy(() => import("@/features/trash/pages/RecentlyDeletedPage"));
 const SettingsPage = lazy(() => import("@/features/settings/pages/Settings"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
+const NotFound = lazy(() => import("@/pages/public/NotFound"));
 
 // Domain Pages
 const SalesPage = lazy(() => import("@/features/sales/pages/SalesPage"));
@@ -34,12 +34,12 @@ const ReportsPage = lazy(() => import("@/features/reports/pages/ReportsPage"));
 const PersonalReportsPage = lazy(() => import("@/features/reports/pages/PersonalReports"));
 const AdminDemoPage = lazy(() => import("@/features/demo/AdminDashboard"));
 const StorefrontPage = lazy(() => import("@/features/storefront/Storefront"));
-const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccess"));
-const PaymentFailurePage = lazy(() => import("@/pages/PaymentFailure"));
-const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
-const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
+const PaymentSuccessPage = lazy(() => import("@/pages/public/PaymentSuccess"));
+const PaymentFailurePage = lazy(() => import("@/pages/public/PaymentFailure"));
+const PrivacyPolicy = lazy(() => import("@/pages/public/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("@/pages/public/TermsOfService"));
 const LoyaltyCampaigns = lazy(() => import("@/features/loyalty/pages/LoyaltyCampaignsPage"));
-const PricingPage = lazy(() => import("@/pages/Pricing"));
+const PricingPage = lazy(() => import("@/pages/public/Pricing"));
 const POSPage = lazy(() => import("@/features/pos/pages/POSPage"));
 const BarcodeManagementPage = lazy(() => import("@/features/pos/pages/BarcodeManagement"));
 
