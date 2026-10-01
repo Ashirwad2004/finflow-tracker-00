@@ -100,6 +100,8 @@ const personalMenuItems = [
   }
 ];
 
+export const menuItems = personalMenuItems;
+
 export const businessMenuItems: any[] = [
   {
     title: "Dashboard",

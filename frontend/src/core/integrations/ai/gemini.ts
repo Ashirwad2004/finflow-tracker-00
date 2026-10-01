@@ -41,6 +41,8 @@ export async function callGemini(messages: AiMessage[], options: GeminiOptions =
             const data = await res.json();
             return data?.text || data?.choices?.[0]?.message?.content || "";
         }
+        const errorText = await res.text().catch(() => "");
+        console.warn(`FastAPI backend AI returned ${res.status}: ${errorText}. Falling back to edge proxy.`);
     } catch (err) {
         // Backend not reached or offline; gracefully fallback to Edge function
         console.warn("FastAPI backend AI unreachable, falling back to edge proxy:", err);
@@ -108,6 +110,8 @@ export async function callGeminiStream(messages: AiMessage[], options: GeminiOpt
         if (res.ok) {
             return res;
         }
+        const errorText = await res.text().catch(() => "");
+        console.warn(`FastAPI stream returned ${res.status}: ${errorText}. Falling back to edge proxy.`);
     } catch (err) {
         console.warn("FastAPI stream unreachable, falling back to edge proxy:", err);
     }

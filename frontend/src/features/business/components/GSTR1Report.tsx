@@ -247,6 +247,7 @@ export const GSTR1Report = () => {
     const bizGSTIN = (profile as any)?.gst_number || "";
     const fallbackState = typeof window !== 'undefined' ? (localStorage.getItem("rupeebill_fallback_state_code") || "27") : "27";
     const effectiveStateCode = (bizGSTIN && bizGSTIN.length >= 2) ? bizGSTIN.substring(0, 2) : fallbackState;
+    const bizStateCode = effectiveStateCode;
 
     // Fetch pre-aggregated GSTR-1 data from backend RPC with client-side fallback
     const { data: gstr1Data, isLoading } = useQuery({

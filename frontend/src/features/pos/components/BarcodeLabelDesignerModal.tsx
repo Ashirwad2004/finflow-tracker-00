@@ -122,10 +122,12 @@ export const BarcodeLabelDesignerModal: React.FC<BarcodeLabelDesignerModalProps>
   onClose,
   products: initialProducts,
 }) => {
-  const { currentStore } = useBusiness();
+  const { currentStoreId } = useBusiness();
   const [items, setItems] = useState<LabelProductItem[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<LabelPresetKey>("roll_50_25");
-  const [storeName, setStoreName] = useState<string>("");
+  const [storeName, setStoreName] = useState<string>(() => {
+    return localStorage.getItem("rupeebill_business_name") || "Retail Store";
+  });
   const [showStoreName, setShowStoreName] = useState(true);
   const [showProductName, setShowProductName] = useState(true);
   const [showPrice, setShowPrice] = useState(true);
@@ -144,11 +146,12 @@ export const BarcodeLabelDesignerModal: React.FC<BarcodeLabelDesignerModalProps>
           copies: p.copies || 1,
         }))
       );
-      if (currentStore?.name) {
-        setStoreName(currentStore.name);
+      const saved = localStorage.getItem("rupeebill_business_name");
+      if (saved) {
+        setStoreName(saved);
       }
     }
-  }, [isOpen, initialProducts, currentStore]);
+  }, [isOpen, initialProducts]);
 
   // Render the live preview of the first selected product
   const previewItem = items[0] || {

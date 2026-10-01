@@ -50,7 +50,7 @@ import { AiInsights } from "@/features/dashboard/AiInsights";
 
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
-import { menuItems, businessMenuItems } from "@/components/layout/AppSidebar";
+import { businessMenuItems } from "@/components/layout/AppSidebar";
 import { cn } from "@/core/lib/utils";
 const BusinessDashboard = lazy(() => import("@/features/business/pages/BusinessDashboard"));
 import { useBusiness } from "@/core/contexts/BusinessContext";

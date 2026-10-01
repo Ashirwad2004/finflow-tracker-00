@@ -19,6 +19,9 @@ interface ThermalReceiptProps {
         amount_paid?: number;
         balance_due?: number;
         status?: string;
+        previous_balance?: number | string;
+        party_pending_balance?: number | string;
+        total_due_balance?: number | string;
         business_details?: {
             name: string;
             address?: string;

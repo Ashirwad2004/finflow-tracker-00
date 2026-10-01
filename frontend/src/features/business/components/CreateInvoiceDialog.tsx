@@ -259,6 +259,8 @@ export const CreateInvoiceDialog = ({
     const watchCustomerEmail = watch("customer_email") || "";
     const watchCustomerGstin = watch("customer_gstin") || "";
     const watchPlaceOfSupply = watch("place_of_supply") || "";
+    const watchStatus = watch("status") || "paid";
+    const watchAmountPaid = watch("amount_paid") || 0;
 
     // ============================================================
     // QUICK BILLING
@@ -1236,12 +1238,11 @@ export const CreateInvoiceDialog = ({
     const effectiveInvoiceTotal = isQuickBilling ? (Number(watchQuickTotalAmount) || 0) : roundedTotal;
 
     const currentInvoiceDue = useMemo(() => {
-        const watchStatus = watch("status");
-        const paidVal = Number(watch("amount_paid")) || 0;
+        const paidVal = Number(watchAmountPaid) || 0;
         if (watchStatus === "paid") return 0;
         if (watchStatus === "pending") return effectiveInvoiceTotal;
         return Math.max(0, effectiveInvoiceTotal - paidVal);
-    }, [watch("status"), watch("amount_paid"), effectiveInvoiceTotal]);
+    }, [watchStatus, watchAmountPaid, effectiveInvoiceTotal]);
 
     const partyClosingDue = partyPreviousBalance + currentInvoiceDue;
 

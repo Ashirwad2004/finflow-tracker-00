@@ -7,7 +7,7 @@ from typing import Any
 
 from google import genai
 from google.genai import types
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from src.core.config import settings
 
@@ -35,14 +35,36 @@ SAFETY_SETTINGS = [
 ]
 
 
+def is_placeholder_key(key: str | None) -> bool:
+    if not key:
+        return True
+    cleaned = key.strip().lower()
+    return (
+        cleaned.startswith("your_")
+        or cleaned.startswith("your-")
+        or "placeholder" in cleaned
+        or cleaned in {"your_gemini_api_key_here", "your-gemini-api-key", "changeme", "none", "null", "undefined"}
+    )
+
+
 class GeminiServiceError(Exception):
     """Raised when the Gemini provider returns an invalid or blocked response."""
 
 
+class GeminiAuthError(GeminiServiceError):
+    """Raised when the Gemini API key is missing, invalid, or unauthorized."""
+
+
+def is_retryable_gemini_error(exc: BaseException) -> bool:
+    if isinstance(exc, GeminiAuthError):
+        return False
+    return isinstance(exc, GeminiServiceError)
+
+
 class GeminiClient:
     def __init__(self, api_key: str, default_model: str) -> None:
-        if not api_key:
-            raise GeminiServiceError("GEMINI_API_KEY is not configured")
+        if is_placeholder_key(api_key):
+            raise GeminiAuthError("GEMINI_API_KEY is not configured or using a placeholder value")
         self.client = genai.Client(api_key=api_key)
         self.default_model = default_model
 
@@ -149,7 +171,7 @@ class GeminiClient:
         reraise=True,
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
-        retry=retry_if_exception_type(GeminiServiceError),
+        retry=retry_if_exception(is_retryable_gemini_error),
     )
     async def generate(
         self,
@@ -184,7 +206,10 @@ class GeminiClient:
             )
         except Exception as exc:
             logger.exception("Gemini API request failed")
-            raise GeminiServiceError(str(exc)) from exc
+            err_msg = str(exc)
+            if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg or "invalid api key" in err_msg.lower():
+                raise GeminiAuthError(err_msg) from exc
+            raise GeminiServiceError(err_msg) from exc
 
         text = (response.text or "").strip()
         if not text:
@@ -226,7 +251,10 @@ class GeminiClient:
                 yield chunk.text or ""
         except Exception as exc:
             logger.exception("Gemini API stream request failed")
-            raise GeminiServiceError(str(exc)) from exc
+            err_msg = str(exc)
+            if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg or "invalid api key" in err_msg.lower():
+                raise GeminiAuthError(err_msg) from exc
+            raise GeminiServiceError(err_msg) from exc
 
 
 @lru_cache

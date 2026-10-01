@@ -796,24 +796,23 @@ export default function SalesPage() {
     }, [invoices]);
 
     const sortedAndFilteredInvoices = useMemo(() => {
+        const lowerSearch = searchTerm.trim().toLowerCase();
         const filtered = invoices.filter((invoice) => {
-            const matchesSearch =
-                invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = !lowerSearch ||
+                (invoice.customer_name && invoice.customer_name.toLowerCase().includes(lowerSearch)) ||
+                (invoice.invoice_number && invoice.invoice_number.toLowerCase().includes(lowerSearch));
             const matchesFilter = filterStatus === 'all' || invoice.status === filterStatus;
             return matchesFilter && matchesSearch;
         });
 
+        if (filtered.length <= 1) return filtered;
+
         return [...filtered].sort((a, b) => {
             if (sortBy === 'date-desc') {
-                const dB = b.date ? new Date(b.date).getTime() : 0;
-                const dA = a.date ? new Date(a.date).getTime() : 0;
-                return (isNaN(dB) ? 0 : dB) - (isNaN(dA) ? 0 : dA);
+                return (b.date || "").localeCompare(a.date || "");
             }
             if (sortBy === 'date-asc') {
-                const dB = b.date ? new Date(b.date).getTime() : 0;
-                const dA = a.date ? new Date(a.date).getTime() : 0;
-                return (isNaN(dA) ? 0 : dA) - (isNaN(dB) ? 0 : dB);
+                return (a.date || "").localeCompare(b.date || "");
             }
             if (sortBy === 'amount-desc') {
                 return Number(b.total_amount || 0) - Number(a.total_amount || 0);

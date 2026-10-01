@@ -130,7 +130,7 @@ export async function updateFeatureRequest(
   if (updates.status) payload.status = updates.status;
   if (updates.notes !== undefined) payload.notes = updates.notes;
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("feature_requests")
     .update(payload)
     .eq("id", id);
