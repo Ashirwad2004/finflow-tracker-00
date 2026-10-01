@@ -5,3 +5,4 @@ export * from "./inventory";
 export * from "./parties";
 export * from "./payments";
 export * from "./reports";
+export * from "./ai";
