@@ -17,15 +17,20 @@ import { useAuth } from "@/core/lib/auth";
 import { purchasesApi, CreatePurchasePayload } from "@/core/api/purchases";
 
 // Modular Subcomponents
-import { PurchaseHeader } from "./purchase/PurchaseHeader";
-import { SupplierSection } from "./purchase/SupplierSection";
-import { PurchaseDetailsSection } from "./purchase/PurchaseDetailsSection";
-import { PurchaseItemsTable, PurchaseItemRowData } from "./purchase/PurchaseItemsTable";
-import { PurchaseAdditionalDetails } from "./purchase/PurchaseAdditionalDetails";
-import { PurchaseSummarySection } from "./purchase/PurchaseSummarySection";
-import { PurchaseStickyFooter } from "./purchase/PurchaseStickyFooter";
-import { ProductCombobox, ProductItem } from "./purchase/ProductCombobox";
-import { PurchaseBillScanner, ExtractedPurchaseBill } from "./purchase/PurchaseBillScanner";
+import {
+    PurchaseHeader,
+    SupplierSection,
+    PurchaseDetailsSection,
+    PurchaseItemsTable,
+    PurchaseItemRowData,
+    PurchaseAdditionalDetails,
+    PurchaseSummarySection,
+    PurchaseStickyFooter,
+    ProductCombobox,
+    ProductItem,
+    PurchaseBillScanner,
+    ExtractedPurchaseBill,
+} from "./purchase";
 
 interface RecordPurchaseDialogProps {
     open: boolean;
