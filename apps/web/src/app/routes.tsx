@@ -156,3 +156,7 @@ export { reportsRoutes } from "@/features/reports/routes";
 export { dashboardRoutes } from "@/features/dashboard/routes";
 export { settingsRoutes } from "@/features/settings/routes";
 export { salesmanRoutes } from "@/features/salesman/routes";
+export { posRoutes } from "@/features/pos/routes";
+export { loyaltyRoutes } from "@/features/loyalty/routes";
+export { storefrontRoutes } from "@/features/storefront/routes";
+export { printStudioRoutes } from "@/features/print-studio/routes";
