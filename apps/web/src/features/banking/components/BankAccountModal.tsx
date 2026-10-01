@@ -19,7 +19,7 @@ import {
 import { Check, Loader2, Sparkles, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { BankAccount, AccountType } from "./types";
-import { lookupIFSC, isValidIFSC } from "../../services/ifscService";
+import { lookupIFSC, isValidIFSC } from "../services/ifscService";
 
 interface BankAccountModalProps {
     isOpen: boolean;

@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BankAccount } from "./types";
-import { parseStatementFile, ParsedStatementResult } from "../../services/statementParser";
+import { parseStatementFile, ParsedStatementResult } from "../services/statementParser";
 
 interface StatementImportModalProps {
     isOpen: boolean;

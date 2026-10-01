@@ -35,7 +35,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/core/lib/utils";
 import { BankAccount, BankTransaction, BankStatementLine } from "./types";
-import { computeAutoMatches, guessCategoryFromNarration } from "../../services/reconciliationEngine";
+import { computeAutoMatches, guessCategoryFromNarration } from "../services/reconciliationEngine";
 
 interface BankReconciliationWorkspaceProps {
     accounts: BankAccount[];
