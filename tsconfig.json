@@ -1,15 +1,17 @@
 {
   "files": [],
   "references": [
-    { "path": "./frontend/tsconfig.app.json" },
-    { "path": "./frontend/tsconfig.node.json" }
+    { "path": "./apps/web/tsconfig.app.json" },
+    { "path": "./apps/web/tsconfig.node.json" },
+    { "path": "./packages/api-types/tsconfig.json" }
   ],
   "compilerOptions": {
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "paths": {
-      "@/*": ["./frontend/src/*"]
+      "@/*": ["./apps/web/src/*"],
+      "@rupaybill/api-types": ["./packages/api-types/src/index.ts"]
     },
     "noImplicitAny": false,
     "noUnusedParameters": false,

@@ -5,7 +5,9 @@ import subprocess
 def main():
     is_win = sys.platform.startswith('win')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    backend_dir = os.path.join(base_dir, 'backend')
+    backend_dir = os.path.join(base_dir, 'apps', 'api')
+    if not os.path.exists(backend_dir):
+        backend_dir = os.path.join(base_dir, 'backend')
     
     # Locate python executable in backend/venv or root .venv
     possible_python_paths = [
@@ -37,4 +39,4 @@ def main():
         sys.exit(1)
 
 if __name__ == '__main__':
-    main()
+    main()

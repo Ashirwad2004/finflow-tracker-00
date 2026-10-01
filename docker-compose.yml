@@ -1,20 +1,20 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: ./apps/api
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       - PORT=8000
     volumes:
-      - ./backend:/app
+      - ./apps/api:/app
       - /app/__pycache__
     restart: always
 
   frontend:
     build:
-      context: ./frontend
+      context: ./apps/web
       dockerfile: Dockerfile
       args:
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}

@@ -2,24 +2,31 @@
   "name": "finflow-tracker-monorepo",
   "private": true,
   "version": "1.0.0",
-  "description": "FinFlow Tracker - Full-stack application with FastAPI backend and React Vite frontend",
+  "description": "RupayBill Monorepo - FastAPI backend (apps/api), React Vite frontend (apps/web), and shared packages",
   "workspaces": [
-    "frontend"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=frontend\" \"python run-backend.py\"",
-    "frontend:dev": "npm run dev --workspace=frontend",
+    "dev": "concurrently \"npm run dev --workspace=apps/web\" \"python run-backend.py\"",
+    "web:dev": "npm run dev --workspace=apps/web",
+    "frontend:dev": "npm run dev --workspace=apps/web",
+    "api:dev": "python run-backend.py",
     "backend:dev": "python run-backend.py",
-    "test:backend": "python -m pytest backend/tests -v",
-    "build": "npm run build --workspace=frontend",
-    "lint": "npm run lint --workspace=frontend",
-    "preview": "npm run preview --workspace=frontend",
-    "server": "node frontend/server.js",
+    "test:api": "python -m pytest apps/api/tests -v",
+    "test:backend": "python -m pytest apps/api/tests -v",
+    "build": "npm run build --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web",
+    "preview": "npm run preview --workspace=apps/web",
+    "server": "node apps/web/server.js",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "eslint": "^9.32.0"
   }
 }
