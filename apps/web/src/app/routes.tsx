@@ -153,3 +153,6 @@ export { partiesRoutes } from "@/features/parties/routes";
 export { inventoryRoutes } from "@/features/inventory/routes";
 export { bankingRoutes } from "@/features/banking/routes";
 export { reportsRoutes } from "@/features/reports/routes";
+export { dashboardRoutes } from "@/features/dashboard/routes";
+export { settingsRoutes } from "@/features/settings/routes";
+export { salesmanRoutes } from "@/features/salesman/routes";
