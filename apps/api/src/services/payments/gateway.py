@@ -1,16 +1,6 @@
-from src.core.config import settings
-from src.services.payments.drivers import MockGateway, StripeGateway, RazorpayGateway
+import sys
+import src.modules.payments.gateway as _gateway_module
 
-def get_gateway_driver(provider: str | None = None):
-    if not provider:
-        provider = settings.PAYMENT_GATEWAY_PROVIDER or "razorpay"
-        
-    p = provider.lower()
-    if p == "mock" and settings.ENVIRONMENT.lower() == "production":
-        raise RuntimeError("Mock payment gateway is disabled in production")
-    if p == "stripe":
-        return StripeGateway()
-    elif p == "razorpay":
-        return RazorpayGateway()
-    else:
-        return MockGateway()
+sys.modules[__name__] = _gateway_module
+
+from src.modules.payments.gateway import *  # noqa: F401, F403

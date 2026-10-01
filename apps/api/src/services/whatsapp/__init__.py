@@ -1,26 +1,18 @@
-from src.services.whatsapp.service import WhatsAppService
-from src.services.whatsapp.provider import WhatsAppProvider
-from src.services.whatsapp.openwa_provider import OpenWAProvider
-from src.services.whatsapp.openwa_client import OpenWAClient
-from src.services.whatsapp.phone_utils import normalize_indian_phone, format_whatsapp_chat_id
-from src.services.whatsapp.exceptions import (
-    WhatsAppException,
-    WhatsAppNotConnectedException,
-    WhatsAppGatewayUnavailableException,
-    WhatsAppRateLimitException,
-    WhatsAppInvalidPhoneException,
-)
+"""WhatsApp service legacy compatibility package."""
 
-__all__ = [
-    "WhatsAppService",
-    "WhatsAppProvider",
-    "OpenWAProvider",
-    "OpenWAClient",
-    "normalize_indian_phone",
-    "format_whatsapp_chat_id",
-    "WhatsAppException",
-    "WhatsAppNotConnectedException",
-    "WhatsAppGatewayUnavailableException",
-    "WhatsAppRateLimitException",
-    "WhatsAppInvalidPhoneException",
-]
+def __getattr__(name: str):
+    if name == "WhatsAppService":
+        from src.modules.whatsapp.service import WhatsAppService
+        return WhatsAppService
+    if name == "WhatsAppProvider":
+        from src.modules.whatsapp.provider import WhatsAppProvider
+        return WhatsAppProvider
+    if name == "OpenWAProvider":
+        from src.modules.whatsapp.openwa_provider import OpenWAProvider
+        return OpenWAProvider
+    if name == "OpenWAClient":
+        from src.modules.whatsapp.openwa_client import OpenWAClient
+        return OpenWAClient
+    raise AttributeError(f"module 'src.services.whatsapp' has no attribute '{name}'")
+
+__all__ = ["WhatsAppService", "WhatsAppProvider", "OpenWAProvider", "OpenWAClient"]
