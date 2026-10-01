@@ -164,3 +164,4 @@ export { expensesRoutes } from "@/features/expenses/routes";
 export { loansRoutes } from "@/features/loans/routes";
 export { groupsRoutes } from "@/features/groups/routes";
 export { trashRoutes } from "@/features/trash/routes";
+export { demoRoutes } from "@/features/demo/routes";
