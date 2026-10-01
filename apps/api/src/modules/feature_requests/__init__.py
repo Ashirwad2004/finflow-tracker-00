@@ -1,7 +1,5 @@
-"""
-Backward-compatibility re-export shim.
-Canonical schemas located in src.modules.feature_requests.schemas.
-"""
+from src.modules.feature_requests.router import router
+from src.modules.feature_requests.service import FeatureRequestsService
 from src.modules.feature_requests.schemas import (
     FeatureRequestCreate,
     FeatureRequestUpdate,
@@ -9,6 +7,8 @@ from src.modules.feature_requests.schemas import (
 )
 
 __all__ = [
+    "router",
+    "FeatureRequestsService",
     "FeatureRequestCreate",
     "FeatureRequestUpdate",
     "FeatureRequestResponse",

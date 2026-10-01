@@ -2,6 +2,8 @@ from fastapi import APIRouter
 
 from src.modules.ai.router import router as ai_router
 from src.modules.audit.router import router as audit_router
+from src.modules.backup.router import router as backup_router
+from src.modules.feature_requests.router import router as feature_requests_router
 from src.modules.inventory.router import router as inventory_router
 from src.modules.invoices.router import router as invoices_router
 from src.modules.parties.router import router as parties_router
@@ -9,11 +11,8 @@ from src.modules.payments.router import router as payments_router
 from src.modules.pos.router import router as pos_router
 from src.modules.purchases.router import router as purchases_router
 from src.modules.reports.router import router as reports_router
+from src.modules.settings.router import router as settings_router
 from src.modules.whatsapp.router import router as whatsapp_router
-
-from src.api.v1.endpoints.backup import router as backup_router
-from src.api.v1.endpoints.feature_requests import router as feature_requests_router
-from src.api.v1.endpoints.settings import router as settings_router
 
 api_router = APIRouter()
 api_router.include_router(invoices_router)
