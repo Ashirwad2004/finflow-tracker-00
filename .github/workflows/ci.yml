@@ -5,9 +5,11 @@ on:
     branches:
       - main
       - fixed-paymnet-issue
+      - remove-chunks
   pull_request:
     branches:
       - main
+      - remove-chunks
   workflow_dispatch:
 
 jobs:
@@ -67,6 +69,10 @@ jobs:
       - name: Verify Python Syntax & Compilation
         working-directory: apps/api
         run: find src -name "*.py" -type f -exec python -m py_compile {} +
+
+      - name: Run Backend Test Suite
+        working-directory: apps/api
+        run: python -m pytest tests -v
 
   docker-build-checks:
     name: Docker Build Validation
