@@ -2,10 +2,10 @@
 export { default as PurchasesPage } from "./pages/PurchasesPage";
 
 // Components
-export { default as RecordPurchaseDialog } from "./components/RecordPurchaseDialog";
-export { default as PurchaseBillScanner } from "./components/PurchaseBillScanner";
-export { default as CreatePurchaseOrderDialog } from "./components/CreatePurchaseOrderDialog";
-export { default as PurchaseOrderRegister } from "./components/PurchaseOrderRegister";
+export * from "./components";
+
+// Hooks
+export * from "./hooks";
 
 // API & Queries
 export * from "./api";

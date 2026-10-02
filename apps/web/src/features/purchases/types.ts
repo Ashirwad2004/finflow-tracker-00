@@ -61,3 +61,34 @@ export interface PurchaseFormValues {
   amount_paid?: number;
   notes?: string;
 }
+
+export interface Purchase {
+  id: string;
+  user_id: string;
+  vendor_name: string;
+  vendor_phone?: string;
+  vendor_email?: string;
+  vendor_gstin?: string;
+  bill_number: string;
+  status: 'paid' | 'partial' | 'pending' | 'overdue' | 'draft';
+  total_amount: number;
+  subtotal?: number;
+  tax_amount?: number;
+  tax_rate?: number;
+  discount_amount?: number;
+  amount_paid?: number;
+  balance_due?: number;
+  date: string;
+  due_date?: string;
+  items: any[];
+  notes?: string;
+  payment_method?: string;
+  place_of_supply?: string;
+  attachment_url?: string;
+}
+
+export interface PurchasesMetrics {
+  overdueTotal: number;
+  outstandingTotal: number;
+  spentThisMonth: number;
+}
