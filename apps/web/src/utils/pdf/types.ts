@@ -280,6 +280,7 @@ export interface ThemeRenderContext {
     data: InvoiceDetails;
     options?: GenerateInvoicePdfOptions;
     descriptor: DocumentDescriptor;
+    profile?: any;
     resolvedBank: BankDetailsInfo | null;
     logoBase64: ImageBase64Info | null;
     signatureBase64: ImageBase64Info | null;

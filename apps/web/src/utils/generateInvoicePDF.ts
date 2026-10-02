@@ -257,7 +257,8 @@ export const generateInvoicePDF = async (
             safeText,
             isFullyPaid,
             resolvedUpiId,
-            customTerms
+            customTerms,
+            profile
         };
 
         if (theme === 'tally-accounting') {

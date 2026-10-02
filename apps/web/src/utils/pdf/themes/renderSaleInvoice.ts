@@ -39,7 +39,8 @@ export function renderSaleInvoice(ctx: ThemeRenderContext): void {
         safeText,
         isFullyPaid,
         resolvedUpiId,
-        customTerms
+        customTerms,
+        profile
     } = ctx;
 
     // --- VYAPAR-STYLE "SALE INVOICE" THEME ---
