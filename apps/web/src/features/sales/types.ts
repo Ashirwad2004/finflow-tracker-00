@@ -82,3 +82,56 @@ export interface InvoiceFormValues {
   quick_item_name?: string;
   quick_total_amount?: number;
 }
+
+export interface SaleItem {
+  id?: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  price: number;
+  amount?: number;
+  total?: number;
+  hsn_code?: string;
+  unit?: string;
+}
+
+export interface Sale {
+  id: string;
+  user_id: string;
+  customer_name: string;
+  customer_phone?: string;
+  customer_email?: string;
+  customer_gstin?: string;
+  invoice_number: string;
+  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'partial';
+  total_amount: number;
+  amount_paid?: number;
+  balance_due?: number;
+  subtotal?: number;
+  tax_amount?: number;
+  tax_rate?: number;
+  discount_amount?: number;
+  date: string;
+  due_date?: string | null;
+  party_id?: string | null;
+  previous_balance?: number;
+  total_due_balance?: number;
+  items: SaleItem[];
+  notes?: string | null;
+  irn?: string | null;
+  eway_bill_number?: string | null;
+  qr_code?: string | null;
+  payment_method?: string;
+  document_type?: string;
+  created_at?: string;
+}
+
+export interface SalesMetrics {
+  outstandingTotal: number;
+  overdueTotal: number;
+  paidThisMonth: number;
+  totalRevenue: number;
+  totalBilled: number;
+  collectionRate: number;
+  avgInvoiceValue: number;
+}
