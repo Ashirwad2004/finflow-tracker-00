@@ -18,7 +18,7 @@ import {
   PricingPlanCards,
   PricingCheckoutCard,
   PricingTermsSection,
-} from "./pricing";
+} from "./pricing/index";
 
 // Initialize canvas / preload optimizations
 initPricingBrowserTweaks();
