@@ -104,10 +104,9 @@ async def get_whatsapp_status(
         _handle_whatsapp_exceptions(exc)
 
 
-@router.api_route("/connect", methods=["GET", "POST"])
-async def connect_whatsapp(
+async def _connect_whatsapp_impl(
     request: Request,
-    user_info: dict = Depends(get_current_user),
+    user_info: dict,
 ):
     """
     Initiates WhatsApp session with OpenWA gateway and returns QR code / connection status.
@@ -329,6 +328,31 @@ async def connect_whatsapp(
         return result
     except Exception as exc:
         _handle_whatsapp_exceptions(exc)
+
+
+@router.get("/connect", operation_id="connect_whatsapp_get")
+async def connect_whatsapp_get(
+    request: Request,
+    user_info: dict = Depends(get_current_user),
+):
+    """
+    Renders the WhatsApp connection QR code page or status.
+    """
+    return await _connect_whatsapp_impl(request, user_info)
+
+
+@router.post("/connect", operation_id="connect_whatsapp_post")
+async def connect_whatsapp_post(
+    request: Request,
+    user_info: dict = Depends(get_current_user),
+):
+    """
+    Initiates WhatsApp connection and returns QR code / connection status payload.
+    """
+    return await _connect_whatsapp_impl(request, user_info)
+
+
+connect_whatsapp = connect_whatsapp_post
 
 
 @router.get("/qr", response_model=WhatsAppQRCodeResponse)

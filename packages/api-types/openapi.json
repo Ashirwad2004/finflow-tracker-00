@@ -3636,9 +3636,9 @@
         "tags": [
           "WhatsApp Integration (OpenWA)"
         ],
-        "summary": "Connect Whatsapp",
-        "description": "Initiates WhatsApp session with OpenWA gateway and returns QR code / connection status.\nRequires authenticated tenant context.",
-        "operationId": "connect_whatsapp_api_v1_whatsapp_connect_post",
+        "summary": "Connect Whatsapp Get",
+        "description": "Renders the WhatsApp connection QR code page or status.",
+        "operationId": "connect_whatsapp_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3659,9 +3659,9 @@
         "tags": [
           "WhatsApp Integration (OpenWA)"
         ],
-        "summary": "Connect Whatsapp",
-        "description": "Initiates WhatsApp session with OpenWA gateway and returns QR code / connection status.\nRequires authenticated tenant context.",
-        "operationId": "connect_whatsapp_api_v1_whatsapp_connect_post",
+        "summary": "Connect Whatsapp Post",
+        "description": "Initiates WhatsApp connection and returns QR code / connection status payload.",
+        "operationId": "connect_whatsapp_post",
         "responses": {
           "200": {
             "description": "Successful Response",
