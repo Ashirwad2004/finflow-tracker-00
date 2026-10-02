@@ -1,57 +1,24 @@
-import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/core/integrations/supabase/client";
-import { useAuth } from "@/core/lib/auth";
-import { offlineMutate } from "@/core/offline/apiService";
-import { sqliteService } from "@/core/offline/sqliteService";
-import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
-import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import {
-    Plus,
     Users,
-    Search,
-    MoreVertical,
-    Edit,
-    Trash2,
-    FileText,
-    Download,
-    Eye,
-    ReceiptIndianRupee,
-    Phone,
-    Mail,
-    MapPin,
     ArrowUpRight,
     ArrowDownLeft,
-    CheckCircle2,
-    Clock,
-    AlertCircle,
-    ChevronRight,
-    ArrowLeft,
-    Share2,
-    Calendar,
+    Plus,
+    Download,
     FileSpreadsheet,
-    Building2,
-    ExternalLink,
-    X
+    FileText,
 } from "lucide-react";
-import {
-    exportPartiesToExcel,
-    exportPartiesToPDF,
-    exportPartyStatementToExcel,
-    exportPartyStatementToPDF
-} from "@/utils/exportParties";
+
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuTrigger
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
     AlertDialog,
@@ -61,52 +28,43 @@ import {
     AlertDialogDescription,
     AlertDialogFooter,
     AlertDialogHeader,
-    AlertDialogTitle
+    AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter
-} from "@/components/ui/dialog";
+
+import { supabase } from "@/core/integrations/supabase/client";
+import { useAuth } from "@/core/lib/auth";
+import { offlineMutate } from "@/core/offline/apiService";
+import { sqliteService } from "@/core/offline/sqliteService";
+import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useToast } from "@/core/hooks/use-toast";
-import { PartyDialog } from "../components/PartyDialog";
-import { PartyImportExportDialog } from "../components/PartyImportExportDialog";
-import { CreateInvoiceDialog } from "@/features/sales/components/CreateInvoiceDialog";
-import { RecordPurchaseDialog } from "@/features/purchases/components/RecordPurchaseDialog";
-import { TableLoadingRows } from "@/components/shared/PageStates";
-import { UniversalPaymentDialog } from "@/features/payments/components/UniversalPaymentDialog";
-import { PaymentReceiptModal, PaymentReceiptDetails } from "@/features/payments/components/PaymentReceiptModal";
+import { generateInvoicePDF } from "@/utils/generateInvoicePDF";
+import {
+    exportPartiesToExcel,
+    exportPartiesToPDF,
+    exportPartyStatementToExcel,
+    exportPartyStatementToPDF,
+} from "@/utils/exportParties";
 import { parsePaymentNotes } from "@/features/sales/utils/paymentTranscript";
 
-export type SettlementType = "sale" | "purchase";
+import { CreateInvoiceDialog } from "@/features/sales/components/CreateInvoiceDialog";
+import { RecordPurchaseDialog } from "@/features/purchases/components/RecordPurchaseDialog";
+import { UniversalPaymentDialog } from "@/features/payments/components/UniversalPaymentDialog";
+import { PaymentReceiptModal, PaymentReceiptDetails } from "@/features/payments/components/PaymentReceiptModal";
 
-export interface SettlementTarget {
-    type: SettlementType;
-    record: any;
-    partyName: string;
-    docNumber: string;
-    totalAmount: number;
-    amountPaid: number;
-    balanceDue: number;
-}
-
-export interface Party {
-    id: string;
-    user_id: string;
-    type: "customer" | "vendor" | "both";
-    name: string;
-    phone: string | null;
-    email: string | null;
-    address: string | null;
-    gst_number: string | null;
-    opening_balance?: number;
-    opening_balance_type?: "to_receive" | "to_pay";
-    created_at: string;
-    updated_at?: string;
-}
+import { Party, SettlementTarget, SettlementType } from "../types";
+import {
+    computePartyLedgerMap,
+    computeDirectorySummary,
+    computeActivePartyTransactions,
+} from "../lib/partyLedgerCalculations";
+import {
+    PartyMasterSidebar,
+    PartyDetailHeader,
+    PartyTransactionsLedger,
+    PartySettlementDialog,
+    PartyDialog,
+    PartyImportExportDialog,
+} from "../components";
 
 const getPartiesTable = () => (supabase as any).from("parties");
 
@@ -148,7 +106,7 @@ const PartiesPage = () => {
     const [isRecordPurchaseOpen, setIsRecordPurchaseOpen] = useState(false);
     const [partyForNewPurchase, setPartyForNewPurchase] = useState<Party | null>(null);
 
-    // Settlement / Payment Dialog State (Unified for Sales Collections & Purchase Settlements)
+    // Settlement / Payment Dialog State
     const [settlementTarget, setSettlementTarget] = useState<SettlementTarget | null>(null);
     const [paymentAmount, setPaymentAmount] = useState<string>("");
     const [paymentMethod, setPaymentMethod] = useState<string>("cash");
@@ -169,7 +127,7 @@ const PartiesPage = () => {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [partyToDelete, setPartyToDelete] = useState<Party | null>(null);
 
-    // Fetch Business Profile (for invoice printing)
+    // Fetch Business Profile
     const { data: profile } = useQuery({
         queryKey: ["profile", user?.id],
         queryFn: async () => {
@@ -215,8 +173,8 @@ const PartiesPage = () => {
         enabled: !!user
     });
 
-    // Fetch Sales (Invoices) for Customer Ledger with Offline Fallback
-    const { data: sales = [], isLoading: isLoadingSales } = useQuery({
+    // Fetch Sales
+    const { data: sales = [] } = useQuery({
         queryKey: ["sales", user?.id],
         queryFn: async () => {
             if (!user?.id) return [];
@@ -239,8 +197,8 @@ const PartiesPage = () => {
         enabled: !!user
     });
 
-    // Fetch Purchases for Vendor Ledger with Offline Fallback
-    const { data: purchases = [], isLoading: isLoadingPurchases } = useQuery({
+    // Fetch Purchases
+    const { data: purchases = [] } = useQuery({
         queryKey: ["purchases", user?.id],
         queryFn: async () => {
             if (!user?.id) return [];
@@ -263,239 +221,37 @@ const PartiesPage = () => {
         enabled: !!user
     });
 
-    // Calculate metrics for each party with O(N + S + P) linear pre-indexed lookups
+    // Pre-indexed linear calculation of metrics
     const partyLedgerMap = useMemo(() => {
-        const map = new Map<string, {
-            partySales: any[];
-            partyPurchases: any[];
-            totalSalesAmount: number;
-            totalSalesPaid: number;
-            salesBalanceDue: number;
-            totalPurchasesAmount: number;
-            totalPurchasesPaid: number;
-            purchasesBalanceDue: number;
-            receivable: number;
-            payable: number;
-            totalRecords: number;
-        }>();
-
-        // 1. Pre-index sales by party_id and lower-cased customer_name (O(S) linear pass)
-        const salesByPartyId = new Map<string, any[]>();
-        const salesByCustName = new Map<string, any[]>();
-        for (let i = 0; i < sales.length; i++) {
-            const s = sales[i];
-            if (s.party_id) {
-                let list = salesByPartyId.get(s.party_id);
-                if (!list) {
-                    list = [];
-                    salesByPartyId.set(s.party_id, list);
-                }
-                list.push(s);
-            }
-            if (s.customer_name) {
-                const normName = s.customer_name.trim().toLowerCase();
-                if (normName) {
-                    let list = salesByCustName.get(normName);
-                    if (!list) {
-                        list = [];
-                        salesByCustName.set(normName, list);
-                    }
-                    list.push(s);
-                }
-            }
-        }
-
-        // 2. Pre-index purchases by party_id and lower-cased vendor_name (O(P) linear pass)
-        const purchasesByPartyId = new Map<string, any[]>();
-        const purchasesByVendName = new Map<string, any[]>();
-        for (let i = 0; i < purchases.length; i++) {
-            const p = purchases[i];
-            if (p.party_id) {
-                let list = purchasesByPartyId.get(p.party_id);
-                if (!list) {
-                    list = [];
-                    purchasesByPartyId.set(p.party_id, list);
-                }
-                list.push(p);
-            }
-            if (p.vendor_name) {
-                const normName = p.vendor_name.trim().toLowerCase();
-                if (normName) {
-                    let list = purchasesByVendName.get(normName);
-                    if (!list) {
-                        list = [];
-                        purchasesByVendName.set(normName, list);
-                    }
-                    list.push(p);
-                }
-            }
-        }
-
-        // 3. Process parties with O(1) hash map lookups (O(N) total)
-        for (let i = 0; i < parties.length; i++) {
-            const party = parties[i];
-            const pName = (party.name || "").trim().toLowerCase();
-
-            // Fast O(1) sales retrieval with deduplication
-            const salesById = salesByPartyId.get(party.id) || [];
-            const salesByName = pName ? (salesByCustName.get(pName) || []) : [];
-            let partySales: any[];
-            if (salesById.length === 0) {
-                partySales = salesByName;
-            } else if (salesByName.length === 0) {
-                partySales = salesById;
-            } else {
-                const seenSales = new Set(salesById);
-                partySales = [...salesById];
-                for (let j = 0; j < salesByName.length; j++) {
-                    if (!seenSales.has(salesByName[j])) {
-                        partySales.push(salesByName[j]);
-                    }
-                }
-            }
-
-            // Fast O(1) purchases retrieval with deduplication
-            const purchasesById = purchasesByPartyId.get(party.id) || [];
-            const purchasesByName = pName ? (purchasesByVendName.get(pName) || []) : [];
-            let partyPurchases: any[];
-            if (purchasesById.length === 0) {
-                partyPurchases = purchasesByName;
-            } else if (purchasesByName.length === 0) {
-                partyPurchases = purchasesById;
-            } else {
-                const seenPurchases = new Set(purchasesById);
-                partyPurchases = [...purchasesById];
-                for (let j = 0; j < purchasesByName.length; j++) {
-                    if (!seenPurchases.has(purchasesByName[j])) {
-                        partyPurchases.push(purchasesByName[j]);
-                    }
-                }
-            }
-
-            let totalSalesAmount = 0;
-            let totalSalesPaid = 0;
-            let salesBalanceDue = 0;
-
-            partySales.forEach((s: any) => {
-                const total = Number(s.total_amount) || 0;
-                const paid = Number(s.amount_paid != null ? s.amount_paid : (s.status === 'paid' ? total : 0));
-                const due = Number(s.balance_due != null ? s.balance_due : Math.max(0, total - paid));
-                const docType = (s.document_type || 'invoice').toLowerCase();
-
-                if (docType === 'receipt') {
-                    // Standalone Payment In reduces receivable
-                    salesBalanceDue = Math.max(0, salesBalanceDue - (total || paid));
-                } else if (docType === 'credit_note') {
-                    salesBalanceDue = Math.max(0, salesBalanceDue - total);
-                } else if (docType === 'debit_note') {
-                    totalSalesAmount += total;
-                    salesBalanceDue += total;
-                } else {
-                    totalSalesAmount += total;
-                    totalSalesPaid += paid;
-                    salesBalanceDue += due;
-                }
-            });
-
-            let totalPurchasesAmount = 0;
-            let totalPurchasesPaid = 0;
-            let purchasesBalanceDue = 0;
-
-            partyPurchases.forEach((p: any) => {
-                const total = Number(p.total_amount) || 0;
-                const paid = Number(p.amount_paid != null ? p.amount_paid : (p.status === 'paid' ? total : 0));
-                const due = Number(p.balance_due != null ? p.balance_due : Math.max(0, total - paid));
-                const docType = (p.document_type || 'bill').toLowerCase();
-
-                if (docType === 'payment') {
-                    // Standalone Payment Out reduces payable
-                    purchasesBalanceDue = Math.max(0, purchasesBalanceDue - (total || paid));
-                } else if (docType === 'debit_note') {
-                    purchasesBalanceDue = Math.max(0, purchasesBalanceDue - total);
-                } else if (docType === 'credit_note') {
-                    totalPurchasesAmount += total;
-                    purchasesBalanceDue += total;
-                } else {
-                    totalPurchasesAmount += total;
-                    totalPurchasesPaid += paid;
-                    purchasesBalanceDue += due;
-                }
-            });
-
-            const openingBal = Number(party.opening_balance) || 0;
-            const isOpeningReceivable = party.opening_balance_type
-                ? party.opening_balance_type === 'to_receive'
-                : party.type !== 'vendor';
-            const receivable = salesBalanceDue + (isOpeningReceivable ? openingBal : 0);
-            const payable = purchasesBalanceDue + (!isOpeningReceivable ? openingBal : 0);
-
-            map.set(party.id, {
-                partySales,
-                partyPurchases,
-                totalSalesAmount,
-                totalSalesPaid,
-                salesBalanceDue,
-                totalPurchasesAmount,
-                totalPurchasesPaid,
-                purchasesBalanceDue,
-                receivable,
-                payable,
-                totalRecords: partySales.length + partyPurchases.length + (openingBal > 0 ? 1 : 0)
-            });
-        }
-
-        return map;
+        return computePartyLedgerMap(parties, sales, purchases);
     }, [parties, sales, purchases]);
 
-    // Top Summary Statistics
+    // High-level aggregate totals
     const directorySummary = useMemo(() => {
-        let totalReceivables = 0;
-        let totalPayables = 0;
-        let settledCount = 0;
+        return computeDirectorySummary(partyLedgerMap, parties.length);
+    }, [partyLedgerMap, parties.length]);
 
-        for (const party of parties) {
-            const metrics = partyLedgerMap.get(party.id);
-            if (!metrics) continue;
-
-            totalReceivables += metrics.receivable;
-            totalPayables += metrics.payable;
-
-            if (metrics.receivable === 0 && metrics.payable === 0) {
-                settledCount++;
-            }
-        }
-
-        return {
-            totalParties: parties.length,
-            totalReceivables,
-            totalPayables,
-            settledCount
-        };
-    }, [parties, partyLedgerMap]);
-
-    // Filtered Parties
+    // Filter parties based on search input and category filter
     const filteredParties = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
         return parties.filter(party => {
-            let matchesSearch = true;
-            if (term) {
-                matchesSearch =
-                    (party.name || "").toLowerCase().includes(term) ||
-                    (party.phone ? party.phone.includes(term) : false) ||
-                    (party.type ? party.type.toLowerCase().includes(term) : false) ||
-                    (party.gst_number ? party.gst_number.toLowerCase().includes(term) : false);
-            }
+            const matchesSearch =
+                party.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (party.phone && party.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (party.email && party.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (party.gst_number && party.gst_number.toLowerCase().includes(searchTerm.toLowerCase()));
 
-            let matchesType = true;
-            if (filterType === "Customer") matchesType = party.type === "customer";
-            else if (filterType === "Vendor") matchesType = party.type === "vendor";
-            else if (filterType === "Both") matchesType = party.type === "both";
+            if (!matchesSearch) return false;
 
-            return matchesSearch && matchesType;
+            if (filterType === "All Types") return true;
+            if (filterType === "Customer") return party.type === "customer" || party.type === "both";
+            if (filterType === "Vendor") return party.type === "vendor" || party.type === "both";
+            if (filterType === "Both") return party.type === "both";
+
+            return true;
         });
     }, [parties, searchTerm, filterType]);
 
-    // Keep active selection in sync
+    // Keep active party selection in sync
     useEffect(() => {
         if (filteredParties.length > 0) {
             if (!selectedPartyId || !filteredParties.some(p => p.id === selectedPartyId)) {
@@ -517,67 +273,7 @@ const PartiesPage = () => {
 
     // Unified transactions for active party
     const activePartyTransactions = useMemo(() => {
-        if (!activePartyMetrics || !activeParty) return [];
-        const list: any[] = [];
-
-        activePartyMetrics.partySales.forEach((s: any) => {
-            const currentPaid = Number(s.amount_paid || (s.status === 'paid' ? s.total_amount : 0));
-            const balDue = Number(s.balance_due != null ? s.balance_due : (s.status === 'paid' ? 0 : Math.max(0, (Number(s.total_amount) || 0) - currentPaid)));
-            const isReceiptDoc = (s.document_type || '').toLowerCase() === 'receipt';
-            list.push({
-                id: s.id,
-                docType: isReceiptDoc ? 'receipt' : 'sale',
-                docNumber: s.invoice_number || (isReceiptDoc ? 'REC' : 'INV'),
-                date: s.date || s.created_at,
-                total: Number(s.total_amount) || 0,
-                paid: isReceiptDoc ? Number(s.total_amount) : currentPaid,
-                balanceDue: isReceiptDoc ? 0 : balDue,
-                status: isReceiptDoc ? 'paid' : s.status,
-                raw: s
-            });
-        });
-
-        activePartyMetrics.partyPurchases.forEach((p: any) => {
-            const currentPaid = Number(p.amount_paid || (p.status === 'paid' ? p.total_amount : 0));
-            const balDue = Number(p.balance_due != null ? p.balance_due : (p.status === 'paid' ? 0 : Math.max(0, (Number(p.total_amount) || 0) - currentPaid)));
-            const isPaymentDoc = (p.document_type || '').toLowerCase() === 'payment';
-            list.push({
-                id: p.id,
-                docType: isPaymentDoc ? 'payment' : 'purchase',
-                docNumber: p.bill_number || (isPaymentDoc ? 'PMT' : 'BILL'),
-                date: p.date || p.created_at,
-                total: Number(p.total_amount) || 0,
-                paid: isPaymentDoc ? Number(p.total_amount) : currentPaid,
-                balanceDue: isPaymentDoc ? 0 : balDue,
-                status: isPaymentDoc ? 'paid' : p.status,
-                raw: p
-            });
-        });
-
-        const openBal = Number(activeParty.opening_balance) || 0;
-        if (openBal > 0) {
-            const isOpeningReceivable = activeParty.opening_balance_type
-                ? activeParty.opening_balance_type === 'to_receive'
-                : activeParty.type !== 'vendor';
-            list.push({
-                id: 'opening-balance-' + activeParty.id,
-                docType: 'opening_balance',
-                docNumber: 'OPENING',
-                date: activeParty.created_at,
-                total: openBal,
-                paid: 0,
-                balanceDue: openBal,
-                status: isOpeningReceivable ? 'to_receive' : 'to_pay',
-                isReceivable: isOpeningReceivable,
-                raw: null
-            });
-        }
-
-        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        if (activeTab === "sales") return list.filter(t => t.docType === 'sale' || t.docType === 'receipt' || (t.docType === 'opening_balance' && t.isReceivable));
-        if (activeTab === "purchases") return list.filter(t => t.docType === 'purchase' || t.docType === 'payment' || (t.docType === 'opening_balance' && !t.isReceivable));
-        return list;
+        return computeActivePartyTransactions(activeParty, activePartyMetrics, activeTab);
     }, [activeParty, activePartyMetrics, activeTab]);
 
     // Mutations
@@ -754,7 +450,7 @@ const PartiesPage = () => {
         setIsUniversalPaymentOpen(true);
     };
 
-    // Open Payment Receipt / Voucher Modal for preview, printing, download, or sharing
+    // Open Payment Receipt / Voucher Modal
     const handleViewPartyVoucher = (txn: any) => {
         const raw = txn.raw;
         if (!raw) return;
@@ -784,7 +480,7 @@ const PartiesPage = () => {
         setIsViewVoucherOpen(true);
     };
 
-    // Unified Settlement recording inside Party Statement (Receive Collections & Pay Bills)
+    // Unified Settlement recording
     const handleOpenSettlement = (item: any, type: SettlementType) => {
         const isSale = type === "sale";
         const currentPaid = Number(item.amount_paid || (item.status === 'paid' ? item.total_amount : 0));
@@ -808,45 +504,45 @@ const PartiesPage = () => {
         setPaymentDate(new Date().toISOString().split("T")[0]);
     };
 
-    // Fast Header Action: Instant Receive Payment from active customer
-    const handleQuickReceivePartyPayment = () => {
-        if (!activePartyMetrics || activePartyMetrics.receivable <= 0) return;
-        const pendingSales = activePartyMetrics.partySales
-            .filter((s: any) => {
-                const paid = Number(s.amount_paid || (s.status === 'paid' ? s.total_amount : 0));
-                const due = Number(s.balance_due != null ? s.balance_due : (s.status === 'paid' ? 0 : Math.max(0, (Number(s.total_amount) || 0) - paid)));
-                return due > 0;
-            })
-            .sort((a: any, b: any) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
+    const handleQuickPartyPayment = (type: "in" | "out") => {
+        if (!activePartyMetrics) return;
 
-        if (pendingSales.length > 0) {
-            handleOpenSettlement(pendingSales[0], "sale");
+        if (type === "in") {
+            if (activePartyMetrics.receivable <= 0) return;
+            const pendingSales = activePartyMetrics.partySales
+                .filter((s: any) => {
+                    const paid = Number(s.amount_paid || (s.status === 'paid' ? s.total_amount : 0));
+                    const due = Number(s.balance_due != null ? s.balance_due : (s.status === 'paid' ? 0 : Math.max(0, (Number(s.total_amount) || 0) - paid)));
+                    return due > 0;
+                })
+                .sort((a: any, b: any) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
+
+            if (pendingSales.length > 0) {
+                handleOpenSettlement(pendingSales[0], "sale");
+            } else {
+                toast({
+                    title: "Opening Balance Receivable",
+                    description: `This party has an opening receivable balance of ${formatCurrency(activePartyMetrics.receivable)}. Record an invoice or ledger adjustment to settle.`
+                });
+            }
         } else {
-            toast({
-                title: "Opening Balance Receivable",
-                description: `This party has an opening receivable balance of ${formatCurrency(activePartyMetrics.receivable)}. Record an invoice or ledger adjustment to settle.`
-            });
-        }
-    };
+            if (activePartyMetrics.payable <= 0) return;
+            const pendingPurchases = activePartyMetrics.partyPurchases
+                .filter((p: any) => {
+                    const paid = Number(p.amount_paid || (p.status === 'paid' ? p.total_amount : 0));
+                    const due = Number(p.balance_due != null ? p.balance_due : (p.status === 'paid' ? 0 : Math.max(0, (Number(p.total_amount) || 0) - paid)));
+                    return due > 0;
+                })
+                .sort((a: any, b: any) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
 
-    // Fast Header Action: Instant Pay Vendor for active supplier
-    const handleQuickPayVendor = () => {
-        if (!activePartyMetrics || activePartyMetrics.payable <= 0) return;
-        const pendingPurchases = activePartyMetrics.partyPurchases
-            .filter((p: any) => {
-                const paid = Number(p.amount_paid || (p.status === 'paid' ? p.total_amount : 0));
-                const due = Number(p.balance_due != null ? p.balance_due : (p.status === 'paid' ? 0 : Math.max(0, (Number(p.total_amount) || 0) - paid)));
-                return due > 0;
-            })
-            .sort((a: any, b: any) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
-
-        if (pendingPurchases.length > 0) {
-            handleOpenSettlement(pendingPurchases[0], "purchase");
-        } else {
-            toast({
-                title: "Opening Balance Payable",
-                description: `This vendor has an opening payable balance of ${formatCurrency(activePartyMetrics.payable)}. Record a purchase bill to settle.`
-            });
+            if (pendingPurchases.length > 0) {
+                handleOpenSettlement(pendingPurchases[0], "purchase");
+            } else {
+                toast({
+                    title: "Opening Balance Payable",
+                    description: `This vendor has an opening payable balance of ${formatCurrency(activePartyMetrics.payable)}. Record a purchase bill to settle.`
+                });
+            }
         }
     };
 
@@ -1158,10 +854,6 @@ const PartiesPage = () => {
         }
     };
 
-    const getInitials = (name: string) => {
-        return name.substring(0, 2).toUpperCase() || 'NA';
-    };
-
     // Party Export Handlers
     const handleExportPartiesExcel = () => {
         try {
@@ -1264,7 +956,6 @@ const PartiesPage = () => {
     return (
         <AppLayout>
             <div className="h-full flex flex-col p-2.5 sm:p-3 md:p-4 text-slate-900 dark:text-slate-100 font-display overflow-hidden">
-                
                 {/* Top Control Bar & KPI Strip */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
                     <div>
@@ -1346,683 +1037,89 @@ const PartiesPage = () => {
 
                 {/* Main Master-Detail Split Screen Container */}
                 <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3 pt-3 overflow-hidden">
-                    
-                    {/* LEFT PANEL: Master Directory List (Optimized width for 100% zoom) */}
-                    <div className={`w-full md:w-64 lg:w-72 xl:w-80 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden shrink-0 ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
-                        
-                        {/* Search & Category Tabs */}
-                        <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 space-y-2 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
-                            <div className="relative">
-                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
-                                <Input
-                                    placeholder="Search name, phone..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-8 pr-3 h-8 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-primary/50"
-                                />
-                                {searchTerm && (
-                                    <button 
-                                        onClick={() => setSearchTerm("")}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                    >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                )}
-                            </div>
+                    {/* LEFT PANEL: Master Directory List */}
+                    <PartyMasterSidebar
+                        searchTerm={searchTerm}
+                        setSearchTerm={setSearchTerm}
+                        filterType={filterType}
+                        setFilterType={(val) => setFilterType(val as any)}
+                        isLoading={isLoadingParties}
+                        filteredParties={filteredParties}
+                        selectedPartyId={selectedPartyId}
+                        partyLedgerMap={partyLedgerMap}
+                        onPartySelect={handlePartySelect}
+                        onAddClick={handleAddClick}
+                        onOpenImportExport={() => setIsImportExportOpen(true)}
+                        formatCurrency={formatCurrency}
+                        showMobileDetail={showMobileDetail}
+                    />
 
-                            {/* Category Filter Pills */}
-                            <div className="flex items-center gap-1 p-0.5 bg-slate-200/60 dark:bg-slate-800 rounded-lg">
-                                {(["All Types", "Customer", "Vendor", "Both"] as const).map((type) => (
-                                    <button
-                                        key={type}
-                                        onClick={() => setFilterType(type)}
-                                        className={`flex-1 py-1 text-[10px] sm:text-[11px] font-bold rounded-md transition-all text-center ${
-                                            filterType === type
-                                                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
-                                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                        }`}
-                                    >
-                                        {type === "All Types" ? "All" : type}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Parties Scrollable List */}
-                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 min-h-0">
-                            {isLoadingParties ? (
-                                <div className="p-3 space-y-2.5">
-                                    {[1, 2, 3, 4, 5].map((i) => (
-                                        <div key={i} className="animate-pulse flex items-center gap-2.5">
-                                            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-800 rounded-full shrink-0" />
-                                            <div className="flex-1 space-y-1">
-                                                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
-                                                <div className="h-2 bg-slate-200 dark:bg-slate-800 rounded w-1/2" />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : filteredParties.length === 0 ? (
-                                <div className="p-6 text-center flex flex-col items-center justify-center">
-                                    <Users className="w-8 h-8 mb-2 text-slate-300 dark:text-slate-700" />
-                                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No parties found</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">Try a different search, add a party or import from Excel.</p>
-                                    <div className="flex items-center gap-2 mt-2.5">
-                                        <Button
-                                            size="sm"
-                                            onClick={handleAddClick}
-                                            className="text-xs h-7 bg-primary text-white"
-                                        >
-                                            <Plus className="w-3 h-3 mr-1" /> Add Party
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setIsImportExportOpen(true)}
-                                            className="text-xs h-7 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                        >
-                                            <FileSpreadsheet className="w-3 h-3 mr-1 text-emerald-600" /> Import
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : (
-                                filteredParties.map((party) => {
-                                    const metrics = partyLedgerMap.get(party.id);
-                                    const isSelected = party.id === selectedPartyId;
-                                    const receivable = metrics?.receivable || 0;
-                                    const payable = metrics?.payable || 0;
-
-                                    return (
-                                        <div
-                                            key={party.id}
-                                            onClick={() => handlePartySelect(party.id)}
-                                            className={`p-2.5 transition-all cursor-pointer flex items-center justify-between gap-2.5 border-l-3 ${
-                                                isSelected
-                                                    ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-primary shadow-xs"
-                                                    : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
-                                                    party.type === 'customer' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' :
-                                                    party.type === 'vendor' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' :
-                                                    'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                                                }`}>
-                                                    {getInitials(party.name)}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="font-bold text-xs text-slate-900 dark:text-white truncate block">
-                                                            {party.name}
-                                                        </span>
-                                                        <span className={`text-[8px] font-bold px-1 py-0.2 rounded uppercase tracking-wider shrink-0 ${
-                                                            party.type === 'customer' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' :
-                                                            party.type === 'vendor' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400' :
-                                                            'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400'
-                                                        }`}>
-                                                            {party.type}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                                                        {party.phone || party.gst_number || `${metrics?.totalRecords || 0} records`}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Balance Tag */}
-                                            <div className="text-right shrink-0">
-                                                {receivable > 0 ? (
-                                                    <div>
-                                                        <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 block">
-                                                            {formatCurrency(receivable)}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-amber-500 uppercase tracking-wider">
-                                                            To Collect
-                                                        </span>
-                                                    </div>
-                                                ) : payable > 0 ? (
-                                                    <div>
-                                                        <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 block">
-                                                            {formatCurrency(payable)}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-rose-500 uppercase tracking-wider">
-                                                            To Pay
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded">
-                                                        Settled
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-
-                    {/* RIGHT PANEL: Complete Party Details & Ledger (Visible on One Screen without 100% zoom clipping!) */}
-                    <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-0 ${!showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
+                    {/* RIGHT PANEL: Master-Detail Active Party View & Statement */}
+                    <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-w-0 ${
+                        showMobileDetail ? "flex" : "hidden md:flex"
+                    }`}>
                         {activeParty && activePartyMetrics ? (
-                            <div className="flex flex-col h-full overflow-hidden">
-                                {/* Party Header Banner - Clean Professional Layout with Zero Overlap */}
-                                <div className="p-3 sm:p-3.5 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 space-y-2">
-                                    {/* Top Row: Identity & Clean Button Group */}
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            {/* Mobile Back Arrow */}
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setShowMobileDetail(false)}
-                                                className="md:hidden h-8 w-8 p-0 shrink-0"
-                                            >
-                                                <ArrowLeft className="w-4 h-4" />
-                                            </Button>
-
-                                            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${
-                                                activeParty.type === 'customer' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' :
-                                                activeParty.type === 'vendor' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' :
-                                                'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                                            }`}>
-                                                {getInitials(activeParty.name)}
-                                            </div>
-
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
-                                                        {activeParty.name}
-                                                    </h3>
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
-                                                        activeParty.type === 'customer' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' :
-                                                        activeParty.type === 'vendor' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' :
-                                                        'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
-                                                    }`}>
-                                                        {activeParty.type}
-                                                    </span>
-
-                                                    {activePartyMetrics.receivable > activePartyMetrics.payable ? (
-                                                        <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 shrink-0">
-                                                            To Collect: {formatCurrency(activePartyMetrics.receivable - activePartyMetrics.payable)}
-                                                        </span>
-                                                    ) : activePartyMetrics.payable > activePartyMetrics.receivable ? (
-                                                        <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 shrink-0">
-                                                            To Pay: {formatCurrency(activePartyMetrics.payable - activePartyMetrics.receivable)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 shrink-0">
-                                                            Settled
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Action Buttons (Clean & Proportional - Never Overflowing) */}
-                                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                                            {/* Payment In (Customer Collection / Advance Receipt) */}
-                                            {activeParty.type !== 'vendor' && (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleOpenUniversalPayment("in")}
-                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
-                                                    title={`Record Payment In / Collection from ${activeParty.name}`}
-                                                >
-                                                    <ArrowDownLeft className="w-3.5 h-3.5" />
-                                                    <span>+ Payment In</span>
-                                                </Button>
-                                            )}
-
-                                            {/* Payment Out (Supplier Disbursement / Advance Payment) */}
-                                            {activeParty.type !== 'customer' && (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleOpenUniversalPayment("out")}
-                                                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
-                                                    title={`Record Payment Out / Disbursement to ${activeParty.name}`}
-                                                >
-                                                    <ArrowUpRight className="w-3.5 h-3.5" />
-                                                    <span>+ Payment Out</span>
-                                                </Button>
-                                            )}
-
-                                            {/* Primary New Document */}
-                                            {activeParty.type !== 'vendor' ? (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleCreateInvoiceForParty(activeParty)}
-                                                    className="bg-primary hover:bg-primary/90 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
-                                                >
-                                                    <Plus className="w-3.5 h-3.5" />
-                                                    <span>New Invoice</span>
-                                                </Button>
-                                            ) : (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleCreatePurchaseForParty(activeParty)}
-                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs h-8 px-2.5 flex items-center gap-1"
-                                                >
-                                                    <Plus className="w-3.5 h-3.5" />
-                                                    <span>New Purchase</span>
-                                                </Button>
-                                            )}
-
-                                            {/* Statement Dropdown */}
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button size="sm" variant="outline" className="h-8 px-2 text-xs font-semibold flex items-center gap-1">
-                                                        <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                                                        <span>Statement</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48 shadow-lg">
-                                                    <DropdownMenuItem onClick={() => handleExportSinglePartyExcel(activeParty)} className="cursor-pointer flex items-center gap-2 py-2 text-xs">
-                                                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                                                        <span>Excel Statement (.xlsx)</span>
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleExportSinglePartyPDF(activeParty)} className="cursor-pointer flex items-center gap-2 py-2 text-xs">
-                                                        <FileText className="w-4 h-4 text-rose-600" />
-                                                        <span>PDF Statement (.pdf)</span>
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-
-                                            {/* Detailed Ledger Direct Link */}
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => navigate(`/reports?tab=detailed-ledger&party=${encodeURIComponent(activeParty.name)}`)}
-                                                className="h-8 px-2.5 text-xs font-semibold flex items-center gap-1 text-primary border-primary/30 hover:bg-primary/5"
-                                                title="View verified CA detailed ledger"
-                                            >
-                                                <Eye className="w-3.5 h-3.5" />
-                                                <span>Ledger</span>
-                                            </Button>
-
-                                            {/* More Menu for Edit, Secondary Actions, Delete */}
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0" title="More options">
-                                                        <MoreVertical className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-44 shadow-lg text-xs">
-                                                    {activeParty.type === 'both' && (
-                                                        <DropdownMenuItem onClick={() => handleCreatePurchaseForParty(activeParty)} className="cursor-pointer py-2">
-                                                            <Plus className="w-3.5 h-3.5 mr-2 text-indigo-600" />
-                                                            <span>New Purchase Bill</span>
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    <DropdownMenuItem onClick={() => handleEditClick(activeParty)} className="cursor-pointer py-2">
-                                                        <Edit className="w-3.5 h-3.5 mr-2 text-slate-600" />
-                                                        <span>Edit Party</span>
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleDeleteClick(activeParty)} className="cursor-pointer py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40">
-                                                        <Trash2 className="w-3.5 h-3.5 mr-2 text-rose-600" />
-                                                        <span>Delete Party</span>
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
-                                    </div>
-
-                                    {/* Sub-Bar: Clean Contact Chips & Opening Balance */}
-                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                                        {activeParty.phone && (
-                                            <a
-                                                href={`tel:${activeParty.phone}`}
-                                                className="flex items-center gap-1 hover:text-primary transition-colors text-[11px]"
-                                                title="Call party"
-                                            >
-                                                <Phone className="w-3 h-3 text-slate-400" />
-                                                <span>{activeParty.phone}</span>
-                                            </a>
-                                        )}
-                                        {activeParty.email && (
-                                            <a
-                                                href={`mailto:${activeParty.email}`}
-                                                className="flex items-center gap-1 hover:text-primary transition-colors text-[11px]"
-                                                title="Email party"
-                                            >
-                                                <Mail className="w-3 h-3 text-slate-400" />
-                                                <span className="truncate max-w-[150px]">{activeParty.email}</span>
-                                            </a>
-                                        )}
-                                        {activeParty.gst_number && (
-                                            <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-700 dark:text-slate-300">
-                                                GSTIN: {activeParty.gst_number}
-                                            </span>
-                                        )}
-                                        {activeParty.opening_balance !== undefined && Number(activeParty.opening_balance) > 0 && (
-                                            <span className={`inline-flex items-center gap-1 font-mono px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                                                (activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor')
-                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
-                                            }`}>
-                                                Opening: {formatCurrency(Number(activeParty.opening_balance))} ({(activeParty.opening_balance_type ? activeParty.opening_balance_type === 'to_receive' : activeParty.type !== 'vendor') ? 'To Receive / Dr' : 'To Pay / Cr'})
-                                            </span>
-                                        )}
-                                        {activeParty.address && (
-                                            <span className="flex items-center gap-1 text-slate-500 text-[11px]" title={activeParty.address}>
-                                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                                <span className="truncate max-w-[180px] sm:max-w-[240px]">{activeParty.address}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Balance Summary Cards - Responsive & Clean */}
-                                <div className="grid grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-4 pb-0 shrink-0">
-                                    <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs overflow-hidden">
-                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate block">Total Invoiced / Billed</p>
-                                        <p className="text-xs sm:text-sm lg:text-base font-black font-mono text-slate-900 dark:text-white mt-0.5 truncate block" title={formatCurrency(activePartyMetrics.totalSalesAmount + activePartyMetrics.totalPurchasesAmount)}>
-                                            {formatCurrency(activePartyMetrics.totalSalesAmount + activePartyMetrics.totalPurchasesAmount)}
-                                        </p>
-                                    </div>
-
-                                    <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs overflow-hidden">
-                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate block">Total Collected / Paid</p>
-                                        <p className="text-xs sm:text-sm lg:text-base font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 truncate block" title={formatCurrency(activePartyMetrics.totalSalesPaid + activePartyMetrics.totalPurchasesPaid)}>
-                                            {formatCurrency(activePartyMetrics.totalSalesPaid + activePartyMetrics.totalPurchasesPaid)}
-                                        </p>
-                                    </div>
-
-                                    <div className={`p-2.5 sm:p-3 rounded-xl border shadow-2xs overflow-hidden ${
-                                        activePartyMetrics.receivable > activePartyMetrics.payable
-                                            ? 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80'
-                                            : activePartyMetrics.payable > activePartyMetrics.receivable
-                                            ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80'
-                                            : 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/80'
-                                    }`}>
-                                        <p className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate block ${
-                                            activePartyMetrics.receivable > activePartyMetrics.payable
-                                                ? 'text-amber-600 dark:text-amber-400'
-                                                : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                ? 'text-rose-600 dark:text-rose-400'
-                                                : 'text-emerald-600 dark:text-emerald-400'
-                                        }`}>
-                                            {activePartyMetrics.receivable > activePartyMetrics.payable
-                                                ? "Balance to Collect (Dr)"
-                                                : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                ? "Balance to Pay (Cr)"
-                                                : "Settled / Cleared"}
-                                        </p>
-                                        <p className={`text-xs sm:text-sm lg:text-base font-black font-mono mt-0.5 truncate block ${
-                                            activePartyMetrics.receivable > activePartyMetrics.payable
-                                                ? 'text-amber-700 dark:text-amber-300'
-                                                : activePartyMetrics.payable > activePartyMetrics.receivable
-                                                ? 'text-rose-700 dark:text-rose-300'
-                                                : 'text-emerald-700 dark:text-emerald-300'
-                                        }`} title={formatCurrency(Math.abs(activePartyMetrics.receivable - activePartyMetrics.payable))}>
-                                            {formatCurrency(
-                                                Math.abs(activePartyMetrics.receivable - activePartyMetrics.payable)
-                                            )}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Transaction History & Ledger Table (All on same screen with zero clipping) */}
-                                <div className="flex-1 flex flex-col min-h-0 p-3 sm:p-4 overflow-hidden">
-                                    {/* Tabs */}
-                                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                                        <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                                            <button
-                                                onClick={() => setActiveTab("all")}
-                                                className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all ${
-                                                    activeTab === "all"
-                                                        ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
-                                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                                }`}
-                                            >
-                                                All ({activePartyMetrics.totalRecords})
-                                            </button>
-                                            <button
-                                                onClick={() => setActiveTab("sales")}
-                                                className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all ${
-                                                    activeTab === "sales"
-                                                        ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
-                                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                                }`}
-                                            >
-                                                Sales ({activePartyMetrics.partySales.length})
-                                            </button>
-                                            <button
-                                                onClick={() => setActiveTab("purchases")}
-                                                className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all ${
-                                                    activeTab === "purchases"
-                                                        ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
-                                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                                }`}
-                                            >
-                                                Purchases ({activePartyMetrics.partyPurchases.length})
-                                            </button>
-                                        </div>
-
-                                        <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-                                            Showing {activePartyTransactions.length} records
-                                        </span>
-                                    </div>
-
-                                    {/* Scrollable Transactions List / Table */}
-                                    <div className="flex-1 overflow-y-auto min-h-0 pt-2 custom-scrollbar">
-                                        {activePartyTransactions.length === 0 ? (
-                                            <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col items-center justify-center">
-                                                <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-1.5" />
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No transactions recorded yet</p>
-                                                <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Any invoices or bills created for this party will be tracked live right here.</p>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleCreateInvoiceForParty(activeParty)}
-                                                    className="bg-primary text-white text-xs font-bold h-7 px-2.5"
-                                                >
-                                                    <Plus className="w-3 h-3 mr-1" /> Create First Invoice
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto shadow-2xs">
-                                                <table className="w-full text-left border-collapse min-w-[620px]">
-                                                    <thead>
-                                                        <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                                            <th className="px-2.5 py-2 whitespace-nowrap">Date</th>
-                                                            <th className="px-2.5 py-2 whitespace-nowrap">Document #</th>
-                                                            <th className="px-2 py-2 whitespace-nowrap">Type</th>
-                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Total Amount</th>
-                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Paid Amount</th>
-                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Balance Due</th>
-                                                            <th className="px-2 py-2 text-center whitespace-nowrap">Status</th>
-                                                            <th className="px-2.5 py-2 text-right whitespace-nowrap">Actions</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                                                        {activePartyTransactions.map((txn: any) => {
-                                                            const isSale = txn.docType === 'sale';
-                                                            const isPurchase = txn.docType === 'purchase';
-                                                            const isReceipt = txn.docType === 'receipt';
-                                                            const isPayment = txn.docType === 'payment';
-                                                            const isOpening = txn.docType === 'opening_balance';
-                                                            const isFullyPaid = isOpening ? false : (txn.status === 'paid' || txn.balanceDue <= 0);
-                                                            const isPartial = isOpening ? false : (txn.status === 'partial' || (txn.paid > 0 && txn.balanceDue > 0));
-
-                                                            return (
-                                                                <tr key={txn.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                                                                    <td className="px-2.5 py-2 font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">
-                                                                        {txn.date ? (isNaN(new Date(txn.date).getTime()) ? txn.date : format(new Date(txn.date), "dd MMM yyyy")) : "-"}
-                                                                    </td>
-                                                                    <td className="px-2.5 py-2 font-bold text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
-                                                                        {isOpening ? "OPENING" : `#${txn.docNumber}`}
-                                                                    </td>
-                                                                    <td className="px-2 py-2 whitespace-nowrap">
-                                                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${
-                                                                            isOpening
-                                                                                ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                                                                                : isReceipt
-                                                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                                                                : isPayment
-                                                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                                                                                : isSale
-                                                                                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                                                                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-                                                                        }`}>
-                                                                            {isOpening ? 'Opening' : isReceipt ? 'Payment In' : isPayment ? 'Payment Out' : isSale ? 'Sale' : 'Purchase'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-2.5 py-2 text-right font-black font-mono text-slate-900 dark:text-white whitespace-nowrap text-[11px] sm:text-xs">
-                                                                        {formatCurrency(txn.total)}
-                                                                    </td>
-                                                                    <td className="px-2.5 py-2 text-right font-semibold font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[11px] sm:text-xs">
-                                                                        {isOpening ? "-" : formatCurrency(txn.paid)}
-                                                                    </td>
-                                                                    <td className="px-2.5 py-2 text-right whitespace-nowrap font-mono">
-                                                                        {txn.balanceDue > 0 ? (
-                                                                            <span className="font-bold text-amber-600 dark:text-amber-400 text-[11px] sm:text-xs">
-                                                                                {formatCurrency(txn.balanceDue)}
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-slate-400 font-medium text-[11px] sm:text-xs">₹0</span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-2 py-2 text-center whitespace-nowrap">
-                                                                        {isOpening ? (
-                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
-                                                                                txn.isReceivable
-                                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
-                                                                                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
-                                                                            }`}>
-                                                                                {txn.isReceivable ? 'To Collect' : 'To Pay'}
-                                                                            </span>
-                                                                        ) : (isReceipt || isPayment) ? (
-                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
-                                                                                Settled
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
-                                                                                isFullyPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900' :
-                                                                                isPartial ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900' :
-                                                                                'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
-                                                                            }`}>
-                                                                                {isFullyPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
-                                                                            </span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-2.5 py-2 text-right whitespace-nowrap">
-                                                                        <div className="flex items-center justify-end gap-1">
-                                                                            {/* Opening Balance row: Quick edit */}
-                                                                            {isOpening && (
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    variant="outline"
-                                                                                    onClick={() => handleEditClick(activeParty)}
-                                                                                    className="h-6 sm:h-7 px-2 text-[10px] sm:text-[11px] font-semibold flex items-center gap-1"
-                                                                                    title="Edit party opening balance"
-                                                                                >
-                                                                                    <Edit className="w-3 h-3" />
-                                                                                    <span>Edit</span>
-                                                                                </Button>
-                                                                            )}
-
-                                                                            {/* Quick Multi-Bill Settlement Buttons */}
-                                                                            {!isOpening && isSale && txn.balanceDue > 0 && (
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    onClick={() => handleOpenUniversalPayment("in", txn.raw.id)}
-                                                                                    className="h-6 sm:h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs flex items-center gap-0.5"
-                                                                                    title={`Receive payment for #${txn.docNumber}`}
-                                                                                >
-                                                                                    <ArrowDownLeft className="w-3 h-3" />
-                                                                                    <span>Receive</span>
-                                                                                </Button>
-                                                                            )}
-
-                                                                            {!isOpening && isPurchase && txn.balanceDue > 0 && (
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    onClick={() => handleOpenUniversalPayment("out", txn.raw.id)}
-                                                                                    className="h-6 sm:h-7 px-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] sm:text-[11px] font-bold shadow-xs flex items-center gap-0.5"
-                                                                                    title={`Pay bill #${txn.docNumber}`}
-                                                                                >
-                                                                                    <ArrowUpRight className="w-3 h-3" />
-                                                                                    <span>Pay</span>
-                                                                                </Button>
-                                                                            )}
-
-                                                                            {/* View Voucher / Receipt Button for Payment In / Out */}
-                                                                            {(isReceipt || isPayment) && (
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    variant="outline"
-                                                                                    onClick={() => handleViewPartyVoucher(txn)}
-                                                                                    className="h-6 sm:h-7 px-2 text-[10px] sm:text-[11px] font-semibold flex items-center gap-1 border-slate-300 dark:border-slate-700"
-                                                                                    title={isReceipt ? "View Payment Receipt" : "View Payment Voucher"}
-                                                                                >
-                                                                                    <Eye className="w-3 h-3 text-slate-500" />
-                                                                                    <span>Receipt</span>
-                                                                                </Button>
-                                                                            )}
-
-                                                                            {/* Sleek Document Actions Menu */}
-                                                                            {!isOpening && (
-                                                                                <DropdownMenu>
-                                                                                    <DropdownMenuTrigger asChild>
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="ghost"
-                                                                                            className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                                                                            title="Document Actions"
-                                                                                        >
-                                                                                            <MoreVertical className="w-3.5 h-3.5" />
-                                                                                        </Button>
-                                                                                    </DropdownMenuTrigger>
-                                                                                    <DropdownMenuContent align="end" className="w-36 text-xs">
-                                                                                        {(isReceipt || isPayment) ? (
-                                                                                            <DropdownMenuItem
-                                                                                                onClick={() => handleViewPartyVoucher(txn)}
-                                                                                                className="cursor-pointer py-1.5"
-                                                                                            >
-                                                                                                <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                                                                                                <span>View Receipt</span>
-                                                                                            </DropdownMenuItem>
-                                                                                        ) : (
-                                                                                            <>
-                                                                                                <DropdownMenuItem
-                                                                                                    onClick={() => isSale ? handlePreviewInvoicePDF(txn.raw) : handlePreviewPurchasePDF(txn.raw)}
-                                                                                                    className="cursor-pointer py-1.5"
-                                                                                                >
-                                                                                                    <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                                                                                                    <span>View PDF</span>
-                                                                                                </DropdownMenuItem>
-                                                                                                <DropdownMenuItem
-                                                                                                    onClick={() => isSale ? handleDownloadInvoicePDF(txn.raw) : handleDownloadPurchasePDF(txn.raw)}
-                                                                                                    className="cursor-pointer py-1.5"
-                                                                                                >
-                                                                                                    <Download className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                                                                                                    <span>Download</span>
-                                                                                                </DropdownMenuItem>
-                                                                                            </>
-                                                                                        )}
-                                                                                    </DropdownMenuContent>
-                                                                                </DropdownMenu>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
+                            <>
+                                <PartyDetailHeader
+                                    activeParty={activeParty}
+                                    activePartyMetrics={activePartyMetrics}
+                                    onBackToList={() => setShowMobileDetail(false)}
+                                    onOpenPayment={handleQuickPartyPayment}
+                                    onCreateInvoice={handleCreateInvoiceForParty}
+                                    onCreatePurchase={handleCreatePurchaseForParty}
+                                    onExportExcelStatement={handleExportSinglePartyExcel}
+                                    onExportPDFStatement={handleExportSinglePartyPDF}
+                                    onNavigateLedger={(partyName) => navigate(`/reports?tab=ledger&party=${encodeURIComponent(partyName)}`)}
+                                    onEditParty={handleEditClick}
+                                    onDeleteParty={handleDeleteClick}
+                                    formatCurrency={formatCurrency}
+                                />
+                                <PartyTransactionsLedger
+                                    activeParty={activeParty}
+                                    activePartyMetrics={activePartyMetrics}
+                                    activePartyTransactions={activePartyTransactions}
+                                    activeTab={activeTab}
+                                    setActiveTab={setActiveTab}
+                                    formatCurrency={formatCurrency}
+                                    onCreateInvoiceForParty={handleCreateInvoiceForParty}
+                                    onEditClick={handleEditClick}
+                                    onOpenUniversalPayment={handleOpenUniversalPayment}
+                                    onViewPartyVoucher={handleViewPartyVoucher}
+                                    onPreviewInvoicePDF={handlePreviewInvoicePDF}
+                                    onDownloadInvoicePDF={handleDownloadInvoicePDF}
+                                    onPreviewPurchasePDF={handlePreviewPurchasePDF}
+                                    onDownloadPurchasePDF={handleDownloadPurchasePDF}
+                                />
+                            </>
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                                <Users className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-3" />
-                                <h4 className="text-base font-bold text-slate-800 dark:text-white">No Party Selected</h4>
-                                <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                                    Select a party from the left directory list to view their complete contact details, financial statement, and transaction history on this screen.
-                                </p>
-                            </div>
+                            <PartyTransactionsLedger
+                                activeParty={null}
+                                activePartyMetrics={{
+                                    partySales: [],
+                                    partyPurchases: [],
+                                    totalSalesAmount: 0,
+                                    totalSalesPaid: 0,
+                                    salesBalanceDue: 0,
+                                    totalPurchasesAmount: 0,
+                                    totalPurchasesPaid: 0,
+                                    purchasesBalanceDue: 0,
+                                    receivable: 0,
+                                    payable: 0,
+                                    totalRecords: 0
+                                }}
+                                activePartyTransactions={[]}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                                formatCurrency={formatCurrency}
+                                onCreateInvoiceForParty={handleCreateInvoiceForParty}
+                                onEditClick={handleEditClick}
+                                onOpenUniversalPayment={handleOpenUniversalPayment}
+                                onViewPartyVoucher={handleViewPartyVoucher}
+                                onPreviewInvoicePDF={handlePreviewInvoicePDF}
+                                onDownloadInvoicePDF={handleDownloadInvoicePDF}
+                                onPreviewPurchasePDF={handlePreviewPurchasePDF}
+                                onDownloadPurchasePDF={handleDownloadPurchasePDF}
+                            />
                         )}
                     </div>
                 </div>
@@ -2061,178 +1158,22 @@ const PartiesPage = () => {
                     profile={profile}
                 />
 
-                {/* Unified Settlement Dialog (Receive Collections for Sales & Record Payments for Purchases) */}
-                <Dialog open={!!settlementTarget} onOpenChange={(open) => { if (!open) setSettlementTarget(null); }}>
-                    <DialogContent className="sm:max-w-[480px]">
-                        {settlementTarget && (() => {
-                            const isSale = settlementTarget.type === "sale";
-                            const currentPaid = Number(settlementTarget.amountPaid || 0);
-                            const currentBal = Number(settlementTarget.balanceDue != null ? settlementTarget.balanceDue : Math.max(0, settlementTarget.totalAmount - currentPaid));
-                            const enteredAmount = Number(paymentAmount) || 0;
-                            const projectedBal = Math.max(0, Math.round((currentBal - enteredAmount) * 100) / 100);
-                            const isFullySettled = enteredAmount >= currentBal;
-
-                            return (
-                                <>
-                                    <DialogHeader>
-                                        <DialogTitle className="flex items-center gap-2">
-                                            {isSale ? (
-                                                <>
-                                                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                                                        <ArrowDownLeft className="w-4 h-4" />
-                                                    </div>
-                                                    <span>Receive Payment (Customer Collection)</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
-                                                        <ArrowUpRight className="w-4 h-4" />
-                                                    </div>
-                                                    <span>Pay Supplier / Vendor</span>
-                                                </>
-                                            )}
-                                        </DialogTitle>
-                                        <DialogDescription>
-                                            {isSale ? (
-                                                <>
-                                                    Record collection received from <strong className="text-foreground">{settlementTarget.partyName}</strong> for invoice <strong className="text-foreground">{settlementTarget.docNumber}</strong>.
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Record payment made to <strong className="text-foreground">{settlementTarget.partyName}</strong> for purchase bill <strong className="text-foreground">{settlementTarget.docNumber}</strong>.
-                                                </>
-                                            )}
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="space-y-4 py-2">
-                                        {/* Financial Metric Cards */}
-                                        <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                    {isSale ? "Total Invoice" : "Total Bill"}
-                                                </p>
-                                                <p className="text-sm font-bold text-slate-800 dark:text-white mt-0.5 truncate">
-                                                    {formatCurrency(settlementTarget.totalAmount)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">
-                                                    {isSale ? "Received" : "Paid"}
-                                                </p>
-                                                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
-                                                    {formatCurrency(currentPaid)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isSale ? "text-amber-500" : "text-rose-500"}`}>
-                                                    {isSale ? "To Collect" : "To Pay"}
-                                                </p>
-                                                <p className={`text-sm font-bold mt-0.5 truncate ${isSale ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
-                                                    {formatCurrency(currentBal)}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Amount Input */}
-                                        <div className="space-y-1.5">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                    {isSale ? "Amount Received / Collected" : "Amount Paid"}
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setPaymentAmount(String(currentBal))}
-                                                    className="text-xs font-semibold text-primary hover:underline"
-                                                >
-                                                    {isSale ? "Receive Full Due" : "Pay Full Due"} ({formatCurrency(currentBal)})
-                                                </button>
-                                            </div>
-                                            <input
-                                                type="number"
-                                                min="0.01"
-                                                max={currentBal}
-                                                step="0.01"
-                                                value={paymentAmount}
-                                                onChange={(e) => setPaymentAmount(e.target.value)}
-                                                placeholder="0.00"
-                                                className="w-full h-10 px-3 text-base font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                            />
-                                            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                                                <span>{isSale ? "Remaining to Collect:" : "Remaining to Pay:"}</span>
-                                                <span className={`font-semibold ${projectedBal === 0 ? 'text-emerald-600' : isSale ? 'text-amber-600' : 'text-rose-600'}`}>
-                                                    {formatCurrency(projectedBal)} {isFullySettled ? '(Fully Settled)' : '(Partial)'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Payment Method & Date */}
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                    Payment Method
-                                                </label>
-                                                <select
-                                                    value={paymentMethod}
-                                                    onChange={(e) => setPaymentMethod(e.target.value)}
-                                                    className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                                >
-                                                    <option value="cash">Cash</option>
-                                                    <option value="upi">UPI / QR</option>
-                                                    <option value="bank_transfer">Bank Transfer / NEFT</option>
-                                                    <option value="card">Debit / Credit Card</option>
-                                                    <option value="cheque">Cheque</option>
-                                                </select>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                    Payment Date
-                                                </label>
-                                                <input
-                                                    type="date"
-                                                    value={paymentDate}
-                                                    onChange={(e) => setPaymentDate(e.target.value)}
-                                                    className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Notes / Reference */}
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                {isSale ? "Collection Reference / Notes" : "Payment Reference / Notes"}
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={paymentNotes}
-                                                onChange={(e) => setPaymentNotes(e.target.value)}
-                                                placeholder={isSale ? "e.g. UPI txn ID, Cheque #, or receipt note" : "e.g. Bank IMPS/NEFT UTR, Cheque #, or payment note"}
-                                                className="w-full h-10 px-3 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-primary"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <DialogFooter className="gap-2 sm:gap-0">
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setSettlementTarget(null)}
-                                            disabled={isSubmittingPayment}
-                                        >
-                                            Cancel
-                                        </Button>
-                                        <Button
-                                            onClick={handleSaveSettlement}
-                                            disabled={isSubmittingPayment || !paymentAmount || Number(paymentAmount) <= 0}
-                                            className={isSale ? "bg-emerald-600 hover:bg-emerald-700 text-white font-bold" : "bg-rose-600 hover:bg-rose-700 text-white font-bold"}
-                                        >
-                                            {isSubmittingPayment ? "Recording..." : isSale ? `Receive ${paymentAmount ? formatCurrency(Number(paymentAmount)) : ""}` : `Pay ${paymentAmount ? formatCurrency(Number(paymentAmount)) : ""}`}
-                                        </Button>
-                                    </DialogFooter>
-                                </>
-                            );
-                        })()}
-                    </DialogContent>
-                </Dialog>
+                {/* Quick Settlement Dialog */}
+                <PartySettlementDialog
+                    settlementTarget={settlementTarget}
+                    onClose={() => setSettlementTarget(null)}
+                    paymentAmount={paymentAmount}
+                    setPaymentAmount={setPaymentAmount}
+                    paymentMethod={paymentMethod}
+                    setPaymentMethod={setPaymentMethod}
+                    paymentDate={paymentDate}
+                    setPaymentDate={setPaymentDate}
+                    paymentNotes={paymentNotes}
+                    setPaymentNotes={setPaymentNotes}
+                    isSubmittingPayment={isSubmittingPayment}
+                    onSaveSettlement={handleSaveSettlement}
+                    formatCurrency={formatCurrency}
+                />
 
                 {/* Enterprise Multi-Bill Settlement & Advance Voucher Dialog */}
                 <UniversalPaymentDialog
