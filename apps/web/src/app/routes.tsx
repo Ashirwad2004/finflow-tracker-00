@@ -166,3 +166,5 @@ export { groupsRoutes } from "@/features/groups/routes";
 export { trashRoutes } from "@/features/trash/routes";
 export { demoRoutes } from "@/features/demo/routes";
 export { authRoutes } from "@/features/auth/routes";
+export { landingRoutes } from "@/features/landing/routes";
+export { paymentsRoutes } from "@/features/payments/routes";

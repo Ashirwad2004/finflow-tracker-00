@@ -1,3 +1,4 @@
+export * from "./routes";
 export { Hero } from "./components/Hero";
 export { Navbar } from "./components/Navbar";
 export { Footer } from "./components/Footer";

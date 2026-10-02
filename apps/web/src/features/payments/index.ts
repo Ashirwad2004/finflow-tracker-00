@@ -1,3 +1,6 @@
+// Routes
+export * from "./routes";
+
 // Components
 export { default as UniversalPaymentDialog } from "./components/UniversalPaymentDialog";
 export { default as PaymentInRegister } from "./components/PaymentInRegister";
