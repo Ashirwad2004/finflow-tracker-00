@@ -2,8 +2,10 @@
 export { default as InventoryPage } from "./pages/InventoryPage";
 
 // Components
-export { ExcelImportDialog } from "./components/ExcelImportDialog";
-export { ProductImageUpload } from "./components/ProductImageUpload";
+export * from "./components";
+
+// Hooks
+export * from "./hooks";
 
 // API & Queries
 export * from "./api";
