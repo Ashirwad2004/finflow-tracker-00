@@ -1,0 +1,603 @@
+import { useState, useEffect } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/core/integrations/supabase/client";
+import { useToast } from "@/core/hooks/use-toast";
+import { useCurrency } from "@/core/contexts/CurrencyContext";
+import { getOverdueDaysThreshold } from "@/core/utils/overdue";
+import { useAuth } from "@/core/lib/auth";
+import { ProductItem } from "./ProductCombobox";
+import { ExtractedPurchaseBill } from "./PurchaseBillScanner";
+import { PurchaseItemRowData } from "./PurchaseItemsTable";
+import {
+    useRecordPurchaseMutation,
+    type PurchaseFormValues,
+    usePurchaseProducts,
+    usePurchaseCalculations,
+} from "../../hooks";
+
+export interface UseRecordPurchaseDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    purchaseToEdit?: any;
+    startWithScanner?: boolean;
+    initialParty?: any;
+}
+
+export function useRecordPurchaseDialog({
+    open,
+    onOpenChange,
+    purchaseToEdit,
+    startWithScanner = false,
+    initialParty,
+}: UseRecordPurchaseDialogProps) {
+    const { toast } = useToast();
+    const { formatCurrency, currency } = useCurrency();
+    const { user } = useAuth();
+
+    const overdueThresholdDays = getOverdueDaysThreshold();
+    const [isQuickBilling, setIsQuickBilling] = useState(false);
+    const [isAiFillOpen, setIsAiFillOpen] = useState(false);
+    const [isScannerOpen, setIsScannerOpen] = useState(startWithScanner);
+    const [scannedNotification, setScannedNotification] = useState<{
+        vendor: string;
+        itemCount: number;
+        fileName?: string;
+        isPdf?: boolean;
+    } | null>(null);
+
+    useEffect(() => {
+        if (open) {
+            setIsScannerOpen(startWithScanner);
+            setScannedNotification(null);
+        }
+    }, [open, startWithScanner]);
+
+    const {
+        register,
+        control,
+        handleSubmit,
+        watch,
+        reset,
+        setValue,
+        formState: { errors },
+    } = useForm<PurchaseFormValues>({
+        defaultValues: {
+            vendor_name: "",
+            vendor_phone: "",
+            vendor_gstin: "",
+            place_of_supply: "",
+            bill_number: `BILL-${Date.now().toString().slice(-6)}`,
+            date: new Date().toISOString().split("T")[0],
+            due_date: new Date().toISOString().split("T")[0],
+            payment_status: "paid",
+            amount_paid: 0,
+            discount_amount: 0,
+            tax_rate: 0,
+            notes: "",
+            attachment_url: "",
+            quick_item_name: "General Purchase Item",
+            quick_total_amount: 0,
+            items: [
+                {
+                    description: "",
+                    quantity: 1,
+                    price: 0,
+                    unit: "pc",
+                    discount: 0,
+                    tax_rate: 0,
+                    total: 0,
+                },
+            ],
+        },
+    });
+
+    const { fields, append, remove, replace } = useFieldArray({
+        control,
+        name: "items",
+    });
+
+    // Form Watchers
+    const watchItems = watch("items");
+    const watchPaymentStatus = watch("payment_status") || "paid";
+    const watchAmountPaid = Number(watch("amount_paid") || 0);
+    const watchDate = watch("date") || "";
+    const watchDueDate = watch("due_date") || "";
+    const watchBillDiscount = Number(watch("discount_amount") || 0);
+    const watchDefaultTaxRate = Number(watch("tax_rate") || 0);
+    const watchVendorName = watch("vendor_name") || "";
+    const watchVendorGstin = watch("vendor_gstin") || "";
+    const watchVendorPhone = watch("vendor_phone") || "";
+    const watchPlaceOfSupply = watch("place_of_supply") || "";
+    const watchBillNumber = watch("bill_number") || "";
+    const watchNotes = watch("notes") || "";
+    const watchAttachmentUrl = watch("attachment_url") || "";
+    const watchQuickItemName = watch("quick_item_name") || "";
+    const watchQuickTotalAmount = Number(watch("quick_total_amount") || 0);
+
+    // Fetch Parties for Vendor Autocomplete
+    const { data: parties = [] } = useQuery({
+        queryKey: ["parties", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            const { data } = await (supabase as any)
+                .from("parties")
+                .select("*")
+                .eq("user_id", user.id);
+            return data || [];
+        },
+        enabled: open && !!user?.id,
+    });
+
+    const vendorParties = parties.filter(
+        (party: any) => party.type === "vendor" || party.type === "both" || !party.type
+    );
+
+    // Fetch user purchases for vendor ledger status
+    const { data: userPurchases = [] } = useQuery({
+        queryKey: ["purchases-ledger", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data } = await (supabase as any)
+                    .from("purchases")
+                    .select("id, vendor_name, total_amount, amount_paid, balance_due, status, date, party_id")
+                    .eq("user_id", user.id);
+                if (data && data.length > 0) return data;
+            } catch {
+                // offline fallback
+            }
+            return [];
+        },
+        enabled: open && !!user?.id,
+    });
+
+    // Modular Hook: Products
+    const {
+        products,
+        handleProductSelect: onProductSelectInternal,
+        handleQuickAddProduct,
+    } = usePurchaseProducts({
+        userId: user?.id,
+        open,
+    });
+
+    // Modular Hook: Calculations
+    const {
+        subtotal,
+        itemDiscounts,
+        totalTaxAmount,
+        finalTotalAmount,
+        effectiveBillTotal,
+        balanceDue,
+        selectedParty,
+        vendorPreviousBalance,
+        vendorClosingPayable,
+        getDefaultDueDate,
+        handlePaymentStatusChange: onPaymentStatusChangeInternal,
+        handleBillDateChange: onBillDateChangeInternal,
+        handleItemChange: onLineItemChangeInternal,
+    } = usePurchaseCalculations({
+        watchItems,
+        watchBillDiscount,
+        watchDefaultTaxRate,
+        watchQuickTotalAmount,
+        watchAmountPaid,
+        isQuickBilling,
+        parties,
+        userPurchases,
+        watchVendorName,
+        purchaseToEditId: purchaseToEdit?.id,
+        overdueThresholdDays,
+    });
+
+    // Keep amount_paid updated if payment_status is 'paid'
+    useEffect(() => {
+        if (watchPaymentStatus === "paid") {
+            setValue("amount_paid", effectiveBillTotal);
+        }
+    }, [effectiveBillTotal, watchPaymentStatus, setValue]);
+
+    // Keep single item synchronized when in Quick Billing mode
+    useEffect(() => {
+        if (!isQuickBilling) return;
+        const price = Number(watchQuickTotalAmount) || 0;
+        const desc = (watchQuickItemName || "").trim() || "General Purchase Item";
+        const tax = Number(watchDefaultTaxRate) || 0;
+
+        setValue(
+            "items",
+            [
+                {
+                    description: desc,
+                    quantity: 1,
+                    price: price,
+                    unit: "pc",
+                    discount: 0,
+                    tax_rate: tax,
+                    total: price,
+                },
+            ],
+            { shouldValidate: true, shouldDirty: true }
+        );
+    }, [isQuickBilling, watchQuickItemName, watchQuickTotalAmount, watchDefaultTaxRate, setValue]);
+
+    const handlePaymentStatusChange = (status: "paid" | "partial" | "pending") => {
+        onPaymentStatusChangeInternal(status, setValue);
+    };
+
+    const handleBillDateChange = (dateVal: string) => {
+        onBillDateChangeInternal(dateVal, setValue);
+    };
+
+    const handleItemChange = (index: number, field: keyof PurchaseItemRowData, value: any) => {
+        onLineItemChangeInternal(index, field, value, setValue, watchItems);
+    };
+
+    const handleProductSelect = (index: number, product: ProductItem) => {
+        onProductSelectInternal(index, product, setValue, watchItems, watchDefaultTaxRate, append, fields.length);
+    };
+
+    // Reset or hydrate form values
+    useEffect(() => {
+        if (open && purchaseToEdit) {
+            const initialDate = purchaseToEdit.date || new Date().toISOString().split("T")[0];
+            const initialTotal = Number(purchaseToEdit.total_amount || 0);
+            const initialPaid =
+                purchaseToEdit.amount_paid !== undefined
+                    ? Number(purchaseToEdit.amount_paid)
+                    : purchaseToEdit.status === "paid"
+                    ? initialTotal
+                    : 0;
+
+            let computedStatus: "paid" | "partial" | "pending" = "paid";
+            if (initialPaid >= initialTotal && initialTotal > 0) {
+                computedStatus = "paid";
+            } else if (initialPaid > 0 && initialPaid < initialTotal) {
+                computedStatus = "partial";
+            } else {
+                computedStatus = "pending";
+            }
+
+            reset({
+                vendor_name: purchaseToEdit.vendor_name || "",
+                vendor_phone: purchaseToEdit.vendor_phone || "",
+                vendor_gstin: purchaseToEdit.vendor_gstin || "",
+                place_of_supply: purchaseToEdit.place_of_supply || "",
+                bill_number: purchaseToEdit.bill_number || "",
+                date: initialDate,
+                due_date: purchaseToEdit.due_date || getDefaultDueDate(initialDate),
+                payment_status: computedStatus,
+                amount_paid: initialPaid,
+                discount_amount: Number(purchaseToEdit.discount_amount || 0),
+                tax_rate: Number(purchaseToEdit.tax_rate || 0),
+                notes: purchaseToEdit.notes || "",
+                attachment_url: purchaseToEdit.attachment_url || "",
+                items:
+                    purchaseToEdit.items && purchaseToEdit.items.length > 0
+                        ? purchaseToEdit.items.map((it: any) => ({
+                              description: it.description || "",
+                              quantity: Number(it.quantity || 1),
+                              price: Number(it.price || 0),
+                              unit: it.unit || "pc",
+                              discount: Number(it.discount || 0),
+                              tax_rate: Number(it.tax_rate ?? purchaseToEdit.tax_rate ?? 0),
+                              total: Number(it.total || 0),
+                          }))
+                        : [
+                              {
+                                  description: "",
+                                  quantity: 1,
+                                  price: 0,
+                                  unit: "pc",
+                                  discount: 0,
+                                  tax_rate: 0,
+                                  total: 0,
+                              },
+                          ],
+            });
+            setIsAiFillOpen(false);
+        } else if (open && !purchaseToEdit) {
+            const todayStr = new Date().toISOString().split("T")[0];
+            reset({
+                vendor_name: initialParty?.name || "",
+                vendor_phone: initialParty?.phone || "",
+                vendor_gstin: initialParty?.gst_number || "",
+                place_of_supply: initialParty?.address || "",
+                bill_number: `BILL-${Date.now().toString().slice(-6)}`,
+                date: todayStr,
+                due_date: getDefaultDueDate(todayStr),
+                payment_status: "paid",
+                amount_paid: 0,
+                discount_amount: 0,
+                tax_rate: 0,
+                notes: "",
+                attachment_url: "",
+                items: [
+                    {
+                        description: "",
+                        quantity: 1,
+                        price: 0,
+                        unit: "pc",
+                        discount: 0,
+                        tax_rate: 0,
+                        total: 0,
+                    },
+                ],
+            });
+            setIsAiFillOpen(false);
+        }
+    }, [open, purchaseToEdit, initialParty, reset]);
+
+    const handleAddItem = () => {
+        append({
+            description: "",
+            quantity: 1,
+            price: 0,
+            unit: "pc",
+            discount: 0,
+            tax_rate: watchDefaultTaxRate,
+            total: 0,
+        });
+    };
+
+    const handleRemoveItem = (index: number) => {
+        if (fields.length > 1) {
+            remove(index);
+        } else {
+            setValue("items.0.description", "");
+            setValue("items.0.quantity", 1);
+            setValue("items.0.price", 0);
+            setValue("items.0.discount", 0);
+            setValue("items.0.unit", "pc");
+            setValue("items.0.total", 0);
+        }
+    };
+
+    const handleSmartParse = (data: {
+        vendorName?: string;
+        billNumber?: string;
+        date?: string;
+        items?: Array<{ description: string; quantity: number; price: number }>;
+    }) => {
+        if (data.vendorName) {
+            setValue("vendor_name", data.vendorName, { shouldValidate: true, shouldDirty: true });
+            const matched = vendorParties.find(
+                (p: any) => p.name?.toLowerCase() === data.vendorName?.trim().toLowerCase()
+            );
+            if (matched) {
+                if (matched.gst_number) setValue("vendor_gstin", matched.gst_number);
+                if (matched.phone) setValue("vendor_phone", matched.phone);
+            }
+        }
+        if (data.billNumber) {
+            setValue("bill_number", data.billNumber, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.date) {
+            setValue("date", data.date, { shouldValidate: true, shouldDirty: true });
+            setValue("due_date", getDefaultDueDate(data.date), { shouldValidate: true, shouldDirty: true });
+        }
+
+        if (data.items && data.items.length > 0) {
+            const mappedItems = data.items.map((item) => ({
+                description: item.description,
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                unit: "pc",
+                discount: 0,
+                tax_rate: watchDefaultTaxRate,
+                total: (item.quantity || 1) * (item.price || 0),
+            }));
+            replace(mappedItems);
+            setValue("items", mappedItems, { shouldValidate: true, shouldDirty: true });
+        }
+
+        toast({
+            title: "AI Magic ✨",
+            description: "Bill details populated from natural language text.",
+        });
+        setIsAiFillOpen(false);
+    };
+
+    // Save Purchase Mutation
+    const createPurchaseMutation = useRecordPurchaseMutation({
+        user,
+        purchaseToEdit,
+        vendorParties,
+        products,
+        getDefaultDueDate,
+        onSuccessCallback: () => {
+            onOpenChange(false);
+            reset();
+        },
+    });
+
+    const handleScannerExtract = (data: ExtractedPurchaseBill, autoSaveImmediately?: boolean) => {
+        if (data.vendor_name) {
+            setValue("vendor_name", data.vendor_name, { shouldValidate: true, shouldDirty: true });
+            const matched = vendorParties.find(
+                (p: any) =>
+                    p.name?.toLowerCase() === data.vendor_name?.trim().toLowerCase() ||
+                    (data.vendor_gstin && p.gst_number && p.gst_number.toLowerCase() === data.vendor_gstin.toLowerCase())
+            );
+            if (matched) {
+                if (matched.gst_number) setValue("vendor_gstin", matched.gst_number);
+                if (matched.phone) setValue("vendor_phone", matched.phone);
+            } else {
+                if (data.vendor_gstin) setValue("vendor_gstin", data.vendor_gstin);
+                if (data.vendor_phone) setValue("vendor_phone", data.vendor_phone);
+            }
+        }
+        if (data.place_of_supply) {
+            setValue("place_of_supply", data.place_of_supply, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.bill_number) {
+            setValue("bill_number", data.bill_number, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.date) {
+            setValue("date", data.date, { shouldValidate: true, shouldDirty: true });
+            setValue("due_date", data.due_date || getDefaultDueDate(data.date), { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.discount_amount !== undefined) {
+            setValue("discount_amount", data.discount_amount, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.tax_rate !== undefined) {
+            setValue("tax_rate", data.tax_rate, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.notes) {
+            setValue("notes", data.notes, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.file_name) {
+            setValue("attachment_url", data.file_name, { shouldValidate: true, shouldDirty: true });
+        }
+        if (data.items && data.items.length > 0) {
+            replace(data.items);
+            setValue("items", data.items, { shouldValidate: true, shouldDirty: true });
+            setScannedNotification({
+                vendor: data.vendor_name,
+                itemCount: data.items.length,
+                fileName: data.file_name,
+                isPdf: data.is_pdf,
+            });
+        }
+
+        const calcSubtotal = (data.items || []).reduce(
+            (s, it) => s + Number(it.quantity || 1) * Number(it.price || 0),
+            0
+        );
+        const calcDisc = (data.items || []).reduce(
+            (s, it) => s + (Number(it.quantity || 1) * Number(it.price || 0) * Number(it.discount || 0)) / 100,
+            0
+        );
+        const calcTax = (data.items || []).reduce((s, it) => {
+            const line = Number(it.quantity || 1) * Number(it.price || 0);
+            const lineDisc = (line * Number(it.discount || 0)) / 100;
+            return s + ((line - lineDisc) * Number(it.tax_rate ?? data.tax_rate ?? 0)) / 100;
+        }, 0);
+        const finalCalculatedTotal =
+            data.total_amount || Math.max(0, calcSubtotal - calcDisc - Number(data.discount_amount || 0) + calcTax);
+
+        const status = data.payment_status || "paid";
+        setValue("payment_status", status, { shouldValidate: true, shouldDirty: true });
+        if (status === "paid") {
+            setValue("amount_paid", finalCalculatedTotal, { shouldValidate: true, shouldDirty: true });
+        } else if (status === "partial") {
+            setValue("amount_paid", data.amount_paid || 0, { shouldValidate: true, shouldDirty: true });
+        } else {
+            setValue("amount_paid", 0, { shouldValidate: true, shouldDirty: true });
+        }
+
+        if (autoSaveImmediately) {
+            const submissionPayload: PurchaseFormValues = {
+                vendor_name: data.vendor_name || "Supplier",
+                vendor_phone: data.vendor_phone || "",
+                vendor_gstin: data.vendor_gstin || "",
+                place_of_supply:
+                    data.place_of_supply ||
+                    (data.vendor_gstin ? data.vendor_gstin.substring(0, 2) : ""),
+                bill_number: data.bill_number || `BILL-${Date.now().toString().slice(-6)}`,
+                date: data.date || new Date().toISOString().split("T")[0],
+                due_date: data.due_date || getDefaultDueDate(data.date),
+                payment_status: status,
+                amount_paid: status === "paid" ? finalCalculatedTotal : (data.amount_paid || 0),
+                discount_amount: data.discount_amount || 0,
+                tax_rate: data.tax_rate || 0,
+                notes: data.notes || "",
+                attachment_url: data.file_name || "",
+                items: data.items,
+            };
+            createPurchaseMutation.mutate(submissionPayload);
+        } else {
+            toast({
+                title: "Items loaded into table! ⚡",
+                description: `${(data.items || []).length} products populated with rates. You can edit any field below.`,
+            });
+        }
+    };
+
+    const onSubmit = (data: PurchaseFormValues) => {
+        if (isQuickBilling) {
+            const amt = Number(data.quick_total_amount) || 0;
+            if (amt <= 0) {
+                toast({
+                    title: "Validation Error",
+                    description: "Please enter a valid bill total amount greater than 0.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            const itemDesc = (data.quick_item_name || "").trim() || "General Purchase Item";
+            data.items = [
+                {
+                    description: itemDesc,
+                    quantity: 1,
+                    price: amt,
+                    unit: "pc",
+                    discount: 0,
+                    tax_rate: Number(data.tax_rate) || 0,
+                    total: amt,
+                },
+            ];
+            if (data.payment_status === "paid") {
+                data.amount_paid = amt;
+            }
+        }
+        createPurchaseMutation.mutate(data);
+    };
+
+    return {
+        user,
+        formatCurrency,
+        currency,
+        isQuickBilling,
+        setIsQuickBilling,
+        isAiFillOpen,
+        setIsAiFillOpen,
+        isScannerOpen,
+        setIsScannerOpen,
+        scannedNotification,
+        setScannedNotification,
+        register,
+        handleSubmit,
+        setValue,
+        errors,
+        watchItems,
+        watchPaymentStatus,
+        watchAmountPaid,
+        watchDate,
+        watchDueDate,
+        watchBillDiscount,
+        watchDefaultTaxRate,
+        watchVendorName,
+        watchVendorGstin,
+        watchVendorPhone,
+        watchPlaceOfSupply,
+        watchBillNumber,
+        watchNotes,
+        watchAttachmentUrl,
+        watchQuickItemName,
+        watchQuickTotalAmount,
+        parties,
+        products,
+        selectedParty,
+        subtotal,
+        itemDiscounts,
+        totalTaxAmount,
+        finalTotalAmount,
+        effectiveBillTotal,
+        balanceDue,
+        vendorPreviousBalance,
+        vendorClosingPayable,
+        handlePaymentStatusChange,
+        handleBillDateChange,
+        handleItemChange,
+        handleProductSelect,
+        handleAddItem,
+        handleRemoveItem,
+        handleQuickAddProduct,
+        handleSmartParse,
+        handleScannerExtract,
+        onSubmit,
+        isPending: createPurchaseMutation.isPending,
+    };
+}
