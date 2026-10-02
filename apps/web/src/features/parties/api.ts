@@ -74,7 +74,7 @@ export function useSavePartyMutation(userId?: string) {
 
       await offlineMutate({
         table: "parties",
-        action: isEditing ? "UPDATE" : "INSERT",
+        action: isEditing ? "update" : "insert",
         data: payload,
       });
 
