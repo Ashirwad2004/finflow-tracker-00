@@ -9,20 +9,20 @@ import {
     exportPartiesToPDF,
     BusinessDetailsInfo,
 } from "@/utils/exportParties";
-import { Party } from "../types";
+import { Party } from "../../types";
 import {
     ImportStep,
     ColumnMapping,
     RowResolutionAction,
     ParsedPartyRow,
     PartyImportExportDialogProps,
-} from "../types/partyImportExportTypes";
+} from "../../types/partyImportExportTypes";
 import {
     downloadSampleExcelTemplate,
     guessColumnMapping,
     validateAndParseRows,
     downloadErrorReport,
-} from "../lib/partyImportExportUtils";
+} from "../../lib/partyImportExportUtils";
 
 export interface UsePartyImportExportOptions extends Pick<
     PartyImportExportDialogProps,
