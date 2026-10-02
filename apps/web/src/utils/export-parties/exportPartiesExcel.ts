@@ -4,7 +4,7 @@ import { BusinessDetailsInfo, PartyExportItem, PartyMetrics } from "./types";
 
 export const exportPartiesToExcel = (
     parties: PartyExportItem[],
-    partyLedgerMap: Map<string, PartyMetrics>,
+    partyLedgerMap?: Map<string, PartyMetrics>,
     businessDetails?: BusinessDetailsInfo,
     filterName?: string
 ) => {
@@ -49,7 +49,7 @@ export const exportPartiesToExcel = (
     let grandPayable = 0;
 
     const dataRows = parties.map((party) => {
-        const m = partyLedgerMap.get(party.id) || {
+        const m = partyLedgerMap?.get(party.id) || {
             partySales: [],
             partyPurchases: [],
             totalSalesAmount: 0,

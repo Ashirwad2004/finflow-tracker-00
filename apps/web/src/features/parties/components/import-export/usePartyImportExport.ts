@@ -402,7 +402,7 @@ export function usePartyImportExport({
             }
             exportPartiesToExcel(
                 filteredExportParties,
-                partyLedgerMap,
+                partyLedgerMap || new Map(),
                 businessDetails,
                 exportFilter !== "all" ? exportFilter.toUpperCase() : undefined
             );
@@ -433,7 +433,7 @@ export function usePartyImportExport({
             }
             exportPartiesToPDF(
                 filteredExportParties,
-                partyLedgerMap,
+                partyLedgerMap || new Map(),
                 businessDetails,
                 exportFilter !== "all" ? exportFilter.toUpperCase() : undefined
             );

@@ -6,7 +6,7 @@ import { sanitizeText, formatCurrencyNumber } from "./helpers";
 
 export const exportPartiesToPDF = (
     parties: PartyExportItem[],
-    partyLedgerMap: Map<string, PartyMetrics>,
+    partyLedgerMap?: Map<string, PartyMetrics>,
     businessDetails?: BusinessDetailsInfo,
     filterName?: string
 ) => {
@@ -77,7 +77,7 @@ export const exportPartiesToPDF = (
     let totalPurchases = 0;
 
     parties.forEach((p) => {
-        const m = partyLedgerMap.get(p.id);
+        const m = partyLedgerMap?.get(p.id);
         if (m) {
             totalReceivables += m.receivable;
             totalPayables += m.payable;
@@ -133,7 +133,7 @@ export const exportPartiesToPDF = (
 
     // --- Parties Table ---
     const tableBody = parties.map((p) => {
-        const m = partyLedgerMap.get(p.id) || {
+        const m = partyLedgerMap?.get(p.id) || {
             partySales: [],
             partyPurchases: [],
             totalSalesAmount: 0,
