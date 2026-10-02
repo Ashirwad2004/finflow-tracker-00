@@ -8,3 +8,4 @@ export * from "./PurchaseStickyFooter";
 export * from "./ProductCombobox";
 export * from "./PurchaseBillScanner";
 export * from "./QuickCreateProductDialog";
+export * from "./QuickPurchaseFormSection";
