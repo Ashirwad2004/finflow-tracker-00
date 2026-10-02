@@ -1,20 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wand2, CheckCircle2, FileText, Wallet, Clock, AlertCircle } from "lucide-react";
+import { Wand2, CheckCircle2, FileText } from "lucide-react";
 import { SmartPurchaseInput } from "./SmartPurchaseInput";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/core/integrations/supabase/client";
 import { useToast } from "@/core/hooks/use-toast";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
-import { offlineMutate } from "@/core/offline/apiService";
 import { getOverdueDaysThreshold } from "@/core/utils/overdue";
-import { v4 as uuidv4 } from "uuid";
 import { useAuth } from "@/core/lib/auth";
-import { purchasesApi, CreatePurchasePayload } from "@/core/api/purchases";
 
 // Modular Subcomponents
 import {
@@ -26,7 +22,6 @@ import {
     PurchaseAdditionalDetails,
     PurchaseSummarySection,
     PurchaseStickyFooter,
-    ProductCombobox,
     ProductItem,
     PurchaseBillScanner,
     ExtractedPurchaseBill,
@@ -36,7 +31,9 @@ import {
 import {
     useRecordPurchaseMutation,
     type PurchaseFormValues,
-} from "../hooks/useRecordPurchaseMutation";
+    usePurchaseProducts,
+    usePurchaseCalculations,
+} from "../hooks";
 
 interface RecordPurchaseDialogProps {
     open: boolean;
@@ -54,7 +51,6 @@ export const RecordPurchaseDialog = ({
     initialParty,
 }: RecordPurchaseDialogProps) => {
     const { toast } = useToast();
-    const queryClient = useQueryClient();
     const { formatCurrency, currency } = useCurrency();
     const { user } = useAuth();
 
@@ -76,12 +72,6 @@ export const RecordPurchaseDialog = ({
         }
     }, [open, startWithScanner]);
 
-    const getDefaultDueDate = (billDateStr?: string) => {
-        const baseDate = billDateStr ? new Date(billDateStr) : new Date();
-        baseDate.setDate(baseDate.getDate() + overdueThresholdDays);
-        return baseDate.toISOString().split("T")[0];
-    };
-
     const {
         register,
         control,
@@ -98,14 +88,14 @@ export const RecordPurchaseDialog = ({
             place_of_supply: "",
             bill_number: `BILL-${Date.now().toString().slice(-6)}`,
             date: new Date().toISOString().split("T")[0],
-            due_date: getDefaultDueDate(),
+            due_date: new Date().toISOString().split("T")[0],
             payment_status: "paid",
             amount_paid: 0,
             discount_amount: 0,
             tax_rate: 0,
             notes: "",
             attachment_url: "",
-            quick_item_name: "",
+            quick_item_name: "General Purchase Item",
             quick_total_amount: 0,
             items: [
                 {
@@ -127,11 +117,11 @@ export const RecordPurchaseDialog = ({
     });
 
     // Form Watchers
-    const watchItems = watch("items") || [];
-    const watchDate = watch("date") || new Date().toISOString().split("T")[0];
-    const watchDueDate = watch("due_date") || getDefaultDueDate(watchDate);
+    const watchItems = watch("items");
     const watchPaymentStatus = watch("payment_status") || "paid";
     const watchAmountPaid = Number(watch("amount_paid") || 0);
+    const watchDate = watch("date") || "";
+    const watchDueDate = watch("due_date") || "";
     const watchBillDiscount = Number(watch("discount_amount") || 0);
     const watchDefaultTaxRate = Number(watch("tax_rate") || 0);
     const watchVendorName = watch("vendor_name") || "";
@@ -144,34 +134,81 @@ export const RecordPurchaseDialog = ({
     const watchQuickItemName = watch("quick_item_name") || "";
     const watchQuickTotalAmount = Number(watch("quick_total_amount") || 0);
 
-    // Financial Calculations
-    const subtotal = watchItems.reduce(
-        (sum, item) => sum + Number(item?.quantity || 0) * Number(item?.price || 0),
-        0
+    // Fetch Parties for Vendor Autocomplete
+    const { data: parties = [] } = useQuery({
+        queryKey: ["parties", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            const { data } = await (supabase as any)
+                .from("parties")
+                .select("*")
+                .eq("user_id", user.id);
+            return data || [];
+        },
+        enabled: open && !!user?.id,
+    });
+
+    const vendorParties = parties.filter(
+        (party: any) => party.type === "vendor" || party.type === "both" || !party.type
     );
 
-    const itemDiscounts = watchItems.reduce((sum, item) => {
-        const lineVal = Number(item?.quantity || 0) * Number(item?.price || 0);
-        return sum + (lineVal * Number(item?.discount || 0)) / 100;
-    }, 0);
+    // Fetch user purchases for vendor ledger status
+    const { data: userPurchases = [] } = useQuery({
+        queryKey: ["purchases-ledger", user?.id],
+        queryFn: async () => {
+            if (!user?.id) return [];
+            try {
+                const { data } = await (supabase as any)
+                    .from("purchases")
+                    .select("id, vendor_name, total_amount, amount_paid, balance_due, status, date, party_id")
+                    .eq("user_id", user.id);
+                if (data && data.length > 0) return data;
+            } catch {
+                // offline fallback
+            }
+            return [];
+        },
+        enabled: open && !!user?.id,
+    });
 
-    const totalTaxAmount = watchItems.reduce((sum, item) => {
-        const lineVal = Number(item?.quantity || 0) * Number(item?.price || 0);
-        const lineDiscount = (lineVal * Number(item?.discount || 0)) / 100;
-        const lineTaxable = Math.max(0, lineVal - lineDiscount);
-        const rate = Number(item?.tax_rate ?? watchDefaultTaxRate ?? 0);
-        return sum + (lineTaxable * rate) / 100;
-    }, 0);
+    // Modular Hook: Products
+    const {
+        products,
+        handleProductSelect: onProductSelectInternal,
+        handleQuickAddProduct,
+    } = usePurchaseProducts({
+        userId: user?.id,
+        open,
+    });
 
-    const finalTotalAmount = Math.max(
-        0,
-        subtotal - itemDiscounts - watchBillDiscount + totalTaxAmount
-    );
-
-    const effectiveBillTotal = isQuickBilling
-        ? (Number(watchQuickTotalAmount) || 0)
-        : finalTotalAmount;
-    const balanceDue = Math.max(0, effectiveBillTotal - watchAmountPaid);
+    // Modular Hook: Calculations
+    const {
+        subtotal,
+        itemDiscounts,
+        totalTaxAmount,
+        finalTotalAmount,
+        effectiveBillTotal,
+        balanceDue,
+        selectedParty,
+        vendorPreviousBalance,
+        vendorClosingPayable,
+        getDefaultDueDate,
+        handlePaymentStatusChange: onPaymentStatusChangeInternal,
+        handleBillDateChange: onBillDateChangeInternal,
+        handleItemChange: onLineItemChangeInternal,
+    } = usePurchaseCalculations({
+        watchItems,
+        watchBillDiscount,
+        watchDefaultTaxRate,
+        watchQuickTotalAmount,
+        watchAmountPaid,
+        isQuickBilling,
+        parties,
+        userPurchases,
+        watchVendorName,
+        purchaseToEditId: purchaseToEdit?.id,
+        overdueThresholdDays,
+    });
 
     // Keep amount_paid updated if payment_status is 'paid'
     useEffect(() => {
@@ -204,25 +241,20 @@ export const RecordPurchaseDialog = ({
         );
     }, [isQuickBilling, watchQuickItemName, watchQuickTotalAmount, watchDefaultTaxRate, setValue]);
 
-    // Handle Payment Status Toggle
     const handlePaymentStatusChange = (status: "paid" | "partial" | "pending") => {
-        setValue("payment_status", status, { shouldValidate: true, shouldDirty: true });
-        if (status === "paid") {
-            setValue("amount_paid", effectiveBillTotal, { shouldValidate: true, shouldDirty: true });
-        } else if (status === "pending") {
-            setValue("amount_paid", 0, { shouldValidate: true, shouldDirty: true });
-        }
+        onPaymentStatusChangeInternal(status, setValue);
     };
 
-    // Auto-update due date when bill date changes
     const handleBillDateChange = (dateVal: string) => {
-        setValue("date", dateVal, { shouldValidate: true, shouldDirty: true });
-        if (dateVal) {
-            setValue("due_date", getDefaultDueDate(dateVal), {
-                shouldValidate: true,
-                shouldDirty: true,
-            });
-        }
+        onBillDateChangeInternal(dateVal, setValue);
+    };
+
+    const handleItemChange = (index: number, field: keyof PurchaseItemRowData, value: any) => {
+        onLineItemChangeInternal(index, field, value, setValue, watchItems);
+    };
+
+    const handleProductSelect = (index: number, product: ProductItem) => {
+        onProductSelectInternal(index, product, setValue, watchItems, watchDefaultTaxRate, append, fields.length);
     };
 
     // Reset or hydrate form values
@@ -315,287 +347,6 @@ export const RecordPurchaseDialog = ({
             setIsAiFillOpen(false);
         }
     }, [open, purchaseToEdit, initialParty, reset]);
-
-    // Fetch Parties for Vendor Autocomplete
-    const { data: parties = [] } = useQuery({
-        queryKey: ["parties", user?.id],
-        queryFn: async () => {
-            if (!user?.id) return [];
-            const { data } = await (supabase as any)
-                .from("parties")
-                .select("*")
-                .eq("user_id", user.id);
-            return data || [];
-        },
-        enabled: open && !!user?.id,
-    });
-
-    // Fetch Products for Item Autocomplete (Scoped to User with Cache Fallback)
-    const { data: dbProducts = [] } = useQuery({
-        queryKey: ["products", user?.id],
-        queryFn: async () => {
-            if (!user?.id) return [];
-            try {
-                const { data, error } = await (supabase as any)
-                    .from("products")
-                    .select("*")
-                    .eq("user_id", user.id)
-                    .order("name", { ascending: true });
-                if (!error && data) return data;
-            } catch (err) {
-                console.warn("Failed to fetch products from Supabase, falling back to cache", err);
-            }
-            const cached = queryClient.getQueryData<any[]>(["products", user.id]);
-            return cached || [];
-        },
-        enabled: open && !!user?.id,
-    });
-
-    // Fetch Recent Purchases to Auto-Learn & Suggest Any Historically Purchased Raw Materials
-    const { data: historicalPurchases = [] } = useQuery({
-        queryKey: ["purchases-history-items", user?.id],
-        queryFn: async () => {
-            if (!user?.id) return [];
-            try {
-                const { data, error } = await (supabase as any)
-                    .from("purchases")
-                    .select("items")
-                    .eq("user_id", user.id)
-                    .order("date", { ascending: false })
-                    .limit(50);
-                if (!error && data) return data;
-            } catch (err) {
-                console.warn("Failed to fetch historical purchases items", err);
-            }
-            return [];
-        },
-        enabled: open && !!user?.id,
-    });
-
-    // Merge Catalog Products and Historical Items into a Single Rich Autocomplete Pool
-    const products: ProductItem[] = useMemo(() => {
-        const productMap = new Map<string, ProductItem>();
-
-        // 1. Inventory Products (Highest priority)
-        (dbProducts as any[]).forEach((p: any) => {
-            if (p?.name?.trim()) {
-                const key = p.name.trim().toLowerCase();
-                productMap.set(key, {
-                    id: p.id,
-                    name: p.name.trim(),
-                    cost_price: Number(p.cost_price ?? p.price ?? 0),
-                    price: Number(p.price ?? 0),
-                    stock_quantity: Number(p.stock_quantity ?? 0),
-                    unit: p.unit || "pc",
-                    hsn_code: p.hsn_code || "",
-                });
-            }
-        });
-
-        // 2. Previously Purchased Items (Supplements items not yet registered in inventory)
-        (historicalPurchases as any[]).forEach((pur: any) => {
-            if (Array.isArray(pur.items)) {
-                pur.items.forEach((it: any) => {
-                    const itemName = (it.description || it.name || "").trim();
-                    if (itemName) {
-                        const key = itemName.toLowerCase();
-                        if (!productMap.has(key)) {
-                            productMap.set(key, {
-                                id: `hist_${itemName}`,
-                                name: itemName,
-                                cost_price: Number(it.price || 0),
-                                price: Number(it.price || 0),
-                                stock_quantity: 0,
-                                unit: it.unit || "pc",
-                                hsn_code: it.hsn_code || "",
-                            });
-                        }
-                    }
-                });
-            }
-        });
-
-        return Array.from(productMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [dbProducts, historicalPurchases]);
-
-    const vendorParties = parties.filter(
-        (party: any) => party.type === "vendor" || party.type === "both" || !party.type
-    );
-
-    // Fetch user purchases for vendor ledger status
-    const { data: userPurchases = [] } = useQuery({
-        queryKey: ["purchases-ledger", user?.id],
-        queryFn: async () => {
-            if (!user?.id) return [];
-            try {
-                const { data } = await (supabase as any)
-                    .from("purchases")
-                    .select("id, vendor_name, total_amount, amount_paid, balance_due, status, date, party_id")
-                    .eq("user_id", user.id);
-                if (data && data.length > 0) return data;
-            } catch {
-                // offline fallback
-            }
-            const cached = (queryClient.getQueryData(["purchases", user.id]) as any[]) || [];
-            return cached;
-        },
-        enabled: open && !!user?.id,
-    });
-
-    const selectedParty = useMemo(() => {
-        const trimmed = watchVendorName.trim().toLowerCase();
-        if (!trimmed) return null;
-        return (parties as any[]).find(
-            (p: any) => p.name?.trim().toLowerCase() === trimmed
-        ) || null;
-    }, [watchVendorName, parties]);
-
-    // CA-Grade Vendor Prior Payable Balance
-    const vendorPreviousBalance = useMemo(() => {
-        if (!selectedParty && !watchVendorName.trim()) return 0;
-        const vName = watchVendorName.trim().toLowerCase();
-
-        const openBal = Number(selectedParty?.opening_balance) || 0;
-        const isOpeningPayable = selectedParty?.opening_balance_type
-            ? selectedParty.opening_balance_type === "to_pay"
-            : selectedParty?.type === "vendor";
-        let balance = isOpeningPayable ? openBal : -openBal;
-
-        const currentPurchaseId = purchaseToEdit?.id;
-
-        (userPurchases as any[]).forEach((p: any) => {
-            if (currentPurchaseId && p.id === currentPurchaseId) return;
-
-            const isMatch = (selectedParty?.id && p.party_id === selectedParty.id) ||
-                (p.vendor_name && p.vendor_name.trim().toLowerCase() === vName);
-
-            if (!isMatch) return;
-
-            const total = Number(p.total_amount) || 0;
-            const paid = Number(p.amount_paid != null ? p.amount_paid : (p.status === "paid" ? total : 0));
-            const due = Number(p.balance_due != null ? p.balance_due : Math.max(0, total - paid));
-
-            balance += due;
-        });
-
-        return balance;
-    }, [selectedParty, watchVendorName, userPurchases, purchaseToEdit?.id]);
-
-    const vendorClosingPayable = vendorPreviousBalance + balanceDue;
-
-    // Handlers for Items
-    const handleItemChange = (index: number, field: keyof PurchaseItemRowData, value: any) => {
-        setValue(`items.${index}.${field}` as any, value, {
-            shouldValidate: true,
-            shouldDirty: true,
-        });
-
-        // Recalculate row total
-        const updatedRow = {
-            ...watchItems[index],
-            [field]: value,
-        };
-        const qty = Number(updatedRow.quantity || 0);
-        const rate = Number(updatedRow.price || 0);
-        const discPercent = Number(updatedRow.discount || 0);
-        const taxRate = Number(updatedRow.tax_rate ?? watchDefaultTaxRate ?? 0);
-        const lineTotal = Math.max(
-            0,
-            qty * rate * (1 - discPercent / 100) * (1 + taxRate / 100)
-        );
-        setValue(`items.${index}.total`, lineTotal);
-    };
-
-    const handleProductSelect = (index: number, product: ProductItem) => {
-        setValue(`items.${index}.description`, product.name, {
-            shouldValidate: true,
-            shouldDirty: true,
-        });
-        const cost = Number(product.cost_price ?? product.price ?? 0);
-        if (cost > 0) {
-            setValue(`items.${index}.price`, cost, {
-                shouldValidate: true,
-                shouldDirty: true,
-            });
-        }
-        if (product.unit) {
-            setValue(`items.${index}.unit`, product.unit, {
-                shouldValidate: true,
-                shouldDirty: true,
-            });
-        }
-        if (product.hsn_code) {
-            setValue(`items.${index}.hsn_code` as any, product.hsn_code, {
-                shouldValidate: true,
-                shouldDirty: true,
-            });
-        }
-
-        // Recalculate row total with selected product values
-        const qty = Number(watchItems[index]?.quantity || 1);
-        const rate = cost > 0 ? cost : Number(watchItems[index]?.price || 0);
-        const discPercent = Number(watchItems[index]?.discount || 0);
-        const taxRate = Number(watchItems[index]?.tax_rate ?? watchDefaultTaxRate ?? 0);
-        const lineTotal = Math.max(
-            0,
-            qty * rate * (1 - discPercent / 100) * (1 + taxRate / 100)
-        );
-        setValue(`items.${index}.total`, lineTotal);
-
-        // Auto append next item row if selecting on the last item
-        if (index === fields.length - 1) {
-            append({
-                description: "",
-                quantity: 1,
-                price: 0,
-                unit: "pc",
-                discount: 0,
-                tax_rate: watchDefaultTaxRate,
-                total: 0,
-            });
-        }
-    };
-
-    const handleQuickAddProduct = async (newProd: ProductItem) => {
-        if (!user?.id) return;
-        try {
-            const recordId = newProd.id.startsWith("hist_") || !newProd.id ? uuidv4() : newProd.id;
-            const newRecord = {
-                id: recordId,
-                user_id: user.id,
-                name: newProd.name.trim(),
-                cost_price: Number(newProd.cost_price || 0),
-                price: Number(newProd.price || newProd.cost_price || 0),
-                stock_quantity: Number(newProd.stock_quantity || 0),
-                unit: newProd.unit || "pc",
-                hsn_code: newProd.hsn_code || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            };
-
-            await offlineMutate({
-                table: "products",
-                action: "insert",
-                recordId,
-                payload: newRecord,
-                userId: user.id,
-            });
-
-            // Optimistically update React Query cache
-            queryClient.setQueryData(["products", user.id], (old: any) => {
-                const list = old ? [...old] : [];
-                return [newRecord, ...list];
-            });
-            queryClient.invalidateQueries({ queryKey: ["products"] });
-
-            toast({
-                title: "Product Added to Inventory",
-                description: `"${newProd.name}" is now saved in your product catalog.`,
-            });
-        } catch (e: any) {
-            console.error("Failed to add product to inventory:", e);
-        }
-    };
 
     const handleAddItem = () => {
         append({
@@ -1063,3 +814,5 @@ export const RecordPurchaseDialog = ({
         </Dialog>
     );
 };
+
+export default RecordPurchaseDialog;
