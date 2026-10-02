@@ -5,11 +5,11 @@ import { AppRoutes } from "./routes";
 
 export const App: React.FC = () => {
   return (
-    <AppProviders>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AppProviders>
         <AppRoutes />
-      </BrowserRouter>
-    </AppProviders>
+      </AppProviders>
+    </BrowserRouter>
   );
 };
 
