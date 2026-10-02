@@ -8,3 +8,4 @@ export * from "./InvoiceDetailsSection";
 export { default as InvoiceDetailsSection } from "./InvoiceDetailsSection";
 export * from "./InvoiceSummaryTotals";
 export { default as InvoiceSummaryTotals } from "./InvoiceSummaryTotals";
+export * from "./QuickInvoiceFormSection";
