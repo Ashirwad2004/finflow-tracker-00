@@ -1,8 +1,7 @@
-import { Sparkles, Calculator, ReceiptIndianRupee, LogOut, Bot } from "lucide-react";
+import { Sparkles, Calculator, ReceiptIndianRupee, LogOut } from "lucide-react";
 import { NavigateFunction } from "react-router-dom";
 import { cn } from "@/core/lib/utils";
 import { Button } from "@/components/ui/button";
-import { openAIAssistant } from "@/components/shared/AIAssistantChat";
 import {
   Dialog,
   DialogContent,
@@ -73,28 +72,6 @@ export const SidebarFooter = ({
       )}
 
       <RequestFeatureDialog collapsed={collapsed} />
-
-      <Button
-        variant="ghost"
-        onClick={openAIAssistant}
-        className={cn(
-          "w-full justify-start gap-3 transition-all",
-          "hover:bg-violet-500/10 text-slate-700 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400",
-          collapsed && "justify-center px-0"
-        )}
-        title="RupayBill CFO (AI Copilot) - Press Ctrl+J"
-        aria-label="Open RupayBill CFO"
-      >
-        <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400 shrink-0" />
-        {!collapsed && (
-          <div className="flex items-center justify-between flex-1 min-w-0">
-            <span className="truncate text-sm font-medium">RupayBill CFO</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-bold border border-violet-200 dark:border-violet-800">
-              AI
-            </span>
-          </div>
-        )}
-      </Button>
 
       <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
         <DialogTrigger asChild>

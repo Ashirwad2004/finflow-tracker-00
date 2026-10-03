@@ -2,15 +2,19 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "@/core/lib/auth";
 import { AIAssistantChat } from "@/components/shared/AIAssistantChat";
 
-const HIDDEN_PREFIXES = ["/auth", "/store/"];
+const DASHBOARD_ROUTES = new Set(["/", "/dashboard", "/business-dashboard"]);
 
-/** Show AI assistant only for signed-in app users (not landing, auth, or public storefront). */
+/**
+ * Scopes RupayBill CFO exclusively to the Dashboard page corner.
+ * Completely absent and unmounted on Invoices, POS, Inventory, Purchases, Parties, Reports, and Settings.
+ */
 export function AppAssistantGate() {
     const { user } = useAuth();
     const { pathname } = useLocation();
 
     if (!user) return null;
-    if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+    if (!DASHBOARD_ROUTES.has(pathname)) return null;
 
     return <AIAssistantChat />;
 }
+

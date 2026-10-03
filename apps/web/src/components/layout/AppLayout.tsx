@@ -1,13 +1,12 @@
 import { ReactNode, useState, createContext, useContext } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "@/components/layout/AppSidebar";
-import { Menu, Bot } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { Logo } from "@/components/shared/Logo";
-import { openAIAssistant } from "@/components/shared/AIAssistantChat";
 
 export const AppLayoutContext = createContext<boolean>(false);
 
@@ -48,16 +47,6 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Logo size={28} showText={true} />
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={openAIAssistant}
-              className="text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 h-8 w-8"
-              title="Open RupayBill CFO"
-              aria-label="Open RupayBill CFO"
-            >
-              <Bot className="h-4.5 w-4.5" />
-            </Button>
             <SyncStatusBadge />
           </div>
         </header>
