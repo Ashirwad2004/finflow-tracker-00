@@ -156,7 +156,7 @@ export default function SalesPage() {
           setTranscriptTarget={setTranscriptTarget}
           whatsappInvoice={whatsappInvoice}
           setWhatsappInvoice={setWhatsappInvoice}
-          whatsappPdfBase64={whatsappPdfBase64}
+          whatsappPdfBase64={whatsappPdfBase64 || undefined}
           isBulkWhatsAppOpen={isBulkWhatsAppOpen}
           setIsBulkWhatsAppOpen={setIsBulkWhatsAppOpen}
           invoices={invoices}

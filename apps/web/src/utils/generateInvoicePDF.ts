@@ -20,6 +20,7 @@ import {
 } from "./pdf";
 
 export * from "./pdf";
+export type { InvoiceItem, InvoiceDetails, TotalRow, UniversalDocumentType } from "./pdf";
 
 export const generateInvoicePDF = async (
     data: InvoiceDetails,

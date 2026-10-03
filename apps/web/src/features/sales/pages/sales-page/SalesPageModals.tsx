@@ -25,7 +25,7 @@ interface SalesPageModalsProps {
   setTranscriptTarget: (target: any) => void;
   whatsappInvoice: any;
   setWhatsappInvoice: (inv: any) => void;
-  whatsappPdfBase64?: string | null;
+  whatsappPdfBase64?: string;
   isBulkWhatsAppOpen: boolean;
   setIsBulkWhatsAppOpen: (open: boolean) => void;
   invoices: Sale[];

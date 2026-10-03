@@ -1,5 +1,5 @@
 import React from "react";
-import { InvoiceItem } from "@/utils/generateInvoicePDF";
+import type { InvoiceItem } from "@/utils/pdf";
 
 interface InvoicePreviewItemsTableProps {
   items: InvoiceItem[];
