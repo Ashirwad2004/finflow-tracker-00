@@ -1,0 +1,85 @@
+import { defineConfig, type ViteDevServer } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+import { componentTagger } from "lovable-tagger";
+
+// https://vitejs.dev/config/ - Force dev server reload & CSS cache invalidate: 2
+export default defineConfig(({ mode }) => ({
+  server: {
+    host: true,
+    port: 8080,
+    strictPort: true,
+    proxy: {
+      '/api/v1': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+    watch: {
+      usePolling: false, // Prevents high CPU usage from aggressive file watching
+    }
+  },
+  plugins: [
+    react(), 
+    mode === "development" && componentTagger(),
+    {
+      name: 'utf8-charset-middleware',
+      configureServer(server: ViteDevServer) {
+        server.middlewares.use((req: any, res: any, next: any) => {
+          const originalSetHeader = res.setHeader;
+          res.setHeader = function (name: string, value: any) {
+            if (name.toLowerCase() === 'content-type' && typeof value === 'string') {
+              if (
+                (value.startsWith('text/') || value.startsWith('application/javascript') || value.startsWith('application/json')) &&
+                !value.toLowerCase().includes('charset')
+              ) {
+                value = `${value}; charset=utf-8`;
+              }
+            }
+            return originalSetHeader.call(this, name, value);
+          };
+          next();
+        });
+      }
+    }
+  ].filter(Boolean),
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@rupaybill/api-types": path.resolve(__dirname, "../../packages/api-types/src/index.ts"),
+      "@rupeebill/api-types": path.resolve(__dirname, "../../packages/api-types/src/index.ts"),
+    },
+  },
+  build: {
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunk splits
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+          charting: ['recharts'],
+          pdf: ['jspdf', 'jspdf-autotable'],
+          supabase: ['@supabase/supabase-js'],
+          ui: [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-select',
+            '@radix-ui/react-toast',
+            'lucide-react',
+            'framer-motion'
+          ]
+        },
+      },
+    },
+  },
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
+}));

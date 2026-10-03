@@ -1,0 +1,56 @@
+import { LabelPresetKey, LabelPresetConfig } from "./types";
+
+export const PRESETS: Record<LabelPresetKey, LabelPresetConfig> = {
+  roll_50_25: {
+    name: 'Thermal Roll 50×25mm (2"×1")',
+    type: "roll",
+    widthMm: 50,
+    heightMm: 25,
+    fontSize: 9,
+    barcodeHeight: 38,
+  },
+  roll_38_25: {
+    name: 'Thermal Roll 38×25mm (1.5"×1")',
+    type: "roll",
+    widthMm: 38,
+    heightMm: 25,
+    fontSize: 8,
+    barcodeHeight: 32,
+  },
+  roll_50_38: {
+    name: 'Thermal Roll 50×38mm (2"×1.5")',
+    type: "roll",
+    widthMm: 50,
+    heightMm: 38,
+    fontSize: 10,
+    barcodeHeight: 46,
+  },
+  roll_100_50: {
+    name: 'Thermal Roll 100×50mm (4"×2")',
+    type: "roll",
+    widthMm: 100,
+    heightMm: 50,
+    fontSize: 12,
+    barcodeHeight: 60,
+  },
+  a4_24: {
+    name: "A4 Sticker Sheet (24 labels: 3×8)",
+    type: "sheet",
+    widthMm: 70,
+    heightMm: 37,
+    cols: 3,
+    rows: 8,
+    fontSize: 9,
+    barcodeHeight: 36,
+  },
+  a4_65: {
+    name: "A4 Sticker Sheet (65 labels: 5×13)",
+    type: "sheet",
+    widthMm: 38,
+    heightMm: 21,
+    cols: 5,
+    rows: 13,
+    fontSize: 7,
+    barcodeHeight: 22,
+  },
+};

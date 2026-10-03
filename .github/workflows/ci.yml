@@ -5,9 +5,11 @@ on:
     branches:
       - main
       - fixed-paymnet-issue
+      - remove-chunks
   pull_request:
     branches:
       - main
+      - remove-chunks
   workflow_dispatch:
 
 jobs:
@@ -28,18 +30,21 @@ jobs:
         run: npm ci
 
       - name: Install Frontend Dependencies
-        working-directory: frontend
+        working-directory: apps/web
         run: npm ci
 
       - name: Run ESLint Checks
         run: npm run lint
 
       - name: Run TypeScript Type Checks
-        working-directory: frontend
+        working-directory: apps/web
         run: npx tsc --noEmit --project tsconfig.json
 
+      - name: Run Frontend Unit Tests
+        run: npm run test:frontend
+
       - name: Build Production Frontend Bundle
-        working-directory: frontend
+        working-directory: apps/web
         env:
           VITE_SUPABASE_URL: "https://dummy-project.supabase.co"
           VITE_SUPABASE_PUBLISHABLE_KEY: "dummy-key"
@@ -59,14 +64,18 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        working-directory: backend
+        working-directory: apps/api
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Verify Python Syntax & Compilation
-        working-directory: backend
+        working-directory: apps/api
         run: find src -name "*.py" -type f -exec python -m py_compile {} +
+
+      - name: Run Backend Test Suite
+        working-directory: apps/api
+        run: python -m pytest tests -v
 
   docker-build-checks:
     name: Docker Build Validation
