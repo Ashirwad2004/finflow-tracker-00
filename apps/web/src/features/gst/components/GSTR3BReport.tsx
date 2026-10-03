@@ -306,3 +306,5 @@ export const GSTR3BReport = () => {
         </div>
     );
 };
+
+export default GSTR3BReport;

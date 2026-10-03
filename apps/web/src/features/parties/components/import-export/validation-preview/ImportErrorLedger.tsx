@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Download } from "lucide-react";
-import { ParsedPartyRow } from "../../types/partyImportExportTypes";
+import { ParsedPartyRow } from "../../../types/partyImportExportTypes";
 import { ImportStats } from "./types";
 
 interface ImportErrorLedgerProps {

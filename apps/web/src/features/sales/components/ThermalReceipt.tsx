@@ -248,3 +248,5 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ data, className 
         </div>
     );
 };
+
+export default ThermalReceipt;

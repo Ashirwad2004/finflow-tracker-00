@@ -43,3 +43,16 @@ export interface PartyFilter {
   search?: string;
   hasOutstanding?: boolean;
 }
+
+export type SettlementType = "sale" | "purchase";
+
+export interface SettlementTarget {
+  id?: string;
+  type: SettlementType;
+  record?: any;
+  partyName: string;
+  docNumber: string;
+  totalAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+}

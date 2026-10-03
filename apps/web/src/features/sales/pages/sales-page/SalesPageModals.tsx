@@ -25,7 +25,7 @@ interface SalesPageModalsProps {
   setTranscriptTarget: (target: any) => void;
   whatsappInvoice: any;
   setWhatsappInvoice: (inv: any) => void;
-  whatsappPdfBase64: string | null;
+  whatsappPdfBase64?: string;
   isBulkWhatsAppOpen: boolean;
   setIsBulkWhatsAppOpen: (open: boolean) => void;
   invoices: Sale[];
@@ -101,7 +101,7 @@ export const SalesPageModals: React.FC<SalesPageModalsProps> = ({
           recipientName={whatsappInvoice.customer_name}
           recipientPhone={whatsappInvoice.customer_phone || ""}
           attachmentName={`Invoice_${whatsappInvoice.invoice_number}.pdf`}
-          attachmentBase64={whatsappPdfBase64}
+          attachmentBase64={whatsappPdfBase64 || undefined}
           metadata={{
             invoice_id: whatsappInvoice.id,
             invoice_number: whatsappInvoice.invoice_number,

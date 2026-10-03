@@ -44,16 +44,11 @@ export const GstReportsHub: React.FC = () => {
     localStorage.setItem("rupeebill_fallback_state_code", code);
   };
 
-  const { profile, recon, refetchRecon } = useGstReconciliation(
+  const { profile, recon, refetchRecon, bizGSTIN, effectiveStateCode } = useGstReconciliation(
     user?.id,
     activePeriod,
-    (profile?.gst_number || "").trim().length >= 2
-      ? (profile?.gst_number || "").trim().slice(0, 2)
-      : fallbackStateCode
+    fallbackStateCode
   );
-
-  const bizGSTIN = (profile?.gst_number || "").trim();
-  const effectiveStateCode = bizGSTIN.length >= 2 ? bizGSTIN.slice(0, 2) : fallbackStateCode;
 
   return (
     <div className="space-y-6">

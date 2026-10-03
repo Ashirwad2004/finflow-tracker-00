@@ -135,7 +135,7 @@ export function LentReportTable({ isLoading, lentMoney, formatDateSafe }: LentRe
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right font-extrabold text-emerald-600">
-                    {formatCurrency(item.amount)}
+                    {formatCurrency(Number(item.amount))}
                   </td>
                 </tr>
               ))
@@ -199,7 +199,7 @@ export function BorrowedReportTable({ isLoading, borrowedMoney, formatDateSafe }
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right font-extrabold text-rose-600">
-                    {formatCurrency(item.amount)}
+                    {formatCurrency(Number(item.amount))}
                   </td>
                 </tr>
               ))

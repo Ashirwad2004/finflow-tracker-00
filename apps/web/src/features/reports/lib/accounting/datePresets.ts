@@ -26,14 +26,14 @@ export type DatePeriodPreset =
 export interface DateRange {
   from: Date;
   to: Date;
-  preset: DatePeriodPreset;
+  preset?: DatePeriodPreset;
 }
 
 export function getDateRangeFromPreset(
   preset: DatePeriodPreset,
   customFrom?: Date,
   customTo?: Date
-): { from: Date; to: Date } {
+): DateRange {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed: 0 = Jan, 3 = Apr

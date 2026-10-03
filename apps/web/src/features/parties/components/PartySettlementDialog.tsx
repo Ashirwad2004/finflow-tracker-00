@@ -10,15 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
-export interface SettlementTarget {
-    id: string;
-    type: "sale" | "purchase";
-    partyName: string;
-    docNumber: string;
-    totalAmount: number;
-    amountPaid: number;
-    balanceDue: number;
-}
+import { SettlementTarget } from "../types";
+export type { SettlementTarget };
 
 interface PartySettlementDialogProps {
     settlementTarget: SettlementTarget | null;

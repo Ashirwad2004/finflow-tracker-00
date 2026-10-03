@@ -13,6 +13,10 @@
  * - @/features/storefront
  */
 
+export { formatDateSafe } from "@/features/sales";
+export { GSTIN_REGEX } from "@/features/parties";
+export type { PaymentMode } from "@/features/banking";
+
 export * from "@/features/sales";
 export * from "@/features/purchases";
 export * from "@/features/parties";

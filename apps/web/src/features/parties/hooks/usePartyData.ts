@@ -131,8 +131,8 @@ export function usePartyData({
 
   // High-level aggregate totals
   const directorySummary = useMemo(() => {
-    return computeDirectorySummary(partyLedgerMap, parties.length);
-  }, [partyLedgerMap, parties.length]);
+    return computeDirectorySummary(parties, partyLedgerMap);
+  }, [parties, partyLedgerMap]);
 
   // Filter parties based on search input and category filter
   const filteredParties = useMemo(() => {

@@ -44,3 +44,4 @@ export function RecordBillPaymentDialog({
 }
 
 export { UniversalPaymentDialog };
+export default RecordBillPaymentDialog;

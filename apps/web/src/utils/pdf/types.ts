@@ -1,5 +1,16 @@
 import jsPDF from "jspdf";
 
+export interface InvoiceItem {
+    description: string;
+    quantity: number | string;
+    price: number | string;
+    total: number | string;
+    hsn_code?: string;
+    unit?: string;
+    tax_rate?: number | string;
+    discount?: number | string;
+}
+
 export interface InvoiceDetails {
     invoice_number: string;
     date: string;
@@ -15,16 +26,7 @@ export interface InvoiceDetails {
     customer_address?: string;
     customer_state?: string;
     place_of_supply?: string;
-    items: {
-        description: string;
-        quantity: number | string;
-        price: number | string;
-        total: number | string;
-        hsn_code?: string;
-        unit?: string;
-        tax_rate?: number | string;
-        discount?: number | string;
-    }[];
+    items: InvoiceItem[];
     subtotal: number;
     discount_amount?: number;
     tax_rate?: number;

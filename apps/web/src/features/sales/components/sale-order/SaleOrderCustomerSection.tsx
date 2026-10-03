@@ -36,7 +36,7 @@ export const SaleOrderCustomerSection: React.FC<SaleOrderCustomerSectionProps> =
         <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Searchable Customer Name Input */}
-                <div className="relative space-y-1.5 md:col-span-1" ref={partyDropdownRef}>
+                <div className="relative space-y-1.5 md:col-span-1" ref={partyDropdownRef as any}>
                     <div className="flex items-center justify-between">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                             Customer Name <span className="text-rose-500">*</span>

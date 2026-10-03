@@ -45,7 +45,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
       <InvoicePreviewActionBar
         invoiceNumber={pdfPayload.invoice_number}
-        status={pdfPayload.status}
+        status={pdfPayload.status || "unpaid"}
         isDraft={isDraft}
         onEdit={onEdit}
         onSave={onSave}

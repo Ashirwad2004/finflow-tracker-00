@@ -158,3 +158,5 @@ Examples:
         </div>
     );
 };
+
+export default SmartPurchaseInput;

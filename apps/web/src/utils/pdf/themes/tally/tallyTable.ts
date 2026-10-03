@@ -112,7 +112,7 @@ export function renderTallyTable(
       lineColor: [0, 0, 0],
       lineWidth: 0.5,
     },
-    columnStyles: columnStylesTally,
+    columnStyles: columnStylesTally as any,
     didParseCell: (hookData: any) => {
       const colIdx = hookData.column.index;
       if (showItemTaxRate) {

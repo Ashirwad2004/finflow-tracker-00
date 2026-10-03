@@ -1,5 +1,6 @@
 import React from "react";
-import { Search, Badge, User, Calendar, ArrowRight } from "lucide-react";
+import { Search, User, Calendar, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SaleRecord } from "./types";

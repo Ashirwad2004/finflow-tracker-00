@@ -64,7 +64,7 @@ export const QuickInvoiceFormSection: React.FC<QuickInvoiceFormSectionProps> = (
           customerPhone={watchCustomerPhone}
           customerEmail={watchCustomerEmail}
           customerGstin={watchCustomerGstin}
-          placeOfSupply={watchPlaceOfSupply}
+          placeOfSupply={watchPlaceOfSupply || ""}
           onCustomerNameChange={(val) => {
             setValue("customer_name", val, {
               shouldValidate: true,

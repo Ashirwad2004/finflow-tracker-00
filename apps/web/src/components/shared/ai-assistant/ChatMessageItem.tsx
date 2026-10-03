@@ -88,7 +88,7 @@ export function ChatMessageItem({
                                 <Button
                                     size="sm"
                                     disabled={isExecuting}
-                                    onClick={() => handleExecuteAction(msg.id, actionData!)}
+                                    onClick={() => onExecuteAction(msg.id, actionData!)}
                                     className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:opacity-95 shadow-sm text-[10px] py-1 h-7 rounded-md"
                                 >
                                     {isExecuting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
