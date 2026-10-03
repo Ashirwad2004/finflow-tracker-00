@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
-import { RowResolutionAction } from "../../types/partyImportExportTypes";
+import { RowResolutionAction } from "../../../types/partyImportExportTypes";
 import { ImportStats } from "./types";
 
 interface ImportDuplicateStrategySelectorProps {

@@ -18,7 +18,7 @@ export interface InvoiceItemsTableProps {
     handleProductSelect: (index: number, product: ProductItem) => void;
     handleQuickAddProduct: (product: ProductItem) => void | Promise<void>;
     descriptionRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
-    handleItemKeyDown: (e: React.KeyboardEvent, index: number) => void;
+    handleItemKeyDown: (e: React.KeyboardEvent<any>, index: number) => void;
     remove: (index: number) => void;
     addEmptyItemRow: () => void;
     formatCurrency?: (amount: number) => string;

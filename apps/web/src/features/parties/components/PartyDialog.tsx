@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { Party } from "../pages/Parties";
+import { Party } from "../types";
 
 interface PartyDialogProps {
     open: boolean;
@@ -221,3 +221,5 @@ export const PartyDialog = ({ open, onOpenChange, onSave, party, isEditing, isSa
         </Dialog>
     );
 };
+
+export default PartyDialog;

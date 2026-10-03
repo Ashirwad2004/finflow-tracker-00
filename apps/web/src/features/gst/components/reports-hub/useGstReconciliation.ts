@@ -16,7 +16,7 @@ const defaultRecon: GstReconciliationData = {
 export function useGstReconciliation(
   userId: string | undefined,
   activePeriod: GstPeriod,
-  effectiveStateCode: string
+  fallbackStateCode: string
 ) {
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
@@ -31,6 +31,9 @@ export function useGstReconciliation(
     },
     enabled: !!userId,
   });
+
+  const bizGSTIN = (profile?.gst_number || "").trim();
+  const effectiveStateCode = bizGSTIN.length >= 2 ? bizGSTIN.slice(0, 2) : fallbackStateCode;
 
   const {
     data: reconciliationData,
@@ -138,6 +141,8 @@ export function useGstReconciliation(
 
   return {
     profile,
+    bizGSTIN,
+    effectiveStateCode,
     recon: reconciliationData || defaultRecon,
     isReconLoading,
     refetchRecon,

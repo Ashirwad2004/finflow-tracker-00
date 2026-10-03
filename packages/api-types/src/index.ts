@@ -18,3 +18,22 @@ export interface ApiPagination {
   total: number;
   has_more: boolean;
 }
+
+export interface AiMessage {
+  role: "system" | "user" | "assistant";
+  content: string | any[];
+}
+
+export interface CompletionRequest {
+  messages: AiMessage[];
+  model?: string | null;
+  temperature?: number | null;
+  maxOutputTokens?: number | null;
+  response_format?: Record<string, any> | null;
+  stream?: boolean | null;
+}
+
+export interface CompletionResponse {
+  text: string;
+  choices: Array<Record<string, any>>;
+}

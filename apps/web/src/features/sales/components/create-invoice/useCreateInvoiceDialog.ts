@@ -133,8 +133,8 @@ export function useCreateInvoiceDialog({
   const watchItems = watch("items");
   const watchTaxRate = watch("tax_rate");
   const watchOverallDiscount = watch("overall_discount");
-  const watchQuickItemName = watch("quick_item_name");
-  const watchQuickTotalAmount = watch("quick_total_amount");
+  const watchQuickItemName = watch("quick_item_name") || "General Sale";
+  const watchQuickTotalAmount = Number(watch("quick_total_amount") || 0);
   const watchCustomerName = watch("customer_name") || "";
   const watchCustomerPhone = watch("customer_phone") || "";
   const watchCustomerEmail = watch("customer_email") || "";

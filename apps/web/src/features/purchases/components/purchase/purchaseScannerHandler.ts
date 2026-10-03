@@ -103,6 +103,7 @@ export function applyScannerExtraction({
   }
 
   if (autoSaveImmediately) {
+    const billDate = data.date || new Date().toISOString().split("T")[0];
     const submissionPayload: PurchaseFormValues = {
       vendor_name: data.vendor_name || "Supplier",
       vendor_phone: data.vendor_phone || "",
@@ -110,8 +111,8 @@ export function applyScannerExtraction({
       place_of_supply:
         data.place_of_supply || (data.vendor_gstin ? data.vendor_gstin.substring(0, 2) : ""),
       bill_number: data.bill_number || `BILL-${Date.now().toString().slice(-6)}`,
-      date: data.date || new Date().toISOString().split("T")[0],
-      due_date: data.due_date || getDefaultDueDate(data.date),
+      date: billDate,
+      due_date: data.due_date || getDefaultDueDate(billDate),
       payment_status: status,
       amount_paid: status === "paid" ? finalCalculatedTotal : data.amount_paid || 0,
       discount_amount: data.discount_amount || 0,

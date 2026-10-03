@@ -124,12 +124,13 @@ export const sanitizePayload = (table: string, action: string, payload: any) => 
   return clean;
 };
 
-interface OfflineMutateParams {
+export interface OfflineMutateParams {
   table: string;
-  action: 'insert' | 'update' | 'delete';
-  recordId: string;
+  action: 'insert' | 'update' | 'delete' | 'INSERT' | 'UPDATE' | 'DELETE';
+  recordId?: string;
   payload?: any;
-  userId: string;
+  data?: any;
+  userId?: string;
 }
 
 export interface OfflineMutateResult {
@@ -143,66 +144,71 @@ export interface OfflineMutateResult {
  * Reads and writes update local storage immediately, queue offline tasks,
  * and synchronize with Supabase asynchronously.
  */
-export const offlineMutate = async ({ table, action, recordId, payload, userId }: OfflineMutateParams): Promise<OfflineMutateResult> => {
+export const offlineMutate = async ({ table, action, recordId, payload, data, userId }: OfflineMutateParams): Promise<OfflineMutateResult> => {
+  const normAction = action.toLowerCase() as 'insert' | 'update' | 'delete';
+  const resolvedPayload = payload || data || {};
+  const resolvedRecordId = recordId || resolvedPayload.id || '';
+  const resolvedUserId = userId || resolvedPayload.user_id || '';
+
   const basePayload = {
-    id: recordId,
+    id: resolvedRecordId,
     // Only inject user_id for tables that actually have the column
-    ...(!TABLES_WITHOUT_USER_ID.has(table) ? { user_id: userId } : {}),
-    ...(payload || {})
+    ...(!TABLES_WITHOUT_USER_ID.has(table) ? { user_id: resolvedUserId } : {}),
+    ...(resolvedPayload || {})
   };
 
   if (!TABLES_WITHOUT_UPDATED_AT.has(table) && !basePayload.updated_at) {
     basePayload.updated_at = new Date().toISOString();
   }
 
-  const cleanPayload = sanitizePayload(table, action, basePayload);
+  const cleanPayload = sanitizePayload(table, normAction, basePayload);
 
   // 1. Instant local SQLite/IndexedDB write
-  if (action === 'delete') {
-    await sqliteService.delete(recordId);
+  if (normAction === 'delete') {
+    await sqliteService.delete(resolvedRecordId);
   } else {
-    await sqliteService.upsert(table, userId, cleanPayload);
+    await sqliteService.upsert(table, resolvedUserId, cleanPayload);
   }
 
   // 2. Perform live call if network is online
   const performLiveCall = async () => {
     const keyColumn = table === 'profiles' ? 'user_id' : 'id';
-    if (action === 'insert') {
-      const { data, error } = await (supabase as any)
+    if (normAction === 'insert') {
+      const { data: resData, error } = await (supabase as any)
         .from(table)
-        .upsert({ ...cleanPayload, [keyColumn]: recordId })
+        .upsert({ ...cleanPayload, [keyColumn]: resolvedRecordId })
         .select()
         .maybeSingle();
       if (error) throw error;
-      return data || cleanPayload;
-    } else if (action === 'update') {
-      const { data, error } = await (supabase as any)
+      return resData || cleanPayload;
+    } else if (normAction === 'update') {
+      const { data: resData, error } = await (supabase as any)
         .from(table)
         .update(cleanPayload)
-        .eq(keyColumn, recordId)
+        .eq(keyColumn, resolvedRecordId)
         .select()
         .maybeSingle();
       if (error) throw error;
-      return data || cleanPayload;
-    } else if (action === 'delete') {
+      return resData || cleanPayload;
+    } else if (normAction === 'delete') {
       const { error } = await (supabase as any)
         .from(table)
         .delete()
-        .eq(keyColumn, recordId);
+        .eq(keyColumn, resolvedRecordId);
       if (error) throw error;
-      return { [keyColumn]: recordId, deleted: true };
+      return { [keyColumn]: resolvedRecordId, deleted: true };
     }
   };
 
   if (navigator.onLine) {
     try {
       const result = await performLiveCall();
-      if (result && action !== 'delete') {
-        await sqliteService.upsert(table, userId, result);
+      if (result && normAction !== 'delete') {
+        await sqliteService.upsert(table, resolvedUserId, result);
       }
       return { data: result || cleanPayload, error: null, offline: false };
     } catch (error: any) {
-      console.error(`[offlineMutate] ${action} on ${table} failed:`, error?.message || error);
+      console.error(`[offlineMutate] ${normAction} on ${table} failed:`, error?.message || error);
       // Postgrest schema errors (non-network drops)
       if (error && error.code) {
         throw error;
@@ -212,6 +218,6 @@ export const offlineMutate = async ({ table, action, recordId, payload, userId }
   }
 
   // 3. Queue for offline background sync
-  await queueService.enqueue(userId, table, action, recordId, cleanPayload);
+  await queueService.enqueue(resolvedUserId, table, normAction, resolvedRecordId, cleanPayload);
   return { data: cleanPayload, error: null, offline: true };
 };

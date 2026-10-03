@@ -66,7 +66,7 @@ export const BarcodeLivePreview: React.FC<BarcodeLivePreviewProps> = ({
 
           {/* Barcode SVG */}
           <div className="my-1.5 w-full flex justify-center overflow-hidden">
-            <svg ref={previewSvgRef} className="max-w-full"></svg>
+            <svg ref={previewSvgRef as any} className="max-w-full"></svg>
           </div>
 
           {/* Price & SKU */}

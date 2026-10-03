@@ -5,10 +5,10 @@ export function exportTrialBalance(trialBalance: any, businessInfo: ReportBusine
   downloadReportCSV(
     trialBalance.items,
     [
-      { header: "Account Particulars", accessor: (i) => i.accountName },
-      { header: "Account Type", accessor: (i) => i.accountType },
-      { header: "Debit Amount (₹)", accessor: (i) => i.debit || "" },
-      { header: "Credit Amount (₹)", accessor: (i) => i.credit || "" },
+      { header: "Account Particulars", accessor: (i: any) => i.accountName },
+      { header: "Account Type", accessor: (i: any) => i.accountType },
+      { header: "Debit Amount (₹)", accessor: (i: any) => i.debit || "" },
+      { header: "Credit Amount (₹)", accessor: (i: any) => i.credit || "" },
     ],
     "Trial_Balance",
     businessInfo

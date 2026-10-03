@@ -388,3 +388,5 @@ export function BillPaymentTranscriptDialog({
     </Dialog>
   );
 }
+
+export default BillPaymentTranscriptDialog;

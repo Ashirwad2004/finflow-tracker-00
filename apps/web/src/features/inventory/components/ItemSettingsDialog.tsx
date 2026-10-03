@@ -22,7 +22,7 @@ interface ItemSettingsDialogProps {
     showStockInItemPicker: boolean;
     showRackLocations: boolean;
   };
-  updateSetting: (key: string, value: any) => void;
+  updateSetting: (key: any, value: any) => void;
   resetSettings: () => void;
 }
 

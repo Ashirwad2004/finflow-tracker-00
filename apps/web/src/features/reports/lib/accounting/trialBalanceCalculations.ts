@@ -21,7 +21,8 @@ export function computeTrialBalance(
   allProducts: any[],
   allSales: any[],
   allBorrowed: any[],
-  allLent: any[]
+  allLent: any[],
+  allExpenses: any[] = []
 ): TrialBalanceResult {
   const items: TrialBalanceItem[] = [];
 

@@ -13,6 +13,9 @@ export * from "./services/calc";
 // API & Queries
 export * from "./api";
 
+export { useCreateInvoiceMutation } from "./hooks";
+export type { InvoiceFormValues, InvoiceItem } from "./types";
+
 // Schemas & Types
 export * from "./schemas";
 export * from "./types";

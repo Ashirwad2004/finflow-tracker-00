@@ -8,7 +8,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ParsedPartyRow, RowResolutionAction } from "../../types/partyImportExportTypes";
+import { ParsedPartyRow, RowResolutionAction } from "../../../types/partyImportExportTypes";
 import { ImportStats } from "./types";
 
 interface ImportPreviewTableProps {

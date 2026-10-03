@@ -112,7 +112,8 @@ export function useAccountingData() {
       allProducts,
       allSales,
       allBorrowed,
-      allLent
+      allLent,
+      allExpenses
     );
   }, [
     filteredSales,
@@ -124,6 +125,7 @@ export function useAccountingData() {
     allSales,
     allBorrowed,
     allLent,
+    allExpenses,
   ]);
 
   // =========================================================================

@@ -1,4 +1,4 @@
-import { PurchaseOrder } from "../types/orders";
+import { PurchaseOrder } from "../../types/orders";
 
 export interface CreatePurchaseOrderDialogProps {
   open: boolean;

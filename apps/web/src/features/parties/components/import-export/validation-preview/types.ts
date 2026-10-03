@@ -1,7 +1,7 @@
 import {
     ParsedPartyRow,
     RowResolutionAction,
-} from "../../types/partyImportExportTypes";
+} from "../../../types/partyImportExportTypes";
 
 export interface ImportStats {
     total: number;

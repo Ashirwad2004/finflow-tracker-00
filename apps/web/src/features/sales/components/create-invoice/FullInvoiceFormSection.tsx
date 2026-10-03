@@ -33,7 +33,7 @@ export interface FullInvoiceFormSectionProps {
     handleProductSelect: (index: number, product: any) => void;
     handleQuickAddProduct: (newProd: any) => Promise<void>;
     descriptionRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
-    handleItemKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, index: number) => void;
+    handleItemKeyDown: (e: React.KeyboardEvent<any>, index: number) => void;
     remove: (index: number) => void;
     addEmptyItemRow: () => void;
     subtotal: number;

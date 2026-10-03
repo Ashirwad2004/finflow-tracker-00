@@ -1,4 +1,4 @@
-import { FinFlowReportId, ReportMenuItem } from "../reportMenu";
+import { FinFlowReportId, ReportMenuItem } from "../../reportMenu";
 
 export interface ReportBusinessInfo {
   name: string;

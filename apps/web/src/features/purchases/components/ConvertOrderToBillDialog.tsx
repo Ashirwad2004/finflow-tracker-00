@@ -384,3 +384,5 @@ export const ConvertOrderToBillDialog: React.FC<ConvertOrderToBillDialogProps> =
         </Dialog>
     );
 };
+
+export default ConvertOrderToBillDialog;

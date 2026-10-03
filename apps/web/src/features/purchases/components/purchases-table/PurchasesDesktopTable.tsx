@@ -54,7 +54,7 @@ export const PurchasesDesktopTable: React.FC<PurchasesDesktopTableProps> = ({
   onOpenTranscript,
 }) => {
   return (
-    <div className="hidden md:block overflow-auto max-h-[65vh] w-full" ref={tableContainerRef}>
+    <div className="hidden md:block overflow-auto max-h-[65vh] w-full" ref={tableContainerRef as any}>
       <table className="w-full text-left border-collapse min-w-[1050px] relative">
         <thead className="sticky top-0 z-10 shadow-sm">
           <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">

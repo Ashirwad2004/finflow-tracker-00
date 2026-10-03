@@ -197,13 +197,13 @@ export function renderStartupGradient(ctx: ThemeRenderContext): void {
 
     autoTable(doc, {
         startY: Math.max(85, billY + 10),
-        head: tableHeadGradient,
+        head: tableHeadGradient as any,
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: indigoColor, textColor: 255, fontStyle: 'bold', fontSize: 10, cellPadding: 4 },
         bodyStyles: { textColor: textDark, fontSize: 9, cellPadding: 4, lineColor: [243, 244, 246] },
         alternateRowStyles: { fillColor: [249, 250, 251] },
-        columnStyles: columnStylesGradient,
+        columnStyles: columnStylesGradient as any,
         didParseCell: (hookData: any) => {
             const colIdx = hookData.column.index;
             if (showItemTaxRate) {
@@ -228,7 +228,7 @@ export function renderStartupGradient(ctx: ThemeRenderContext): void {
     });
 
     let finalY = (doc as any).lastAutoTable.finalY + 10;
-    finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, indigoColor, theme, data.invoice_number, bizName);
+    finalY = handleContinuationPage(doc, finalY, pageHeight, pageWidth, indigoColor, 'startup-gradient', data.invoice_number, bizName);
     
     const totalBlockX = pageWidth - 90;
     const vAlignX = pageWidth - 14;

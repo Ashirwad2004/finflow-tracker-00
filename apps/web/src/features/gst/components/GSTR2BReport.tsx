@@ -311,3 +311,5 @@ export const GSTR2BReport = () => {
         </div>
     );
 };
+
+export default GSTR2BReport;

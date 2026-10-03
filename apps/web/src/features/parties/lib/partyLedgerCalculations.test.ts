@@ -10,6 +10,7 @@ import { Party } from "../types";
 describe("Party Ledger Calculations", () => {
   const dummyParty: Party = {
     id: "party-1",
+    user_id: "user-1",
     name: "Acme Corp",
     type: "customer",
     opening_balance: 500,
@@ -19,6 +20,7 @@ describe("Party Ledger Calculations", () => {
 
   const dummyVendor: Party = {
     id: "party-2",
+    user_id: "user-1",
     name: "Beta Suppliers",
     type: "vendor",
     opening_balance: 200,

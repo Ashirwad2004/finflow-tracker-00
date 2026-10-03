@@ -84,7 +84,7 @@ export function VirtualizedExpensesList({
           </div>
         ) : (
           <div
-            ref={scrollContainerRef}
+            ref={scrollContainerRef as any}
             className="max-h-[65vh] overflow-y-auto pr-1 rounded-lg"
           >
             <div

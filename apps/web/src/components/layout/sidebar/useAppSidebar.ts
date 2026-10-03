@@ -123,6 +123,7 @@ export function useAppSidebar() {
     isSettingsOpen,
     setIsSettingsOpen,
     expandedMenus,
+    setExpandedMenus,
     toggleSubmenu,
     navigationRef,
     rememberNavigationScroll,
