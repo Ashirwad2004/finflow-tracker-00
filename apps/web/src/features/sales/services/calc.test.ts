@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import {
   calculateLineItemTotal,
   calculateSubtotal,
@@ -8,9 +9,9 @@ import {
 
 describe("Sales Calculation Service", () => {
   it("calculates line item total with discount correctly", () => {
-    expect(calculateLineItemTotal(2, 50, 10)).toBe(90); // 100 - 10% = 90
-    expect(calculateLineItemTotal(1, 100, 0)).toBe(100);
-    expect(calculateLineItemTotal(0, 100, 10)).toBe(0);
+    assert.equal(calculateLineItemTotal(2, 50, 10), 90); // 100 - 10% = 90
+    assert.equal(calculateLineItemTotal(1, 100, 0), 100);
+    assert.equal(calculateLineItemTotal(0, 100, 10), 0);
   });
 
   it("calculates invoice subtotal across multiple items", () => {
@@ -18,7 +19,7 @@ describe("Sales Calculation Service", () => {
       { quantity: 2, price: 100, discount: 0 },
       { quantity: 1, price: 50, discount: 10 }, // 45
     ];
-    expect(calculateSubtotal(items)).toBe(245);
+    assert.equal(calculateSubtotal(items), 245);
   });
 
   it("calculates tax and roundoff correctly for invoice-level tax", () => {
@@ -32,12 +33,12 @@ describe("Sales Calculation Service", () => {
       roundOffTotal: true, // raw 106.2 -> rounded 106
     });
 
-    expect(totals.subtotal).toBe(100);
-    expect(totals.taxableAmount).toBe(90);
-    expect(totals.taxAmount).toBe(16.2);
-    expect(totals.rawTotal).toBe(106.2);
-    expect(totals.roundedTotal).toBe(106);
-    expect(totals.roundOffDiff).toBe(-0.2);
+    assert.equal(totals.subtotal, 100);
+    assert.equal(totals.taxableAmount, 90);
+    assert.equal(totals.taxAmount, 16.2);
+    assert.equal(totals.rawTotal, 106.2);
+    assert.equal(totals.roundedTotal, 106);
+    assert.equal(totals.roundOffDiff, -0.2);
   });
 
   it("calculates item-wise tax rates accurately", () => {
@@ -51,18 +52,18 @@ describe("Sales Calculation Service", () => {
       roundOffTotal: false,
     });
 
-    expect(totals.subtotal).toBe(300);
+    assert.equal(totals.subtotal, 300);
     // item 1: 100 * 18% = 18
     // item 2: 200 * 12% = 24
     // total tax = 42
-    expect(totals.taxAmount).toBe(42);
-    expect(totals.totalAmount).toBe(342);
+    assert.equal(totals.taxAmount, 42);
+    assert.equal(totals.totalAmount, 342);
   });
 
   it("calculates invoice due according to payment status", () => {
-    expect(calculateInvoiceDue(500, "paid", 500)).toBe(0);
-    expect(calculateInvoiceDue(500, "pending", 0)).toBe(500);
-    expect(calculateInvoiceDue(500, "partial", 200)).toBe(300);
-    expect(calculateInvoiceDue(500, "partial", 600)).toBe(0);
+    assert.equal(calculateInvoiceDue(500, "paid", 500), 0);
+    assert.equal(calculateInvoiceDue(500, "pending", 0), 500);
+    assert.equal(calculateInvoiceDue(500, "partial", 200), 300);
+    assert.equal(calculateInvoiceDue(500, "partial", 600), 0);
   });
 });
