@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useWhatsAppSendInvoice } from "@/features/whatsapp/hooks/useWhatsApp";
 import {
@@ -18,10 +18,16 @@ import { useAuth } from "@/core/lib/auth";
 import { useInvoicePartyData } from "./useInvoicePartyData";
 import { useInvoiceNumberSequence } from "./useInvoiceNumberSequence";
 import { useInvoiceFormInit } from "./useInvoiceFormInit";
+import { useInvoiceItemRows } from "./useInvoiceItemRows";
+import { useInvoiceQuickBilling } from "./useInvoiceQuickBilling";
+import { useInvoiceSmartParse } from "./useInvoiceSmartParse";
 
 export * from "./useInvoicePartyData";
 export * from "./useInvoiceNumberSequence";
 export * from "./useInvoiceFormInit";
+export * from "./useInvoiceItemRows";
+export * from "./useInvoiceQuickBilling";
+export * from "./useInvoiceSmartParse";
 
 export interface UseCreateInvoiceDialogProps {
   open: boolean;
@@ -48,10 +54,6 @@ export function useCreateInvoiceDialog({
 
   const { settings } = useItemSettings(currentUserId);
   useProductsRealtime(currentUserId);
-
-  const [isQuickBilling, setIsQuickBilling] = useState(
-    salesSettings?.enableQuickBilling ?? false
-  );
 
   const {
     register,
@@ -120,47 +122,12 @@ export function useCreateInvoiceDialog({
     name: "items",
   });
 
-  // Enter-to-add-row support
-  const descriptionRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const shouldFocusLastRowRef = useRef(false);
-
-  const addEmptyItemRow = () => {
-    shouldFocusLastRowRef.current = true;
-    append({
-      description: "",
-      quantity: 1,
-      price: 0,
-      discount: 0,
-      tax_rate: salesSettings?.defaultTaxRate ?? 0,
-      total: 0,
-      hsn_code: "",
-      unit: "",
-    });
-  };
-
-  const handleItemKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (index === fields.length - 1) {
-      addEmptyItemRow();
-    } else {
-      descriptionRefs.current[index + 1]?.focus();
-    }
-  };
-
-  useEffect(() => {
-    if (!shouldFocusLastRowRef.current) return;
-    shouldFocusLastRowRef.current = false;
-    requestAnimationFrame(() => {
-      const lastIndex = fields.length - 1;
-      descriptionRefs.current[lastIndex]?.focus();
-    });
-  }, [fields.length]);
+  // Row navigation and auto-focus
+  const { descriptionRefs, addEmptyItemRow, handleItemKeyDown } = useInvoiceItemRows({
+    fields,
+    append,
+    salesSettings,
+  });
 
   // Form watchers
   const watchItems = watch("items");
@@ -177,41 +144,15 @@ export function useCreateInvoiceDialog({
   const watchAmountPaid = watch("amount_paid") || 0;
 
   // Quick billing syncing
-  useEffect(() => {
-    if (open) {
-      setIsQuickBilling(
-        invoiceToEdit ? false : (salesSettings?.enableQuickBilling ?? false)
-      );
-    }
-  }, [open, invoiceToEdit, salesSettings?.enableQuickBilling]);
-
-  useEffect(() => {
-    if (!isQuickBilling) return;
-
-    const tax = Number(watchTaxRate) || 0;
-    const total = Number(watchQuickTotalAmount) || 0;
-    const price = total / (1 + tax / 100);
-
-    setValue(
-      "items",
-      [
-        {
-          description: watchQuickItemName || "General Sale",
-          quantity: 1,
-          price,
-          discount: 0,
-          tax_rate: tax,
-          total: price,
-          hsn_code: "",
-          unit: "",
-        },
-      ],
-      {
-        shouldValidate: true,
-        shouldDirty: true,
-      }
-    );
-  }, [isQuickBilling, watchQuickItemName, watchQuickTotalAmount, watchTaxRate, setValue]);
+  const { isQuickBilling, setIsQuickBilling } = useInvoiceQuickBilling({
+    open,
+    invoiceToEdit,
+    salesSettings,
+    setValue,
+    watchTaxRate,
+    watchQuickItemName,
+    watchQuickTotalAmount,
+  });
 
   // Hook: Party & Sales Data
   const { profile, parties, userSales, selectedParty } = useInvoicePartyData(
@@ -290,44 +231,12 @@ export function useCreateInvoiceDialog({
   };
 
   // AI Smart Parse
-  const handleSmartParse = (data: any) => {
-    if (data.customerName) {
-      setValue("customer_name", data.customerName, { shouldValidate: true, shouldDirty: true });
-      handleCustomerSelect(data.customerName);
-    }
-    if (data.customerPhone) {
-      setValue("customer_phone", data.customerPhone, { shouldValidate: true, shouldDirty: true });
-    }
-    if (data.customerEmail) {
-      setValue("customer_email", data.customerEmail, { shouldValidate: true, shouldDirty: true });
-    }
-    if (data.customerGstin) {
-      setValue("customer_gstin", data.customerGstin.toUpperCase(), { shouldValidate: true, shouldDirty: true });
-    }
-    if (data.status) {
-      setValue("status", data.status, { shouldValidate: true, shouldDirty: true });
-    }
-    if (data.taxRate !== undefined) {
-      setValue("tax_rate", data.taxRate, { shouldValidate: true, shouldDirty: true });
-    }
-    if (data.overallDiscount !== undefined) {
-      setValue("overall_discount", data.overallDiscount, { shouldValidate: true, shouldDirty: true });
-    }
-    if (data.items && data.items.length > 0) {
-      const mappedItems = data.items.map((item: any) => ({
-        description: item.description,
-        quantity: item.quantity || 1,
-        price: item.price || 0,
-        discount: item.discount || 0,
-        tax_rate: data.taxRate !== undefined ? data.taxRate : (salesSettings?.defaultTaxRate ?? 0),
-        total: (item.quantity || 1) * (item.price || 0) * (1 - (item.discount || 0) / 100),
-        hsn_code: "",
-        unit: "",
-      }));
-      setValue("items", mappedItems, { shouldValidate: true, shouldDirty: true });
-    }
-    toast({ title: "AI Magic ✨", description: "Invoice fields populated from your request." });
-  };
+  const { handleSmartParse } = useInvoiceSmartParse({
+    setValue,
+    salesSettings,
+    handleCustomerSelect,
+    toast,
+  });
 
   // Hook: Form Initialization / Reset on Open
   useInvoiceFormInit(open, invoiceToEdit, initialParty, salesSettings, reset);
