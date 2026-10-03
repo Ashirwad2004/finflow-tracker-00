@@ -124,7 +124,7 @@ export const AllExpenses = () => {
 
             {/* Monthly Report View */}
             <TabsContent value="monthly-report" className="mt-0">
-              <MonthlyExpenseReport expenses={filteredExpenses} />
+              <MonthlyExpenseReport expenses={expenses} />
             </TabsContent>
           </Tabs>
         </div>
