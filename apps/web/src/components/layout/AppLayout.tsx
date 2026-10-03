@@ -46,7 +46,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Sheet>
             <Logo size={28} showText={true} />
           </div>
-          <SyncStatusBadge />
+          <div className="flex items-center gap-1">
+            <SyncStatusBadge />
+          </div>
         </header>
         <div className="flex-1 flex overflow-hidden">
           <div className="hidden md:block h-full shrink-0">

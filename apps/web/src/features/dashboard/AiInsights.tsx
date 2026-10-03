@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Lightbulb, TrendingUp, Target, Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Lightbulb, TrendingUp, Target, Sparkles, Loader2, AlertTriangle, Bot } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { openAIAssistant } from "@/components/shared/AIAssistantChat";
 
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { generateFinanceInsight } from "@/core/integrations/ai/gemini";
@@ -170,11 +171,22 @@ export const AiInsights = ({ expenses, categories }: AiInsightsProps) => {
                                 <h3 className="text-sm sm:text-base font-extrabold leading-snug">{geminiInsight.headline}</h3>
                             </div>
                         </div>
-                        {geminiInsight.confidenceScore && (
-                            <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm border border-white/10 shrink-0">
-                                Confidence: {geminiInsight.confidenceScore}
-                            </span>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                            {geminiInsight.confidenceScore && (
+                                <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm border border-white/10 shrink-0">
+                                    Confidence: {geminiInsight.confidenceScore}
+                                </span>
+                            )}
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={openAIAssistant}
+                                className="bg-white/20 hover:bg-white/30 text-white border border-white/20 font-semibold text-xs shadow-xs"
+                            >
+                                <Bot className="w-3.5 h-3.5 mr-1.5" />
+                                Consult CFO
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

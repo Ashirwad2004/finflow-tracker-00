@@ -38,6 +38,24 @@ const INITIAL_ASSISTANT_MESSAGE: ChatMessage = {
     content: "Hi! I'm your RupeeBill AI CFO copilot. Ask me about your business cash flow, tax parameters, low stock alerts, receivables risk, or how to optimize your ledger!",
 };
 
+export const openAIAssistant = () => {
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("finflow:open-ai-cfo"));
+    }
+};
+
+export const closeAIAssistant = () => {
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("finflow:close-ai-cfo"));
+    }
+};
+
+export const toggleAIAssistant = () => {
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("finflow:toggle-ai-cfo"));
+    }
+};
+
 export function useAIAssistantChat() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
@@ -59,6 +77,32 @@ export function useAIAssistantChat() {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, isTyping]);
+
+    // Global event and keyboard shortcut listener
+    useEffect(() => {
+        const handleOpen = () => setIsOpen(true);
+        const handleClose = () => setIsOpen(false);
+        const handleToggle = () => setIsOpen((prev) => !prev);
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+                e.preventDefault();
+                setIsOpen((prev) => !prev);
+            }
+        };
+
+        window.addEventListener("finflow:open-ai-cfo", handleOpen);
+        window.addEventListener("finflow:close-ai-cfo", handleClose);
+        window.addEventListener("finflow:toggle-ai-cfo", handleToggle);
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            window.removeEventListener("finflow:open-ai-cfo", handleOpen);
+            window.removeEventListener("finflow:close-ai-cfo", handleClose);
+            window.removeEventListener("finflow:toggle-ai-cfo", handleToggle);
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, []);
 
     // Persistent Memory Loader
     useEffect(() => {
