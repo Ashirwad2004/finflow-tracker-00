@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, cast
 from fastapi import HTTPException, status
 
 from src.core.supabase import supabase_client
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class FeatureRequestsService:
     @classmethod
-    def create_request(cls, payload: FeatureRequestCreate, user_id: str, user_email: str | None) -> dict:
+    def create_request(cls, payload: FeatureRequestCreate, user_id: str, user_email: str | None) -> Dict[str, Any]:
         if supabase_client is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -33,7 +33,7 @@ class FeatureRequestsService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to save feature request.",
                 )
-            return res.data[0]
+            return cast(Dict[str, Any], res.data[0])
         except HTTPException:
             raise
         except Exception as exc:
@@ -44,7 +44,7 @@ class FeatureRequestsService:
             ) from exc
 
     @classmethod
-    def list_requests(cls, status_filter: Optional[str] = None) -> List[dict]:
+    def list_requests(cls, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         if supabase_client is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -55,7 +55,7 @@ class FeatureRequestsService:
             if status_filter and status_filter != "all":
                 query = query.eq("status", status_filter)
             res = query.execute()
-            return res.data or []
+            return cast(List[Dict[str, Any]], res.data or [])
         except HTTPException:
             raise
         except Exception as exc:
@@ -66,7 +66,7 @@ class FeatureRequestsService:
             ) from exc
 
     @classmethod
-    def update_request(cls, request_id: str, payload: FeatureRequestUpdate) -> dict:
+    def update_request(cls, request_id: str, payload: FeatureRequestUpdate) -> Dict[str, Any]:
         allowed_statuses = {"pending", "reviewed", "approved", "declined", "completed"}
         if payload.status not in allowed_statuses:
             raise HTTPException(
@@ -81,7 +81,7 @@ class FeatureRequestsService:
             )
 
         try:
-            update_data = {"status": payload.status}
+            update_data: Dict[str, Any] = {"status": payload.status}
             if payload.notes is not None:
                 update_data["notes"] = payload.notes.strip()
 
@@ -91,7 +91,7 @@ class FeatureRequestsService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Feature request not found",
                 )
-            return res.data[0]
+            return cast(Dict[str, Any], res.data[0])
         except HTTPException:
             raise
         except Exception as exc:
