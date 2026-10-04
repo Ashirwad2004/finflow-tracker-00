@@ -6,11 +6,10 @@ import {
   Users,
   Wallet,
   FileSpreadsheet,
-  ArrowRight,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SectionHeading } from "./shared/SectionHeading";
 import {
   FeatureTabId,
   TabItem,
@@ -87,7 +86,7 @@ export const VyaparFeatures: React.FC = () => {
   ];
 
   return (
-    <section id="features" className="py-16 sm:py-24 bg-background border-b border-border/60 relative">
+    <section id="features" className="relative border-b border-[hsl(var(--lp-rule))] bg-background py-16 sm:py-24">
       {/* Scroll Anchors for Navbar Links */}
       <div id="preview" className="absolute -top-20" />
       <div id="billing" className="absolute -top-20" />
@@ -96,19 +95,14 @@ export const VyaparFeatures: React.FC = () => {
       <div id="reports" className="absolute -top-20" />
 
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
-          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Complete Business Toolkit</span>
-          </div>
-          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-foreground mb-4">
-            Everything Your Business Needs to Run Smoothly
-          </h2>
-          <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-            Built from the ground up for <span className="font-semibold text-foreground">all types of businesses</span> — retailers, wholesalers, distributors, manufacturers, and service enterprises across India. Replaces slow manual paper registers, complicated Excel formulas, and expensive legacy software.
-          </p>
-        </div>
+        {/* Left-aligned, to break the centred rhythm of the hero above. */}
+        <SectionHeading
+          label="The whole toolkit"
+          figure="5 modules"
+          title="Five jobs your shop does every day, in one place"
+          description="Retailers, wholesalers, distributors, manufacturers and service firms run all of it here, replacing the paper register, the Excel sheet nobody else can open, and software that charges per invoice."
+          className="mb-10 sm:mb-12"
+        />
 
         {/* Horizontal Segmented Tab Navigation */}
         <FeatureTabBar
@@ -118,9 +112,8 @@ export const VyaparFeatures: React.FC = () => {
         />
 
         {/* Feature Display Workspace Container */}
-        <div className="rounded-3xl border border-border/80 bg-card shadow-2xl overflow-hidden p-6 sm:p-8 lg:p-10 relative">
-          {/* Top Subtle Primary Gradient Accent Line */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+        <div className="relative overflow-hidden border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-8 lg:p-10">
+          {/* Hairline accent along the top edge of the workspace. */}
 
           {activeTab === "billing" && <BillingTabPanel />}
           {activeTab === "inventory" && <InventoryTabPanel />}
@@ -130,22 +123,26 @@ export const VyaparFeatures: React.FC = () => {
         </div>
 
         {/* Bottom Section Reassurance Bar */}
-        <div className="mt-10 sm:mt-12 p-4 sm:p-5 rounded-2xl bg-muted/40 border border-border/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-[hsl(var(--lp-rule))] pt-7 text-center sm:mt-12 sm:flex-row sm:text-left">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center  bg-[hsl(var(--lp-green)/0.1)] text-[hsl(var(--lp-green))]">
+              <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs sm:text-sm font-bold text-foreground">
-                100% Free Forever for Invoicing, POS &amp; Inventory Management
+              <div className="text-sm font-bold text-foreground">
+                Invoicing, POS and inventory are free forever
               </div>
-              <div className="text-[11px] sm:text-xs text-muted-foreground">
-                No credit card required. Works across Windows PC, Mac, tablets, and Android smartphones.
+              <div className="text-xs text-muted-foreground">
+                No credit card. Runs on a Windows counter PC, Mac, tablet or
+                Android phone.
               </div>
             </div>
           </div>
-          <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-10 px-5 shrink-0 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
-            Create Free Account <ArrowRight className="w-4 h-4 ml-1.5" />
+          <Button
+            onClick={() => navigate("/auth?mode=signup")}
+            className="lp-btn rounded-none h-11 shrink-0 px-6 text-sm"
+          >
+            Create free account
           </Button>
         </div>
       </div>

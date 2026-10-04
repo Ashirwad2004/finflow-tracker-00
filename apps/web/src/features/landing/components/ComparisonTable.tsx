@@ -1,7 +1,8 @@
 import React from "react";
-import { Check, X, AlertTriangle, ArrowRight, ShieldCheck, Zap } from "lucide-react";
+import { Check, X, AlertTriangle, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { SectionHeading } from "./shared/SectionHeading";
 
 export const ComparisonTable: React.FC = () => {
   const navigate = useNavigate();
@@ -70,21 +71,16 @@ export const ComparisonTable: React.FC = () => {
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-14">
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full">
-            Why Upgrade?
-          </span>
-          <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-foreground mt-3 mb-4">
-            Why 15,000+ Businesses of All Types Switched to RupeeBill
-          </h2>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Still using paper bahi khata or slow Excel spreadsheets? See how switching to RupeeBill speeds up your operations, saves hours of accounting, and prevents revenue loss.
-          </p>
-
-        </div>
+        <SectionHeading
+          label="Compared"
+          figure="9 jobs"
+          title="Paper khata, Excel, or this"
+          description="The same nine jobs, done three ways. Honest about where a spreadsheet still holds up and where it quietly costs you money."
+          className="mb-14"
+        />
 
         {/* Comparison Table Container */}
-        <div className="rounded-3xl border-2 border-border/80 bg-card shadow-xl overflow-hidden">
+        <div className="border border-[hsl(var(--lp-rule-strong))] bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
@@ -126,8 +122,8 @@ export const ComparisonTable: React.FC = () => {
                     </td>
                     <td className="p-4 sm:p-5 font-bold text-foreground bg-primary/5 border-l-2 border-primary/30">
                       <div className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                        <span className="text-emerald-700 dark:text-emerald-300 font-semibold">{row.rupeebill}</span>
+                        <Check className="w-4 h-4 text-[hsl(var(--lp-green))] shrink-0 mt-0.5" />
+                        <span className="text-[hsl(var(--lp-green))] font-semibold">{row.rupeebill}</span>
                       </div>
                     </td>
                   </tr>
@@ -139,16 +135,16 @@ export const ComparisonTable: React.FC = () => {
           {/* Bottom Callout Strip */}
           <div className="p-6 bg-muted/40 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-xs sm:text-sm text-foreground">
-              <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-[hsl(var(--lp-green))] shrink-0" />
               <span>
                 <strong>Zero Lock-In Guarantee:</strong> Export all your items, customers, and invoices to Excel anytime with 1 click.
               </span>
             </div>
             <Button
               onClick={() => navigate("/auth")}
-              className="font-bold text-xs sm:text-sm h-11 px-7 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shrink-0 shadow-lg shadow-orange-500/25 border-0"
+              className="lp-btn rounded-none h-11 shrink-0 px-7 text-xs sm:text-sm"
             >
-              Switch to RupeeBill 100% Free <ArrowRight className="w-4 h-4 ml-1.5" />
+              Switch to RupeeBill
             </Button>
           </div>
         </div>

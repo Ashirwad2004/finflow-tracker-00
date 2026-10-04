@@ -8,9 +8,13 @@ import { toast } from "@/core/hooks/use-toast";
 import { BookDemoModal } from "@/features/demo/BookDemoModal";
 import { RealSubscriptionCheckout } from "@/features/landing/components/RealSubscriptionCheckout";
 
+// Landing-only design foundation (fonts, accent tokens, grain, scroll reveal)
+import "@/features/landing/styles/landing.css";
+
 // Modular landing page sections in exact required sequence
 import { Navbar } from "@/features/landing/components/Navbar";
 import { Hero } from "@/features/landing/components/Hero";
+import { TrustBand } from "@/features/landing/components/TrustBand";
 import { VyaparFeatures } from "@/features/landing/components/VyaparFeatures";
 import { InvoiceThemesShowcase } from "@/features/landing/components/InvoiceThemesShowcase";
 import { ComparisonTable } from "@/features/landing/components/ComparisonTable";
@@ -83,7 +87,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20 flex flex-col">
+    <div className="lp flex min-h-screen flex-col bg-background text-foreground selection:bg-[hsl(var(--lp-red)/0.18)]">
       {/* 1. Navbar */}
       <Navbar onBookDemo={() => setDemoOpen(true)} />
 
@@ -91,6 +95,9 @@ const Index = () => {
       <main className="flex-1">
         {/* 2. Hero (Windows Desktop POS & Mobile WhatsApp Dual Mockup) */}
         <Hero onBookDemo={() => setDemoOpen(true)} />
+
+        {/* 2b. Trades already billing on RupeeBill */}
+        <TrustBand />
 
         {/* 3. Vyapar-Style 5-Tab Business Toolkit (Invoicing, Stock, Khata, Daybook, CA Reports) */}
         <VyaparFeatures />

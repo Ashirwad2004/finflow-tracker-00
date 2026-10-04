@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Printer,
   CheckCircle2,
-  ArrowRight,
   Send,
   QrCode,
 } from "lucide-react";
@@ -91,8 +90,8 @@ export const BillingTabPanel: React.FC = () => {
         </div>
 
         <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-          <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
-            Try POS Billing Free <ArrowRight className="w-4 h-4 ml-2" />
+          <Button onClick={() => navigate("/auth?mode=signup")} className="lp-btn rounded-none h-11 px-6 text-xs sm:text-sm">
+            Try counter billing
           </Button>
           <Button
             variant="outline"
@@ -107,7 +106,7 @@ export const BillingTabPanel: React.FC = () => {
       </div>
 
       {/* Right Column: Realistic Native Software Mockup Window */}
-      <div className="lg:col-span-6 flex flex-col rounded-2xl border border-border/80 bg-muted/30 overflow-hidden shadow-lg">
+      <div className="lp-product lg:col-span-6 flex flex-col rounded-2xl border border-border bg-muted/30 overflow-hidden">
         {/* Mockup Window Titlebar */}
         <div className="px-4 py-3 bg-muted/80 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -122,7 +121,7 @@ export const BillingTabPanel: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               ESC/POS Connected
             </span>
           </div>

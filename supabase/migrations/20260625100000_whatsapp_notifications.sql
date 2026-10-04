@@ -1,5 +1,5 @@
-    -- Create notification_settings table
-CREATE TABLE IF NOT EXISTS notification_settings (
+-- Create notification_settings table
+CREATE TABLE IF NOT EXISTS public.notification_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id TEXT UNIQUE NOT NULL,
     master BOOLEAN DEFAULT true,
@@ -19,18 +19,20 @@ CREATE TABLE IF NOT EXISTS notification_settings (
 );
 
 -- Enable RLS on notification_settings
-ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notification_settings ENABLE ROW LEVEL SECURITY;
 
 -- Drop policy if exists and create
-DROP POLICY IF EXISTS "Users can manage their own notification settings" ON notification_settings;
-CREATE POLICY "Users can manage their own notification settings" ON notification_settings
+DROP POLICY IF EXISTS "Users can manage their own notification settings" ON public.notification_settings;
+CREATE POLICY "Users can manage their own notification settings" ON public.notification_settings
     FOR ALL
     TO authenticated
     USING (auth.uid()::text = customer_id)
     WITH CHECK (auth.uid()::text = customer_id);
 
+GRANT ALL ON public.notification_settings TO authenticated;
+
 -- Create notification_log table
-CREATE TABLE IF NOT EXISTS notification_log (
+CREATE TABLE IF NOT EXISTS public.notification_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id TEXT NOT NULL,
     event_type TEXT NOT NULL,
@@ -42,11 +44,13 @@ CREATE TABLE IF NOT EXISTS notification_log (
 );
 
 -- Enable RLS on notification_log
-ALTER TABLE notification_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
 
 -- Drop policy if exists and create
-DROP POLICY IF EXISTS "Users can read their own notification logs" ON notification_log;
-CREATE POLICY "Users can read their own notification logs" ON notification_log
+DROP POLICY IF EXISTS "Users can read their own notification logs" ON public.notification_log;
+CREATE POLICY "Users can read their own notification logs" ON public.notification_log
     FOR SELECT
     TO authenticated
     USING (auth.uid()::text = customer_id);
+
+GRANT SELECT ON public.notification_log TO authenticated;

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings, Menu, Bell } from "lucide-react";
 import { AnalyticsPeriod, PERIOD_METRICS } from "./constants";
 import { DashboardTitleBar } from "./DashboardTitleBar";
 import { DashboardSimulatedSidebar } from "./DashboardSimulatedSidebar";
@@ -21,25 +21,52 @@ export const RealRupeeBillDashboard: React.FC = () => {
 
   return (
     <div className="w-full rounded-2xl md:rounded-3xl border-2 border-slate-700/60 bg-white dark:bg-[#0f172a] shadow-2xl overflow-hidden text-left font-sans transition-all">
-      {/* 1. TOP WINDOWS NATIVE TITLE BAR */}
-      <DashboardTitleBar />
+      {/* 1. WINDOWS TITLE BAR — desktop only, as in the app */}
+      <div className="hidden md:block">
+        <DashboardTitleBar />
+      </div>
 
-      {/* 2. MAIN APPLICATION INTERFACE (Sidebar + Content Workspace) */}
-      <div className="flex flex-col lg:flex-row min-h-[640px] bg-[#f8fafc] dark:bg-[#090d16]">
-        {/* Left Sidebar */}
-        <DashboardSimulatedSidebar
-          activeMenu={activeMenu}
-          onSelectMenu={setActiveMenu}
-          businessMode={businessMode}
-          onToggleBusinessMode={() => setBusinessMode(!businessMode)}
-        />
+      {/*
+        2. PHONE APP BAR — below md the app keeps its menu in a drawer behind a
+        single header row rather than on screen, so the mockup does the same.
+      */}
+      <div className="md:hidden flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] px-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Menu className="w-5 h-5 shrink-0 text-slate-500" />
+          <div className="w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center text-white font-black text-xs">
+            ₹
+          </div>
+          <div className="min-w-0">
+            <div className="font-black text-xs leading-none truncate">
+              <span className="text-violet-600">₹upee</span>
+              <span className="text-emerald-500">Bill</span>
+            </div>
+            <div className="text-[10px] text-slate-400 truncate mt-0.5">
+              Satyam Hardware &amp; Material
+            </div>
+          </div>
+        </div>
+        <Bell className="w-4 h-4 shrink-0 text-slate-400" />
+      </div>
+
+      {/* 3. MAIN APPLICATION INTERFACE (Sidebar + Content Workspace) */}
+      <div className="flex min-h-0 md:min-h-[640px] bg-[#f8fafc] dark:bg-[#090d16]">
+        {/* Left Sidebar — a drawer on a phone, so it is not rendered there */}
+        <div className="hidden md:flex shrink-0">
+          <DashboardSimulatedSidebar
+            activeMenu={activeMenu}
+            onSelectMenu={setActiveMenu}
+            businessMode={businessMode}
+            onToggleBusinessMode={() => setBusinessMode(!businessMode)}
+          />
+        </div>
 
         {/* Right Main Workspace */}
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-x-hidden">
+        <div className="flex-1 min-w-0 p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 overflow-x-hidden">
           {/* Main Top Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-lg sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 Financial Overview
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -47,7 +74,7 @@ export const RealRupeeBillDashboard: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="hidden sm:flex items-center gap-2.5">
               <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-xs hover:bg-slate-50">
                 <Settings className="w-3.5 h-3.5 text-slate-400" /> Profile
               </button>

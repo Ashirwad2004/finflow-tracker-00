@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SectionHeading } from "./shared/SectionHeading";
 import { 
   Store, 
   Shirt, 
@@ -6,9 +7,7 @@ import {
   Truck, 
   Briefcase, 
   Coffee,
-  CheckCircle2,
-  ArrowRight,
-  Sparkles
+  CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -109,17 +108,13 @@ export const BusinessTypes: React.FC = () => {
   return (
     <section className="py-20 sm:py-28 bg-background border-b border-border/50 relative overflow-hidden">
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5" /> Tailored for All Business Types
-          </div>
-          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-foreground mb-3">
-            Built for Every Type of Business
-          </h2>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Whether you run a retail showroom, supermarket, wholesale distribution network, manufacturing unit, or service agency, RupeeBill scales with your operations.
-          </p>
-        </div>
+        <SectionHeading
+          label="Trades"
+          figure="6 setups"
+          title="Pick your trade, see your setup"
+          description="A showroom, a supermarket, a distribution network, a workshop and a service agency each bill differently. Choose yours to see how it is configured."
+          className="mb-12"
+        />
 
 
         {/* Interactive Industry Chips */}
@@ -131,9 +126,9 @@ export const BusinessTypes: React.FC = () => {
               <button
                 key={ind.id}
                 onClick={() => setSelectedIndustry(i)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2  text-xs sm:text-sm font-semibold transition-all ${
                   isSelected
-                    ? "bg-orange-500 text-white shadow-md shadow-orange-500/20 scale-105"
+                    ? "bg-[hsl(var(--lp-ink))] text-[hsl(var(--lp-paper))]"
                     : "bg-muted/50 border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
@@ -145,24 +140,24 @@ export const BusinessTypes: React.FC = () => {
         </div>
 
         {/* Focused Active Industry Showcase Card */}
-        <div className="rounded-3xl border border-border bg-card p-6 sm:p-10 shadow-lg relative overflow-hidden">
+        <div className="border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-10 relative overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+                <div className="w-12 h-12 border border-[hsl(var(--lp-rule-strong))] text-[hsl(var(--lp-ink))] flex items-center justify-center">
                   <current.icon className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="text-xl sm:text-2xl font-black text-foreground">{current.name}</h3>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">{current.tagline}</p>
+                  <p className="text-xs text-[hsl(var(--lp-red))] font-semibold">{current.tagline}</p>
                 </div>
               </div>
 
               <div className="space-y-3 pt-2">
                 {current.features.map((feat, idx) => (
                   <div key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm text-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-[hsl(var(--lp-green))] shrink-0 mt-0.5" />
                     <span>{feat}</span>
                   </div>
                 ))}
@@ -171,35 +166,35 @@ export const BusinessTypes: React.FC = () => {
               <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <Button
                   onClick={() => navigate("/auth")}
-                  className="font-bold text-xs h-11 px-6 shadow-md shadow-orange-500/25 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
+                  className="lp-btn rounded-none h-11 px-6 text-xs"
                 >
-                  Start Billing Free for {current.name.split(" ")[0]} <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                  Start billing for {current.name.split(" ")[0]}
                 </Button>
                 <span className="text-[11px] text-muted-foreground text-center sm:text-left">
-                  ⚡ 100% Free · No Credit Card Required · Ready in 60s
+                  Free, with no card and no invoice limit
                 </span>
               </div>
             </div>
 
             {/* Right Interactive Visual Pill */}
-            <div className="lg:col-span-5 bg-muted/40 border border-border/80 rounded-2xl p-5 space-y-4">
+            <div className="lg:col-span-5 bg-muted/40 border border-[hsl(var(--lp-rule))] p-5 space-y-4">
               <div className="flex justify-between items-center text-xs pb-3 border-b border-border/60">
                 <span className="font-bold text-foreground">Simulated Trade Order</span>
-                <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
+                <span className="font-mono text-[10px] text-[hsl(var(--lp-green))] font-bold bg-[hsl(var(--lp-green)/0.1)] px-2 py-0.5 rounded">
                   {current.metric}
                 </span>
               </div>
 
               <div className="space-y-2 text-xs">
                 <div className="text-muted-foreground text-[11px]">Recent Customer Ticket:</div>
-                <div className="p-3 rounded-xl bg-card border border-border/80 font-mono text-xs text-foreground font-semibold">
+                <div className="p-3  bg-card border border-border/80 font-mono text-xs text-foreground font-semibold">
                   {current.sampleBill}
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-primary/5 border border-primary/15 text-xs space-y-1">
-                <div className="font-bold text-primary flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> RupeeBill Advantage
+              <div className="space-y-1 lp-total bg-[hsl(var(--lp-paper-sunk))] p-3 text-xs">
+                <div className="font-bold text-[hsl(var(--lp-red))]">
+                  Already set up for this trade
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   Pre-configured defaults for this industry. You do not need to spend hours configuring tax categories or receipt templates.

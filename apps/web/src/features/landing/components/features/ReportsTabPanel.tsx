@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   FileSpreadsheet,
   CheckCircle2,
-  ArrowRight,
   Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,8 +72,8 @@ export const ReportsTabPanel: React.FC = () => {
         </div>
 
         <div className="pt-4 border-t border-border/60 flex flex-wrap items-center gap-3">
-          <Button onClick={() => navigate("/auth?mode=signup")} className="font-bold text-xs sm:text-sm h-11 px-6 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md shadow-orange-500/25 border-0">
-            Export Tax Reports Free <ArrowRight className="w-4 h-4 ml-2" />
+          <Button onClick={() => navigate("/auth?mode=signup")} className="lp-btn rounded-none h-11 px-6 text-xs sm:text-sm">
+            Export a GST report
           </Button>
           <Button
             variant="outline"
@@ -87,7 +86,7 @@ export const ReportsTabPanel: React.FC = () => {
       </div>
 
       {/* Right Column: Realistic Native Software Mockup Window */}
-      <div className="lg:col-span-6 flex flex-col rounded-2xl border border-border/80 bg-muted/30 overflow-hidden shadow-lg">
+      <div className="lp-product lg:col-span-6 flex flex-col rounded-2xl border border-border bg-muted/30 overflow-hidden">
         {/* Mockup Window Titlebar */}
         <div className="px-4 py-3 bg-muted/80 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">

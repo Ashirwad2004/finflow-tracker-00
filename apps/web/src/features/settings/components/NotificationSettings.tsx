@@ -79,12 +79,19 @@ export function NotificationSettings({ customerId }: { customerId: string }) {
     setSaving(true);
     setSaved(false);
     try {
+      // `settings` carries the loaded row's id/created_at; drop them so the
+      // upsert never tries to rewrite the primary key on the update path.
+      const { id: _id, created_at: _createdAt, ...payload } = settings as Record<string, unknown>;
+
       const { error } = await (supabase as any)
         .from("notification_settings")
-        .upsert({
-          customer_id: customerId,
-          ...settings,
-        });
+        .upsert(
+          {
+            ...payload,
+            customer_id: customerId,
+          },
+          { onConflict: "customer_id" }
+        );
 
       if (error) throw error;
 
