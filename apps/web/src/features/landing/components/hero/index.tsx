@@ -5,6 +5,8 @@ import { HeroHeader } from "./HeroHeader";
 import { HeroPOSMockup } from "./HeroPOSMockup";
 import { HeroWhatsAppMockup } from "./HeroWhatsAppMockup";
 import { HeroDeviceSwitcher, HeroHardwareStrip } from "./HeroDeviceSwitcher";
+import { LaptopFrame } from "./LaptopFrame";
+import { Enter } from "../shared/Enter";
 import { HeroProps, DeviceTab } from "./types";
 
 export type { HeroProps };
@@ -19,45 +21,70 @@ export const Hero: React.FC<HeroProps> = ({ onBookDemo }) => {
   };
 
   return (
-    <section className="relative pt-8 pb-16 md:pt-14 md:pb-24 bg-gradient-to-b from-background via-muted/15 to-background border-b border-border/60">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden pb-16 pt-10 md:pb-24 md:pt-16">
+      {/* Register ruling, the surface a shopkeeper already writes bills on.
+          This is the page's one piece of motion nobody asked for: the ruling
+          draws itself from the left on load, and the type sets on top of it. */}
+      <div
+        aria-hidden="true"
+        className="lp-ruled lp-rule-draw pointer-events-none absolute inset-x-0 top-0 h-[520px] opacity-50"
+      />
+
+      <div className="container relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <HeroHeader
           onStartFree={() => navigate("/auth?mode=signup")}
           onBookDemo={onBookDemo}
           onSeeFeatures={() => scrollToSection("features")}
         />
 
-        {/* Real Software Product Showcase (Dual-Device View) */}
-        <div className="mt-10 max-w-6xl mx-auto">
+        {/*
+          The product shot. Held to a laptop's width rather than the page's, so
+          it reads as a machine sitting on the counter instead of a full-bleed
+          panel — and so the headline above it stays the first thing you read.
+        */}
+        <Enter delay={460} className="mx-auto mt-14 max-w-5xl">
           <HeroDeviceSwitcher
             deviceTab={deviceTab}
             onTabChange={setDeviceTab}
             onCompareClick={() => scrollToSection("comparison")}
           />
 
-          {/* 1. Real RupeeBill Dashboard */}
-          {deviceTab === "dashboard" && (
-            <div className="transition-all animate-in fade-in duration-200">
-              <RealRupeeBillDashboard />
-            </div>
-          )}
+          <div className="mt-4">
+            {/* 1. The real business dashboard, on a laptop at the counter */}
+            {deviceTab === "dashboard" && (
+              <LaptopFrame
+                label="The RupeeBill business dashboard on a laptop"
+                className="animate-in fade-in duration-300"
+              >
+                <RealRupeeBillDashboard />
+              </LaptopFrame>
+            )}
 
-          {/* 2. Retail POS Counter Terminal Mockup */}
-          {deviceTab === "pos" && (
-            <HeroPOSMockup
-              onSavePrint={() => navigate("/auth")}
-              onDispatchWhatsApp={() => setDeviceTab("mobile")}
-            />
-          )}
+            {/* 2. The counter POS terminal, same machine */}
+            {deviceTab === "pos" && (
+              <LaptopFrame
+                label="The RupeeBill counter POS screen on a laptop"
+                className="animate-in fade-in duration-300"
+              >
+                <HeroPOSMockup
+                  onSavePrint={() => navigate("/auth")}
+                  onDispatchWhatsApp={() => setDeviceTab("mobile")}
+                />
+              </LaptopFrame>
+            )}
 
-          {/* 3. Mobile WhatsApp View */}
-          {deviceTab === "mobile" && <HeroWhatsAppMockup />}
+            {/* 3. What the customer gets, which is a phone and not a laptop */}
+            {deviceTab === "mobile" && (
+              <div className="mx-auto max-w-sm animate-in fade-in duration-300">
+                <HeroWhatsAppMockup />
+              </div>
+            )}
+          </div>
 
-          {/* Hardware & Printer Compatibility Strip */}
           <HeroHardwareStrip
             onCompareClick={() => scrollToSection("comparison")}
           />
-        </div>
+        </Enter>
       </div>
     </section>
   );

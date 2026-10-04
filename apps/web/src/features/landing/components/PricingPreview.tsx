@@ -1,7 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, ShieldCheck, Sparkles, ArrowRight, Gift, ExternalLink } from "lucide-react";
+import { CheckCircle2, ShieldCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SectionHeading } from "./shared/SectionHeading";
 
 interface PricingPreviewProps {
   onSelectPlan?: (planId: "starter" | "pro" | "business") => void;
@@ -27,25 +28,19 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
   return (
     <section id="pricing" className="py-20 sm:py-28 bg-background border-b border-border/50">
       <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-4">
-            <Gift className="w-3.5 h-3.5" /> 100% Free Platform
-          </div>
-          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-foreground mb-3">
-            Free Everything. Every Single Feature Included.
-          </h2>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            No per-invoice charges. Zero transaction fees. No hidden fees. Start, manage, and scale your business with zero upfront cost.
-          </p>
-        </div>
+        <SectionHeading
+          label="Pricing"
+          figure="₹0 forever"
+          title="Every feature, ₹0"
+          description="No per-invoice charge, no transaction cut, no feature held back for a paid tier. The price is the whole pitch, so there is not much else to explain."
+          className="mb-14"
+        />
 
         {/* Free Plan Showcase Card */}
-        <div className="max-w-2xl mx-auto rounded-3xl border-2 border-emerald-500/40 bg-card p-6 sm:p-10 shadow-lg relative overflow-hidden">
+        <div className="max-w-2xl mx-auto border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-10 relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
             <div>
-              <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full mb-1">
-                FREE EVERYTHING · FOREVER
-              </span>
+              <span className="lp-stamp mb-2">Free forever</span>
               <h3 className="text-2xl font-extrabold text-foreground mt-0.5">
                 RupeeBill All-in-One
               </h3>
@@ -61,7 +56,7 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
                 </span>
                 <span className="text-xs sm:text-sm text-muted-foreground font-semibold">/ Free Forever</span>
               </div>
-              <span className="inline-block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full mt-1">
+              <span className="inline-block text-[11px] font-bold text-[hsl(var(--lp-green))] bg-[hsl(var(--lp-green)/0.1)] px-2.5 py-0.5  mt-1">
                 No Credit Card Required
               </span>
             </div>
@@ -71,7 +66,7 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 py-8 text-xs sm:text-sm">
             {allInOneFeatures.map((feat, i) => (
               <div key={i} className="flex items-start gap-2.5 text-foreground">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                <CheckCircle2 className="h-4 w-4 text-[hsl(var(--lp-green))] shrink-0 mt-0.5" />
                 <span className="leading-snug">{feat}</span>
               </div>
             ))}
@@ -82,9 +77,9 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             <Button
               size="lg"
               onClick={() => navigate("/auth?mode=signup")}
-              className="flex-1 font-bold shadow-lg shadow-orange-500/25 text-sm h-12 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
+              className="lp-btn rounded-none h-12 flex-1 text-sm"
             >
-              <Sparkles className="mr-2 h-4 w-4" /> Start Free Billing Now
+              Create your free account
             </Button>
             <Button
               size="lg"
@@ -92,17 +87,17 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
               onClick={() => navigate("/pricing")}
               className="flex-1 font-semibold text-sm h-12 border-border hover:bg-muted"
             >
-              View License Amounts &amp; Terms <ArrowRight className="ml-2 h-4 w-4" />
+              View licence amounts and terms
             </Button>
           </div>
 
           <div className="text-center mt-4 text-[11px] text-muted-foreground flex items-center justify-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> 100% Free to Use · Instant Setup · Export All Business Data to Excel Anytime
+            <ShieldCheck className="h-3.5 w-3.5 text-[hsl(var(--lp-green))]" /> Free to use, and you can export all your business data to Excel whenever you want
           </div>
         </div>
 
         {/* Commercial Licensing Callout Box */}
-        <div className="mt-8 max-w-2xl mx-auto rounded-2xl bg-muted/40 border border-border/70 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+        <div className="mt-8 max-w-2xl mx-auto  bg-muted/40 border border-border/70 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="space-y-0.5">
             <p className="text-xs font-bold text-foreground flex items-center justify-center sm:justify-start gap-1.5">
               <span>Looking for Official Commercial License &amp; Dedicated Bills?</span>
@@ -115,7 +110,7 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             size="sm"
             variant="ghost"
             onClick={() => navigate("/pricing")}
-            className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20 shrink-0"
+            className="shrink-0 text-xs font-bold text-[hsl(var(--lp-ink))] hover:bg-[hsl(var(--lp-ink)/0.06)]"
           >
             See Pricing &amp; Terms <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
           </Button>
@@ -127,7 +122,7 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             Need custom multi-store rollouts or employee cashier permissions?{" "}
             <button
               onClick={onBookDemo}
-              className="text-foreground font-semibold underline underline-offset-4 hover:text-orange-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 rounded-sm"
+              className="rounded-sm font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-[hsl(var(--lp-red))]"
             >
               Speak with our business rollout team (Free Consultation)
             </button>

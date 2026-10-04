@@ -1,0 +1,661 @@
+/*
+ * Landing-page design foundation.
+ *
+ * Everything here is scoped under `.lp` so the marketing site can have its own
+ * typographic voice without touching the in-app design tokens the dashboard
+ * depends on.
+ *
+ * The structural idea is the ledger column — see DESIGN_NOTES.md. Content sits
+ * in ruled columns and every figure lives in a right-hand figures column with
+ * tabular numerals, the way an entry sits in a khata. Vertical hairlines do the
+ * work that cards and drop shadows were doing.
+ */
+
+.lp {
+  /* Stationery paper: cool, faintly blue-green. Deliberately not cream. */
+  --lp-paper: 190 16% 97%;
+  --lp-paper-sunk: 193 18% 94%;
+
+  /* Blue-black ledger ink. Also the CTA fill — a red button on a billing page
+     reads as destructive. */
+  --lp-ink: 224 42% 15%;
+
+  /* Ledger red carries structure and emphasis: total rules, the one stamp, the
+     single key mark per screen. Never a status. */
+  --lp-red: 350 68% 44%;
+
+  /* The red used as a button fill, kept separate from the mark red: a fill has
+     to carry a white label at 4.5:1 and read as a shape against the paper.
+     White on this is 6.05:1, and the fill is 5.69:1 against paper. */
+  --lp-red-btn: 350 68% 44%;
+
+  /* Money received / reconciled. Only ever on a real value. */
+  --lp-green: 164 58% 26%;
+
+  /* Printed ruling. `strong` is for column rules and totals. */
+  --lp-rule: 205 22% 82%;
+  --lp-rule-strong: 207 20% 68%;
+
+  font-family: Archivo, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  font-synthesis-weight: none;
+
+  /*
+   * The landing page re-points the app's own surface tokens at the ledger
+   * palette. Every `bg-background`, `bg-card`, `border-border` and `text-primary`
+   * already in these sections then lands on the right colour without each one
+   * being rewritten, and the dashboard is untouched because this is scoped to
+   * `.lp`. Note `--primary` was a purple that had nothing to do with this page.
+   */
+  --background: var(--lp-paper);
+  --foreground: var(--lp-ink);
+  --card: 190 30% 99%;
+  --card-foreground: var(--lp-ink);
+  --popover: 190 30% 99%;
+  --popover-foreground: var(--lp-ink);
+  --primary: var(--lp-ink);
+  --primary-foreground: var(--lp-paper);
+  --secondary: var(--lp-paper-sunk);
+  --secondary-foreground: var(--lp-ink);
+  --muted: var(--lp-paper-sunk);
+  --muted-foreground: 210 14% 42%;
+  --accent: var(--lp-paper-sunk);
+  --accent-foreground: var(--lp-ink);
+  --border: var(--lp-rule);
+  --input: var(--lp-rule);
+  --ring: var(--lp-red);
+}
+
+.dark .lp {
+  --lp-paper: 222 30% 8%;
+  --lp-paper-sunk: 222 28% 11%;
+  --lp-ink: 190 20% 96%;
+  --lp-red: 352 76% 60%;
+  /* Brighter than the light fill so it still pops on a near-black page, but
+     dark enough to hold a white label: 5.22:1 label, 3.59:1 against the page. */
+  --lp-red-btn: 350 70% 48%;
+  --lp-green: 162 48% 48%;
+  --lp-rule: 220 14% 22%;
+  --lp-rule-strong: 218 13% 34%;
+
+  --card: 222 28% 10%;
+  --card-foreground: var(--lp-ink);
+  --popover: 222 28% 10%;
+  --popover-foreground: var(--lp-ink);
+  --muted-foreground: 214 14% 62%;
+}
+
+/* ---------------------------------------------------------------- typography */
+
+/*
+ * Display type uses Archivo's width axis rather than a second typeface. The
+ * condensed cut at heavy weight reads as printed stationery and forms, which is
+ * the vernacular of GST invoices and ledger headers.
+ */
+.lp-display {
+  font-weight: 800;
+  font-stretch: 84%;
+  letter-spacing: -0.012em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+/* Sub-display: section titles and card headings. Less condensed, still heavy. */
+.lp-title {
+  font-weight: 700;
+  font-stretch: 92%;
+  letter-spacing: -0.008em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+/* Figures must align in columns wherever they stack — totals, stats, prices. */
+.lp-figure {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-stretch: 88%;
+  letter-spacing: -0.01em;
+}
+
+.lp-prose {
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------ ledger structure */
+
+/*
+ * The entry line: label left, figure right, hairline beneath. This is the page's
+ * one repeated structural device, and it replaces the centred eyebrow stack. The
+ * right-hand slot is required to hold a real fact — if there is nothing true to
+ * put there, use a plain heading instead.
+ */
+.lp-entry {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid hsl(var(--lp-rule-strong));
+}
+
+.lp-entry-label {
+  font-weight: 600;
+  font-stretch: 92%;
+  font-size: 0.9375rem;
+  color: hsl(var(--lp-ink));
+}
+
+.lp-figures-col {
+  border-left: 0;
+  padding-left: 0;
+}
+
+@media (min-width: 1024px) {
+  .lp-figures-col {
+    border-left: 1px solid hsl(var(--lp-rule));
+    padding-left: 2.5rem;
+  }
+}
+
+/* The red rule under a total, as ruled in a ledger. */
+.lp-total {
+  border-top: 2px solid hsl(var(--lp-red));
+}
+
+/*
+ * The one stamped mark on the page. Caps is informationally correct here because
+ * it is a stamp, not a label — so it is allowed exactly once per screen.
+ */
+.lp-stamp {
+  display: inline-block;
+  border: 1.5px solid hsl(var(--lp-red));
+  color: hsl(var(--lp-red));
+  padding: 0.25rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-stretch: 88%;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transform: rotate(-1.5deg);
+}
+
+/*
+ * Trade register: a ruled grid. Every cell takes a left rule and the first cell
+ * of each row drops it, which has to be expressed per breakpoint because the
+ * column count changes — hence CSS rather than utility classes.
+ */
+.lp-register {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lp-register > * {
+  border-left: 1px solid hsl(var(--lp-rule));
+  padding-left: 1rem;
+}
+
+.lp-register > *:nth-child(2n + 1) {
+  border-left: 0;
+  padding-left: 0;
+}
+
+@media (min-width: 640px) {
+  .lp-register {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .lp-register > *:nth-child(2n + 1) {
+    border-left: 1px solid hsl(var(--lp-rule));
+    padding-left: 1rem;
+  }
+
+  .lp-register > *:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lp-register {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .lp-register > *:nth-child(3n + 1) {
+    border-left: 1px solid hsl(var(--lp-rule));
+    padding-left: 1rem;
+  }
+
+  .lp-register > *:nth-child(5n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+/* ------------------------------------------------------------------- controls */
+
+/* Buttons are stamped, not glossy: flat ink, hairline, no gradient or shadow. */
+.lp .lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--lp-ink));
+  color: hsl(var(--lp-paper));
+  font-weight: 700;
+  font-stretch: 92%;
+  border: 1px solid hsl(var(--lp-ink));
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.lp .lp-btn:hover {
+  background: hsl(var(--lp-ink) / 0.86);
+}
+
+/* Inverted: for the one ink panel that closes the page. */
+.lp .lp-btn-invert {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--lp-paper));
+  color: hsl(224 42% 15%);
+  font-weight: 700;
+  font-stretch: 92%;
+  border: 1px solid hsl(var(--lp-paper));
+  transition: background-color 0.18s ease;
+}
+
+.lp .lp-btn-invert:hover {
+  background: hsl(var(--lp-paper) / 0.88);
+  color: hsl(224 42% 15%);
+}
+
+/*
+ * The one red button on the page: "Book a live demo".
+ *
+ * Red was reserved for rules and marks because a red button in a finance UI
+ * reads as destructive, and because this makes the demo louder than "Start
+ * billing", which is the actual conversion goal. Both were raised and the call
+ * was to draw the eye here, so the red is confined to this one action and the
+ * primary stays solid ink — two filled buttons of equal weight would split
+ * attention worse than either choice alone.
+ */
+.lp .lp-btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--lp-red-btn));
+  color: #fff;
+  font-weight: 700;
+  font-stretch: 92%;
+  border: 1px solid hsl(var(--lp-red-btn));
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.lp .lp-btn-accent:hover {
+  background: hsl(var(--lp-red-btn) / 0.88);
+  border-color: hsl(var(--lp-red-btn) / 0.88);
+  color: #fff;
+}
+
+/*
+ * An always-dark panel inside an otherwise light page, such as the closing CTA.
+ * It takes the dark-mode fill so the red keeps its 3:1 against near-black even
+ * when the page itself is in light mode.
+ */
+.lp .lp-invert-surface {
+  --lp-red-btn: 350 70% 48%;
+}
+
+.lp .lp-btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: hsl(var(--lp-ink));
+  font-weight: 600;
+  font-stretch: 92%;
+  /* A control boundary needs 3:1, which the hairline rule token does not
+     reach against paper - so this border is ink at half strength. */
+  border: 1px solid hsl(var(--lp-ink) / 0.5);
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.lp .lp-btn-quiet:hover {
+  border-color: hsl(var(--lp-ink));
+  background: hsl(var(--lp-ink) / 0.04);
+}
+
+/* Keyboard focus must stay visible on both the ink and the paper surfaces. */
+.lp :focus-visible {
+  outline: 2px solid hsl(var(--lp-red));
+  outline-offset: 2px;
+}
+
+/* Underline that draws on hover, instead of a jumpy text-decoration. */
+.lp-link {
+  position: relative;
+  font-weight: 600;
+}
+
+.lp-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 1px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-link:hover::after {
+  transform: scaleX(1);
+}
+
+/*
+ * Small label. Sentence case and lightly weighted on purpose: a tracked-out
+ * all-caps eyebrow above every heading was the page's loudest generic tell, and
+ * a label earns its place by naming something, not by shouting.
+ */
+.lp-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-stretch: 92%;
+  letter-spacing: 0;
+}
+
+/*
+ * Register ruling: the horizontal ruled surface a shopkeeper already writes
+ * bills on. Replaces the decorative dot grid. Masked so it dissolves into the
+ * page before it reaches the content.
+ */
+.lp-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    hsl(var(--lp-rule) / 0.9) 0px,
+    hsl(var(--lp-rule) / 0.9) 1px,
+    transparent 1px,
+    transparent 34px
+  );
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+}
+
+/* --------------------------------------------------------------- product shots */
+
+/*
+ * Inside a device frame, the app gets its own colours back.
+ *
+ * `.lp` remaps the app's token names onto the ledger palette for the marketing
+ * sections, which silently recoloured the product shots too — the hero says
+ * "live product, not a screenshot" while showing the dashboard in ink instead of
+ * the violet the app actually is. A shot that makes that claim has to be the
+ * colour the real thing is, and the palette break is useful information: it
+ * marks where the page stops and the product starts.
+ *
+ * These values mirror `src/index.css`. If the app's tokens change there, change
+ * them here too.
+ */
+.lp .lp-product {
+  --background: 230 65% 99%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 210 40% 98%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 262 83% 58%;
+}
+
+.dark .lp .lp-product {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 98%;
+  --card: 240 4% 3%;
+  --card-foreground: 0 0% 98%;
+  --primary: 265 89% 66%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 240 4% 10%;
+  --muted-foreground: 240 5% 65%;
+  --border: 240 4% 10%;
+  --input: 240 4% 10%;
+  --ring: 265 89% 66%;
+}
+
+/*
+ * The phone shown below 768px, where the app lays itself out for a handset.
+ * Held narrow and centred so the hero stays short on a small screen — the
+ * previous full-bleed desktop dashboard was what made it run on and on.
+ */
+.lp-phone {
+  position: relative;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 290px;
+}
+
+.lp-phone::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -2.5%;
+  height: 3.5%;
+  border-radius: 50%;
+  background: hsl(224 42% 15% / 0.22);
+  filter: blur(14px);
+  z-index: -1;
+}
+
+.lp-phone-body {
+  position: relative;
+  padding: 3.2% 3.2% 3.6%;
+  border-radius: 2.4rem;
+  background: linear-gradient(hsl(222 24% 24%), hsl(222 26% 16%));
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.16),
+    0 18px 36px -18px hsl(224 42% 15% / 0.5);
+}
+
+/* The earpiece slot, which is what reads as "phone" at this size. */
+.lp-phone-speaker {
+  width: 26%;
+  height: 4px;
+  margin: 0 auto 3.2%;
+  border-radius: 999px;
+  background: hsl(222 20% 38%);
+}
+
+.lp-phone-screen {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 1.9rem;
+  background: #f8fafc;
+}
+
+.dark .lp-phone-screen {
+  background: #090d16;
+}
+
+.dark .lp-phone-body {
+  background: linear-gradient(hsl(222 22% 14%), hsl(222 24% 9%));
+}
+
+.dark .lp-phone::after {
+  background: hsl(0 0% 0% / 0.6);
+}
+
+/* ---------------------------------------------------------------- device frame */
+
+/*
+ * The hero's laptop. A device is a depicted object, not a layout panel, so
+ * unlike the ruled sections it legitimately keeps real radii and casts a real
+ * shadow — that is the hierarchy the page is drawing, not a card-kit default.
+ *
+ * Every dimension is a percentage of the frame's own width so the chassis scales
+ * with the screen it holds and needs no breakpoints.
+ */
+.lp-laptop {
+  position: relative;
+  margin: 0;
+  width: 100%;
+}
+
+/* The soft contact shadow the machine sits in. */
+.lp-laptop::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -3.5%;
+  height: 5%;
+  border-radius: 50%;
+  background: hsl(224 42% 15% / 0.22);
+  filter: blur(18px);
+  z-index: -1;
+}
+
+.lp-laptop-lid {
+  position: relative;
+  border-radius: 0.9% 0.9% 0.2% 0.2% / 1.4% 1.4% 0.3% 0.3%;
+  padding: 1.75% 1% 1.1%;
+  background: linear-gradient(hsl(222 24% 26%), hsl(222 26% 19%));
+  /* A single lit top edge: the chassis catching the light, not a gradient wash. */
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.14),
+    0 24px 50px -24px hsl(224 42% 15% / 0.45);
+}
+
+.lp-laptop-camera {
+  position: absolute;
+  top: 0.7%;
+  left: 50%;
+  width: 0.45%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: hsl(222 20% 40%);
+}
+
+.lp-laptop-screen {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  /* The app's own backdrop, so a short page leaves no empty band. */
+  background: #f8fafc;
+}
+
+.lp-laptop-canvas {
+  transform-origin: top left;
+  transition: opacity 0.2s ease-out;
+}
+
+/*
+ * The framed app fills a screen, so it drops the window chrome it carries when
+ * it is used on its own — a rounded, bordered, shadowed panel inside a laptop
+ * lid reads as a picture of an app rather than an app.
+ */
+.lp-laptop-canvas > * {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The deck reads wider than the lid, the way it does seen head on. */
+.lp-laptop-base {
+  position: relative;
+  width: 104%;
+  margin-left: -2%;
+  height: 1.5%;
+  min-height: 9px;
+  clip-path: polygon(1.8% 0, 98.2% 0, 100% 100%, 0 100%);
+  border-radius: 0 0 0.4% 0.4% / 0 0 40% 40%;
+  background: linear-gradient(hsl(222 20% 32%), hsl(222 22% 22%));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.16);
+}
+
+/* The groove you open the lid by. */
+.lp-laptop-notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 11%;
+  height: 42%;
+  transform: translateX(-50%);
+  border-radius: 0 0 1rem 1rem;
+  background: hsl(222 24% 16%);
+}
+
+.dark .lp-laptop-screen {
+  background: #090d16;
+}
+
+.dark .lp-laptop-lid {
+  background: linear-gradient(hsl(222 22% 15%), hsl(222 24% 10%));
+}
+
+.dark .lp-laptop-base {
+  background: linear-gradient(hsl(222 20% 19%), hsl(222 22% 12%));
+}
+
+.dark .lp-laptop::after {
+  background: hsl(0 0% 0% / 0.6);
+}
+
+/* --------------------------------------------------------------------- motion */
+
+/*
+ * One orchestrated moment for the whole page: on load the hero's rules draw
+ * themselves left to right and the type above them sets. Everything else holds
+ * still unless a person acts on it.
+ */
+@keyframes lp-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes lp-set {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.lp-rule-draw {
+  transform-origin: left;
+  animation: lp-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--lp-delay, 0ms);
+}
+
+/* One step of the hero entrance, used by shared/Enter.tsx. */
+.lp-enter {
+  animation: lp-set 0.55s ease-out both;
+  animation-delay: var(--lp-delay, 0ms);
+}
+
+.lp-type-set {
+  animation: lp-set 0.5s ease-out both;
+  animation-delay: var(--lp-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-rule-draw,
+  .lp-type-set,
+  .lp-enter {
+    animation: none;
+  }
+
+  .lp-link::after {
+    transition: none;
+  }
+}

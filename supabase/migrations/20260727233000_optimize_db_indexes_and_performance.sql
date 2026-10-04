@@ -52,5 +52,5 @@ CREATE INDEX IF NOT EXISTS idx_feature_requests_status ON public.feature_request
 CREATE INDEX IF NOT EXISTS idx_feature_requests_submitted_at ON public.feature_requests(submitted_at DESC);
 
 -- 11. Notification Log Table
-CREATE INDEX IF NOT EXISTS idx_notification_log_user_id ON public.notification_log(user_id);
-CREATE INDEX IF NOT EXISTS idx_notification_log_created_at ON public.notification_log(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_log_customer_id ON public.notification_log(customer_id);
+CREATE INDEX IF NOT EXISTS idx_notification_log_customer_created_at ON public.notification_log(customer_id, created_at DESC);

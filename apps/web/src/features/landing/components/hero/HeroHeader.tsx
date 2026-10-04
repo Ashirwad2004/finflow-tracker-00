@@ -1,5 +1,4 @@
 import React from "react";
-import { ArrowRight, Star, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface HeroHeaderProps {
@@ -8,85 +7,140 @@ interface HeroHeaderProps {
   onSeeFeatures: () => void;
 }
 
+/**
+ * The hero's right-hand column is a khata page: four entries, label left and
+ * figure right, with the price ruled as the total. It is the most characteristic
+ * object in this product's world, so it opens the page instead of a badge.
+ *
+ * `rule` marks the row that gets the red total rule above it — in a ledger the
+ * total is the line that matters, and here the total is zero.
+ */
+const LEDGER_ENTRIES: {
+  label: string;
+  value: string;
+  rule?: boolean;
+  green?: boolean;
+}[] = [
+  { label: "Shops billing daily", value: "15,000+" },
+  { label: "Average time to a bill", value: "5 sec" },
+  { label: "Billing with the internet down", value: "Works", green: true },
+  { label: "Cost, forever", value: "₹0", rule: true },
+];
+
 export const HeroHeader: React.FC<HeroHeaderProps> = ({
   onStartFree,
   onBookDemo,
   onSeeFeatures,
 }) => {
   return (
-    <>
-      {/* Top Trust Pill Banner */}
-      <div className="flex justify-center mb-5">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-400 text-xs font-semibold shadow-xs">
-          <span className="text-sm">🇮🇳</span>
-          <span>India's Most Practical GST Billing, POS &amp; Inventory Software</span>
-          <span className="text-border mx-0.5">•</span>
-          <span className="font-bold text-emerald-600 dark:text-emerald-300">
-            100% Free Forever
+    <div className="grid gap-12 lg:grid-cols-[1.35fr_1fr] lg:gap-16">
+      {/* ------------------------------------------------- headline column */}
+      <div>
+        <div className="lp-entry lp-type-set" style={{ ["--lp-delay" as string]: "60ms" }}>
+          <span className="lp-entry-label">
+            Billing software for Indian counters
           </span>
+          <span className="lp-figure shrink-0 text-sm font-semibold text-muted-foreground">
+            Free, all of it
+          </span>
+        </div>
+
+        <h1
+          className="lp-display lp-type-set mt-7 text-[2.3rem] text-[hsl(var(--lp-ink))] sm:text-[3.4rem] lg:text-[4.1rem]"
+          style={{ ["--lp-delay" as string]: "180ms" }}
+        >
+          GST bills in five seconds, on the counter PC you already have.
+        </h1>
+
+        <p
+          className="lp-prose lp-type-set mt-6 max-w-[56ch] text-base leading-relaxed text-muted-foreground sm:text-lg"
+          style={{ ["--lp-delay" as string]: "320ms" }}
+        >
+          Scan, bill, and print to any 2&quot; or 3&quot; thermal printer. Send
+          the same bill on WhatsApp with a UPI QR on it. Keep selling when the
+          market internet drops, and hand your CA a GSTR-1 export at the end of
+          the month.
+        </p>
+
+        <div
+          className="lp-type-set mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
+          style={{ ["--lp-delay" as string]: "420ms" }}
+        >
+          <Button
+            size="lg"
+            onClick={onStartFree}
+            className="lp-btn h-[3.25rem] w-full rounded-none px-8 text-base sm:w-auto"
+          >
+            Start billing
+          </Button>
+
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={onBookDemo}
+            className="lp-btn-accent h-[3.25rem] w-full rounded-none px-7 text-base sm:w-auto"
+          >
+            Book a live demo
+          </Button>
+        </div>
+
+        <div
+          className="lp-type-set mt-6 flex flex-wrap items-center gap-x-4 gap-y-3"
+          style={{ ["--lp-delay" as string]: "500ms" }}
+        >
+          <span className="lp-stamp">Free forever</span>
+          <p className="text-sm text-muted-foreground">
+            No card, no trial clock.{" "}
+            <button
+              onClick={onSeeFeatures}
+              className="lp-link text-[hsl(var(--lp-ink))]"
+            >
+              See everything it does
+            </button>
+          </p>
         </div>
       </div>
 
-      {/* Main Headline (All Types of Businesses) */}
-      <div className="text-center max-w-4xl mx-auto mb-6">
-        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-foreground leading-[1.12]">
-          GST Billing Software, Invoicing &amp; Inventory App for All Types of Businesses
-        </h1>
-        <p className="mt-4 text-base sm:text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed font-normal">
-          Built for retail counters, wholesale distributors, manufacturers, supermarkets &amp; service enterprises. Create GST-compliant bills in 5 seconds, print on any 2" &amp; 3" thermal printer, track multi-godown stock, and collect payments faster with UPI QR codes on WhatsApp. Works 100% offline without internet.
+      {/* --------------------------------------------------- figures column */}
+      <div className="lp-figures-col">
+        <dl
+          className="lp-type-set"
+          style={{ ["--lp-delay" as string]: "600ms" }}
+        >
+          {LEDGER_ENTRIES.map((entry) => (
+            <div
+              key={entry.label}
+              className={`flex items-baseline justify-between gap-4 py-3.5 ${
+                entry.rule
+                  ? "lp-total mt-1 pt-4"
+                  : "border-b border-[hsl(var(--lp-rule))]"
+              }`}
+            >
+              <dt className="text-sm text-muted-foreground">{entry.label}</dt>
+              <dd
+                className={`lp-figure shrink-0 ${
+                  entry.rule
+                    ? "text-[2.25rem] font-extrabold leading-none text-[hsl(var(--lp-ink))]"
+                    : "text-xl font-bold"
+                } ${
+                  entry.green
+                    ? "text-[hsl(var(--lp-green))]"
+                    : entry.rule
+                      ? ""
+                      : "text-[hsl(var(--lp-ink))]"
+                }`}
+              >
+                {entry.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          Invoicing, POS, inventory and party khata are free with no invoice
+          limit. Nothing here expires.
         </p>
       </div>
-
-      {/* Download & Action Buttons */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-2xl mx-auto mb-8">
-        <Button
-          size="lg"
-          onClick={onStartFree}
-          className="w-full sm:w-auto h-12 sm:h-14 px-8 text-base font-bold shadow-lg shadow-orange-500/25 hover:scale-[1.01] transition-transform bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white border-0"
-        >
-          Start Free Billing <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-
-        <Button
-          size="lg"
-          onClick={onBookDemo}
-          className="w-full sm:w-auto h-12 sm:h-14 px-7 text-base font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-0 shadow-lg shadow-red-500/25 hover:scale-[1.01] transition-transform"
-        >
-          <Star className="mr-2 h-4 w-4 fill-white text-white" /> Book Free Live Demo
-        </Button>
-
-        <Button
-          size="lg"
-          variant="outline"
-          onClick={onSeeFeatures}
-          className="w-full sm:w-auto h-12 sm:h-14 px-6 text-base font-semibold border-border hover:bg-muted text-foreground"
-        >
-          See All Features ↓
-        </Button>
-      </div>
-
-      {/* Merchant Trust Badges */}
-      <div className="flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs text-muted-foreground pb-10 border-b border-border/50 max-w-4xl mx-auto">
-        <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          <span><strong>15,000+</strong> Indian Retailers &amp; Wholesalers</span>
-        </span>
-        <span className="text-border hidden sm:inline">•</span>
-        <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          <span>Works 100% Offline (Zero Downtime)</span>
-        </span>
-        <span className="text-border hidden sm:inline">•</span>
-        <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          <span>Thermal 2" &amp; 3" USB/Bluetooth Ready</span>
-        </span>
-        <span className="text-border hidden sm:inline">•</span>
-        <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          <span>1-Click GSTR-1 &amp; Tally/Excel Export</span>
-        </span>
-      </div>
-    </>
+    </div>
   );
 };

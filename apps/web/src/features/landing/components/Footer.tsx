@@ -9,9 +9,9 @@ export const Footer: React.FC = () => {
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         
         {/* Support Banner Card */}
-        <div className="mb-12 p-5 sm:p-6 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-5 text-center md:text-left">
+        <div className="mb-12 p-5 sm:p-6 bg-card border border-[hsl(var(--lp-rule-strong))] flex flex-col md:flex-row items-center justify-between gap-5 text-center md:text-left">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 border border-[hsl(var(--lp-rule-strong))] text-[hsl(var(--lp-ink))] flex items-center justify-center shrink-0">
               <Headphones className="w-5 h-5" />
             </div>
             <div>
@@ -27,23 +27,23 @@ export const Footer: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-2.5 shrink-0">
             <a
               href="tel:8102545007"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-muted/80 hover:bg-muted text-foreground border border-border text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2  bg-muted/80 hover:bg-muted text-foreground border border-border text-xs font-bold transition-colors"
             >
-              <Phone className="w-3.5 h-3.5 text-emerald-500" />
+              <Phone className="w-3.5 h-3.5 text-[hsl(var(--lp-green))]" />
               <span>+91 8102545007</span>
             </a>
             <a
               href="https://wa.me/918102545007?text=Hi%20RupeeBill%20Support,%20I%20have%20a%20query%20about%20the%20application"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/30 text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2  bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/30 text-xs font-bold transition-colors"
             >
               <MessageCircle className="w-3.5 h-3.5" />
               <span>WhatsApp Us</span>
             </a>
             <a
               href="mailto:supportrupeebill@gmail.com"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[hsl(var(--lp-ink))] border border-[hsl(var(--lp-rule-strong))] hover:bg-[hsl(var(--lp-paper-sunk))] text-xs font-bold transition-colors"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>supportrupeebill@gmail.com</span>
@@ -59,14 +59,14 @@ export const Footer: React.FC = () => {
               Complete invoicing, POS, inventory, and business management software. Built for retail storefronts, wholesale distributors, service agencies, and growing modern businesses.
             </p>
             <div className="flex items-center gap-2 mt-4 text-[11px] text-muted-foreground">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              <span>Safe &amp; Encrypted · All Data Saved on Your Device</span>
+              <ShieldCheck className="w-4 h-4 text-[hsl(var(--lp-green))]" />
+              <span>Encrypted, and your data stays on your device</span>
             </div>
           </div>
 
           {/* Product Links */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-foreground mb-3">Product</h4>
+            <h4 className="lp-label text-foreground mb-3">Product</h4>
             <ul className="space-y-2">
               <li><a href="#billing" className="hover:text-foreground transition-colors">Invoicing &amp; POS</a></li>
               <li><a href="#inventory" className="hover:text-foreground transition-colors">Inventory &amp; Barcodes</a></li>
@@ -78,7 +78,7 @@ export const Footer: React.FC = () => {
 
           {/* Legal & Account */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-foreground mb-3">Legal &amp; Terms</h4>
+            <h4 className="lp-label text-foreground mb-3">Legal &amp; terms</h4>
             <ul className="space-y-2">
               <li><Link to="/pricing" className="hover:text-foreground transition-colors">Commercial Licensing</Link></li>
               <li><a href="#faq" className="hover:text-foreground transition-colors">Questions &amp; Answers</a></li>
@@ -89,12 +89,12 @@ export const Footer: React.FC = () => {
 
           {/* Direct Support Column */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-foreground mb-3">Customer Support</h4>
+            <h4 className="lp-label text-foreground mb-3">Support</h4>
             <ul className="space-y-2.5 text-[11px]">
               <li>
                 <span className="text-muted-foreground block text-[10px]">Helpline &amp; WhatsApp:</span>
                 <a href="tel:8102545007" className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1.5 mt-0.5">
-                  <Phone className="w-3 h-3 text-emerald-500" /> +91 8102545007
+                  <Phone className="w-3 h-3 text-[hsl(var(--lp-green))]" /> +91 8102545007
                 </a>
               </li>
               <li>
