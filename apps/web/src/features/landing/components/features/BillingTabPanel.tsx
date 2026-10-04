@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/core/hooks/use-toast";
+import { RealA4ModernBlue } from "../invoices";
 
 export const BillingTabPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -164,16 +165,16 @@ export const BillingTabPanel: React.FC = () => {
 
               <div className="text-center pb-2 border-b border-dashed border-zinc-300 dark:border-zinc-700">
                 <div className="font-black text-sm uppercase tracking-wider text-zinc-950 dark:text-white">
-                  SHREE GANESH SUPERMARKET
+                  SATYAM HARDWARE &amp; MATERIAL
                 </div>
                 <div className="text-[10px] text-zinc-600 dark:text-zinc-400 mt-0.5">
-                  Shop 4, MG Road, Mumbai 400001
+                  jmm, Uttar Pradesh
                 </div>
                 <div className="text-[10px] text-zinc-600 dark:text-zinc-400">
-                  GSTIN: 27AABCU9603R1ZM • FSSAI: 115210
+                  GSTIN: 09AAACH7409R1ZZ • Ph: 7011988701
                 </div>
                 <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300 mt-1">
-                  TAX INVOICE #INV-1048 • 26-SEP-2026 18:24
+                  TAX INVOICE #INV-00202609218 • 29-SEP-2026 09:16
                 </div>
               </div>
 
@@ -184,34 +185,34 @@ export const BillingTabPanel: React.FC = () => {
                   <span>Total</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="truncate max-w-[130px]">Organic Honey 500g</span>
-                  <span className="text-zinc-600 dark:text-zinc-400">2 x 240.00</span>
-                  <span className="font-bold">₹480.00</span>
+                  <span className="truncate max-w-[130px]">11111</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">1 x 80.00</span>
+                  <span className="font-bold">₹80.00</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="truncate max-w-[130px]">Pure Cow Ghee 1L</span>
-                  <span className="text-zinc-600 dark:text-zinc-400">1 x 650.00</span>
-                  <span className="font-bold">₹650.00</span>
+                  <span className="truncate max-w-[130px]">343</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">1 x 2,222.00</span>
+                  <span className="font-bold">₹2,222.00</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="truncate max-w-[130px]">Almonds 250g</span>
-                  <span className="text-zinc-600 dark:text-zinc-400">1 x 280.00</span>
-                  <span className="font-bold">₹280.00</span>
+                  <span className="truncate max-w-[130px]">4343434</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">1 x 1,109.92</span>
+                  <span className="font-bold">₹1,109.92</span>
                 </div>
               </div>
 
               <div className="space-y-1 text-[11px] pb-2 border-b border-dashed border-zinc-300 dark:border-zinc-700">
                 <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
-                  <span>Taxable Value:</span>
-                  <span>₹1,250.42</span>
+                  <span>Total Qty:</span>
+                  <span>3 pcs</span>
                 </div>
                 <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
-                  <span>CGST (6%) + SGST (6%):</span>
-                  <span>₹159.58</span>
+                  <span>Sub Total:</span>
+                  <span>₹3,411.92</span>
                 </div>
                 <div className="flex justify-between font-black text-sm pt-1 border-t border-zinc-900 dark:border-zinc-100 text-zinc-950 dark:text-white">
                   <span>GRAND TOTAL:</span>
-                  <span>₹1,410.00</span>
+                  <span>₹3,411.92</span>
                 </div>
               </div>
 
@@ -219,9 +220,9 @@ export const BillingTabPanel: React.FC = () => {
                 <div className="w-14 h-14 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 mx-auto rounded flex items-center justify-center p-1 shadow-inner">
                   <QrCode className="w-10 h-10 text-zinc-900 dark:text-zinc-100" />
                 </div>
-                <div className="text-[9px] text-zinc-500 font-sans">Scan QR to pay via UPI (GPay/PhonePe)</div>
+                <div className="text-[9px] text-zinc-500 font-sans">Scan to pay via UPI (8102545007@ybl)</div>
                 <div className="text-[10px] font-bold tracking-widest text-zinc-800 dark:text-zinc-200">
-                  THANK YOU FOR YOUR VISIT
+                  THANK YOU • VISIT AGAIN
                 </div>
               </div>
 
@@ -230,68 +231,14 @@ export const BillingTabPanel: React.FC = () => {
                 <div className="text-[13px] tracking-widest font-mono text-zinc-500 select-none">
                   ||| | |||| | ||| || ||||| | ||
                 </div>
-                <div className="text-[9px] text-zinc-400 mt-0.5">INV-1048-2609</div>
+                <div className="text-[9px] text-zinc-400 mt-0.5">INV-00202609218</div>
               </div>
             </div>
           ) : (
-            /* A4 GST Invoice Preview */
-            <div className="w-full max-w-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs p-5 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
-              <div className="flex justify-between items-start pb-3 border-b border-zinc-200 dark:border-zinc-800">
-                <div>
-                  <div className="text-xs font-black uppercase text-primary">TAX INVOICE</div>
-                  <div className="font-bold text-sm text-foreground">SHREE GANESH SUPERMARKET</div>
-                  <div className="text-[10px] text-zinc-500">GSTIN: 27AABCU9603R1ZM</div>
-                </div>
-                <div className="text-right text-[10px]">
-                  <div className="font-bold text-foreground">Invoice #: INV-2026-1048</div>
-                  <div className="text-zinc-500">Date: 26-Sep-2026</div>
-                  <div className="text-emerald-600 font-bold">PAID (UPI)</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[10px] p-2 rounded bg-zinc-50 dark:bg-zinc-800/50">
-                <div>
-                  <span className="font-bold text-zinc-500">Billed To:</span>
-                  <div className="font-bold text-foreground">Walk-in Customer</div>
-                  <div className="text-zinc-500">POS Counter Billing</div>
-                </div>
-                <div className="text-right">
-                  <span className="font-bold text-zinc-500">Place of Supply:</span>
-                  <div className="font-bold text-foreground">Maharashtra (27)</div>
-                  <div className="text-zinc-500">Reverse Charge: No</div>
-                </div>
-              </div>
-
-              <div className="border border-zinc-200 dark:border-zinc-800 rounded overflow-hidden text-[10px]">
-                <div className="bg-zinc-100 dark:bg-zinc-800 font-bold p-1.5 grid grid-cols-12 text-zinc-600 dark:text-zinc-300">
-                  <span className="col-span-5">Item</span>
-                  <span className="col-span-2 text-center">HSN</span>
-                  <span className="col-span-2 text-right">Qty</span>
-                  <span className="col-span-3 text-right">Amount</span>
-                </div>
-                <div className="p-1.5 grid grid-cols-12 border-t border-zinc-100 dark:border-zinc-800">
-                  <span className="col-span-5 font-medium truncate">Organic Honey 500g</span>
-                  <span className="col-span-2 text-center text-zinc-500">0409</span>
-                  <span className="col-span-2 text-right">2 pcs</span>
-                  <span className="col-span-3 text-right font-bold">₹480.00</span>
-                </div>
-                <div className="p-1.5 grid grid-cols-12 border-t border-zinc-100 dark:border-zinc-800">
-                  <span className="col-span-5 font-medium truncate">Pure Cow Ghee 1L</span>
-                  <span className="col-span-2 text-center text-zinc-500">0405</span>
-                  <span className="col-span-2 text-right">1 tin</span>
-                  <span className="col-span-3 text-right font-bold">₹650.00</span>
-                </div>
-                <div className="p-1.5 grid grid-cols-12 border-t border-zinc-100 dark:border-zinc-800">
-                  <span className="col-span-5 font-medium truncate">California Almonds 250g</span>
-                  <span className="col-span-2 text-center text-zinc-500">0802</span>
-                  <span className="col-span-2 text-right">1 pk</span>
-                  <span className="col-span-3 text-right font-bold">₹280.00</span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-2 border-t border-zinc-200 dark:border-zinc-800 font-bold text-xs">
-                <span>Total Invoice Value:</span>
-                <span className="text-primary font-black text-sm">₹1,410.00</span>
+            /* Authentic A4 GST Tax Invoice Preview */
+            <div className="w-full flex justify-center overflow-x-auto py-2">
+              <div className="w-full max-w-[540px]">
+                <RealA4ModernBlue />
               </div>
             </div>
           )}
