@@ -119,12 +119,58 @@ boundary.
   session that built it. Typecheck, lint and build pass; the layout itself has
   not been looked at.
 
+## Custom work (the work order)
+
+The section after the FAQ. The FAQ says what the software does; this catches the
+owner whose trade needs something it doesn't, which was the last objection the
+page left standing.
+
+The intake is drawn as a **work order** — the artifact this trade already fills
+in when something is made to order — rather than a contact card. It extends the
+ledger system instead of restating it: the rest of the page shows ledger
+*entries*, this shows a ledger *order form*. Fields sit on ruled rows with the
+label left and the control right, the order number sits in the figures column in
+tabular numerals, and the red total rule closes the order above the single
+action. Controls are borderless and transparent, so the row's own hairline is
+the field.
+
+The order number line is blank (`No. ______`) until the row exists, the way a
+real pad is, then fills with the reference the API returns.
+
+Decisions worth keeping:
+
+- **No figure in the section heading.** The slot wants a real fact, and the
+  honest candidates — turnaround time, price — are business commitments nobody
+  had stated. Left empty per the rule, rather than filled with a word. Supply a
+  real median turnaround and it belongs there.
+- **Four kinds of work, unnumbered.** They are alternatives to pick between, not
+  a sequence; `HowItWorks` keeps its numbers because it genuinely is one.
+- **Green on the confirmation, not red.** Red is structure here and never a
+  status, and the existing sections already use green for completed states
+  ("Sent", "Ready to export").
+- **No email field.** Phone and WhatsApp is the channel this audience uses and
+  the copy promises a call, so an optional email was the accessory to remove.
+  The API still accepts `contact_email` if it is ever wanted back.
+- **Do not suppress the focus ring.** The first draft put
+  `focus-visible:outline-none` on the borderless controls, which ties on
+  specificity with `.lp :focus-visible` and would have left keyboard users with
+  no visible focus on any field, decided by stylesheet order.
+
+Not checked in a browser — no browser tooling in the session that built it
+either. Typecheck, lint, build and the backend tests pass; the layout itself has
+not been looked at. The label column is fixed at `11rem`, which is the thing
+most likely to need adjusting once seen.
+
 ## Tried and rejected
 
 - Rubber-stamp texture and cloth-bound ledger imagery — tips into skeuomorphic
   cliché, and Indian fintech already over-uses the khata-book skin.
 - Devanagari type as decoration — borrowing a script for flavour, not for meaning.
 - Red CTA — reads as destructive in a finance interface.
+- An inline hint beside the "What it should do" label — overflowed the 11rem
+  label column and broke the ruled row's baseline. The placeholder carries it.
+- A "typically 2-3 weeks" figure on the custom-work heading — inventing a
+  delivery promise the business had not made.
 
 ## The page / product boundary
 
