@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { ShoppingBag, CreditCard } from "lucide-react";
 import { useCurrency } from "@/core/contexts/CurrencyContext";
 import { useBusiness } from "@/core/contexts/BusinessContext";
@@ -145,7 +144,7 @@ export default function OnlineStorePage() {
   };
 
   return (
-    <AppLayout>
+    <>
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -371,6 +370,6 @@ export default function OnlineStorePage() {
         imageUrl={previewReturnImageUrl}
         onClose={() => setPreviewReturnImageUrl(null)}
       />
-    </AppLayout>
+    </>
   );
 }

@@ -8,7 +8,20 @@ import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { SyncStatusBadge } from "@/components/shared/SyncStatusBadge";
 import { Logo } from "@/components/shared/Logo";
 
-export const AppLayoutContext = createContext<boolean>(false);
+// Use a window global to ensure the context singleton is shared across code-split chunks & HMR
+declare global {
+  interface Window {
+    __RUPEEBILL_APP_LAYOUT_CONTEXT__?: React.Context<boolean>;
+  }
+}
+
+export const AppLayoutContext: React.Context<boolean> =
+  (typeof window !== "undefined" && window.__RUPEEBILL_APP_LAYOUT_CONTEXT__) ||
+  createContext<boolean>(false);
+
+if (typeof window !== "undefined") {
+  window.__RUPEEBILL_APP_LAYOUT_CONTEXT__ = AppLayoutContext;
+}
 
 export function useIsInsideAppLayout() {
   return useContext(AppLayoutContext);
