@@ -42,9 +42,38 @@ export function FeatureRequestRow({ request }: { request: FeatureRequest }) {
     <tr className="border-b border-slate-700/40 hover:bg-slate-700/20 transition-colors group">
       <td className="px-4 py-3">
         <div>
-          <div className="text-slate-200 font-medium text-sm truncate max-w-[180px]" title={request.user_email ?? ""}>
-            {request.user_email || <span className="italic text-slate-500">Anonymous</span>}
-          </div>
+          {/*
+            A landing-page request has no account behind it, so the phone number
+            the visitor typed is the only way to reach them. Showing the email
+            column alone would label a real lead "Anonymous" and lose it.
+          */}
+          {request.source === "landing" ? (
+            <>
+              <div className="text-slate-200 font-medium text-sm truncate max-w-[180px]" title={request.contact_name ?? ""}>
+                {request.contact_name || <span className="italic text-slate-500">No name given</span>}
+              </div>
+              {request.contact_phone && (
+                <a
+                  href={`tel:${request.contact_phone.replace(/[^\d+]/g, "")}`}
+                  className="text-emerald-400 hover:text-emerald-300 text-xs tabular-nums"
+                >
+                  {request.contact_phone}
+                </a>
+              )}
+              {request.user_email && (
+                <div className="text-slate-500 text-xs truncate max-w-[180px]" title={request.user_email}>
+                  {request.user_email}
+                </div>
+              )}
+              <span className="mt-1 inline-block rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-300">
+                From landing page
+              </span>
+            </>
+          ) : (
+            <div className="text-slate-200 font-medium text-sm truncate max-w-[180px]" title={request.user_email ?? ""}>
+              {request.user_email || <span className="italic text-slate-500">Anonymous</span>}
+            </div>
+          )}
           <div className="text-slate-500 text-xs tabular-nums">{formatDate(request.submitted_at)}</div>
         </div>
       </td>
@@ -111,11 +140,20 @@ export const AdminFeaturesSection: React.FC = () => {
     });
 
   const filtered = requests.filter(
-    (r) =>
-      !search.trim() ||
-      r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.description.toLowerCase().includes(search.toLowerCase()) ||
-      (r.user_email && r.user_email.toLowerCase().includes(search.toLowerCase()))
+    (r) => {
+      if (!search.trim()) return true;
+      const needle = search.toLowerCase();
+      // Landing-page leads are looked up by who called, so the contact fields
+      // have to be searchable alongside the request text.
+      return [
+        r.title,
+        r.description,
+        r.user_email,
+        r.contact_name,
+        r.contact_phone,
+        r.business_name,
+      ].some((field) => field?.toLowerCase().includes(needle));
+    }
   );
 
   const filterTabs: { key: FeatureRequestStatus | "all"; label: string }[] = [

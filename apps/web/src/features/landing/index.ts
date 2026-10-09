@@ -5,6 +5,7 @@ export { Footer } from "./components/Footer";
 export { RealSubscriptionCheckout } from "./components/RealSubscriptionCheckout";
 export { VyaparFeatures } from "./components/VyaparFeatures";
 export { FAQ } from "./components/FAQ";
+export { CustomBuild } from "./components/CustomBuild";
 export { FinalCTA } from "./components/FinalCTA";
 export { HowItWorks } from "./components/HowItWorks";
 export { BusinessTypes } from "./components/BusinessTypes";

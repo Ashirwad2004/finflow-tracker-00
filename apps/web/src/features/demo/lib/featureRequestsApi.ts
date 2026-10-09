@@ -12,6 +12,13 @@ export interface FeatureRequest {
   notes: string | null;
   submitted_at: string;
   updated_at: string;
+  // Present on landing-page requests, where there is no account to look the
+  // requester up from. Absent on in-app ones.
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  business_name?: string | null;
+  build_type?: string | null;
+  source?: string | null;
 }
 
 // Helper to get auth headers with JWT

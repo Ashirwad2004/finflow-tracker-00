@@ -23,6 +23,7 @@ import { HowItWorks } from "@/features/landing/components/HowItWorks";
 import { MerchantTestimonials } from "@/features/landing/components/MerchantTestimonials";
 import { PricingPreview } from "@/features/landing/components/PricingPreview";
 import { FAQ } from "@/features/landing/components/FAQ";
+import { CustomBuild } from "@/features/landing/components/CustomBuild";
 import { FinalCTA } from "@/features/landing/components/FinalCTA";
 import { Footer } from "@/features/landing/components/Footer";
 
@@ -125,7 +126,14 @@ const Index = () => {
         {/* 10. Merchant FAQ */}
         <FAQ onBookDemo={() => setDemoOpen(true)} />
 
-        {/* 11. Final CTA */}
+        {/*
+          11. Custom work. Sits here on purpose: the FAQ says what the software
+          does, and this catches the owner whose trade needs something it
+          doesn't — the last objection before the close.
+        */}
+        <CustomBuild />
+
+        {/* 12. Final CTA */}
         <FinalCTA onBookDemo={() => setDemoOpen(true)} />
       </main>
 

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "http://localhost:5173",
@@ -7,32 +6,104 @@ const corsHeaders = {
   "Vary": "Origin",
 };
 
+type ChatMessagePart =
+  | string
+  | {
+      type?: string;
+      text?: string;
+      image_url?: { url?: string };
+      [key: string]: unknown;
+    };
+
 type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string | Array<any>;
+  content: string | ChatMessagePart[];
+};
+
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
+type GeminiContent = {
+  role: "user" | "model";
+  parts: GeminiPart[];
+};
+
+type GeminiSafetySetting = {
+  category: string;
+  threshold: string;
+};
+
+type GeminiGenerationConfig = {
+  temperature?: number;
+  maxOutputTokens?: number;
+  responseMimeType?: string;
+  responseSchema?: unknown;
+};
+
+type GeminiPayload = {
+  contents: GeminiContent[];
+  generationConfig: GeminiGenerationConfig;
+  safetySettings: GeminiSafetySetting[];
+  systemInstruction?: {
+    parts: Array<{ text: string }>;
+  };
+};
+
+type GeminiCandidatePart = {
+  text?: string;
+  [key: string]: unknown;
+};
+
+type GeminiCandidate = {
+  content?: {
+    parts?: GeminiCandidatePart[];
+  };
+  [key: string]: unknown;
+};
+
+type GeminiResponseData = {
+  candidates?: GeminiCandidate[];
+  [key: string]: unknown;
+};
+
+type RequestBody = {
+  messages?: ChatMessage[];
+  model?: string;
+  response_format?: unknown;
+  temperature?: number;
+  maxOutputTokens?: number;
+  stream?: boolean;
 };
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
-function normalizePart(part: any) {
+function normalizePart(part: unknown): GeminiPart {
   if (typeof part === "string") return { text: part };
-  if (part?.type === "text") return { text: String(part.text ?? "") };
-  if (part?.type === "image_url") {
-    const url = String(part.image_url?.url ?? "");
-    const match = url.match(/^data:(.+);base64,(.+)$/);
-    if (!match) return { text: "[Unsupported image URL omitted]" };
-    return {
-      inlineData: {
-        mimeType: match[1],
-        data: match[2],
-      },
+  if (typeof part === "object" && part !== null) {
+    const p = part as {
+      type?: string;
+      text?: unknown;
+      image_url?: { url?: unknown };
     };
+    if (p.type === "text") return { text: String(p.text ?? "") };
+    if (p.type === "image_url") {
+      const url = String(p.image_url?.url ?? "");
+      const match = url.match(/^data:(.+);base64,(.+)$/);
+      if (!match) return { text: "[Unsupported image URL omitted]" };
+      return {
+        inlineData: {
+          mimeType: match[1],
+          data: match[2],
+        },
+      };
+    }
   }
   return { text: JSON.stringify(part) };
 }
 
-function normalizeMessage(message: ChatMessage) {
-  const parts = Array.isArray(message.content)
+function normalizeMessage(message: ChatMessage): GeminiContent {
+  const parts: GeminiPart[] = Array.isArray(message.content)
     ? message.content.map(normalizePart)
     : [{ text: String(message.content ?? "") }];
 
@@ -42,17 +113,25 @@ function normalizeMessage(message: ChatMessage) {
   };
 }
 
-function extractJsonSchema(responseFormat: any) {
-  return responseFormat?.json_schema?.schema ?? responseFormat?.schema ?? undefined;
+function extractJsonSchema(responseFormat: unknown): unknown {
+  if (typeof responseFormat === "object" && responseFormat !== null) {
+    const format = responseFormat as {
+      json_schema?: { schema?: unknown };
+      schema?: unknown;
+    };
+    return format.json_schema?.schema ?? format.schema ?? undefined;
+  }
+  return undefined;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, model, response_format, temperature, maxOutputTokens, stream } = await req.json();
+    const { messages, model, response_format, temperature, maxOutputTokens, stream } =
+      ((await req.json()) as RequestBody) ?? {};
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -76,7 +155,7 @@ serve(async (req) => {
       .filter((message: ChatMessage) => message.role !== "system")
       .map(normalizeMessage);
 
-    const payload: any = {
+    const payload: GeminiPayload = {
       contents,
       generationConfig: {
         temperature: temperature ?? 0.2,
@@ -146,9 +225,9 @@ serve(async (req) => {
       );
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as GeminiResponseData;
     const text = data?.candidates?.[0]?.content?.parts
-      ?.map((part: any) => part.text ?? "")
+      ?.map((part: GeminiCandidatePart) => part.text ?? "")
       .join("")
       .trim() ?? "";
 
