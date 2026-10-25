@@ -1,4 +1,4 @@
-import { SaleOrder, PurchaseOrder } from "@/features/sales";
+import type { SaleOrder, PurchaseOrder } from "@/features/sales/types/orders";
 import { 
     generateInvoicePDF, 
     InvoiceDetails, 

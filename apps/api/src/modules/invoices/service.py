@@ -3,13 +3,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 
 from .repository import InvoiceRepository
-from .schemas import (
-    InvoiceCreateRequest,
-    InvoiceUpdateRequest,
-    InvoiceResponse,
-)
+from .schemas import InvoiceCreateRequest, InvoiceUpdateRequest
 from src.modules.parties.service import PartyService
-from src.services.settings import SettingsService
+from src.modules.settings.service import SettingsService
 
 logger = logging.getLogger(__name__)
 

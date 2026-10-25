@@ -1,9 +1,8 @@
-from typing import Any, Dict
 import pytest
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.api.deps import get_current_user, get_tenant_context
+from src.api.deps import get_tenant_context
 
 client = TestClient(app)
 
@@ -53,7 +52,7 @@ def test_invoice_next_number_generation(monkeypatch):
     """Verifies next sequential invoice number format and prefix."""
     app.dependency_overrides[get_tenant_context] = override_tenant_a
 
-    from src.repositories.invoice_repository import InvoiceRepository
+    from src.modules.invoices.repository import InvoiceRepository
     monkeypatch.setattr(
         InvoiceRepository,
         "get_next_invoice_number",
@@ -74,7 +73,7 @@ def test_authoritative_invoice_service_calculation(monkeypatch):
 
     captured_params = {}
 
-    from src.repositories.invoice_repository import InvoiceRepository
+    from src.modules.invoices.repository import InvoiceRepository
 
     def fake_create_invoice(*args, **kwargs):
         captured_params.update(kwargs)
@@ -127,7 +126,7 @@ def test_authoritative_invoice_service_calculation(monkeypatch):
 
 def test_tenant_cannot_read_other_tenant_invoice(monkeypatch):
     """Ensures Tenant B cannot view Tenant A's invoice (HTTP 404 / IDOR protection)."""
-    from src.repositories.invoice_repository import InvoiceRepository
+    from src.modules.invoices.repository import InvoiceRepository
 
     # Invoice exists only under Tenant A
     def fake_get_by_id(store_id: str, invoice_id: str):
@@ -151,7 +150,7 @@ def test_tenant_cannot_read_other_tenant_invoice(monkeypatch):
 
 def test_tenant_cannot_read_other_tenant_purchase(monkeypatch):
     """Ensures Tenant B cannot view Tenant A's purchase record."""
-    from src.repositories.purchase_repository import PurchaseRepository
+    from src.modules.purchases.repository import PurchaseRepository
 
     def fake_get_pur(store_id: str, purchase_id: str):
         if store_id == TENANT_A_ID and purchase_id == "pur-secret-tenant-a":
@@ -174,7 +173,7 @@ def test_inventory_adjustment_endpoint(monkeypatch):
     """Verifies stock adjustment updates inventory and records audit."""
     app.dependency_overrides[get_tenant_context] = override_tenant_a
 
-    from src.repositories.inventory_repository import InventoryRepository
+    from src.modules.inventory.repository import InventoryRepository
 
     def fake_adjust(store_id, user_id, product_id, adjustment_type, quantity, notes):
         return {
@@ -204,7 +203,7 @@ def test_inventory_valuation_endpoint(monkeypatch):
     """Verifies inventory valuation summary calculation."""
     app.dependency_overrides[get_tenant_context] = override_tenant_a
 
-    from src.repositories.inventory_repository import InventoryRepository
+    from src.modules.inventory.repository import InventoryRepository
 
     monkeypatch.setattr(
         InventoryRepository,
@@ -261,9 +260,9 @@ def test_authoritative_profit_loss_endpoint(monkeypatch):
     """Verifies server-authoritative Profit & Loss report endpoint."""
     app.dependency_overrides[get_tenant_context] = override_tenant_a
 
-    from src.services.reports import ReportsService
+    from src.modules.reports.service import ReportsService
 
-    from src.schemas.reports import ProfitAndLossResponse
+    from src.modules.reports.schemas import ProfitAndLossResponse
 
     fake_pnl = ProfitAndLossResponse(
         revenue_from_operations=100000.0,

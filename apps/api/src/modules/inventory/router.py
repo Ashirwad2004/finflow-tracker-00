@@ -3,11 +3,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, status
 
 from src.api.deps import get_tenant_context
-from .schemas import (
-    InventoryAdjustmentRequest,
-    InventoryMovementItem,
-    InventoryValuationSummary,
-)
+from .schemas import InventoryAdjustmentRequest, InventoryValuationSummary
 from .service import InventoryService
 
 logger = logging.getLogger(__name__)

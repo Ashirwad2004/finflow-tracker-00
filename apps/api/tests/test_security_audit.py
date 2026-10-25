@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from src.main import app
 from src.core.config import settings
-from src.api.deps import get_current_user, get_tenant_context
+from src.api.deps import get_current_user
 
 client = TestClient(app)
 
@@ -72,6 +72,26 @@ def test_invalid_bearer_token_rejected():
         assert response.status_code == 401
 
 
+@pytest.mark.asyncio
+async def test_ai_auth_does_not_override_supabase_rejection_with_local_jwt(monkeypatch):
+    from fastapi import HTTPException
+    from fastapi.security import HTTPAuthorizationCredentials
+    import src.api.deps as deps
+
+    database = MagicMock()
+    database.auth.get_user.side_effect = RuntimeError("User is banned")
+    decode = MagicMock(return_value={"sub": TENANT_A_ID})
+    monkeypatch.setattr(deps, "supabase_client", database)
+    monkeypatch.setattr(deps.jwt, "decode", decode)
+    monkeypatch.setattr(settings, "AI_AUTH_REQUIRED", True)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", "test-secret")
+
+    with pytest.raises(HTTPException) as error:
+        await deps.require_ai_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials="banned-token"))
+    assert error.value.status_code == 401
+    decode.assert_not_called()
+
+
 # =============================================================================
 # 2. Tenant Isolation & IDOR Tests
 # =============================================================================
@@ -99,7 +119,7 @@ def test_idor_pos_shift_summary_rejected_for_different_tenant(monkeypatch):
 
     mock_supabase = MagicMock()
     mock_supabase.table.return_value = mock_table
-    monkeypatch.setattr("src.services.pos.supabase_client", mock_supabase)
+    monkeypatch.setattr("src.modules.pos.service.supabase_client", mock_supabase)
 
     # Attacker A attempts to request Victim's shift summary
     response = client.get(
@@ -156,7 +176,7 @@ def test_tenant_cannot_refund_other_merchants_payment(monkeypatch):
 
     mock_supabase = MagicMock()
     mock_supabase.table.return_value = mock_table
-    monkeypatch.setattr("src.api.v1.endpoints.payments.supabase_client", mock_supabase)
+    monkeypatch.setattr("src.modules.payments.router.supabase_client", mock_supabase)
 
     response = client.post(
         "/api/v1/payments/refund",
@@ -198,7 +218,7 @@ def test_subscription_plan_elevation_tampering_prevented(monkeypatch):
 
     mock_supabase = MagicMock()
     mock_supabase.table.return_value = mock_table
-    monkeypatch.setattr("src.api.v1.endpoints.payments.supabase_client", mock_supabase)
+    monkeypatch.setattr("src.modules.payments.router.supabase_client", mock_supabase)
 
     mock_driver = MagicMock()
     mock_driver.verify_payment = AsyncMock(return_value={
@@ -206,7 +226,7 @@ def test_subscription_plan_elevation_tampering_prevented(monkeypatch):
         "paymentId": "pay_fake123",
         "paymentMethod": "card",
     })
-    monkeypatch.setattr("src.api.v1.endpoints.payments.get_gateway_driver", lambda *args, **kwargs: mock_driver)
+    monkeypatch.setattr("src.modules.payments.router.get_gateway_driver", lambda *args, **kwargs: mock_driver)
 
     # Attacker sends forged payload claiming "enterprise" plan
     response = client.post(

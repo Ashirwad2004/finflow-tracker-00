@@ -1,0 +1,17 @@
+.git
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/.venv
+**/venv
+**/__pycache__
+**/.pytest_cache
+.cache
+.agents
+.claude
+.vercel
+.dev-logs
+.vscode
+supabase/.temp
+supabase/.branches

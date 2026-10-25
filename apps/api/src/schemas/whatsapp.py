@@ -1,6 +1,0 @@
-import sys
-import src.modules.whatsapp.schemas as _schemas_module
-
-sys.modules[__name__] = _schemas_module
-
-from src.modules.whatsapp.schemas import *  # noqa: F401, F403

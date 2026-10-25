@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 
 from postgrest import CountMethod
@@ -17,7 +17,7 @@ from .schemas import (
     BarcodeBulkGenerateRequest,
     BarcodeValidateRequest,
 )
-from src.services.barcode import BarcodeService
+from src.modules.pos.barcode import BarcodeService
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,6 @@ class POSService:
         cls._ensure_supabase()
 
         # 1. Authoritative server-side recalculation of lines, discounts, taxes, and totals
-        calculated_subtotal = 0.0
-        calculated_tax = 0.0
         validated_items = []
 
         for item in request.items:
@@ -68,9 +66,6 @@ class POSService:
             line_taxable = qty * unit_price * (1.0 - (disc_pct / 100.0))
             line_tax = round((line_taxable * tax_pct) / 100.0, 2)
             line_total = round(line_taxable + line_tax, 2)
-
-            calculated_subtotal += (qty * unit_price)
-            calculated_tax += line_tax
 
             validated_items.append({
                 "id": item.id,
@@ -87,7 +82,6 @@ class POSService:
                 "hsn_code": item.hsn_code or "",
             })
 
-        calculated_total = round(max(0.0, calculated_subtotal - request.discount_amount + calculated_tax), 2)
         paid_amount = max(0.0, request.amount_paid)
 
         # 2. Invoke atomic PostgreSQL RPC
@@ -251,11 +245,7 @@ class POSService:
         cls._ensure_supabase()
 
         try:
-            # Fetch derived summary from immutable transactions, fallback gracefully
-            try:
-                summary = cls.get_shift_summary(shift_id, store_id=store_id)
-            except Exception:
-                summary = {"expected_cash": 0.0, "total_sales": 0.0}
+            summary = cls.get_shift_summary(shift_id, store_id=store_id)
 
             expected = summary.get("expected_cash", 0.0)
             actual = request.actual_cash

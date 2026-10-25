@@ -1,4 +1,5 @@
 import { PaymentMethodType } from "./transcriptCodec";
+import { nonNegativeNumber, roundMoney } from "@/core/utils/money";
 
 /**
  * Strict CA Bill Settlement Calculation (adhering to brain.md Invariant 4).
@@ -22,17 +23,17 @@ export function calculateBillSettlement(
   newStatus: "paid" | "partial" | "pending" | "overdue";
   isOverdue: boolean;
 } {
-  const safeTotal = Math.max(0, Number(totalAmount) || 0);
-  const safeCurrent = Math.max(0, Number(currentAmountPaid) || 0);
-  const safePayment = Math.max(0, Number(newPaymentAmount) || 0);
+  const safeTotal = roundMoney(nonNegativeNumber(totalAmount));
+  const safeCurrent = roundMoney(nonNegativeNumber(currentAmountPaid));
+  const safePayment = roundMoney(nonNegativeNumber(newPaymentAmount));
 
   const newAmountPaid = Math.min(
     safeTotal,
-    Math.round((safeCurrent + safePayment) * 100) / 100
+    roundMoney(safeCurrent + safePayment)
   );
   const newBalanceDue = Math.max(
     0,
-    Math.round((safeTotal - newAmountPaid) * 100) / 100
+    roundMoney(safeTotal - newAmountPaid)
   );
 
   let isOverdue = false;
@@ -60,6 +61,49 @@ export function calculateBillSettlement(
     newBalanceDue,
     newStatus,
     isOverdue,
+  };
+}
+
+/** Validate the entire voucher before any bill is updated. */
+export function validatePaymentAllocations(
+  bills: Array<{ id: string; balanceDue: number }>,
+  requestedAllocations: Record<string, number>,
+  enteredAmount: number
+): {
+  allocations: Record<string, number>;
+  paymentAmount: number;
+  totalAllocated: number;
+  advanceAmount: number;
+} {
+  const paymentAmount = roundMoney(enteredAmount);
+  if (!Number.isFinite(enteredAmount) || paymentAmount <= 0) {
+    throw new Error("Enter a payment amount greater than zero.");
+  }
+  const billsById = new Map(bills.map((bill) => [bill.id, bill]));
+  const allocations: Record<string, number> = {};
+  let totalAllocated = 0;
+  for (const [id, requested] of Object.entries(requestedAllocations)) {
+    if (!Number.isFinite(requested) || requested < 0) {
+      throw new Error("Bill allocations must be finite, non-negative amounts.");
+    }
+    const amount = roundMoney(requested);
+    if (amount === 0) continue;
+    const bill = billsById.get(id);
+    if (!bill) throw new Error("An allocated bill is no longer available. Refresh and try again.");
+    if (amount > roundMoney(nonNegativeNumber(bill.balanceDue))) {
+      throw new Error("An allocation exceeds the bill's outstanding balance.");
+    }
+    allocations[id] = amount;
+    totalAllocated = roundMoney(totalAllocated + amount);
+  }
+  if (totalAllocated > paymentAmount) {
+    throw new Error("The total allocated to bills exceeds the payment amount.");
+  }
+  return {
+    allocations,
+    paymentAmount,
+    totalAllocated,
+    advanceAmount: roundMoney(paymentAmount - totalAllocated),
   };
 }
 
@@ -126,7 +170,7 @@ export function autoAllocateFIFO(
   unallocatedAmount: number;
 } {
   const allocations: Record<string, number> = {};
-  let remaining = Math.max(0, Number(paymentAmount) || 0);
+  let remaining = roundMoney(nonNegativeNumber(paymentAmount));
   let totalAllocated = 0;
 
   for (const bill of bills) {
@@ -134,12 +178,12 @@ export function autoAllocateFIFO(
       allocations[bill.id] = 0;
       continue;
     }
-    const due = Math.max(0, Number(bill.balanceDue) || 0);
+    const due = roundMoney(nonNegativeNumber(bill.balanceDue));
     const allocate = Math.min(due, remaining);
-    const rounded = Math.round(allocate * 100) / 100;
+    const rounded = roundMoney(allocate);
     allocations[bill.id] = rounded;
-    remaining = Math.round((remaining - rounded) * 100) / 100;
-    totalAllocated = Math.round((totalAllocated + rounded) * 100) / 100;
+    remaining = roundMoney(remaining - rounded);
+    totalAllocated = roundMoney(totalAllocated + rounded);
   }
 
   return {

@@ -1,149 +1,69 @@
-# Developer Setup & Deployment Guide
+# Developer setup and deployment
 
-This guide covers the FinFlow monorepo: the React/Vite frontend in `frontend/`, the optional FastAPI service in `backend/`, and the Supabase project in `supabase/`.
+## Local development
 
----
+Use Node.js 22 and Python 3.11 or later. Run commands from the repository root unless a command says otherwise.
 
-## 📋 Prerequisites
-Before you start, make sure you have the following installed:
-*   [Node.js](https://nodejs.org/) (v18.x or later) and `npm`.
-*   [Python](https://www.python.org/) (3.11 or later recommended) with `pip` and `venv`.
-*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) for the compose workflow.
-*   [Supabase CLI](https://supabase.com/docs/guides/cli) for local Supabase development and migrations.
-
----
-
-## 🎨 1. Frontend Client Setup
-
-The client dashboard and storefront are built using Vite + React. Follow these steps to launch locally:
-
-1.  **Clone the Repository**:
-    ```sh
-    git clone <your-repo-url>
-    cd finflow-tracker-00-1
-    ```
-
-2.  **Install Frontend Dependencies**:
-    ```sh
-    npm install
-    ```
-
-3.  **Configure Frontend Environment Variables**:
-    Create `frontend/.env`:
-    ```env
-    VITE_SUPABASE_URL=https://your-supabase-project-id.supabase.co
-    VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key-string
-    ```
-    *(Retrieve these values from your Supabase Project Settings -> API page)*
-
-4.  **Run Development Server**:
-    ```sh
-    npm run dev
-    ```
-    *The Vite client runs at [http://localhost:8080](http://localhost:8080). The root command also starts FastAPI on port 8000.*
-
-    To run either service separately, use `npm run frontend:dev` or `npm run backend:dev` from the repository root.
-
----
-
-## 🗄️ 2. Database Schema Setup
-
-You can set up the database using two paths: **Supabase Dashboard** or **Supabase Local CLI**.
-
-### Option A: Via Supabase Dashboard
-1.  Create a new project on [Supabase](https://supabase.com/).
-2.  Go to the **SQL Editor** in the sidebar.
-3.  Apply the SQL files in `supabase/migrations/` in filename order. They are the source of truth; `docs/sql-archive/` contains historical/reference scripts and should not be replayed blindly.
-4.  Navigate to **Settings -> API** and copy your `URL` and `Anon key` to your frontend `.env` file.
-
-### Option B: Via Local Supabase CLI
-If you want to run the database locally inside Docker containers:
-1.  Initialize Supabase locally:
-    ```sh
-    supabase init
-    ```
-2.  Start the local database instance (requires Docker running):
-    ```sh
-    supabase start
-    ```
-3.  Apply migration scripts to sync the local database schema:
-    ```sh
-    supabase db push
-    ```
-
----
-
-## 🐍 3. FastAPI Python Backend Setup
-
-The FastAPI service provides health checks, AI parsing/insights, payment endpoints, and other API routes. It uses Supabase rather than a repo-managed Alembic migration directory.
-
-1.  **Navigate to backend folder**:
-    ```sh
-    cd backend
-    ```
-
-2.  **Create a Virtual Environment**:
-    ```sh
-    python -m venv .venv
-    ```
-
-3.  **Activate Virtual Environment**:
-    *   **Windows**:
-        ```powershell
-        .\.venv\Scripts\Activate.ps1
-        ```
-    *   **macOS / Linux**:
-        ```sh
-        source .venv/bin/activate
-        ```
-
-4.  **Install Required Dependencies**:
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-5.  **Configure Backend Environment Variables**:
-    Create `backend/.env`:
-    ```env
-    VITE_SUPABASE_URL=https://your-supabase-project-id.supabase.co
-    SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
-    GEMINI_API_KEY=your-gemini-api-key
-    ENVIRONMENT=development
-    SHOW_DOCS=true
-    ```
-
-6.  **Start FastAPI Server** from the repository root (open a new terminal or run `cd ..` first):
-    ```sh
-    python run-backend.py
-    ```
-    *The health check is available at [http://localhost:8000/health](http://localhost:8000/health). OpenAPI is available at [http://localhost:8000/docs](http://localhost:8000/docs) when `ENVIRONMENT=development` or `SHOW_DOCS=true`.*
-
----
-
-## 🚀 4. Deployment Instructions
-
-### Frontend (Vercel)
-FinFlow is ready to deploy directly to Vercel:
-1.  Push your code to a Git repository (GitHub/GitLab).
-2.  Log in to [Vercel](https://vercel.com/) and create a new project from your repository.
-3.  Configure Build settings:
-    *   **Framework Preset**: `Vite`
-    *   **Build Command**: `npm run build`
-    *   **Output Directory**: `dist`
-4.  Add the environment variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
-5.  Click **Deploy**.
-
-### Storefront Custom Routing (SPA Wildcard Support)
-Because customer storefronts use dynamic path patterns like `/store/:storeSlug`, verify your Hosting provider supports URL rewrite rules to prevent `404 Not Found` errors when refreshing.
-For Vercel, this is handled automatically via [vercel.json](../vercel.json):
-```json
-{
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
+```sh
+npm ci
+python -m venv .venv
 ```
 
-### Backend and Docker
+Install Python dependencies with `.venv/Scripts/python -m pip install -r apps/api/requirements-dev.txt` on Windows, or `.venv/bin/python -m pip install -r apps/api/requirements-dev.txt` on macOS/Linux. Activation is optional for `scripts/api.py`; it discovers these environments automatically.
 
-The backend has its own [Vercel configuration](../backend/vercel.json). For a single-host deployment, build the frontend and serve it with `npm run server`; the server proxies `/api/v1` and `/health` to FastAPI. The provided `docker-compose.yml` starts both services, publishes frontend port 3000 and backend port 8000, and passes the two `VITE_SUPABASE_*` build arguments to the frontend.
+Copy the checked-in `apps/web/.env.example` and `apps/api/.env.example` files to `.env` in their respective directories. Configure the public Supabase URL/key for the browser. Configure the service-role key, payment gateway, webhook secrets, and any AI/WhatsApp credentials only in the API environment. `VITE_API_URL` may be empty when the frontend and API use the same-origin proxy.
+
+```sh
+npm run dev
+npm run web:dev
+npm run api:dev
+```
+
+The frontend is at `http://localhost:8080`; the API is at `http://localhost:8000`. Vite proxies `/api` to the API. Check `/health` for connectivity. Set `ENVIRONMENT=development` or `SHOW_DOCS=true` to enable API documentation at `/docs`.
+
+The root `package-lock.json` manages both JavaScript workspaces. Do not create a nested lockfile or run a second frontend dependency install in CI.
+
+## Checks
+
+```sh
+npm run lint
+npm run typecheck
+npm run test:web
+npm run test:api
+npm run test:tooling
+npm run build
+```
+
+`typecheck` checks the actual application and Vite configurations as well as shared contracts. `test:tooling` runs the built service worker against a cache fixture. `build` must successfully inject the generated asset manifest; it fails if the service worker no longer exposes the expected declarations.
+
+Run a focused Python test with `npm run test:api -- -k <test_name>`. Generate API contracts with `npm run types:generate` after installing Python dependencies and configuring the API environment; review changes to both `packages/api-types/openapi.json` and `src/generated.ts`.
+
+## Database
+
+Use `supabase/migrations/` as ordered database history. Preserve existing migration filenames and contents. New database changes need a new migration and verification against an isolated database. `docs/sql-archive/` contains old reference scripts, not an alternative setup flow.
+
+The CLI's generated `.temp/` and `.branches/` state is local and ignored. Do not commit linked-project caches, connection metadata, or database credentials.
+
+## Production host
+
+```sh
+npm run build
+npm run server
+```
+
+The Express host serves `apps/web/dist` on port 3000 and proxies the API and `/health`. Set `BACKEND_HOST`, `BACKEND_PORT`, and `PORT` as needed. The backend entry point is `uvicorn src.main:app --host 0.0.0.0 --port <port>` with working directory `apps/api`.
+
+For Docker, copy the public frontend values into a root `.env` used by Compose interpolation, configure `apps/api/.env`, then run:
+
+```sh
+docker compose config
+docker compose up -d --build
+```
+
+The frontend Dockerfile uses repository-root context so shared workspace contracts and the root lockfile are available. The runtime image runs as the unprivileged `node` user. The frontend listens on port 3000 and the API on port 8000.
+
+Existing Vercel configurations support repository-root or `apps/web` hosting, and `render.yaml` describes the API service. Changes here do not deploy or modify cloud resources. Configure public frontend variables during the build and server-only variables on the API service. Confirm hosting rewrites for `/api` and SPA navigation before deployment.
+
+## Release validation still required
+
+Local unit checks do not prove payment-provider behavior, SQL concurrency, browser camera/printing, offline replay, or tenant isolation in the deployed database. Review [known findings](code-review.md), run integration tests on an isolated database, and perform payment sandbox and browser smoke tests before a production rollout.

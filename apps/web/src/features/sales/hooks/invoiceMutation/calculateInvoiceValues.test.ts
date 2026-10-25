@@ -144,4 +144,37 @@ describe("Invoice Values Calculation Engine", () => {
     assert.equal(res.calcTaxAmount, 41);
     assert.equal(res.calcTotalAmount, 341);
   });
+
+  it("keeps a quick bill's inclusive amount and exact cents despite standard bill settings", () => {
+    const result = calculateInvoiceValues({
+      items: [{ description: "Old item", quantity: 1, price: 999, discount: 0, total: 999 }],
+      tax_rate: 18,
+      overall_discount: 20,
+      quick_total_amount: 100.05,
+      quick_item_name: "Quick sale",
+    }, { roundOffTotal: true } as any, true, true);
+    assert.equal(result.calcTotalAmount, 100.05);
+    assert.equal(result.calcSubtotal, 84.79);
+    assert.equal(result.calcTaxAmount, 15.26);
+    assert.equal(result.calcOverallDiscountAmount, 0);
+    assert.equal(result.totals.roundOffDiff, 0);
+    assert.equal(result.processedItems[0].description, "Quick sale");
+  });
+
+  it("keeps zero quantities at zero and uses invoice tax when no item default is configured", () => {
+    const result = calculateInvoiceValues({
+      items: [
+        { description: "Empty row", quantity: 0, price: 200, discount: 0, total: 200 },
+        { description: "Taxed row", quantity: 1, price: 100, discount: 0, total: 0 },
+        { description: "Exempt row", quantity: 1, price: 100, discount: 0, tax_rate: 0, total: 0 },
+      ],
+      tax_rate: 18,
+      overall_discount: 0,
+    }, undefined, false, true);
+    assert.equal(result.processedItems[0].quantity, 0);
+    assert.equal(result.processedItems[0].total, 0);
+    assert.equal(result.calcSubtotal, 200);
+    assert.equal(result.calcTaxAmount, 18);
+    assert.equal(result.calcTotalAmount, 218);
+  });
 });

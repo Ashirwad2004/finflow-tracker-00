@@ -48,6 +48,7 @@ export function useCreateInvoiceMutation({
             if (!user) {
                 throw new Error("Not authenticated");
             }
+            const wasOnline = navigator.onLine;
 
             let profileData = queryClient.getQueryData(["profile", user.id]) as any;
             if (!profileData) {
@@ -63,75 +64,6 @@ export function useCreateInvoiceMutation({
                 }
             }
 
-            // 1. Authoritative server API invoice creation
-            if (!invoiceToEdit && navigator.onLine) {
-                try {
-                    const authoritativeRes = await invoicesApi.createInvoice({
-                        party_id: selectedParty?.id || null,
-                        customer_name: values.customer_name?.trim() || "Cash Customer",
-                        customer_phone: values.customer_phone?.trim() || null,
-                        customer_email: values.customer_email?.trim() || null,
-                        customer_gstin: values.customer_gstin?.trim()?.toUpperCase() || null,
-                        place_of_supply: values.place_of_supply?.trim() || null,
-                        billing_address: values.billing_address?.trim() || null,
-                        shipping_address: values.shipping_address?.trim() || null,
-                        date: values.date,
-                        due_date: values.due_date || null,
-                        items: isQuickBilling ? [
-                            {
-                                name: values.quick_item_name?.trim() || "General Sale",
-                                description: values.quick_item_name?.trim() || "General Sale",
-                                quantity: 1,
-                                price: (Number(values.quick_total_amount) || 0) / (1 + (Number(values.tax_rate) || 0) / 100),
-                                tax_rate: Number(values.tax_rate) || 0,
-                            }
-                        ] : values.items.filter((it) => it.description?.trim()).map((it) => {
-                            const matched = (dbProducts as any[]).find(
-                                (p: any) => p.name?.trim().toLowerCase() === it.description?.trim().toLowerCase()
-                            );
-                            return {
-                                product_id: matched?.id,
-                                name: it.description,
-                                description: it.description,
-                                quantity: Number(it.quantity) || 1,
-                                price: Number(it.price) || 0,
-                                discount: Number(it.discount) || 0,
-                                tax_rate: it.tax_rate !== undefined ? Number(it.tax_rate) : undefined,
-                                unit: it.unit || "pc",
-                                hsn_code: it.hsn_code || "",
-                            };
-                        }),
-                        overall_discount: Number(values.overall_discount) || 0,
-                        tax_rate: Number(values.tax_rate) || 0,
-                        is_item_wise_tax: isItemWiseTax,
-                        round_off: !!salesSettings?.roundOffTotal,
-                        status: values.status,
-                        amount_paid: Number(values.amount_paid) || 0,
-                        payment_method: values.status === "paid" || (values.status === "partial" && (Number(values.amount_paid) || 0) > 0) ? "cash" : null,
-                        notes: values.notes || null,
-                        document_type: values.document_type || "invoice",
-                        invoice_number_prefix: salesSettings?.invoiceNumberPrefix || "INV-",
-                        custom_invoice_number: values.invoice_number?.trim() || null,
-                    });
-
-                    if (authoritativeRes && authoritativeRes.id) {
-                        queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
-                        queryClient.invalidateQueries({ queryKey: ["products", user.id] });
-                        queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
-                        queryClient.invalidateQueries({ queryKey: ["api-invoices"] });
-
-                        return {
-                            ...values,
-                            ...authoritativeRes,
-                            profile: profileData,
-                        };
-                    }
-                } catch (apiErr: any) {
-                    console.warn("[CreateInvoice] Server authoritative invoice API threw exception, falling back to local queue:", apiErr);
-                }
-            }
-
-            // 2. Calculations
             const {
                 calcTaxRate,
                 processedItems,
@@ -140,6 +72,73 @@ export function useCreateInvoiceMutation({
                 calcTaxAmount,
                 calcTotalAmount,
             } = calculateInvoiceValues(values, salesSettings, isQuickBilling, isItemWiseTax);
+
+            // 1. Authoritative server API invoice creation
+            if (!invoiceToEdit && wasOnline) {
+                const authoritativeRes = await invoicesApi.createInvoice({
+                    party_id: selectedParty?.id || null,
+                    customer_name: values.customer_name?.trim() || "Cash Customer",
+                    customer_phone: values.customer_phone?.trim() || null,
+                    customer_email: values.customer_email?.trim() || null,
+                    customer_gstin: values.customer_gstin?.trim()?.toUpperCase() || null,
+                    place_of_supply: values.place_of_supply?.trim() || null,
+                    billing_address: values.billing_address?.trim() || null,
+                    shipping_address: values.shipping_address?.trim() || null,
+                    date: values.date,
+                    due_date: values.due_date || null,
+                    items: isQuickBilling ? [
+                        {
+                            name: values.quick_item_name?.trim() || "General Sale",
+                            description: values.quick_item_name?.trim() || "General Sale",
+                            quantity: 1,
+                            price: (Number(values.quick_total_amount) || 0) / (1 + (Number(values.tax_rate) || 0) / 100),
+                            tax_rate: Number(values.tax_rate) || 0,
+                        }
+                    ] : processedItems.filter((it) => it.description?.trim()).map((it) => {
+                        const matched = (dbProducts as any[]).find(
+                            (p: any) => p.name?.trim().toLowerCase() === it.description?.trim().toLowerCase()
+                        );
+                        return {
+                            product_id: matched?.id,
+                            name: it.description,
+                            description: it.description,
+                            quantity: it.quantity,
+                            price: it.price,
+                            discount: it.discount,
+                            tax_rate: it.tax_rate,
+                            unit: it.unit || "pc",
+                            hsn_code: it.hsn_code || "",
+                        };
+                    }),
+                    overall_discount: isQuickBilling ? 0 : Number(values.overall_discount) || 0,
+                    tax_rate: calcTaxRate,
+                    is_item_wise_tax: isItemWiseTax,
+                    round_off: !isQuickBilling && !!salesSettings?.roundOffTotal,
+                    status: values.status,
+                    amount_paid: Number(values.amount_paid) || 0,
+                    payment_method: values.status === "paid" || (values.status === "partial" && (Number(values.amount_paid) || 0) > 0) ? "cash" : null,
+                    notes: values.notes || null,
+                    document_type: values.document_type || "invoice",
+                    invoice_number_prefix: salesSettings?.invoiceNumberPrefix || "INV-",
+                    custom_invoice_number: values.invoice_number?.trim() || null,
+                });
+
+                if (authoritativeRes?.id) {
+                    queryClient.invalidateQueries({ queryKey: ["sales", user.id] });
+                    queryClient.invalidateQueries({ queryKey: ["products", user.id] });
+                    queryClient.invalidateQueries({ queryKey: ["parties", user.id] });
+                    queryClient.invalidateQueries({ queryKey: ["api-invoices"] });
+
+                    return {
+                        ...values,
+                        ...authoritativeRes,
+                        profile: profileData,
+                    };
+                }
+                // A missing response may follow a committed request. Do not retry by
+                // inserting directly into sales and risk a second invoice.
+                throw new Error("The server did not confirm the invoice. Refresh your invoices before retrying.");
+            }
 
             // 3. Auto resolve/enrich or auto-create party
             const resolvedPartyId = await resolveInvoiceParty({
@@ -233,54 +232,14 @@ export function useCreateInvoiceMutation({
                 created_at: invoiceToEdit ? invoiceToEdit.created_at : new Date().toISOString(),
             };
 
-            // 6. Save sale with fallback to core DB schema
-            const saveSaleToDB = async (action: "insert" | "update", rId: string, sPayload: any) => {
-                try {
-                    const res = await offlineMutate({
-                        table: "sales",
-                        action,
-                        recordId: rId,
-                        payload: sPayload,
-                        userId: user.id,
-                    });
-                    if (!res.error) return res;
-                } catch (err) {
-                    console.warn("Full sales schema insert threw exception, falling back to core DB schema:", err);
-                }
-
-                const coreSaleData = {
-                    id: sPayload.id,
-                    user_id: sPayload.user_id,
-                    party_id: sPayload.party_id || null,
-                    invoice_number: sPayload.invoice_number,
-                    customer_name: sPayload.customer_name,
-                    customer_phone: sPayload.customer_phone,
-                    customer_email: sPayload.customer_email,
-                    date: sPayload.date,
-                    status: sPayload.status,
-                    subtotal: sPayload.subtotal,
-                    tax_amount: sPayload.tax_amount,
-                    total_amount: sPayload.total_amount,
-                    amount_paid: sPayload.amount_paid,
-                    balance_due: sPayload.balance_due,
-                    payment_method: sPayload.payment_method,
-                    items: sPayload.items,
-                };
-
-                return await offlineMutate({
-                    table: "sales",
-                    action,
-                    recordId: rId,
-                    payload: coreSaleData,
-                    userId: user.id,
-                });
-            };
-
-            const result = await saveSaleToDB(
-                invoiceToEdit ? "update" : "insert",
+            // Preserve the complete document and surface rejected writes.
+            const result = await offlineMutate({
+                table: "sales",
+                action: invoiceToEdit ? "update" : "insert",
                 recordId,
-                fullSalePayload
-            );
+                payload: fullSalePayload,
+                userId: user.id,
+            });
 
             if (result.error) {
                 throw result.error;
@@ -289,7 +248,7 @@ export function useCreateInvoiceMutation({
             // 7. Inventory deduction
             if (!invoiceToEdit) {
                 await deductSoldInventory({
-                    items: values.items,
+                    items: processedItems,
                     dbProducts,
                     userId: user.id,
                     queryClient,

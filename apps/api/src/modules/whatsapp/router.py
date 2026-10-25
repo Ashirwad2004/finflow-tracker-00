@@ -2,11 +2,10 @@ import hmac
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import HTMLResponse
 
-from src.api.deps import get_current_user
+from src.api.deps import get_current_user, resolve_tenant_context as _resolve_tenant_context
 from src.core.config import settings
 from src.core.limiter import limiter
 from src.core.supabase import supabase_client
@@ -18,58 +17,12 @@ from .exceptions import (
     WhatsAppRateLimitException,
     WhatsAppInvalidPhoneException,
 )
-from .schemas import (
-    WhatsAppConnectionResponse,
-    WhatsAppConnectRequest,
-    WhatsAppQRCodeResponse,
-    WhatsAppDisconnectResponse,
-    WhatsAppSendInvoiceRequest,
-    WhatsAppSendReceiptRequest,
-    WhatsAppSendReminderRequest,
-    WhatsAppSendMessageRequest,
-    WhatsAppTestMessageRequest,
-    WhatsAppSendResponse,
-    WhatsAppMessageLogItem,
-)
+from .schemas import WhatsAppConnectionResponse, WhatsAppQRCodeResponse, WhatsAppDisconnectResponse, WhatsAppSendInvoiceRequest, WhatsAppSendReceiptRequest, WhatsAppSendReminderRequest, WhatsAppSendMessageRequest, WhatsAppTestMessageRequest, WhatsAppSendResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Integration (OpenWA)"])
 whatsapp_service = WhatsAppService()
-
-
-def _resolve_tenant_context(user_info: dict) -> tuple[str, str]:
-    """
-    Enforces strict tenant isolation.
-    Resolves store_id (business owner) and user_id (caller).
-    If user is an assigned store salesman, store_id points to their store.
-    """
-    user_id = user_info.get("user_id")
-    email = user_info.get("email")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
-
-    store_id = user_id
-    if supabase_client and email:
-        try:
-            sm_res = (
-                supabase_client.table("store_salesmen")
-                .select("store_id, is_active")
-                .eq("salesman_email", email.lower())
-                .maybe_single()
-                .execute()
-            )
-            sm_data = getattr(sm_res, "data", None)
-            if isinstance(sm_data, dict):
-                if sm_data.get("is_active") is not False and sm_data.get("store_id"):
-                    store_id = str(sm_data["store_id"])
-        except Exception as exc:
-            logger.debug("Error checking salesman status: %s", exc)
-
-    return store_id, user_id
 
 
 def _handle_whatsapp_exceptions(exc: Exception):

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { offlineMutate } from "@/core/offline/apiService";
 import { useToast } from "@/core/hooks/use-toast";
-import { parsePaymentNotes } from "@/features/sales/utils/paymentTranscript";
+import { parsePaymentNotes } from "@/features/payments/utils/paymentTranscript";
 import { PaymentReceiptDetails } from "@/features/payments/components/PaymentReceiptModal";
 import { Party, SettlementTarget, SettlementType } from "../types";
 

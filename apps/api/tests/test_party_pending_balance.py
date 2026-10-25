@@ -1,7 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from src.services.parties import PartyService
-from src.services.settings import SettingsService
+from src.modules.parties.service import PartyService
+from src.modules.settings.service import SettingsService
 
 
 def test_calculate_party_pending_balance_no_customer():
@@ -49,7 +48,7 @@ def test_calculate_party_pending_balance_with_ledger():
         },
     ]
 
-    with patch("src.services.parties.supabase_client", mock_supabase):
+    with patch("src.modules.parties.service.supabase_client", mock_supabase):
         # Configure table queries
         def table_side_effect(table_name):
             mock_table = MagicMock()
@@ -82,7 +81,7 @@ def test_settings_service_get_and_update():
     mock_res = MagicMock()
     mock_res.data = {"show_party_pending_balance": False, "sales_settings": {"show_party_pending_balance": False}}
 
-    with patch("src.services.settings.supabase_client", mock_supabase):
+    with patch("src.modules.settings.service.supabase_client", mock_supabase):
         mock_table = MagicMock()
         mock_supabase.table.return_value = mock_table
         mock_table.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = mock_res

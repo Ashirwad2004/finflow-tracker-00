@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from fastapi import HTTPException, status
 from src.core.supabase import supabase_client
 from .schemas import (
@@ -23,6 +23,11 @@ from .schemas import (
     TrialBalanceItem,
     TrialBalanceResponse,
 )
+
+
+def _first_defined(record: dict[str, Any], *keys: str, default: Any = 0.0) -> Any:
+    """Read numeric aliases without treating an explicit zero as missing."""
+    return next((record[key] for key in keys if record.get(key) is not None), default)
 
 
 class ReportsService:
@@ -72,16 +77,17 @@ class ReportsService:
 
             items_raw = sale.get("items") or sale.get("sales_items") or []
             if not items_raw:
-                taxable = float(sale.get("subtotal") or (total_val / 1.18))
+                fallback_rate = float(_first_defined(sale, "tax_rate", default=18.0))
+                taxable = float(_first_defined(sale, "subtotal", default=total_val / (1 + fallback_rate / 100)))
                 cgst = float(sale.get("cgst_amount") or sale.get("cgst") or 0.0)
                 sgst = float(sale.get("sgst_amount") or sale.get("sgst") or 0.0)
                 igst = float(sale.get("igst_amount") or sale.get("igst") or 0.0)
                 rate = round(
-                    ((cgst + sgst + igst) / taxable * 100) if taxable > 0 else 18.0, 2
+                    ((cgst + sgst + igst) / taxable * 100) if taxable > 0 and cgst + sgst + igst > 0 else fallback_rate, 2
                 )
                 items_raw = [
                     {
-                        "rate": rate or 18.0,
+                        "rate": rate,
                         "taxable_value": taxable,
                         "cgst_amount": cgst,
                         "sgst_amount": sgst,
@@ -95,23 +101,24 @@ class ReportsService:
 
             sale_items: list[GSTR1InvoiceItem] = []
             for item in items_raw:
-                rate = float(item.get("tax_rate") or item.get("rate") or 18.0)
-                tot_item = float(
-                    item.get("total_amount")
-                    or (float(item.get("price") or 0.0) * float(item.get("quantity") or 1.0))
-                )
-                taxable_val = float(
-                    item.get("taxable_value")
-                    or item.get("subtotal")
-                    or (tot_item / (1 + rate / 100) if tot_item > 0 else 0.0)
-                )
+                rate = float(_first_defined(item, "tax_rate", "rate", default=18.0))
+                qty = float(_first_defined(item, "quantity", "qty", default=1.0))
+                stored_total = _first_defined(item, "total_amount", "line_total", "total", default=None)
+                if stored_total is not None:
+                    fallback_taxable = float(stored_total) / (1 + rate / 100)
+                else:
+                    unit_price = float(_first_defined(item, "unit_price", "price"))
+                    discount = float(_first_defined(item, "discount"))
+                    fallback_taxable = qty * unit_price * (1 - discount / 100)
+                taxable_val = float(_first_defined(item, "taxable_value", "subtotal", default=fallback_taxable))
                 cgst = float(item.get("cgst_amount") or item.get("cgst") or 0.0)
                 sgst = float(item.get("sgst_amount") or item.get("sgst") or 0.0)
                 igst = float(item.get("igst_amount") or item.get("igst") or 0.0)
                 if cgst == 0 and sgst == 0 and igst == 0 and taxable_val > 0:
-                    cgst = round((taxable_val * rate / 100) / 2, 2)
-                    sgst = round((taxable_val * rate / 100) / 2, 2)
-                item_total = float(item.get("total_amount") or (taxable_val + cgst + sgst + igst))
+                    tax_amount = float(_first_defined(item, "tax_amount", default=taxable_val * rate / 100))
+                    cgst = round(tax_amount / 2, 2)
+                    sgst = round(tax_amount - cgst, 2)
+                item_total = float(stored_total) if stored_total is not None else taxable_val + cgst + sgst + igst
 
                 total_taxable += taxable_val
                 total_cgst += cgst
@@ -130,7 +137,6 @@ class ReportsService:
 
                 # Aggregate HSN
                 hsn = str(item.get("hsn_code") or item.get("hsn") or "9983")
-                qty = float(item.get("quantity") or 1.0)
                 if hsn not in hsn_map:
                     hsn_map[hsn] = {
                         "hsn_code": hsn,

@@ -1,4 +1,9 @@
-import { Party } from "../types";
+import type { Party } from "../types";
+import { roundMoney } from "../../../core/utils/money";
+
+export function isPostedDocument(record: any): boolean {
+    return !['draft', 'cancelled', 'canceled'].includes(String(record.status || '').toLowerCase());
+}
 
 export interface PartyLedgerMetrics {
     partySales: any[];
@@ -57,7 +62,8 @@ export function computePartyLedgerMap(
             }
             list.push(s);
         }
-        if (s.customer_name) {
+        // A saved party ID is authoritative; names only match older unlinked records.
+        if (!s.party_id && s.customer_name) {
             const normName = s.customer_name.trim().toLowerCase();
             if (normName) {
                 let list = salesByCustName.get(normName);
@@ -83,7 +89,7 @@ export function computePartyLedgerMap(
             }
             list.push(p);
         }
-        if (p.vendor_name) {
+        if (!p.party_id && p.vendor_name) {
             const normName = p.vendor_name.trim().toLowerCase();
             if (normName) {
                 let list = purchasesByVendName.get(normName);
@@ -142,15 +148,16 @@ export function computePartyLedgerMap(
         let salesBalanceDue = 0;
 
         partySales.forEach((s: any) => {
+            if (!isPostedDocument(s)) return;
             const total = Number(s.total_amount) || 0;
             const paid = Number(s.amount_paid != null ? s.amount_paid : (s.status === 'paid' ? total : 0));
             const due = Number(s.balance_due != null ? s.balance_due : Math.max(0, total - paid));
             const docType = (s.document_type || 'invoice').toLowerCase();
 
             if (docType === 'receipt') {
-                salesBalanceDue = Math.max(0, salesBalanceDue - (total || paid));
+                salesBalanceDue -= total || paid;
             } else if (docType === 'credit_note') {
-                salesBalanceDue = Math.max(0, salesBalanceDue - total);
+                salesBalanceDue -= total;
             } else if (docType === 'debit_note') {
                 totalSalesAmount += total;
                 salesBalanceDue += total;
@@ -166,15 +173,16 @@ export function computePartyLedgerMap(
         let purchasesBalanceDue = 0;
 
         partyPurchases.forEach((p: any) => {
+            if (!isPostedDocument(p)) return;
             const total = Number(p.total_amount) || 0;
             const paid = Number(p.amount_paid != null ? p.amount_paid : (p.status === 'paid' ? total : 0));
             const due = Number(p.balance_due != null ? p.balance_due : Math.max(0, total - paid));
             const docType = (p.document_type || 'bill').toLowerCase();
 
             if (docType === 'payment') {
-                purchasesBalanceDue = Math.max(0, purchasesBalanceDue - (total || paid));
+                purchasesBalanceDue -= total || paid;
             } else if (docType === 'debit_note') {
-                purchasesBalanceDue = Math.max(0, purchasesBalanceDue - total);
+                purchasesBalanceDue -= total;
             } else if (docType === 'credit_note') {
                 totalPurchasesAmount += total;
                 purchasesBalanceDue += total;
@@ -189,17 +197,23 @@ export function computePartyLedgerMap(
         const isOpeningReceivable = party.opening_balance_type
             ? party.opening_balance_type === 'to_receive'
             : party.type !== 'vendor';
-        const receivable = salesBalanceDue + (isOpeningReceivable ? openingBal : 0);
-        const payable = purchasesBalanceDue + (!isOpeningReceivable ? openingBal : 0);
+        // Keep credits until all documents and opening balances have been added.
+        // A customer advance is a payable, and a supplier advance is a receivable.
+        salesBalanceDue = roundMoney(salesBalanceDue);
+        purchasesBalanceDue = roundMoney(purchasesBalanceDue);
+        const salesBalance = roundMoney(salesBalanceDue + (isOpeningReceivable ? openingBal : 0));
+        const purchasesBalance = roundMoney(purchasesBalanceDue + (!isOpeningReceivable ? openingBal : 0));
+        const receivable = roundMoney(Math.max(0, salesBalance) + Math.max(0, -purchasesBalance));
+        const payable = roundMoney(Math.max(0, purchasesBalance) + Math.max(0, -salesBalance));
 
         map.set(party.id, {
             partySales,
             partyPurchases,
-            totalSalesAmount,
-            totalSalesPaid,
+            totalSalesAmount: roundMoney(totalSalesAmount),
+            totalSalesPaid: roundMoney(totalSalesPaid),
             salesBalanceDue,
-            totalPurchasesAmount,
-            totalPurchasesPaid,
+            totalPurchasesAmount: roundMoney(totalPurchasesAmount),
+            totalPurchasesPaid: roundMoney(totalPurchasesPaid),
             purchasesBalanceDue,
             receivable,
             payable,
@@ -235,8 +249,8 @@ export function computeDirectorySummary(
 
     return {
         totalParties: parties.length,
-        totalReceivables,
-        totalPayables,
+        totalReceivables: roundMoney(totalReceivables),
+        totalPayables: roundMoney(totalPayables),
         settledCount,
     };
 }

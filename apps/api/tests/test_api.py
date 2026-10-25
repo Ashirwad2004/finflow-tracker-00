@@ -1,6 +1,5 @@
-import pytest
-from src.services.reports import ReportsService
-from src.schemas.reports import (
+from src.modules.reports.service import ReportsService
+from src.modules.reports.schemas import (
     FinancialSummaryRequest,
     GSTR1ReportRequest,
 )

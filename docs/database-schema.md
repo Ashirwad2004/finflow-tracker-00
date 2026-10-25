@@ -164,4 +164,3 @@ Automatically decrements product inventory when online orders are marked as `pro
 ### 3. Admin Users Fetch RPC
 *   **Function Name**: `get_admin_users()`
     *   Bypasses typical RLS limits using a secure `SECURITY DEFINER` setup to aggregate user accounts and active business flags on the master Admin dashboard.
-    

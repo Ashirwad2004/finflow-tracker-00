@@ -1,6 +1,5 @@
-from datetime import datetime
-from typing import Optional, Any, List
-from pydantic import BaseModel, Field
+from typing import Optional
+from pydantic import BaseModel
 
 
 class WhatsAppConnectionResponse(BaseModel):

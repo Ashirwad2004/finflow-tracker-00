@@ -230,7 +230,6 @@ export function useUniversalPaymentFormState({
     notes,
     partyPendingBills,
     billAllocations,
-    advanceAmount,
     partyBalance,
     balanceAfterPayment,
     profile,

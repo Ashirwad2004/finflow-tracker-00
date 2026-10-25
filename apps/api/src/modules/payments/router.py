@@ -4,7 +4,7 @@ import logging
 import random
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 
 from src.core.config import settings
 from src.core.supabase import supabase_client
@@ -21,6 +21,9 @@ from .schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", tags=["Payments"])
+SUBSCRIPTION_PRICE_INR = 299
+SUBSCRIPTION_DURATION_DAYS = 183
+SUBSCRIPTION_PLANS = {"starter", "pro", "business", "premium"}
 
 
 def first_row(data: Any) -> Optional[Dict[str, Any]]:
@@ -302,20 +305,8 @@ async def create_subscription_order(
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        plan_prices = {
-            "starter": {"monthly": 299, "annual": 299},
-            "pro": {"monthly": 299, "annual": 299},
-            "business": {"monthly": 299, "annual": 299},
-            "premium": {"monthly": 299, "annual": 299},
-        }
-
-        selected_plan = plan_prices.get(payload.planId, plan_prices["pro"])
-        base_monthly = selected_plan["annual"] if payload.billingCycle == "annual" else selected_plan["monthly"]
-        months = 12 if payload.billingCycle == "annual" else 1
-        raw_subtotal = base_monthly * months
-
         # Keep one authoritative subscription price: flat ₹299
-        grand_total = 299
+        grand_total = SUBSCRIPTION_PRICE_INR
         gst_amount = 0
         discount_percent = 0
 
@@ -420,6 +411,9 @@ async def verify_payment(
                 detail="Forbidden",
             )
 
+        if payment.get("status") == "refunded":
+            raise HTTPException(status_code=409, detail="Refunded payments cannot be verified again")
+
         driver = get_gateway_driver(payment.get("gateway") or settings.PAYMENT_GATEWAY_PROVIDER)
 
         try:
@@ -462,11 +456,10 @@ async def verify_payment(
         # Handle subscription logic - strictly enforce server-authoritative payment notes
         notes = payment.get("notes") or {}
         plan_id = notes.get("planId") or notes.get("plan_id")
-        allowed_plans = {"starter", "pro", "business", "premium"}
-        if plan_id and plan_id in allowed_plans:
+        if plan_id in SUBSCRIPTION_PLANS:
             now = datetime.now(timezone.utc)
             # RupeeBill Business license: 6 months (183 days) for flat ₹299
-            period_end = now + timedelta(days=183)
+            period_end = now + timedelta(days=SUBSCRIPTION_DURATION_DAYS)
             
             try:
                 supabase_client.table("subscription_status").upsert({
@@ -546,8 +539,11 @@ async def webhook(request: Request):
                     "provider": driver.name,
                 }).execute()
             except Exception as dup_err:
-                logger.info("Duplicate webhook event ignored (DB idempotency): %s (%s)", event_id, dup_err)
-                return {"received": True, "duplicate": True}
+                if getattr(dup_err, "code", None) == "23505":
+                    logger.info("Duplicate webhook event ignored: %s", event_id)
+                    return {"received": True, "duplicate": True}
+                logger.exception("Failed to record webhook event %s", event_id)
+                raise HTTPException(status_code=503, detail="Webhook processing is temporarily unavailable") from dup_err
 
         event_type = webhook_event.get("type")
         data = webhook_event.get("data")
@@ -562,7 +558,7 @@ async def webhook(request: Request):
             pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
             payment = first_row(pay_res.data)
 
-            if payment and payment["status"] != "success":
+            if payment and payment["status"] not in {"success", "refunded"}:
                 now_iso = datetime.now(timezone.utc).isoformat()
 
                 # Update payment status
@@ -581,10 +577,9 @@ async def webhook(request: Request):
                 # Fulfill Subscription if planId is present in payment notes
                 notes = payment.get("notes") or {}
                 plan_id = notes.get("planId") or notes.get("plan_id")
-                if plan_id:
-                    billing_cycle = notes.get("billingCycle") or "annual"
+                if plan_id in SUBSCRIPTION_PLANS:
                     now = datetime.now(timezone.utc)
-                    period_end = now + timedelta(days=365) if billing_cycle == "annual" else now + timedelta(days=30)
+                    period_end = now + timedelta(days=SUBSCRIPTION_DURATION_DAYS)
                     try:
                         supabase_client.table("subscription_status").upsert({
                             "user_id": payment["user_id"],
@@ -625,7 +620,7 @@ async def webhook(request: Request):
                 pay_res = supabase_client.table("payments").select("*").eq("gateway_order_id", gateway_order_id).execute()
                 payment = first_row(pay_res.data)
 
-                if payment and payment["status"] != "success":
+                if payment and payment["status"] not in {"success", "refunded"}:
                     supabase_client.table("payments").update({
                         "status": "failed",
                         "updated_at": datetime.now(timezone.utc).isoformat()
@@ -700,22 +695,10 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
         if payment["status"] != "success":
             raise HTTPException(status_code=400, detail="Only successful payments can be refunded.")
 
-        driver = get_gateway_driver()
+        driver = get_gateway_driver(payment.get("gateway") or settings.PAYMENT_GATEWAY_PROVIDER)
         from decimal import Decimal
 
         payment_amount = Decimal(str(payment["amount"]))
-        refund_amount = (
-            payment_amount
-            if payload.amount is None
-            else Decimal(str(payload.amount))
-        )
-
-        if refund_amount <= 0 or refund_amount > payment_amount:
-            raise HTTPException(
-                status_code=400,
-                detail="Refund amount is outside the refundable balance",
-            )
-
         existing_refunds = (
             supabase_client.table("refunds")
             .select("amount")
@@ -727,6 +710,16 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
             (Decimal(str(row.get("amount", 0))) for row in rows_list(existing_refunds.data)),
             Decimal("0"),
         )
+        refund_amount = (
+            payment_amount - already_refunded
+            if payload.amount is None
+            else Decimal(str(payload.amount))
+        )
+        if refund_amount <= 0 or refund_amount > payment_amount:
+            raise HTTPException(
+                status_code=400,
+                detail="Refund amount is outside the refundable balance",
+            )
         if already_refunded + refund_amount > payment_amount:
             raise HTTPException(
                 status_code=409,
@@ -759,9 +752,10 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
         }).execute()
         refund_record = first_row(ref_res.data)
 
-        # Update payment status
+        # A partial refund leaves the remaining balance refundable.
+        payment_status = "refunded" if already_refunded + refund_amount == payment_amount else "success"
         supabase_client.table("payments").update({
-            "status": "refunded",
+            "status": payment_status,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", payment["id"]).execute()
 
@@ -782,7 +776,7 @@ async def refund_payment(payload: PaymentRefund, request: Request, current_user:
         return {
             "success": True,
             "refundId": refund_record.get("id") if refund_record else None,
-            "status": "refunded"
+            "status": payment_status
         }
 
     except HTTPException:
@@ -799,7 +793,7 @@ async def get_stats(storeId: str, current_user: dict = Depends(get_current_user)
         raise HTTPException(status_code=403, detail="Forbidden: You do not own this store")
 
     try:
-        pay_res = supabase_client.table("payments").select("*").eq("user_id", storeId).execute()
+        pay_res = supabase_client.table("payments").select("*, refunds(amount, status)").eq("user_id", storeId).execute()
         payments = rows_list(pay_res.data)
 
         gross_volume = 0.0
@@ -814,17 +808,22 @@ async def get_stats(storeId: str, current_user: dict = Depends(get_current_user)
         for p in payments:
             amt = float(p.get("amount") or 0)
             status_val = p.get("status")
+            refunds = rows_list(p.get("refunds"))
+            refunded_amount = sum(
+                float(refund.get("amount") or 0)
+                for refund in refunds
+                if refund.get("status") == "success"
+            )
+            if status_val == "refunded" and not refunds:
+                refunded_amount = amt
+            total_refunded += refunded_amount
 
-            if status_val == "success":
+            if status_val in {"success", "refunded"}:
                 gross_volume += amt
                 success_count += 1
                 m = (p.get("payment_method") or "card").lower()
                 if m in methods:
                     methods[m] += 1
-            elif status_val == "refunded":
-                gross_volume += amt
-                total_refunded += amt
-                failed_count += 1
             elif status_val == "failed":
                 failed_count += 1
             elif status_val == "pending":

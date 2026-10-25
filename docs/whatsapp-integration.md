@@ -81,7 +81,7 @@ curl http://localhost:2785/ping
 
 ## 3. Environment Variables
 
-Configure the following variables in `backend/.env`:
+Configure the following variables in `apps/api/.env`:
 
 ```env
 # ==============================================================================
@@ -243,7 +243,7 @@ class WhatsAppProvider(ABC):
 ```
 
 To migrate or add the official **Meta WhatsApp Cloud API**:
-1. Implement `MetaCloudProvider(WhatsAppProvider)` in `backend/src/services/whatsapp/meta_provider.py`.
+1. Implement `MetaCloudProvider(WhatsAppProvider)` in `apps/api/src/services/whatsapp/meta_provider.py`.
 2. Map Meta Cloud's Graph API endpoints (templates, media uploads, webhooks).
-3. Set `WHATSAPP_PROVIDER=meta` in `backend/.env`.
+3. Set `WHATSAPP_PROVIDER=meta` in `apps/api/.env`.
 4. Zero changes will be required in invoice, payment, POS, or party ledger components.

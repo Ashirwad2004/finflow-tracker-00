@@ -30,6 +30,7 @@ bun.lockb
 .env
 .env.local
 .env.*
+!.env.example
 
 # Python caches and virtual environments
 __pycache__/
@@ -54,3 +55,10 @@ packages/*/node_modules/
 # AI Agent Skills & Artifacts
 .agents/
 skills-lock.json
+
+# Local deployment state and generated diagnostics
+.vercel/
+.dev-logs/
+.cache/
+supabase/.temp/
+supabase/.branches/

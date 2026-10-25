@@ -1,6 +1,5 @@
 import json
 from datetime import date
-from typing import Any
 
 from src.core.ai_client import GeminiClient
 from .prompts import (

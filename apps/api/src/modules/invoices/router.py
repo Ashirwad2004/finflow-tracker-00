@@ -1,13 +1,9 @@
 import logging
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.api.deps import get_tenant_context
-from .schemas import (
-    InvoiceCreateRequest,
-    InvoiceUpdateRequest,
-    InvoiceResponse,
-)
+from .schemas import InvoiceCreateRequest, InvoiceUpdateRequest
 from .service import InvoiceService
 
 logger = logging.getLogger(__name__)

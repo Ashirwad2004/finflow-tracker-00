@@ -1,45 +1,26 @@
 import os
-import sys
-import asyncio
 import logging
 from typing import cast, Any
-from contextlib import asynccontextmanager
-
-# Ensure src directory is in sys.path for direct module resolution (api, core, services, schemas)
-src_dir = os.path.dirname(os.path.abspath(__file__))
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-if sys.platform.startswith('win') and sys.version_info < (3, 8):
-    set_policy = getattr(asyncio, "set_event_loop_policy", None)
-    policy_cls = getattr(asyncio, "WindowsProactorEventLoopPolicy", None)
-    if callable(set_policy) and policy_cls:
-        set_policy(policy_cls())
-
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.v1.router import api_router
-from core.config import settings
-from core.limiter import limiter
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    yield
+from src.api.v1.router import api_router
+from src.core.config import settings
+from src.core.limiter import limiter
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
     docs_url="/docs" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
     redoc_url="/redoc" if (settings.ENVIRONMENT == "development" or settings.SHOW_DOCS) else None,
-    lifespan=lifespan,
 )
 
 app.state.limiter = limiter

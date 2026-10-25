@@ -146,25 +146,3 @@ export const AppRoutes: React.FC = () => {
 
 export default AppRoutes;
 
-// Centralized domain route configurations
-export { salesRoutes } from "@/features/sales/routes";
-export { purchasesRoutes } from "@/features/purchases/routes";
-export { partiesRoutes } from "@/features/parties/routes";
-export { inventoryRoutes } from "@/features/inventory/routes";
-export { bankingRoutes } from "@/features/banking/routes";
-export { reportsRoutes } from "@/features/reports/routes";
-export { dashboardRoutes } from "@/features/dashboard/routes";
-export { settingsRoutes } from "@/features/settings/routes";
-export { salesmanRoutes } from "@/features/salesman/routes";
-export { posRoutes } from "@/features/pos/routes";
-export { loyaltyRoutes } from "@/features/loyalty/routes";
-export { storefrontRoutes } from "@/features/storefront/routes";
-export { printStudioRoutes } from "@/features/print-studio/routes";
-export { expensesRoutes } from "@/features/expenses/routes";
-export { loansRoutes } from "@/features/loans/routes";
-export { groupsRoutes } from "@/features/groups/routes";
-export { trashRoutes } from "@/features/trash/routes";
-export { demoRoutes } from "@/features/demo/routes";
-export { authRoutes } from "@/features/auth/routes";
-export { landingRoutes } from "@/features/landing/routes";
-export { paymentsRoutes } from "@/features/payments/routes";
