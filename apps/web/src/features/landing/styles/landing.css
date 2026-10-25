@@ -32,6 +32,20 @@
   /* Money received / reconciled. Only ever on a real value. */
   --lp-green: 164 58% 26%;
 
+  /*
+   * Brass. The metal of the counter: the shop scale, the cash-box clasp, the
+   * weights in the drawer. It carries the one register the ledger palette had
+   * no word for — worth, care, something built to last — and it is the colour
+   * motion highlights travel in, so a moving element is always identifiable as
+   * motion rather than as a new status. 4.6:1 on paper as text; the lighter
+   * `-lit` is for hairlines and glows only, never type.
+   */
+  --lp-brass: 38 74% 36%;
+  --lp-brass-lit: 40 86% 52%;
+
+  /* The one stage-dark surface: the hero band and the closing panel. */
+  --lp-ink-deep: 226 48% 9%;
+
   /* Printed ruling. `strong` is for column rules and totals. */
   --lp-rule: 205 22% 82%;
   --lp-rule-strong: 207 20% 68%;
@@ -75,6 +89,9 @@
      dark enough to hold a white label: 5.22:1 label, 3.59:1 against the page. */
   --lp-red-btn: 350 70% 48%;
   --lp-green: 162 48% 48%;
+  --lp-brass: 40 84% 58%;
+  --lp-brass-lit: 42 92% 66%;
+  --lp-ink-deep: 226 40% 6%;
   --lp-rule: 220 14% 22%;
   --lp-rule-strong: 218 13% 34%;
 
@@ -85,28 +102,66 @@
   --muted-foreground: 214 14% 62%;
 }
 
+/* -------------------------------------------------------------- anchor stops */
+
+/*
+ * The header is sticky and 4rem tall, so an anchored section scrolled to the
+ * top of the viewport lands underneath it and loses its own heading. Every
+ * anchored section stops clear of the header instead.
+ *
+ * `scroll-margin-top` is honoured by both a native `#hash` jump and
+ * `scrollIntoView()`, which is what the nav and the hero buttons use, so this
+ * one declaration covers every route to a section.
+ */
+.lp section[id] {
+  scroll-margin-top: 5rem;
+}
+
 /* ---------------------------------------------------------------- typography */
 
 /*
- * Display type uses Archivo's width axis rather than a second typeface. The
- * condensed cut at heavy weight reads as printed stationery and forms, which is
- * the vernacular of GST invoices and ledger headers.
+ * Display is Bricolage Grotesque, set condensed and heavy with its optical-size
+ * axis pushed to the display end. It is a drawn grotesque with slightly
+ * irregular terminals and a tall x-height, so at this size it reads as printed
+ * commercial stationery — the register header, the rate card, the rubber-stamped
+ * form — rather than as a friendly geometric SaaS face.
+ *
+ * Archivo stays on body copy and on every figure, because the ledger columns
+ * depend on its tabular numerals. Two families, one job each.
  */
 .lp-display {
+  font-family: "Bricolage Grotesque", Archivo, ui-sans-serif, system-ui,
+    sans-serif;
+  font-variation-settings: "opsz" 72, "wdth" 82;
   font-weight: 800;
-  font-stretch: 84%;
-  letter-spacing: -0.012em;
-  line-height: 1.04;
+  letter-spacing: -0.021em;
+  line-height: 0.99;
   text-wrap: balance;
 }
 
 /* Sub-display: section titles and card headings. Less condensed, still heavy. */
 .lp-title {
+  font-family: "Bricolage Grotesque", Archivo, ui-sans-serif, system-ui,
+    sans-serif;
+  font-variation-settings: "opsz" 36, "wdth" 90;
   font-weight: 700;
-  font-stretch: 92%;
-  letter-spacing: -0.008em;
-  line-height: 1.12;
+  letter-spacing: -0.012em;
+  line-height: 1.1;
   text-wrap: balance;
+}
+
+/*
+ * The one place the page lets a word get big and wide instead of big and
+ * condensed: a figure that is the whole point of the sentence, like the zero in
+ * the price. Width is the emphasis, so no colour or italic is needed on it.
+ */
+.lp-shout {
+  font-family: "Bricolage Grotesque", Archivo, ui-sans-serif, system-ui,
+    sans-serif;
+  font-variation-settings: "opsz" 96, "wdth" 100;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.88;
 }
 
 /* Figures must align in columns wherever they stack — totals, stats, prices. */
@@ -250,21 +305,31 @@
   background: hsl(var(--lp-ink) / 0.86);
 }
 
-/* Inverted: for the one ink panel that closes the page. */
+/*
+ * Inverted: for the one ink panel that closes the page.
+ *
+ * The face is a literal light value, not `var(--lp-paper)`. This button only
+ * ever lives inside `.lp-stage`, and the stage *redefines* `--lp-paper` to deep
+ * ink — so reading the token here painted a near-black button carrying
+ * near-black text, and the page's closing call to action was invisible on both
+ * themes. The whole point of the class is that it does not follow the
+ * surrounding surface, so it must not read a surface token.
+ */
 .lp .lp-btn-invert {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: hsl(var(--lp-paper));
+  background: hsl(190 16% 97%);
   color: hsl(224 42% 15%);
   font-weight: 700;
   font-stretch: 92%;
-  border: 1px solid hsl(var(--lp-paper));
-  transition: background-color 0.18s ease;
+  border: 1px solid hsl(190 16% 97%);
+  transition: background-color 0.18s ease, border-color 0.18s ease;
 }
 
 .lp .lp-btn-invert:hover {
-  background: hsl(var(--lp-paper) / 0.88);
+  background: hsl(190 16% 90%);
+  border-color: hsl(190 16% 90%);
   color: hsl(224 42% 15%);
 }
 
@@ -294,15 +359,6 @@
   background: hsl(var(--lp-red-btn) / 0.88);
   border-color: hsl(var(--lp-red-btn) / 0.88);
   color: #fff;
-}
-
-/*
- * An always-dark panel inside an otherwise light page, such as the closing CTA.
- * It takes the dark-mode fill so the red keeps its 3:1 against near-black even
- * when the page itself is in light mode.
- */
-.lp .lp-invert-surface {
-  --lp-red-btn: 350 70% 48%;
 }
 
 .lp .lp-btn-quiet {
@@ -349,6 +405,22 @@
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* The compact custom-build banner switches to a fixed two-column composition
+   on desktop. This lives in CSS because the illustration must never fall into
+   normal flow and stretch beneath the copy if a responsive utility is missed. */
+.lp-custom-build-glow {
+  width: 42%;
+}
+
+@media (min-width: 1024px) {
+  .lp-custom-build-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: center;
+    gap: 2.5rem;
+  }
+}
+
 .lp-link:hover::after {
   transform: scaleX(1);
 }
@@ -363,23 +435,6 @@
   font-weight: 600;
   font-stretch: 92%;
   letter-spacing: 0;
-}
-
-/*
- * Register ruling: the horizontal ruled surface a shopkeeper already writes
- * bills on. Replaces the decorative dot grid. Masked so it dissolves into the
- * page before it reaches the content.
- */
-.lp-ruled {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    hsl(var(--lp-rule) / 0.9) 0px,
-    hsl(var(--lp-rule) / 0.9) 1px,
-    transparent 1px,
-    transparent 34px
-  );
-  mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
 }
 
 /* --------------------------------------------------------------- product shots */
@@ -609,50 +664,418 @@
 /* --------------------------------------------------------------------- motion */
 
 /*
- * One orchestrated moment for the whole page: on load the hero's rules draw
- * themselves left to right and the type above them sets. Everything else holds
- * still unless a person acts on it.
+ * MOTION SYSTEM
+ *
+ * The page is about a thing that gets *made*: a bill is ruled, written up,
+ * tallied, stamped and printed. So motion here is not decoration laid over the
+ * content — it is the content being produced, at the speed the product claims.
+ * That is what lets this page carry a lot of movement without it reading as a
+ * generic fade-up bolted onto every section.
+ *
+ * Five moves, and nothing else. Anything that needs a sixth is probably
+ * decoration.
+ *
+ *   rule   a hairline draws itself left to right        — structure arriving
+ *   set    type rises into place under a clip mask      — words being written
+ *   tally  a figure counts up in tabular numerals       — a sum being added
+ *   stamp  a mark overshoots and settles, off-axis      — the one impression
+ *   lift   depth under pointer and scroll               — a real object
+ *
+ * The moves themselves live in ../motion, on Framer Motion: one
+ * IntersectionObserver per element rather than a shared scroll listener, and one
+ * `useReducedMotion()` per primitive. What stays here is what CSS does better —
+ * the infinite loops (`lp-rule-live`, `lp-ruling-drift`, `lp-marquee`), the
+ * pointer response (`lp-pull`), the stamp, and the stage's token flip. A looping
+ * compositor animation costs nothing in CSS and a React render loop in JS.
+ *
+ * Durations: 0.9s for a rule being drawn (a hand-speed gesture), 0.5–0.8s for
+ * type, 0.5s for a stamp. Easing is expo-out — fast departure, long settle —
+ * which is what makes a drawn line look drawn rather than tweened.
  */
-@keyframes lp-draw {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
 
-@keyframes lp-set {
-  from {
+/* The impression: overshoot, then settle slightly off square. */
+@keyframes lp-stamp-in {
+  0% {
+    transform: scale(1.5) rotate(-9deg);
     opacity: 0;
   }
-  to {
+  55% {
+    transform: scale(0.94) rotate(1.5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-1.5deg);
     opacity: 1;
   }
 }
 
-.lp-rule-draw {
+/* Brass travelling along a rule: the highlight that marks the live total. */
+@keyframes lp-rule-live {
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+}
+
+/* The ruled backdrop breathes by exactly one line height, so the paper behind
+   the hero is never dead still and never pulls the eye either. */
+@keyframes lp-ruling-drift {
+  from {
+    background-position-y: 0;
+  }
+  to {
+    background-position-y: 34px;
+  }
+}
+
+@keyframes lp-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* ---------------------------------------------------------------- the stamp */
+
+/*
+ * The one move kept in CSS rather than in ../motion. It fires on the hero's
+ * load timeline off a `--lp-delay` custom property, so it needs no JS and no
+ * observer, and `lp-stamp` is already a CSS-only object.
+ */
+.lp-stamp-in {
+  animation: lp-stamp-in 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  animation-delay: var(--lp-delay, 0ms);
+}
+
+/* ---------------------------------------------------------------- the stage */
+
+/*
+ * The hero sits on deep ink while the rest of the page stays on paper. The page
+ * is a long light document; opening on a dark stage frames it, and it is the
+ * one place a product shot can throw real light. Inside the stage the `.lp`
+ * tokens flip, so every utility already written in these sections still lands
+ * on the right colour with no rewrite.
+ */
+.lp .lp-stage {
+  --lp-paper: 226 48% 9%;
+  --lp-paper-sunk: 226 40% 12%;
+  --lp-ink: 190 24% 97%;
+  --lp-red: 352 78% 62%;
+  --lp-red-btn: 350 70% 48%;
+  --lp-green: 162 48% 50%;
+  --lp-brass: 40 84% 58%;
+  --lp-brass-lit: 42 92% 66%;
+  --lp-rule: 222 22% 24%;
+  --lp-rule-strong: 220 16% 38%;
+
+  --background: var(--lp-paper);
+  --foreground: var(--lp-ink);
+  --card: 226 40% 12%;
+  --card-foreground: var(--lp-ink);
+  --muted: var(--lp-paper-sunk);
+  --muted-foreground: 214 16% 70%;
+  --accent: var(--lp-paper-sunk);
+  --accent-foreground: var(--lp-ink);
+  --border: var(--lp-rule);
+  --primary: var(--lp-ink);
+  --primary-foreground: 226 48% 9%;
+
+  background-color: hsl(var(--lp-ink-deep));
+  color: hsl(var(--lp-ink));
+}
+
+/*
+ * On the stage the ink button would be white on white, so it becomes the brass
+ * one: filled brass carrying deep ink. This is the only place brass is used as
+ * a surface rather than as a line.
+ */
+/*
+ * The stage, in dark mode.
+ *
+ * On paper the stage works by being much darker than the page: near-black ink
+ * against near-white stationery, which is the device the whole page is built on
+ * — it opens dark, turns to paper, and closes dark, and that is what marks
+ * where the marketing stops and the ledger begins.
+ *
+ * In dark mode that device collapsed. The page is `222 30% 8%` and the stage
+ * was `226 40% 6%`, so the hero, the custom-build banner and the closing panel
+ * were two points of lightness *darker* than the page they were supposed to
+ * stand out from — indistinguishable, and the three framing bands simply
+ * vanished into one flat dark slab.
+ *
+ * Below a certain lightness you cannot go darker, so in dark mode the stage
+ * becomes a *raised* surface instead: same idea, opposite direction. Six points
+ * above the page is a clear step, while `30%` saturation keeps it reading as
+ * deep ink rather than as a grey card. Light mode is untouched — this block
+ * only exists under `.dark`, and `.dark .lp .lp-stage` outranks the base
+ * `.lp .lp-stage` regardless of source order.
+ */
+.dark .lp .lp-stage {
+  --lp-paper: 226 30% 14%;
+  --lp-paper-sunk: 226 28% 17%;
+
+  background-color: hsl(226 30% 14%);
+}
+
+.lp .lp-stage .lp-btn {
+  background: hsl(var(--lp-brass-lit));
+  border-color: hsl(var(--lp-brass-lit));
+  color: hsl(226 48% 9%);
+}
+
+.lp .lp-stage .lp-btn:hover {
+  background: hsl(42 96% 74%);
+  border-color: hsl(42 96% 74%);
+  color: hsl(226 48% 9%);
+}
+
+.lp .lp-stage .lp-btn-quiet {
+  color: hsl(var(--lp-ink));
+  border-color: hsl(var(--lp-ink) / 0.45);
+}
+
+.lp .lp-stage .lp-btn-quiet:hover {
+  border-color: hsl(var(--lp-ink));
+  background: hsl(var(--lp-ink) / 0.08);
+}
+
+/* The live ruling behind the stage: drawn rules that drift by one line. */
+.lp-ruling-live {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    hsl(var(--lp-rule) / 0.85) 0px,
+    hsl(var(--lp-rule) / 0.85) 1px,
+    transparent 1px,
+    transparent 34px
+  );
+  animation: lp-ruling-drift 7s linear infinite;
+}
+
+/* Column rules, which cross the horizontal ruling into a register grid. */
+.lp-columns-live {
+  background-image: repeating-linear-gradient(
+    to right,
+    hsl(var(--lp-rule) / 0.5) 0px,
+    hsl(var(--lp-rule) / 0.5) 1px,
+    transparent 1px,
+    transparent 104px
+  );
+}
+
+/* ------------------------------------------------------------ live hairlines */
+
+/*
+ * A rule with brass travelling along it. Reserved for a *total* — the hero's
+ * price and the lead merchant's figure, and nothing else. It loops, and a
+ * looping highlight only earns that if it is saying something: here it marks
+ * the one line on the screen that is the sum.
+ *
+ * The band is pinned to the top 2px rather than filling the element, because
+ * this class also goes on full table rows. Filling them swept brass across the
+ * label and the figure, which looked like a rendering fault.
+ */
+.lp-rule-lit {
+  position: relative;
+  overflow: hidden;
+}
+
+.lp-rule-lit::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--lp-brass-lit) / 0.9),
+    transparent
+  );
+  animation: lp-rule-live 3.6s ease-in-out infinite;
+}
+
+/* ----------------------------------------------------------------- marquee */
+
+/*
+ * The trade register runs. A shop owner is scanning for their own trade, and a
+ * line that moves gets read; the list is duplicated once so the loop is
+ * seamless, and it holds still on hover and on focus so it stays readable and
+ * keyboard-reachable.
+ */
+.lp-marquee {
+  display: flex;
+  width: max-content;
+  animation: lp-marquee var(--lp-marquee-duration, 42s) linear infinite;
+}
+
+.lp-marquee-reverse {
+  animation-direction: reverse;
+}
+
+.lp-marquee-mask {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 6rem,
+    #000 calc(100% - 6rem),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 6rem,
+    #000 calc(100% - 6rem),
+    transparent
+  );
+}
+
+.lp-marquee-hold:hover .lp-marquee,
+.lp-marquee-hold:focus-within .lp-marquee {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------------ pointer */
+
+/*
+ * Controls take a small physical response: they lean toward the pointer and
+ * press on click. Transform only, so nothing reflows. JS sets the travel on the
+ * custom properties.
+ */
+.lp-pull {
+  transform: translate3d(var(--lp-pull-x, 0px), var(--lp-pull-y, 0px), 0);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lp-pull:active {
+  transform: translate3d(var(--lp-pull-x, 0px), var(--lp-pull-y, 0px), 0)
+    scale(0.975);
+  transition-duration: 0.1s;
+}
+
+/* The product shot is a real object on a counter, so it keeps a little depth
+   and tips with the pointer. */
+.lp-lift {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* ------------------------------------------------------------ read progress */
+
+/*
+ * The margin rule. A long document should say how far through it you are, and a
+ * ledger already carries a rule down its margin — so progress is that rule
+ * filling in brass, not a bar bolted onto the header.
+ */
+.lp-progress-rule {
   transform-origin: left;
-  animation: lp-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: var(--lp-delay, 0ms);
+  background: linear-gradient(
+    90deg,
+    hsl(var(--lp-brass)),
+    hsl(var(--lp-brass-lit))
+  );
 }
 
-/* One step of the hero entrance, used by shared/Enter.tsx. */
-.lp-enter {
-  animation: lp-set 0.55s ease-out both;
-  animation-delay: var(--lp-delay, 0ms);
+/* ------------------------------------------------- the machine on the stage */
+
+/*
+ * On paper the laptop casts a soft ink shadow. On the stage that shadow is
+ * invisible, and a device with no contact shadow floats. So on the stage it
+ * gets two things instead: a near-black contact shadow, and a thin warm bounce
+ * under the deck, which is the light from the glow above it coming back off the
+ * counter. That bounce is the whole reason the hero is dark — a flat screenshot
+ * cannot have it.
+ */
+.lp .lp-stage .lp-laptop::after,
+.lp .lp-stage .lp-phone::after {
+  background: hsl(0 0% 0% / 0.72);
+  filter: blur(22px);
 }
 
-.lp-type-set {
-  animation: lp-set 0.5s ease-out both;
-  animation-delay: var(--lp-delay, 0ms);
+.lp .lp-stage .lp-laptop-lid {
+  background: linear-gradient(hsl(222 20% 29%), hsl(222 24% 17%));
+  box-shadow:
+    inset 0 1px 0 hsl(var(--lp-brass-lit) / 0.28),
+    0 36px 70px -28px hsl(0 0% 0% / 0.8);
 }
 
+.lp .lp-stage .lp-laptop-base {
+  background: linear-gradient(hsl(222 18% 34%), hsl(222 22% 20%));
+  box-shadow: inset 0 1px 0 hsl(var(--lp-brass-lit) / 0.3);
+}
+
+.lp .lp-stage .lp-phone-body {
+  box-shadow:
+    inset 0 1px 0 hsl(var(--lp-brass-lit) / 0.26),
+    0 26px 48px -20px hsl(0 0% 0% / 0.75);
+}
+
+/*
+ * The stamp sits on deep ink in the hero, where the light red is both more
+ * legible and more like an actual ink stamp on a dark form.
+ */
+.lp .lp-stage .lp-stamp {
+  border-color: hsl(var(--lp-red));
+  color: hsl(var(--lp-red));
+}
+
+/* ----------------------------------------------------------- reduced motion */
+
+/*
+ * One switch for the whole system. Everything above either stops or settles at
+ * its end state: nothing is left mid-transform, and nothing that was carrying
+ * information — the lit rule, the marquee's list of trades — disappears with
+ * the animation.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .lp-rule-draw,
-  .lp-type-set,
-  .lp-enter {
-    animation: none;
+  .lp-stamp-in,
+  .lp-ruling-live,
+  .lp-marquee {
+    animation: none !important;
+  }
+
+  .lp-stamp-in {
+    opacity: 1;
+    transform: rotate(-1.5deg);
+  }
+
+  .lp-rule-lit::after {
+    display: none;
+  }
+
+  .lp-marquee {
+    /* Still readable, just not running: wrap instead of leaving the viewport. */
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /*
+   * The row itself has to wrap too. The trades live in a single `ul` inside
+   * the track, so wrapping only the track leaves one unshrinkable child whose
+   * contents run straight out of the clipped box — the later trades were
+   * simply invisible with motion turned down. The selector carries an element
+   * on purpose, to outrank the `shrink-0` utility on that list.
+   */
+  .lp-marquee > ul {
+    flex-wrap: wrap;
+    flex-shrink: 1;
+  }
+
+  .lp-marquee-mask {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .lp-pull,
+  .lp-lift {
+    transition: none;
+    transform: none;
   }
 
   .lp-link::after {

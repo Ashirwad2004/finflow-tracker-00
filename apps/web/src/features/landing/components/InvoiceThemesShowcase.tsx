@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import { SectionHeading } from "./shared/SectionHeading";
 import {
+  EASE_DRAW,
+  Pull,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "@/features/landing/motion";
+import {
   FileText,
   Printer,
   Smartphone,
@@ -16,7 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/core/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   RealA4ModernBlue,
   RealA4ClassicTally,
@@ -68,6 +75,21 @@ export const InvoiceThemesShowcase: React.FC = () => {
   const [selectedA4Theme, setSelectedA4Theme] = useState<A4ThemeId>("modern-blue");
   const [isCopiedUpi, setIsCopiedUpi] = useState(false);
   const [isSimulatingPrint, setIsSimulatingPrint] = useState(false);
+  const reduced = useReducedMotion();
+
+  /**
+   * This section was the one place on the page that animated regardless of the
+   * visitor's motion preference. `enter` returns the travel props only when
+   * motion is welcome, so with it turned down each panel simply appears.
+   */
+  const enter = (inY: number, outY: number) =>
+    reduced
+      ? {}
+      : {
+          initial: { opacity: 0, y: inY },
+          animate: { opacity: 1, y: 0 },
+          exit: { opacity: 0, y: outY },
+        };
 
   const formats = [
     {
@@ -100,12 +122,30 @@ export const InvoiceThemesShowcase: React.FC = () => {
     },
   ];
 
-  const handleCopyUpi = () => {
-    navigator.clipboard.writeText("8102545007@ybl");
+  /*
+   * `navigator.clipboard` is absent outside a secure context and its write can
+   * be refused even inside one, so the copy is attempted first and the "copied"
+   * state and toast only follow a copy that actually happened. Before this, a
+   * refused write threw inside the handler and the button still said Copied.
+   */
+  const handleCopyUpi = async () => {
+    const vpa = "8102545007@ybl";
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(vpa);
+    } catch {
+      toast({
+        title: "Could not copy automatically",
+        description: `Please copy the UPI ID by hand: ${vpa}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCopiedUpi(true);
     toast({
       title: "✓ UPI VPA Copied!",
-      description: "8102545007@ybl copied to clipboard.",
+      description: `${vpa} copied to clipboard.`,
     });
     setTimeout(() => setIsCopiedUpi(false), 2000);
   };
@@ -133,8 +173,22 @@ export const InvoiceThemesShowcase: React.FC = () => {
 
   return (
     <section id="invoice-themes" className="py-20 sm:py-32 bg-background border-b border-border/60 relative overflow-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-tr from-violet-600/10 via-indigo-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+      {/*
+        The light over the print stage, in brass.
+
+        It was a violet-to-indigo wash, which is the *app's* accent, not the
+        page's — and the page/product boundary is the one rule this design
+        cannot break, because it is what lets a product shot claim to be real.
+        Violet belongs inside `lp-product`, where the rendered invoices are.
+      */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/4 h-[400px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle, hsl(var(--lp-brass) / 0.12), transparent 70%)",
+        }}
+      />
 
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
         
@@ -147,44 +201,93 @@ export const InvoiceThemesShowcase: React.FC = () => {
           className="mb-12"
         />
 
-        {/* Primary Hardware / Format Selector Tabs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-8">
+        {/*
+          The format selector.
+
+          Squared off: the rounded-2xl cards with a ring and a pill badge were
+          the card kit, and in this page's language a chooser is a ruled column,
+          not a stack of rounded tiles. The selected one is marked by a drawn
+          red rule across its top edge, which is the same mark a total gets —
+          this is the format that is currently on the stage.
+        */}
+        <Stagger
+          as="div"
+          className="mb-8 grid grid-cols-2 gap-3.5 md:grid-cols-4"
+          step={0.055}
+        >
           {formats.map((fmt) => {
             const Icon = fmt.icon;
             const isSelected = selectedFormat === fmt.id;
             return (
-              <button
-                key={fmt.id}
-                onClick={() => setSelectedFormat(fmt.id)}
-                className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer relative group flex flex-col justify-between ${
-                  isSelected
-                    ? "border-[hsl(var(--lp-red))] bg-card ring-1 ring-[hsl(var(--lp-red)/0.25)]"
-                    : "bg-muted/20 border-border hover:bg-muted/50 hover:border-border/80"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                      isSelected ? "bg-[hsl(var(--lp-ink))] text-[hsl(var(--lp-paper))]" : "bg-muted text-muted-foreground group-hover:text-foreground"
-                    }`}>
-                      <Icon className="w-4.5 h-4.5" />
+              <StaggerItem key={fmt.id} as="div">
+                <button
+                  onClick={() => setSelectedFormat(fmt.id)}
+                  aria-pressed={isSelected}
+                  className={`relative flex h-full w-full flex-col justify-between border p-4 text-left transition-colors duration-200 ${
+                    isSelected
+                      ? "border-[hsl(var(--lp-rule-strong))] bg-card"
+                      : "border-border bg-muted/20 hover:border-border/80 hover:bg-muted/50"
+                  }`}
+                >
+                  {isSelected && (
+                    <motion.span
+                      aria-hidden="true"
+                      layoutId={reduced ? undefined : "lp-format-mark"}
+                      className="absolute inset-x-0 top-0 h-[2px] bg-[hsl(var(--lp-red))]"
+                      transition={{ duration: 0.42, ease: EASE_DRAW }}
+                    />
+                  )}
+
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                          isSelected
+                            ? "border-primary/30 bg-primary/10 text-primary"
+                            : "border-border bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {fmt.highlight}
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      isSelected ? "border-[hsl(var(--lp-ink)/0.3)] bg-[hsl(var(--lp-ink)/0.08)] text-[hsl(var(--lp-ink))]" : "bg-muted text-muted-foreground border-border"
-                    }`}>
-                      {fmt.highlight}
-                    </span>
+                    <div className="text-sm font-extrabold text-foreground">
+                      {fmt.name}
+                    </div>
+                    <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                      {fmt.desc}
+                    </div>
                   </div>
-                  <div className="font-extrabold text-sm text-foreground">{fmt.name}</div>
-                  <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{fmt.desc}</div>
-                </div>
-              </button>
+                </button>
+              </StaggerItem>
             );
           })}
-        </div>
+        </Stagger>
 
-        {/* Live Bill Visualizer Showcase Canvas */}
-        <div className="lp-product p-4 sm:p-8 lg:p-10 border border-[hsl(var(--lp-rule))] bg-muted/15 flex flex-col items-center min-h-[600px]">
+        {/*
+          The print stage. Keyed on the chosen format, so changing format
+          replaces the whole sheet instead of redrawing in place — the bill
+          currently on the stage leaves, and the new one is fed in.
+        */}
+        <Reveal
+          move="lift"
+          className="lp-product flex min-h-[600px] flex-col items-center border border-[hsl(var(--lp-rule))] bg-muted/15 p-4 sm:p-8 lg:p-10"
+        >
+          <AnimatePresence mode="wait">
+          <motion.div
+            key={selectedFormat}
+            className="flex w-full flex-col items-center"
+            {...enter(18, -14)}
+            transition={{ duration: 0.32, ease: EASE_DRAW }}
+          >
           
           {/* ========================================================
               1. A4 GST TAX INVOICE (3 REAL THEMES SHOWCASE)
@@ -266,9 +369,7 @@ export const InvoiceThemesShowcase: React.FC = () => {
                     {selectedA4Theme === "modern-blue" && (
                       <motion.div
                         key="modern-blue"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
+                        {...enter(8, -8)}
                         transition={{ duration: 0.2 }}
                       >
                         <RealA4ModernBlue />
@@ -278,9 +379,7 @@ export const InvoiceThemesShowcase: React.FC = () => {
                     {selectedA4Theme === "classic-tally" && (
                       <motion.div
                         key="classic-tally"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
+                        {...enter(8, -8)}
                         transition={{ duration: 0.2 }}
                       >
                         <RealA4ClassicTally />
@@ -290,9 +389,7 @@ export const InvoiceThemesShowcase: React.FC = () => {
                     {selectedA4Theme === "vibrant-gradient" && (
                       <motion.div
                         key="vibrant-gradient"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
+                        {...enter(8, -8)}
                         transition={{ duration: 0.2 }}
                       >
                         <RealA4VibrantGradient />
@@ -512,19 +609,22 @@ export const InvoiceThemesShowcase: React.FC = () => {
               </div>
             </div>
           )}
-
-        </div>
+          </motion.div>
+          </AnimatePresence>
+        </Reveal>
 
         {/* Quick CTA */}
-        <div className="text-center mt-10">
-          <Button
-            size="lg"
-            onClick={() => navigate("/auth?mode=signup")}
-            className="lp-btn h-12 rounded-none px-8 text-sm"
-          >
-            Start printing GST bills
-          </Button>
-        </div>
+        <Reveal move="set" className="mt-10 text-left">
+          <Pull>
+            <Button
+              size="lg"
+              onClick={() => navigate("/auth?mode=signup")}
+              className="lp-btn h-12 rounded-none px-8 text-sm"
+            >
+              Start printing GST bills
+            </Button>
+          </Pull>
+        </Reveal>
 
       </div>
     </section>

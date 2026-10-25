@@ -1,5 +1,13 @@
 import React, { useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SectionHeading } from "./shared/SectionHeading";
+import {
+  EASE_DRAW,
+  Pull,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "@/features/landing/motion";
 import { 
   Store, 
   Shirt, 
@@ -15,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 export const BusinessTypes: React.FC = () => {
   const navigate = useNavigate();
   const [selectedIndustry, setSelectedIndustry] = useState<number>(0);
+  const reduced = useReducedMotion();
 
   const industries = [
     {
@@ -117,31 +126,68 @@ export const BusinessTypes: React.FC = () => {
         />
 
 
-        {/* Interactive Industry Chips */}
-        <div className="flex flex-wrap justify-center gap-2 mb-10">
+        {/*
+          The trade selector. Left-aligned with the rest of the page — these
+          were centred, which broke the one column the whole page is built on.
+
+          The ink fill does not fade out of one chip and into another: a single
+          filled block slides between them, because that is what actually
+          happened when you clicked. `layoutId` is doing the work.
+        */}
+        <Stagger
+          as="div"
+          className="mb-10 flex flex-wrap gap-2"
+          step={0.045}
+        >
           {industries.map((ind, i) => {
             const Icon = ind.icon;
             const isSelected = selectedIndustry === i;
             return (
-              <button
-                key={ind.id}
-                onClick={() => setSelectedIndustry(i)}
-                className={`flex items-center gap-2 px-4 py-2  text-xs sm:text-sm font-semibold transition-all ${
-                  isSelected
-                    ? "bg-[hsl(var(--lp-ink))] text-[hsl(var(--lp-paper))]"
-                    : "bg-muted/50 border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{ind.name}</span>
-              </button>
+              <StaggerItem key={ind.id} as="div" className="relative">
+                <button
+                  onClick={() => setSelectedIndustry(i)}
+                  aria-pressed={isSelected}
+                  className={`group relative isolate flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-all duration-200 sm:text-sm ${
+                    isSelected
+                      ? "border-violet-500/30 text-white shadow-sm"
+                      : "border-border/80 bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  }`}
+                >
+                  {isSelected && (
+                    <motion.span
+                      aria-hidden="true"
+                      layoutId={reduced ? undefined : "lp-trade-chip"}
+                      className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 shadow-sm -z-10"
+                      transition={{ duration: 0.35, ease: EASE_DRAW }}
+                    />
+                  )}
+                  <Icon className={`h-4 w-4 transition-colors ${isSelected ? "text-white" : "text-muted-foreground group-hover:text-foreground"}`} />
+                  <span>{ind.name}</span>
+                </button>
+              </StaggerItem>
             );
           })}
-        </div>
+        </Stagger>
 
-        {/* Focused Active Industry Showcase Card */}
-        <div className="border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-10 relative overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        {/*
+          The selected trade's setup.
+
+          Keyed on the selection so the whole panel is replaced rather than
+          re-rendered in place: the outgoing setup leaves and the incoming one
+          arrives, which is what makes the switch legible as a switch. `mode`
+          is "wait" so the two never overlap and the panel never doubles in
+          height mid-swap.
+        */}
+        <Reveal move="lift" className="relative border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-10">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={current.id}
+              className="grid grid-cols-1 items-center gap-8 lg:grid-cols-12"
+              initial={reduced ? undefined : { opacity: 0, y: 16 }}
+              animate={reduced ? undefined : { opacity: 1, y: 0 }}
+              exit={reduced ? undefined : { opacity: 0, y: -12 }}
+              transition={{ duration: 0.34, ease: EASE_DRAW }}
+            >
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-4">
               <div className="flex items-center gap-3">
@@ -154,22 +200,29 @@ export const BusinessTypes: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-3 pt-2">
+              {/* The four things this trade's setup does, ticking off in
+                  order each time the trade changes. */}
+              <Stagger as="div" className="space-y-3 pt-2" step={0.06} delay={0.08}>
                 {current.features.map((feat, idx) => (
-                  <div key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm text-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-[hsl(var(--lp-green))] shrink-0 mt-0.5" />
+                  <StaggerItem
+                    key={idx}
+                    className="flex items-start gap-2.5 text-xs text-foreground sm:text-sm"
+                  >
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--lp-green))]" />
                     <span>{feat}</span>
-                  </div>
+                  </StaggerItem>
                 ))}
-              </div>
+              </Stagger>
 
               <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <Button
-                  onClick={() => navigate("/auth")}
-                  className="lp-btn rounded-none h-11 px-6 text-xs"
-                >
-                  Start billing for {current.name.split(" ")[0]}
-                </Button>
+                <Pull>
+                  <Button
+                    onClick={() => navigate("/auth")}
+                    className="lp-btn h-11 rounded-none px-6 text-xs"
+                  >
+                    Start billing for {current.name.split(" ")[0]}
+                  </Button>
+                </Pull>
                 <span className="text-[11px] text-muted-foreground text-center sm:text-left">
                   Free, with no card and no invoice limit
                 </span>
@@ -201,8 +254,9 @@ export const BusinessTypes: React.FC = () => {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
+            </motion.div>
+          </AnimatePresence>
+        </Reveal>
       </div>
     </section>
   );

@@ -4,6 +4,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!--
+    Theme, before first paint.
+
+    `.dark` was only ever applied from React: `ThemeInitializer` runs in a
+    `useLayoutEffect`, which cannot happen until the bundle has downloaded,
+    parsed and mounted. Until then the document painted with the light tokens,
+    so every load for a dark-mode visitor flashed a full white page and then
+    snapped to dark. On the landing route that is a 1.2MB chunk's worth of
+    waiting, and on a shop's connection it is plainly visible.
+
+    This has to be a blocking inline script this early in `<head>`: anything
+    deferred, module-type or bundled runs after the first paint, and so cannot
+    prevent the flash. It is tiny and dependency-free for the same reason.
+
+    The default when nothing is stored is "light", which is exactly what
+    `getPreferredTheme()` returns - this script must not disagree with it, or
+    the page would flip theme a moment after loading. React still applies the
+    class itself afterwards; this only makes the first paint agree with it.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("theme");
+        var theme = stored === "dark" || stored === "light" ? stored : "light";
+        var root = document.documentElement;
+        root.classList.remove("light", "dark");
+        root.classList.add(theme);
+        // Also styles native scrollbars and form controls from the first paint.
+        root.style.colorScheme = theme;
+      } catch (e) {
+        /* Private mode or blocked storage: light is the documented default. */
+      }
+    })();
+  </script>
   <title>RupeeBill — All-in-One Invoicing, Inventory &amp; Business Management</title>
   <meta name="description"
     content="All-in-one business software: professional invoicing, fast POS counter checkout, real-time inventory tracking, customer ledgers, and online storefront." />
@@ -20,12 +55,16 @@
   <link rel="dns-prefetch" href="https://mimremmiwehqzrxthdgn.supabase.co" />
   <link rel="preconnect" href="https://mimremmiwehqzrxthdgn.supabase.co" crossorigin />
 
-  <!-- Brand typeface: Archivo (variable width + weight). One family carries
-       display and body; the width axis replaces a second display face. -->
+  <!-- Brand typefaces. Two families, clearly distinct:
+       - Bricolage Grotesque (variable opsz + wdth + wght) sets display. Its
+         engineered, slightly irregular cut reads as printed commercial
+         stationery rather than friendly SaaS geometric.
+       - Archivo (variable wdth + wght) carries body copy and every figure,
+         because it has the tabular numerals the ledger columns depend on. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap"
     rel="stylesheet" />
 
   <!-- Modern RupeeBill web icon -->

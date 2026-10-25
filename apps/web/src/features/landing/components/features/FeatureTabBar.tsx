@@ -1,4 +1,6 @@
 import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { EASE_DRAW, useTabKeys } from "@/features/landing/motion";
 import { FeatureTabId, TabItem } from "./types";
 
 interface FeatureTabBarProps {
@@ -12,30 +14,59 @@ export const FeatureTabBar: React.FC<FeatureTabBarProps> = ({
   activeTab,
   onSelectTab,
 }) => {
+  const reduced = useReducedMotion();
+  const { tabProps } = useTabKeys(
+    tabs.map((t) => t.id),
+    activeTab,
+    onSelectTab
+  );
+
   return (
-    <div className="flex justify-center mb-8 sm:mb-12 px-1">
-      <div className="w-full max-w-5xl p-1.5 sm:p-2 bg-muted/70 dark:bg-muted/40 border border-[hsl(var(--lp-rule))] overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1.5 min-w-max justify-start md:justify-center">
+    <div className="mb-8 flex justify-center px-2 sm:mb-12">
+      <div className="w-full max-w-5xl rounded-2xl p-1.5 sm:p-2 bg-muted/60 dark:bg-muted/30 border border-border/80 shadow-inner backdrop-blur-md overflow-x-auto no-scrollbar">
+        {/* `role="tab"` only carries meaning inside a `tablist` */}
+        <div
+          role="tablist"
+          aria-label="Choose a module"
+          className="flex items-center gap-1.5 min-w-max justify-start md:justify-center"
+        >
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isSelected = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => onSelectTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3  text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 shrink-0 ${
+                {...tabProps(tab.id)}
+                id={`lp-feature-tab-${tab.id}`}
+                aria-controls={`lp-feature-panel-${tab.id}`}
+                className={`group relative isolate flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all duration-200 sm:px-4 sm:py-3 sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                   isSelected
-                    ? "bg-[hsl(var(--lp-ink))] text-[hsl(var(--lp-paper))] border border-[hsl(var(--lp-ink))]"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50 border border-transparent"
+                    ? "text-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/40"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isSelected ? "text-white" : "text-muted-foreground"}`} />
-                <span>{tab.title}</span>
-                <span
-                  className={`text-[10px] px-2 py-0.5  font-semibold ${
+                {/* Active Sliding Indicator: Elevated Card with guaranteed contrast in light & dark */}
+                {isSelected && (
+                  <motion.span
+                    aria-hidden="true"
+                    layoutId={reduced ? undefined : "lp-feature-tab-active"}
+                    className="absolute inset-0 rounded-xl bg-background dark:bg-card shadow-sm border border-border/80 -z-10"
+                    transition={{ duration: 0.35, ease: EASE_DRAW }}
+                  />
+                )}
+                <Icon
+                  className={`h-4 w-4 transition-colors ${
                     isSelected
-                      ? "bg-white/20 text-white border border-white/30"
-                      : "bg-muted text-muted-foreground"
+                      ? "text-violet-600 dark:text-violet-400"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  }`}
+                />
+                <span className="tracking-tight">{tab.title}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] transition-all ${
+                    isSelected
+                      ? "bg-violet-500/10 dark:bg-violet-400/20 text-violet-700 dark:text-violet-300 font-bold border border-violet-500/20"
+                      : "bg-muted/80 text-muted-foreground font-medium border border-border/40"
                   }`}
                 >
                   {tab.badge}

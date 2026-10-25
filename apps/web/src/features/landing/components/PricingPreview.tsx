@@ -3,6 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2, ShieldCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "./shared/SectionHeading";
+import {
+  Pull,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "@/features/landing/motion";
 
 interface PricingPreviewProps {
   onSelectPlan?: (planId: "starter" | "pro" | "business") => void;
@@ -37,7 +43,10 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
         />
 
         {/* Free Plan Showcase Card */}
-        <div className="max-w-2xl mx-auto border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-10 relative overflow-hidden">
+        <Reveal
+          move="lift"
+          className="relative mx-auto max-w-2xl overflow-hidden border border-[hsl(var(--lp-rule-strong))] bg-card p-6 sm:p-10"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
             <div>
               <span className="lp-stamp mb-2">Free forever</span>
@@ -51,7 +60,13 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
 
             <div className="text-left sm:text-right shrink-0">
               <div className="flex items-baseline gap-1 sm:justify-end">
-                <span className="text-4xl sm:text-5xl font-black text-foreground">
+                {/*
+                  The one figure on the page that is the whole offer, so it is
+                  the one place type goes big and wide instead of big and
+                  condensed. It does not count up: counting to zero would be a
+                  joke at the expense of the number that matters most.
+                */}
+                <span className="lp-shout lp-figure text-[3.25rem] text-foreground sm:text-[4rem]">
                   ₹0
                 </span>
                 <span className="text-xs sm:text-sm text-muted-foreground font-semibold">/ Free Forever</span>
@@ -62,25 +77,36 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             </div>
           </div>
 
-          {/* Features List */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 py-8 text-xs sm:text-sm">
+          {/* Everything you get, ticked off one line at a time. Ten items is
+              exactly the length where the list reads as long — which is the
+              point being made — so the stagger is what sells it. */}
+          <Stagger
+            as="div"
+            className="grid grid-cols-1 gap-3.5 py-8 text-xs sm:grid-cols-2 sm:text-sm"
+            step={0.055}
+          >
             {allInOneFeatures.map((feat, i) => (
-              <div key={i} className="flex items-start gap-2.5 text-foreground">
-                <CheckCircle2 className="h-4 w-4 text-[hsl(var(--lp-green))] shrink-0 mt-0.5" />
+              <StaggerItem
+                key={i}
+                className="flex items-start gap-2.5 text-foreground"
+              >
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--lp-green))]" />
                 <span className="leading-snug">{feat}</span>
-              </div>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
-            <Button
-              size="lg"
-              onClick={() => navigate("/auth?mode=signup")}
-              className="lp-btn rounded-none h-12 flex-1 text-sm"
-            >
-              Create your free account
-            </Button>
+            <Pull className="flex-1">
+              <Button
+                size="lg"
+                onClick={() => navigate("/auth?mode=signup")}
+                className="lp-btn h-12 w-full flex-1 rounded-none text-sm"
+              >
+                Create your free account
+              </Button>
+            </Pull>
             <Button
               size="lg"
               variant="outline"
@@ -94,10 +120,14 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
           <div className="text-center mt-4 text-[11px] text-muted-foreground flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-[hsl(var(--lp-green))]" /> Free to use, and you can export all your business data to Excel whenever you want
           </div>
-        </div>
+        </Reveal>
 
         {/* Commercial Licensing Callout Box */}
-        <div className="mt-8 max-w-2xl mx-auto  bg-muted/40 border border-border/70 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+        <Reveal
+          move="set"
+          delay={0.1}
+          className="mx-auto mt-8 flex max-w-2xl flex-col items-center justify-between gap-4 border border-border/70 bg-muted/40 p-4 text-center sm:flex-row sm:p-5 sm:text-left"
+        >
           <div className="space-y-0.5">
             <p className="text-xs font-bold text-foreground flex items-center justify-center sm:justify-start gap-1.5">
               <span>Looking for Official Commercial License &amp; Dedicated Bills?</span>
@@ -114,10 +144,15 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
           >
             See Pricing &amp; Terms <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
           </Button>
-        </div>
+        </Reveal>
 
-        {/* Demo & Support Callout */}
-        <div className="text-center mt-6 space-y-2 text-xs text-muted-foreground">
+        {/* Demo & Support Callout. The last thing under the price, so it
+            arrives last. */}
+        <Reveal
+          move="set"
+          delay={0.18}
+          className="text-center mt-6 space-y-2 text-xs text-muted-foreground"
+        >
           <div>
             Need custom multi-store rollouts or employee cashier permissions?{" "}
             <button
@@ -133,9 +168,9 @@ export const PricingPreview: React.FC<PricingPreviewProps> = ({ onBookDemo }) =>
             <span>•</span>
             <a href="https://wa.me/918102545007" target="_blank" rel="noopener noreferrer" className="font-bold text-[#25D366] hover:underline">💬 WhatsApp</a>
             <span>•</span>
-            <a href="mailto:supportrupeebill@gmail.com" className="font-bold text-primary hover:underline">✉️ supportrupeebill@gmail.com</a>
+            <a href="mailto:supportrupeebill@gmail.com" className="font-bold text-foreground hover:underline">✉️ supportrupeebill@gmail.com</a>
           </div>
-        </div>
+        </Reveal>
 
       </div>
     </section>

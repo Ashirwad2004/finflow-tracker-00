@@ -2,14 +2,26 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ShieldCheck, Phone, Mail, MessageCircle, Clock, Headphones } from "lucide-react";
 import { Logo } from "@/components/shared/Logo";
+import { Reveal, Stagger, StaggerItem } from "@/features/landing/motion";
 
 export const Footer: React.FC = () => {
   return (
     <footer className="bg-muted/30 border-t border-border/60 py-14 text-xs text-muted-foreground">
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         
-        {/* Support Banner Card */}
-        <div className="mb-12 p-5 sm:p-6 bg-card border border-[hsl(var(--lp-rule-strong))] flex flex-col md:flex-row items-center justify-between gap-5 text-center md:text-left">
+        {/*
+          Support Banner Card.
+
+          The footer was the last block on the page with no motion in it at
+          all, which made the document appear to stop moving before it ended.
+          It now closes the way every section opens: the panel arrives, the
+          four columns tick across, and a rule is drawn above the copyright
+          line.
+        */}
+        <Reveal
+          move="lift"
+          className="mb-12 p-5 sm:p-6 bg-card border border-[hsl(var(--lp-rule-strong))] flex flex-col md:flex-row items-center justify-between gap-5 text-center md:text-left"
+        >
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 border border-[hsl(var(--lp-rule-strong))] text-[hsl(var(--lp-ink))] flex items-center justify-center shrink-0">
               <Headphones className="w-5 h-5" />
@@ -49,11 +61,15 @@ export const Footer: React.FC = () => {
               <span>supportrupeebill@gmail.com</span>
             </a>
           </div>
-        </div>
+        </Reveal>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
+        <Stagger
+          as="div"
+          className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12"
+          step={0.07}
+        >
           {/* Company Column */}
-          <div className="col-span-2">
+          <StaggerItem className="col-span-2">
             <Logo size={28} showText={true} />
             <p className="text-xs text-muted-foreground mt-3 max-w-sm leading-relaxed">
               Complete invoicing, POS, inventory, and business management software. Built for retail storefronts, wholesale distributors, service agencies, and growing modern businesses.
@@ -62,22 +78,33 @@ export const Footer: React.FC = () => {
               <ShieldCheck className="w-4 h-4 text-[hsl(var(--lp-green))]" />
               <span>Encrypted, and your data stays on your device</span>
             </div>
-          </div>
+          </StaggerItem>
 
           {/* Product Links */}
-          <div>
+          <StaggerItem>
             <h4 className="lp-label text-foreground mb-3">Product</h4>
             <ul className="space-y-2">
               <li><a href="#billing" className="hover:text-foreground transition-colors">Invoicing &amp; POS</a></li>
               <li><a href="#inventory" className="hover:text-foreground transition-colors">Inventory &amp; Barcodes</a></li>
               <li><a href="#parties" className="hover:text-foreground transition-colors">Customer Ledgers</a></li>
               <li><a href="#reports" className="hover:text-foreground transition-colors">Financial Reports</a></li>
-              <li><a href="#preview" className="hover:text-foreground transition-colors">Online Storefront</a></li>
+              <li><a href="#feedback" className="hover:text-foreground transition-colors">Merchant Reviews</a></li>
+              {/*
+                "Online Storefront" used to link to #preview, an empty anchor
+                inside the features section whose only effect is to select the
+                GST-invoicing tab — so the link named one thing and went to
+                another. The storefront has no section of its own on this page
+                and its route is behind the login, so the honest target is the
+                pricing block, which is where the free storefront is actually
+                listed.
+              */}
+              <li><a href="#pricing" className="hover:text-foreground transition-colors">Online Storefront</a></li>
+              <li><a href="#custom-work" className="hover:text-foreground transition-colors">Custom Software</a></li>
             </ul>
-          </div>
+          </StaggerItem>
 
           {/* Legal & Account */}
-          <div>
+          <StaggerItem>
             <h4 className="lp-label text-foreground mb-3">Legal &amp; terms</h4>
             <ul className="space-y-2">
               <li><Link to="/pricing" className="hover:text-foreground transition-colors">Commercial Licensing</Link></li>
@@ -85,10 +112,10 @@ export const Footer: React.FC = () => {
               <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
               <li><Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
             </ul>
-          </div>
+          </StaggerItem>
 
           {/* Direct Support Column */}
-          <div>
+          <StaggerItem>
             <h4 className="lp-label text-foreground mb-3">Support</h4>
             <ul className="space-y-2.5 text-[11px]">
               <li>
@@ -108,8 +135,8 @@ export const Footer: React.FC = () => {
                 <span>Mon – Sun, 9 AM – 9 PM IST</span>
               </li>
             </ul>
-          </div>
-        </div>
+          </StaggerItem>
+        </Stagger>
 
         <div className="pt-8 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px]">
           <div>

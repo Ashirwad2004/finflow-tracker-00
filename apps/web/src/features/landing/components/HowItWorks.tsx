@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Store,
   Scan,
@@ -12,6 +13,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "./shared/SectionHeading";
+import {
+  EASE_SETTLE,
+  IN_VIEW,
+  Pull,
+  Reveal,
+  Spine,
+  Stagger,
+  StaggerItem,
+} from "@/features/landing/motion";
 
 /**
  * The step previews show what the product actually puts on screen at that
@@ -129,6 +139,8 @@ const STEPS = [
 
 export const HowItWorks: React.FC = () => {
   const navigate = useNavigate();
+  const steps = useRef<HTMLOListElement>(null);
+  const reduced = useReducedMotion();
 
   return (
     <section
@@ -149,22 +161,40 @@ export const HowItWorks: React.FC = () => {
           genuinely is a sequence; three interchangeable cards side by side
           would say the opposite.
         */}
-        <ol className="relative">
+        <ol ref={steps} className="relative">
+          {/* The spine is the one scroll-scrubbed element on the page: it
+              measures how far through the sequence you are, so tying it to
+              scroll position says something true. It runs on a faint
+              full-length track, so the part of the sequence still ahead of you
+              stays visible. */}
           <div
             aria-hidden="true"
-            className="absolute bottom-16 left-7 top-6 hidden w-px bg-[hsl(var(--lp-rule-strong))] lg:block"
-          />
+            className="absolute bottom-16 left-7 top-6 hidden w-px bg-[hsl(var(--lp-rule))] lg:block"
+          >
+            <Spine
+              target={steps}
+              className="h-full w-px bg-[hsl(var(--lp-brass))]"
+            />
+          </div>
 
-          {STEPS.map((step) => (
+          {STEPS.map((step, i) => (
             <li
               key={step.number}
               className="relative border-t border-[hsl(var(--lp-rule))] py-8 first:border-t-0 first:pt-0"
             >
               <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
                 <div className="flex shrink-0 items-center gap-4 lg:w-14 lg:flex-col lg:items-start">
-                  <span className="lp-figure relative z-10 flex h-14 w-14 shrink-0 items-center justify-center border border-[hsl(var(--lp-rule-strong))] bg-background text-base font-bold text-[hsl(var(--lp-ink))]">
+                  {/* The number is stamped on. In a sequence, the number
+                      arriving is the step beginning. */}
+                  <motion.span
+                    className="lp-figure relative z-10 flex h-14 w-14 shrink-0 items-center justify-center border border-[hsl(var(--lp-rule-strong))] bg-background text-base font-bold text-[hsl(var(--lp-ink))]"
+                    initial={reduced ? undefined : { scale: 0.62, opacity: 0 }}
+                    whileInView={reduced ? undefined : { scale: 1, opacity: 1 }}
+                    viewport={IN_VIEW}
+                    transition={{ duration: 0.5, ease: EASE_SETTLE }}
+                  >
                     {step.number}
-                  </span>
+                  </motion.span>
                   <step.icon
                     aria-hidden="true"
                     className="h-4 w-4 text-muted-foreground lg:mt-3"
@@ -173,31 +203,45 @@ export const HowItWorks: React.FC = () => {
 
                 <div className="grid flex-1 gap-7 lg:grid-cols-[1.15fr_1fr] lg:items-start lg:gap-10">
                   <div>
-                    <div className="lp-entry">
-                      <span className="lp-entry-label">{step.title}</span>
-                      <span className="lp-figure shrink-0 text-xs text-muted-foreground">
-                        {step.stage}
-                      </span>
-                    </div>
+                    <Reveal move="set" delay={0.08}>
+                      <div className="lp-entry">
+                        <span className="lp-entry-label">{step.title}</span>
+                        <span className="lp-figure shrink-0 text-xs text-muted-foreground">
+                          {step.stage}
+                        </span>
+                      </div>
+                    </Reveal>
 
-                    <p className="lp-prose mt-4 max-w-[54ch] text-sm leading-relaxed text-muted-foreground">
+                    <Reveal
+                      as="p"
+                      move="set"
+                      delay={0.16}
+                      className="lp-prose mt-4 max-w-[54ch] text-sm leading-relaxed text-muted-foreground"
+                    >
                       {step.description}
-                    </p>
+                    </Reveal>
 
-                    <ul className="mt-5 space-y-2">
+                    {/* The three things this step gets you, arriving in order,
+                        which is how a checklist is read. */}
+                    <Stagger as="ul" className="mt-5 space-y-2" delay={0.24}>
                       {step.features.map((feat) => (
-                        <li
+                        <StaggerItem
+                          as="li"
                           key={feat}
                           className="flex items-start gap-2 text-xs text-muted-foreground"
                         >
                           <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(var(--lp-green))]" />
                           <span>{feat}</span>
-                        </li>
+                        </StaggerItem>
                       ))}
-                    </ul>
+                    </Stagger>
                   </div>
 
-                  <div className="lg:pt-1">{step.preview}</div>
+                  {/* What the screen shows at this moment. It arrives last, once
+                      you have read what the step is. */}
+                  <Reveal move="lift" delay={0.2 + i * 0.04} className="lg:pt-1">
+                    {step.preview}
+                  </Reveal>
                 </div>
               </div>
             </li>
@@ -205,13 +249,15 @@ export const HowItWorks: React.FC = () => {
         </ol>
 
         <div className="mt-14 border-t border-[hsl(var(--lp-rule-strong))] pt-8">
-          <Button
-            size="lg"
-            onClick={() => navigate("/auth")}
-            className="lp-btn h-12 rounded-none px-8 text-sm"
-          >
-            Start billing
-          </Button>
+          <Pull>
+            <Button
+              size="lg"
+              onClick={() => navigate("/auth")}
+              className="lp-btn h-12 rounded-none px-8 text-sm"
+            >
+              Start billing
+            </Button>
+          </Pull>
           <p className="mt-3 text-xs text-muted-foreground">
             Free forever, with no card. Runs on web, Windows and Android.
           </p>
