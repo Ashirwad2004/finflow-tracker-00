@@ -132,6 +132,27 @@
 
 @layer utilities {
 
+  /*
+   * Hides the scrollbar on a scroller that is already signposted some other
+   * way — a horizontally scrolling tab strip, where the overflowing tab is the
+   * affordance and an 8px track underneath it just reads as a rendering fault.
+   * Two call sites relied on this class while nothing ever defined it, so the
+   * bar was showing in both.
+   *
+   * The element must stay keyboard- and wheel-scrollable, which it does: this
+   * only hides the chrome, it does not set `overflow: hidden`.
+   */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
   /* Safari support for user-select utilities */
   .select-none {
     -webkit-user-select: none;

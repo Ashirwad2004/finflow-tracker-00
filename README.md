@@ -1,104 +1,41 @@
-# FinFlow Tracker 🚀✨
+# RupayBill
 
-FinFlow Tracker is a premium, high-performance financial management ecosystem. It seamlessly blends personal financial planning (expenses, budget goals, group splits, peer-to-peer loans) with robust commercial operations tools (GST-compliant sales/purchase journals, real-time inventory tracking, CRM, invoice generation, and customer-facing digital e-commerce storefronts).
+Billing, inventory, payments, storefront, and personal finance application built with React, FastAPI, and Supabase.
 
----
+The repository has two application workspaces and a shared API contract package:
 
-## 🤖 Premium Gemini AI Features (Grounded & Trained)
-
-FinFlow is fully integrated with Google's **Gemini 2.5 Flash** models, designed to act as your virtual accountant, business co-pilot, and natural language assistant.
-
-*   **💬 FinFlow AI Chat Accountant (`AIAssistantChat`)**: A floating assistant powered by Gemini that dynamically reads your local cash flow context (last 50 expenses, debts, business sales ledger, and product inventory) to answer complex financial questions, calculate revenue statistics, and guide you step-by-step through the application.
-*   **✨ AI Smart Fill (`SmartExpenseInput`)**: An in-context trained parser that maps natural language entries (e.g. *"Starbucks coffee 150"*, *"₹1200 electricity bill"*) directly into structured expense fields (amount, description, category) matching your configured account categories.
-*   **🪄 Magic Add (`MagicAddExpense`)**: A natural language bar on your dashboard. Type complex sentences like *"Spent 400 on cab yesterday and Rahul borrowed 500"* to automatically parse and record multiple entries (expenses, lent books, or borrowed books) with relative dates and names.
-*   **📷 AI Bill Scanner OCR (`BillUpload`)**: Upload a photo of your receipt (JPEG/PNG) to let Gemini extract the merchant name, total, date, tax amounts, and suggest the best category instantly.
-
----
-
-## Documentation Hub
-
-We have prepared structured developer guides inside the `/docs` directory:
-
-*   **[Product Overview & Architecture](docs/product-overview.md)**: System vision, service boundaries, and repository layout.
-*   **[Feature Manual & User Guide](docs/features-guide.md)**: Personal finance, groups, loans, business mode, and storefront workflows.
-*   **[Database Schema & Security](docs/database-schema.md)**: Supabase tables, migrations, storage, and Row-Level Security (RLS).
-*   **[Developer Setup & Deployment](docs/developer-setup.md)**: Local development, environment variables, migrations, and deployment.
-
----
-
-## 🛠️ Technology Stack
-
-*   **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Radix/shadcn UI, Recharts
-*   **Backend**: Optional FastAPI service under `backend/`, proxied at `/api/v1`
-*   **Data platform**: Supabase PostgreSQL, Auth, Storage, Realtime, and RLS
-*   **Serverless logic**: Supabase Deno Edge Functions
-*   **AI integration**: Google Gemini 2.5 Flash through the backend or `gemini-proxy` Edge Function
-
----
-
-## ⚙️ Environment Configuration
-
-Create `frontend/.env` for browser-exposed Supabase settings:
-
-```env
-VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-pub-key
+```text
+apps/web/             React + Vite application and production HTTP host
+apps/api/             FastAPI service, domain modules, and Python tests
+packages/api-types/   OpenAPI export and generated TypeScript contracts
+supabase/             Versioned SQL migrations and Deno Edge Functions
+scripts/              Repository development and test commands
+docs/                 Architecture, setup, feature guides, and review findings
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` must never be exposed to the browser. Put server-only values in `backend/.env` instead:
-
-```env
-VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-GEMINI_API_KEY=your-gemini-api-key
-ENVIRONMENT=development
-SHOW_DOCS=true
-```
-
-For the Supabase Edge Function fallback, configure the key separately with `supabase secrets set GEMINI_API_KEY=your-gemini-api-key`.
-
----
-
-## 🦕 Editor & Deno Workspace Setup
-
-The project co-exists with a Deno-based edge functions environment (`supabase/functions/`). To prevent type conflicts between Node/React files and Deno edge files in VS Code, we use workspace paths settings.
-
-If using VS Code, ensure `.vscode/settings.json` is configured as follows:
-```json
-{
-  "deno.enable": true,
-  "deno.enablePaths": [
-    "supabase/functions"
-  ],
-  "deno.importMap": "supabase/functions/import_map.json"
-}
-```
-This isolates Deno intelligence exclusively to the `supabase/functions/` directory, resolving editing red lines while preserving React TypeScript compilation in the root.
-
----
-
-## Developer Scripts
+Install JavaScript dependencies once from the repository root:
 
 ```sh
-# Clone repository
-git clone <YOUR_GIT_URL>
-cd finflow-tracker-00-1
-
-# Install workspace packages
-npm install
-
-# Start Vite and FastAPI together
-npm run dev
+npm ci
+python -m venv .venv
+.venv/Scripts/python -m pip install -r apps/api/requirements-dev.txt
 ```
 
-The Vite development server runs at `http://localhost:8080` and proxies API calls to FastAPI at `http://localhost:8000`. Useful commands:
+On macOS/Linux, use `.venv/bin/python` for the last command. Copy `apps/web/.env.example` to `apps/web/.env` and `apps/api/.env.example` to `apps/api/.env`, then fill in the required values. Browser variables must contain only public values; service-role and payment secrets belong to the API environment.
 
 ```sh
-npm run frontend:dev   # frontend only
-npm run backend:dev    # FastAPI only
-npm run build          # production frontend build
-npm run lint           # frontend ESLint
-npm run test:backend   # backend pytest suite
+npm run dev             # Web on :8080 and API on :8000
+npm run web:dev          # Web only
+npm run api:dev          # API only
+npm run lint
+npm run typecheck       # Application, build configuration, shared contracts
+npm test                # Frontend, backend, and build-tool regression tests
+npm run build           # Production bundle with offline asset manifest
+npm run server          # Serve the built frontend on :3000 and proxy the API
 ```
 
-For the production-style containers, copy the frontend variables into a root `.env` file and run `docker compose up -d --build`. The frontend is available at `http://localhost:3000`; see the [Developer Setup](docs/developer-setup.md) for the full workflow.
+PowerShell users with script execution disabled can invoke `npm.cmd` instead of `npm`.
+
+The Python runner respects an activated virtual environment, otherwise checking `apps/api/.venv`, `apps/api/venv`, then the root `.venv`. Run a backend test subset with `npm run test:api -- -k payments`.
+
+See [developer setup](docs/developer-setup.md), [architecture and folder boundaries](docs/architecture.md), [features](docs/features-guide.md), [database schema](docs/database-schema.md), and [review findings and remaining risks](docs/code-review.md).

@@ -26,7 +26,7 @@ self.addEventListener("activate", (event) => {
         Promise.all(
           cacheNames.map((cacheName) => {
             if (
-              cacheName.startsWith("rupeebill-") &&
+              (cacheName.startsWith("rupeebill-") || cacheName.startsWith("finflow-static-")) &&
               cacheName !== CACHE_NAME
             ) {
               return caches.delete(cacheName);

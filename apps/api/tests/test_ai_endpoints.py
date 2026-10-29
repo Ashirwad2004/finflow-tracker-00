@@ -49,7 +49,7 @@ def test_completions_endpoint_returns_503_on_gemini_auth_error(client):
         with patch.object(settings, "GEMINI_API_KEY", "AIzaSyValidFormatKey12345678"):
             mock_client = AsyncMock()
             mock_client.generate.side_effect = GeminiAuthError("API key not valid")
-            with patch("src.api.v1.endpoints.ai.get_gemini_client", return_value=mock_client):
+            with patch("src.modules.ai.router.get_gemini_client", return_value=mock_client):
                 response = client.post(
                     "/api/v1/ai/completions",
                     json={

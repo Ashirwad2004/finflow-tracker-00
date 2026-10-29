@@ -9,21 +9,15 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install system dependencies (especially useful for database drivers or encryption engines)
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install playwright chromium browser and system dependencies
-RUN playwright install chromium --with-deps
-
 # Copy backend application files
 COPY . .
+
+RUN useradd --create-home appuser
+USER appuser
 
 EXPOSE 8000
 

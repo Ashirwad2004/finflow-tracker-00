@@ -7,6 +7,7 @@ import {
 } from "@/utils/generateInvoicePDF";
 import { printInvoiceDirectly } from "@/utils/directPrint";
 import { InvoicePreviewProps } from "./types";
+import { getInvoiceOutstandingAmount } from "../../services/calc";
 
 export function useInvoicePreview({
   invoice,
@@ -63,16 +64,7 @@ export function useInvoicePreview({
   useEffect(() => {
     let isMounted = true;
     const upiId = businessDetails.upi_id;
-    const totalDue =
-      Number(
-        invoice?.balance_due != null
-          ? invoice.balance_due
-          : Math.max(
-              0,
-              Number(invoice?.total_amount || 0) -
-                Number(invoice?.amount_paid || 0)
-            )
-      ) || Number(invoice?.total_amount || 0);
+    const totalDue = getInvoiceOutstandingAmount(invoice);
 
     if (upiId && totalDue > 0) {
       const upiUrl = `upi://pay?pa=${encodeURIComponent(

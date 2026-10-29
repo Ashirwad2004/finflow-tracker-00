@@ -1,26 +1,12 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
 
-from src.main import app
-from src.services.whatsapp.phone_utils import normalize_indian_phone, format_whatsapp_chat_id
-from src.services.whatsapp.exceptions import (
-    WhatsAppException,
-    WhatsAppNotConnectedException,
-    WhatsAppGatewayUnavailableException,
-    WhatsAppRateLimitException,
-    WhatsAppInvalidPhoneException,
-)
-from src.services.whatsapp.openwa_client import OpenWAClient
-from src.services.whatsapp.openwa_provider import OpenWAProvider
-from src.services.whatsapp.service import WhatsAppService
-from src.schemas.whatsapp import (
-    WhatsAppSendInvoiceRequest,
-    WhatsAppSendReceiptRequest,
-    WhatsAppSendReminderRequest,
-    WhatsAppSendMessageRequest,
-)
+from src.modules.whatsapp.phone_utils import normalize_indian_phone, format_whatsapp_chat_id
+from src.modules.whatsapp.exceptions import WhatsAppNotConnectedException, WhatsAppGatewayUnavailableException, WhatsAppInvalidPhoneException
+from src.modules.whatsapp.openwa_client import OpenWAClient
+from src.modules.whatsapp.openwa_provider import OpenWAProvider
+from src.modules.whatsapp.service import WhatsAppService
+from src.modules.whatsapp.schemas import WhatsAppSendInvoiceRequest, WhatsAppSendReceiptRequest, WhatsAppSendReminderRequest
 
 
 # -----------------------------------------------------------------------------

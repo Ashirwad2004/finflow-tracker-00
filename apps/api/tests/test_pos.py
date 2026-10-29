@@ -1,5 +1,5 @@
 import pytest
-from src.services.barcode import BarcodeService
+from src.modules.pos.barcode import BarcodeService
 
 
 def test_pos_health(client):
@@ -84,3 +84,18 @@ def test_pos_unauthorized_access(client):
 
     response = client.get("/api/v1/pos/shifts/current")
     assert response.status_code in (401, 403)
+
+
+def test_shift_cannot_close_when_summary_fails(monkeypatch):
+    from fastapi import HTTPException
+    from unittest.mock import MagicMock
+    from src.modules.pos import service
+    from src.modules.pos.schemas import POSShiftCloseRequest
+
+    database = MagicMock()
+    monkeypatch.setattr(service, "supabase_client", database)
+    monkeypatch.setattr(service.POSService, "get_shift_summary", MagicMock(side_effect=HTTPException(status_code=503, detail="Summary unavailable")))
+    with pytest.raises(HTTPException) as error:
+        service.POSService.close_shift("merchant-1", "shift-1", POSShiftCloseRequest(actual_cash=100))
+    assert error.value.status_code == 503
+    database.table.assert_not_called()

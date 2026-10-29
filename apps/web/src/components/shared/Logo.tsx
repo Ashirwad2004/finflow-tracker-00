@@ -87,28 +87,26 @@ export function Logo({ size = 32, showText = false, theme = "default" }: LogoPro
   }
 
   // Determine text colors based on theme
-  const rupeeColor = "#9b42f5ff";
-  const billColor = "#4ade9a";
-  const textClassName = theme === "dark" 
-    ? "text-white" 
-    : theme === "light" 
-      ? "text-slate-900" 
-      : "text-foreground";
+  const textClassName = 
+    theme === "dark" 
+      ? "text-white" 
+      : theme === "light" 
+        ? "text-slate-900" 
+        : "text-foreground dark:text-white";
 
   return (
-    <div className="flex items-center gap-2 select-none">
+    <div className="flex items-center gap-2.5 select-none">
       {iconSvg}
       <div className="flex flex-col text-left leading-none">
         <div className="flex items-baseline font-black tracking-tight" style={{ fontSize: `${size * 0.75}px` }}>
-          <span style={{ color: rupeeColor }}>₹</span>
+          <span className="text-violet-600 dark:text-violet-400">₹</span>
           <span className={textClassName}>upee</span>
-          <span style={{ color: billColor }} className="font-light">Bill</span>
+          <span className="font-extrabold text-emerald-600 dark:text-emerald-400 ml-0.5">Bill</span>
         </div>
         <div 
-          className="text-muted-foreground uppercase font-semibold"
+          className="text-muted-foreground uppercase font-bold tracking-[0.24em]"
           style={{ 
-            fontSize: `${size * 0.22}px`, 
-            letterSpacing: "0.28em",
+            fontSize: `${Math.max(8, size * 0.22)}px`, 
             marginTop: `${size * 0.08}px`
           }}
         >

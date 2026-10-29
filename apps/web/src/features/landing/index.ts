@@ -11,6 +11,7 @@ export { HowItWorks } from "./components/HowItWorks";
 export { BusinessTypes } from "./components/BusinessTypes";
 export { ComparisonTable } from "./components/ComparisonTable";
 export { PricingPreview } from "./components/PricingPreview";
-export { MerchantTestimonials } from "./components/MerchantTestimonials";
+export { UserFeedbackSection } from "./components/UserFeedbackSection";
+export { SubmitFeedbackModal } from "./components/SubmitFeedbackModal";
 export { InvoiceThemesShowcase } from "./components/InvoiceThemesShowcase";
 export { RealRupeeBillDashboard } from "./components/RealRupeeBillDashboard";

@@ -9,6 +9,7 @@ import { Phone, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { SectionHeading } from "./shared/SectionHeading";
+import { Pull, Reveal, Stagger, StaggerItem } from "@/features/landing/motion";
 
 interface FAQProps {
   onBookDemo: () => void;
@@ -79,28 +80,47 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
           className="mb-12"
         />
 
-        {/* Accordion Component */}
-        <div className="border border-[hsl(var(--lp-rule-strong))] bg-card p-6">
-          <Accordion type="single" collapsible className="w-full space-y-2">
-            {faqs.map((faq) => (
-              <AccordionItem
-                key={faq.id}
-                value={faq.id}
-                className="border border-border/60  px-4 bg-muted/20 hover:bg-muted/30 transition-colors"
-              >
-                <AccordionTrigger className="text-left font-bold text-sm sm:text-base py-4 hover:no-underline text-foreground">
-                  {faq.question}
-                </AccordionTrigger>
-                <AccordionContent className="text-xs sm:text-sm text-muted-foreground leading-relaxed pb-4 pt-1">
-                  {faq.answer}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+        {/*
+          Accordion Component.
+
+          The panel arrives as one object and the eight questions then tick
+          down it in order, which is the order they are read. This section had
+          no motion at all while every other section on the page is led by it —
+          on the way down the page the FAQ was the one block that simply
+          appeared, and a single still section in a moving document reads as
+          something that failed to load.
+        */}
+        <Reveal
+          move="lift"
+          className="border border-[hsl(var(--lp-rule-strong))] bg-card p-6"
+        >
+          <Accordion type="single" collapsible className="w-full">
+            <Stagger as="div" className="space-y-2" step={0.045} delay={0.14}>
+              {faqs.map((faq) => (
+                <StaggerItem key={faq.id}>
+                  <AccordionItem
+                    value={faq.id}
+                    className="border border-border/60  px-4 bg-muted/20 hover:bg-muted/30 transition-colors"
+                  >
+                    <AccordionTrigger className="text-left font-bold text-sm sm:text-base py-4 hover:no-underline text-foreground">
+                      {faq.question}
+                    </AccordionTrigger>
+                    <AccordionContent className="text-xs sm:text-sm text-muted-foreground leading-relaxed pb-4 pt-1">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                </StaggerItem>
+              ))}
+            </Stagger>
           </Accordion>
-        </div>
+        </Reveal>
 
         {/* Support & Query Contact Box */}
-        <div className="mt-10 p-6 sm:p-8 border border-[hsl(var(--lp-rule-strong))] bg-card space-y-6">
+        <Reveal
+          move="set"
+          delay={0.1}
+          className="mt-10 p-6 sm:p-8 border border-[hsl(var(--lp-rule-strong))] bg-card space-y-6"
+        >
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
             <div>
               <h3 className="font-bold text-foreground text-base sm:text-lg">
@@ -111,26 +131,36 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
               </p>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto shrink-0">
-              <Button
-                size="sm"
-                onClick={onBookDemo}
-                variant="outline"
-                className="flex-1 border-[hsl(var(--lp-rule-strong))] bg-transparent text-xs font-semibold text-foreground hover:bg-muted sm:flex-none"
-              >
-                Book a demo
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => navigate("/auth?mode=signup")}
-                className="lp-btn rounded-none flex-1 text-xs sm:flex-none"
-              >
-                Start billing
-              </Button>
+              <Pull className="flex-1 sm:flex-none">
+                <Button
+                  size="sm"
+                  onClick={onBookDemo}
+                  variant="outline"
+                  className="w-full sm:w-auto border-[hsl(var(--lp-rule-strong))] bg-transparent text-xs font-semibold text-foreground hover:bg-muted"
+                >
+                  Book a demo
+                </Button>
+              </Pull>
+              <Pull className="flex-1 sm:flex-none">
+                <Button
+                  size="sm"
+                  onClick={() => navigate("/auth?mode=signup")}
+                  className="lp-btn rounded-none w-full sm:w-auto text-xs"
+                >
+                  Start billing
+                </Button>
+              </Pull>
             </div>
           </div>
 
           {/* Direct Support Contact Chips */}
-          <div className="pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <Stagger
+            as="div"
+            className="pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs"
+            step={0.06}
+            delay={0.12}
+          >
+            <StaggerItem>
             <a
               href="tel:8102545007"
               className="p-3  bg-muted/50 hover:bg-muted border border-border/80 flex items-center gap-3 transition-colors text-left"
@@ -143,7 +173,9 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
                 <span className="font-bold text-foreground">+91 8102545007</span>
               </div>
             </a>
+            </StaggerItem>
 
+            <StaggerItem>
             <a
               href="https://wa.me/918102545007?text=Hi%20RupeeBill%20Support,%20I%20have%20a%20query%20about%20the%20application"
               target="_blank"
@@ -158,7 +190,9 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
                 <span className="font-bold text-[#25D366]">+91 8102545007</span>
               </div>
             </a>
+            </StaggerItem>
 
+            <StaggerItem>
             <a
               href="mailto:supportrupeebill@gmail.com"
               className="p-3 border border-[hsl(var(--lp-rule-strong))] hover:bg-[hsl(var(--lp-paper-sunk))] flex items-center gap-3 transition-colors text-left"
@@ -171,8 +205,9 @@ export const FAQ: React.FC<FAQProps> = ({ onBookDemo }) => {
                 <span className="font-bold text-[hsl(var(--lp-ink))] truncate block text-[11px]">supportrupeebill@gmail.com</span>
               </div>
             </a>
-          </div>
-        </div>
+            </StaggerItem>
+          </Stagger>
+        </Reveal>
       </div>
     </section>
   );

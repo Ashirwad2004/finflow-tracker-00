@@ -169,7 +169,8 @@ class StripeGateway:
         return {
             "isValid": True,
             "type": event.type,
-            "data": event.data.object
+            "data": event.data.object,
+            "eventId": event.id,
         }
 
 
@@ -236,18 +237,22 @@ class RazorpayGateway:
             
         order_details = client.order.fetch(gateway_order_id)
         payment_details = client.payment.fetch(gateway_payment_id)
+        if payment_details.get("order_id") != gateway_order_id:
+            raise ValueError("Payment does not belong to the order")
+        if expected_amount is not None and payment_details.get("amount") != round(expected_amount * 100):
+            raise ValueError("Payment amount does not match the order")
+        if expected_currency and (
+            order_details.get("currency") != expected_currency.upper()
+            or payment_details.get("currency") != expected_currency.upper()
+        ):
+            raise ValueError("Payment currency does not match the order")
         if payment_details.get("status") not in ("captured", "authorized"):
             raise ValueError(f"Payment is not in captured/authorized state (status: {payment_details.get('status')})")
         if payment_details.get("status") == "authorized":
-            try:
-                capture_amount = round(expected_amount * 100) if expected_amount is not None else payment_details.get("amount")
-                payment_details = client.payment.capture(gateway_payment_id, capture_amount)
-            except Exception:
-                pass
-        if expected_amount is not None and payment_details.get("amount") != round(expected_amount * 100):
-            raise ValueError("Payment amount does not match the order")
-        if expected_currency and order_details.get("currency") != expected_currency.upper():
-            raise ValueError("Payment currency does not match the order")
+            capture_amount = payment_details["amount"]
+            payment_details = client.payment.capture(gateway_payment_id, capture_amount)
+        if payment_details.get("status") != "captured":
+            raise ValueError("Payment has not been captured")
         return {
             "success": True,
             "paymentMethod": payment_details.get("method"),

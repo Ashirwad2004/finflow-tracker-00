@@ -6,6 +6,8 @@ import { ProductItem } from "@/features/purchases/components/purchase/ProductCom
 import { QueryClient } from "@tanstack/react-query";
 import { User } from "@supabase/supabase-js";
 
+import { calculateInventoryDeductions } from "../services/inventory";
+
 interface UseInvoiceValidationOptions {
     salesSettings?: SalesSettings;
     itemSettings?: ItemSettings;
@@ -109,18 +111,13 @@ export function useInvoiceValidation({
         if (itemSettings?.stopSaleOnNegativeStock && !invoiceToEdit) {
             const violations: string[] = [];
 
-            for (const item of data.items) {
-                const product = products.find((p) => p.name === item.description);
+            for (const { product, quantity: qtySold } of calculateInventoryDeductions(data.items, products)) {
+                const currentStock = Number(product.stock_quantity) || 0;
 
-                if (product) {
-                    const qtySold = Number(item.quantity) || 0;
-                    const currentStock = Number(product.stock_quantity) || 0;
-
-                    if (qtySold > currentStock) {
-                        violations.push(
-                            `"${item.description}" — only ${currentStock} ${product.unit || "units"} in stock, you're selling ${qtySold}`
-                        );
-                    }
+                if (qtySold > currentStock) {
+                    violations.push(
+                        `"${product.name}" — only ${currentStock} ${product.unit || "units"} in stock, you're selling ${qtySold}`
+                    );
                 }
             }
 

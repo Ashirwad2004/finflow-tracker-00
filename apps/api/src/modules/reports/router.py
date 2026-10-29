@@ -1,8 +1,7 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from src.core.config import settings
 from src.core.limiter import limiter
 from src.api.deps import get_current_user, get_tenant_context
 from .schemas import (

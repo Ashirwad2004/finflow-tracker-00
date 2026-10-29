@@ -20,12 +20,15 @@ import { InvoiceThemesShowcase } from "@/features/landing/components/InvoiceThem
 import { ComparisonTable } from "@/features/landing/components/ComparisonTable";
 import { BusinessTypes } from "@/features/landing/components/BusinessTypes";
 import { HowItWorks } from "@/features/landing/components/HowItWorks";
-import { MerchantTestimonials } from "@/features/landing/components/MerchantTestimonials";
+import { UserFeedbackSection } from "@/features/landing/components/UserFeedbackSection";
 import { PricingPreview } from "@/features/landing/components/PricingPreview";
 import { FAQ } from "@/features/landing/components/FAQ";
 import { CustomBuild } from "@/features/landing/components/CustomBuild";
 import { FinalCTA } from "@/features/landing/components/FinalCTA";
 import { Footer } from "@/features/landing/components/Footer";
+
+// The read-progress rule: the ledger's own margin rule, filling as you scroll.
+import { ReadProgress } from "@/features/landing/motion";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -92,6 +95,10 @@ const Index = () => {
       {/* 1. Navbar */}
       <Navbar onBookDemo={() => setDemoOpen(true)} />
 
+      {/* How far through the page you are, drawn as the margin rule of a
+          ledger. Sits directly under the sticky header. */}
+      <ReadProgress />
+
       {/* Main Content Sections */}
       <main className="flex-1">
         {/* 2. Hero (Windows Desktop POS & Mobile WhatsApp Dual Mockup) */}
@@ -115,8 +122,17 @@ const Index = () => {
         {/* 7. How It Works (3-Minute Setup Roadmap) */}
         <HowItWorks />
 
-        {/* 8. Real Indian Retailer Testimonials */}
-        <MerchantTestimonials />
+        {/*
+          8. Merchant reviews.
+
+          There is one reviews section and it reads real rows. The hand-written
+          testimonial block that used to sit above this one carried three
+          invented shop owners and three invented figures, which is not a
+          placeholder on a live product — it is a false claim. This wall renders
+          what merchants actually submitted, and an honest empty state until
+          somebody does.
+        */}
+        <UserFeedbackSection />
 
         {/* 9. Pricing Preview (100% Free Everything Forever) */}
         <PricingPreview
@@ -127,9 +143,9 @@ const Index = () => {
         <FAQ onBookDemo={() => setDemoOpen(true)} />
 
         {/*
-          11. Custom work. Sits here on purpose: the FAQ says what the software
-          does, and this catches the owner whose trade needs something it
-          doesn't — the last objection before the close.
+          11. Custom software. Sits here on purpose: after the FAQ, visitors
+          who need a tailored app, workflow, report, or integration can start a
+          project conversation before the final product CTA.
         */}
         <CustomBuild />
 

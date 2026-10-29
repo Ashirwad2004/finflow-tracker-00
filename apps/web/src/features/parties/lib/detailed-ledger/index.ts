@@ -41,8 +41,9 @@ export function computeDetailedPartyLedger({
   // 1. OPENING BALANCE (Recorded in Parties Directory)
   const masterParty = partiesDirectory.find(
     (p: any) =>
-      (partyId && p.id === partyId) ||
-      (p.name && p.name.trim().toLowerCase() === normSelected)
+      partyId
+        ? p.id === partyId
+        : p.name && p.name.trim().toLowerCase() === normSelected
   );
 
   if (masterParty && Number(masterParty.opening_balance) > 0) {

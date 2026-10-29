@@ -5,6 +5,7 @@ import {
   calculateSubtotal,
   calculateInvoiceTotals,
   calculateInvoiceDue,
+  getInvoiceOutstandingAmount,
 } from "./calc";
 
 describe("Sales Calculation Service", () => {
@@ -65,5 +66,56 @@ describe("Sales Calculation Service", () => {
     assert.equal(calculateInvoiceDue(500, "pending", 0), 500);
     assert.equal(calculateInvoiceDue(500, "partial", 200), 300);
     assert.equal(calculateInvoiceDue(500, "partial", 600), 0);
+  });
+
+  it("reconciles displayed taxable amount and tax to the final cents", () => {
+    const totals = calculateInvoiceTotals({
+      items: [{ quantity: 1, price: 10.075 }],
+      overallDiscountPercent: 10,
+      taxRate: 18,
+    });
+    assert.equal(totals.subtotal, 10.08);
+    assert.equal(totals.overallDiscountAmount, 1.01);
+    assert.equal(totals.taxableAmount, 9.07);
+    assert.equal(totals.taxAmount, 1.63);
+    assert.equal(totals.totalAmount, 10.7);
+    assert.equal(calculateInvoiceDue(0.3, "partial", 0.1), 0.2);
+  });
+
+  it("apportions invoice discount over different tax rates and preserves exempt items", () => {
+    const totals = calculateInvoiceTotals({
+      items: [
+        { quantity: 1, price: 100, tax_rate: 0 },
+        { quantity: 1, price: 100, tax_rate: 18 },
+      ],
+      overallDiscountPercent: 10,
+      isItemWiseTax: true,
+      defaultTaxRate: 28,
+    });
+    assert.equal(totals.taxableAmount, 180);
+    assert.equal(totals.taxAmount, 16.2);
+    assert.equal(totals.totalAmount, 196.2);
+  });
+
+  it("prevents invalid form values from creating negative or non-finite balances", () => {
+    assert.equal(calculateLineItemTotal(-2, -50), 0);
+    assert.equal(calculateLineItemTotal(1, 100, -20), 100);
+    assert.equal(calculateLineItemTotal(1, 100, 150), 0);
+    const totals = calculateInvoiceTotals({
+      items: [{ quantity: 1, price: 100 }, { quantity: 1, price: Infinity }],
+      overallDiscountPercent: -10,
+      taxRate: NaN,
+    });
+    assert.equal(totals.totalAmount, 100);
+    assert.equal(calculateInvoiceDue(100, "partial", -20), 100);
+  });
+
+  it("never requests another payment for a settled invoice", () => {
+    assert.equal(getInvoiceOutstandingAmount({ total_amount: 118, balance_due: 0 }), 0);
+    assert.equal(getInvoiceOutstandingAmount({ total_amount: 118, status: "paid" }), 0);
+    assert.equal(getInvoiceOutstandingAmount({ total_amount: 118, status: "cancelled" }), 0);
+    assert.equal(getInvoiceOutstandingAmount({ total_amount: 118, amount_paid: 100 }), 18);
+    assert.equal(getInvoiceOutstandingAmount({ total_amount: 118, balance_due: 18, amount_paid: 100 }), 18);
+    assert.equal(getInvoiceOutstandingAmount({ total_amount: 118, amount_paid: 120 }), 0);
   });
 });

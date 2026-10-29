@@ -3,6 +3,8 @@ import { useToast } from "@/core/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { offlineMutate } from "@/core/offline/apiService";
 import { invoicesApi } from "@/core/api/invoices";
+import { calculateBillSettlement, validatePaymentAllocations } from "../utils/payment-transcript/settlementMath";
+import { nonNegativeNumber, roundMoney } from "@/core/utils/money";
 import {
   PaymentMethodType,
   BillPaymentVoucher,
@@ -23,7 +25,6 @@ interface UseUniversalPaymentMutationOptions {
   notes: string;
   partyPendingBills: any[];
   billAllocations: Record<string, number>;
-  advanceAmount: number;
   partyBalance: number;
   balanceAfterPayment: number;
   profile: any;
@@ -44,7 +45,6 @@ export function useUniversalPaymentMutation({
   notes,
   partyPendingBills,
   billAllocations,
-  advanceAmount,
   partyBalance,
   balanceAfterPayment,
   profile,
@@ -67,7 +67,7 @@ export function useUniversalPaymentMutation({
       return;
     }
 
-    if (enteredAmount <= 0) {
+    if (!Number.isFinite(enteredAmount) || roundMoney(enteredAmount) <= 0) {
       toast({
         title: "Invalid Amount",
         description: "Please enter a payment amount greater than ₹0.00",
@@ -85,8 +85,20 @@ export function useUniversalPaymentMutation({
       return;
     }
 
+    const wasOnline = navigator.onLine;
     setIsSubmitting(true);
     try {
+      const payment = validatePaymentAllocations(
+        partyPendingBills.map((bill) => ({
+          id: bill.id,
+          balanceDue: Math.min(
+            nonNegativeNumber(bill.balanceDue),
+            Math.max(0, nonNegativeNumber(bill.totalAmount) - nonNegativeNumber(bill.amountPaid))
+          ),
+        })),
+        billAllocations,
+        enteredAmount
+      );
       const voucherType = isReceipt ? "receipt" : "payment";
       const voucherNumber = generateVoucherNumber(voucherType);
       const currentTimeStr = new Date().toLocaleTimeString("en-IN", {
@@ -100,15 +112,14 @@ export function useUniversalPaymentMutation({
 
       // 1. UPDATE ALLOCATED BILLS
       const billsToUpdate = partyPendingBills.filter(
-        (b) => Number(billAllocations[b.id] || 0) > 0
+        (b) => (payment.allocations[b.id] || 0) > 0
       );
 
       for (const bill of billsToUpdate) {
-        const alloc = Math.round(Number(billAllocations[bill.id]) * 100) / 100;
-        const currentPaid = Number(bill.amountPaid || 0);
-        const newPaid = Math.round((currentPaid + alloc) * 100) / 100;
-        const newDue = Math.max(0, Math.round((bill.totalAmount - newPaid) * 100) / 100);
-        const newStatus = newDue <= 0.001 ? "paid" : "partial";
+        const alloc = payment.allocations[bill.id];
+        const { newAmountPaid: newPaid, newBalanceDue: newDue, newStatus } = calculateBillSettlement(
+          bill.totalAmount, bill.amountPaid, alloc, bill.dueDate
+        );
 
         const { cleanNotes, payments } = parsePaymentTranscript(bill.notes, {
           total_amount: bill.totalAmount,
@@ -151,22 +162,17 @@ export function useUniversalPaymentMutation({
           updatePayload.payment_method = paymentMethod;
         }
 
-        let syncedViaApi = false;
-        if (isReceipt && navigator.onLine) {
-          try {
-            await invoicesApi.updateInvoice(bill.id, {
-              amount_paid: newPaid,
-              status: newStatus,
-              payment_method: paymentMethod,
-              notes: encodedNotes,
-            });
-            syncedViaApi = true;
-          } catch (apiErr) {
-            console.warn("[PaymentDialog] Backend invoice update fallback to offlineMutate:", apiErr);
+        if (isReceipt && wasOnline) {
+          const saved = await invoicesApi.updateInvoice(bill.id, {
+            amount_paid: newPaid,
+            status: newStatus,
+            payment_method: paymentMethod,
+            notes: encodedNotes,
+          });
+          if (!saved?.id) {
+            throw new Error("The server did not confirm the payment. Refresh your bills before retrying.");
           }
-        }
-
-        if (!syncedViaApi) {
+        } else {
           const { error } = await offlineMutate({
             table: tableName,
             action: "update",
@@ -194,9 +200,9 @@ export function useUniversalPaymentMutation({
 
       // 2. RECORD UNALLOCATED ADVANCE / ON-ACCOUNT (IF ANY)
       let advanceRecordId: string | null = null;
-      if (advanceAmount > 0 || billsToUpdate.length === 0) {
+      if (payment.advanceAmount > 0) {
         advanceRecordId = crypto.randomUUID();
-        const advAmount = billsToUpdate.length === 0 ? enteredAmount : advanceAmount;
+        const advAmount = payment.advanceAmount;
         const initialNotes = notes.trim() || `${isReceipt ? "Payment In" : "Payment Out"} (Advance / On Account)`;
 
         const advVoucher: BillPaymentVoucher = {
@@ -325,7 +331,7 @@ export function useUniversalPaymentMutation({
         type: isReceipt ? "receipt" : "payment",
         date: paymentDate || new Date().toISOString().split("T")[0],
         time: currentTimeStr,
-        amount: enteredAmount,
+        amount: payment.paymentAmount,
         paymentMethod,
         referenceNumber: referenceNumber.trim() || undefined,
         notes: notes.trim() || undefined,

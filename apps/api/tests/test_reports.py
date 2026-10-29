@@ -1,16 +1,5 @@
-import pytest
-from src.services.reports import ReportsService
-from src.schemas.reports import (
-    GSTR1ReportRequest,
-    GSTR2BReportRequest,
-    GSTR3BReportRequest,
-    GSTR9ReportRequest,
-    ProfitAndLossRequest,
-    TrialBalanceRequest,
-    BalanceSheetRequest,
-    ReceivablesAgingRequest,
-    CashFlowStatementRequest,
-)
+from src.modules.reports.service import ReportsService
+from src.modules.reports.schemas import GSTR1ReportRequest
 
 def test_gstr1_report_generation():
     sales = [
@@ -121,3 +110,90 @@ def test_receivables_aging_buckets():
     assert resp.total_outstanding == 4000.0
     assert resp.total_0_30 == 1000.0
     assert resp.total_61_90 == 3000.0
+
+
+def test_gstr1_classifies_registered_and_unregistered_buyers():
+    """Registered and unregistered buyers appear in their respective report groups."""
+    req = GSTR1ReportRequest(
+        merchant_gstin="27AAAAA0000A1Z5",
+        month="09",
+        year=2026,
+        sales=[
+            # Registered customer -> B2B
+            {
+                "id": "INV-B2B",
+                "invoice_number": "INV-001",
+                "total_amount": 5900.0,
+                "place_of_supply": "27-Maharashtra",
+                "customer_gstin": "27BBBBB1111B1Z2",
+                "customer_name": "Acme Retailers",
+                "items": [{"rate": 18.0, "taxable_value": 5000.0, "cgst_amount": 450.0, "sgst_amount": 450.0, "hsn_code": "8471"}],
+            },
+            # Unregistered customer intra-state -> B2CS
+            {
+                "id": "INV-B2CS",
+                "invoice_number": "INV-002",
+                "total_amount": 1180.0,
+                "place_of_supply": "27-Maharashtra",
+                "customer_name": "Walk-in Buyer",
+                "customer_gstin": "",
+                "items": [{"rate": 18.0, "taxable_value": 1000.0, "cgst_amount": 90.0, "sgst_amount": 90.0, "hsn_code": "8471"}],
+            }
+        ]
+    )
+
+    report = ReportsService.generate_gstr1_report(req)
+    assert len(report.b2b) == 1
+    assert report.b2b[0].invoice_number == "INV-001"
+    assert report.b2b[0].customer_gstin == "27BBBBB1111B1Z2"
+
+    assert len(report.b2cs) >= 1
+    assert any(b.place_of_supply == "27-Maharashtra" for b in report.b2cs)
+
+    # HSN summary verification
+    assert len(report.hsn_summary) >= 1
+    hsn_8471 = next((h for h in report.hsn_summary if h.hsn_code == "8471"), None)
+    assert hsn_8471 is not None
+    assert hsn_8471.taxable_value == 6000.0
+
+
+def test_gstr1_preserves_zero_tax_rate():
+    report = ReportsService.generate_gstr1_report(GSTR1ReportRequest(sales=[{
+        "total_amount": 2000,
+        "items": [{"tax_rate": 0, "price": 1000, "quantity": 2}],
+    }]))
+    assert report.total_taxable_value == 2000
+    assert report.total_tax_liability == 0
+    assert report.b2cs[0].rate == 0
+
+
+def test_gstr1_reads_stored_pos_line_fields_and_discount():
+    report = ReportsService.generate_gstr1_report(GSTR1ReportRequest(sales=[{
+        "total_amount": 212.4,
+        "items": [{
+            "product_name": "Product", "unit_price": 100, "quantity": 2,
+            "discount": 10, "tax_rate": 18, "tax_amount": 32.4, "line_total": 212.4,
+        }],
+    }]))
+    assert report.total_taxable_value == 180
+    assert report.total_tax_liability == 32.4
+    assert report.hsn_summary[0].total_value == 212.4
+    assert report.hsn_summary[0].total_quantity == 2
+
+
+def test_gstr1_preserves_explicit_zero_line_amounts():
+    report = ReportsService.generate_gstr1_report(GSTR1ReportRequest(sales=[{
+        "total_amount": 0,
+        "items": [{"tax_rate": 0, "taxable_value": 0, "total_amount": 0, "price": 100, "quantity": 1}],
+    }]))
+    assert report.total_taxable_value == 0
+    assert report.total_tax_liability == 0
+    assert report.hsn_summary[0].total_value == 0
+
+
+def test_gstr1_preserves_zero_rate_without_line_items():
+    report = ReportsService.generate_gstr1_report(GSTR1ReportRequest(sales=[{
+        "total_amount": 100, "subtotal": 100, "tax_rate": 0,
+    }]))
+    assert report.total_taxable_value == 100
+    assert report.total_tax_liability == 0

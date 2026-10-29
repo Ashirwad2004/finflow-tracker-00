@@ -1,5 +1,6 @@
-import { parsePaymentTranscript } from "@/features/payments";
+import { parsePaymentTranscript } from "@/features/payments/utils/paymentTranscript";
 import { LedgerTransaction } from "./types";
+import { isPostedDocument } from "../partyLedgerCalculations";
 
 export function processSalesForLedger(
   sales: any[],
@@ -9,10 +10,12 @@ export function processSalesForLedger(
   const transactions: Omit<LedgerTransaction, "runningBalance">[] = [];
 
   sales.forEach((sale: any) => {
+    if (!isPostedDocument(sale)) return;
     const custName = (sale.customer_name || "").trim().toLowerCase();
     const isMatch =
-      (partyId && sale.party_id && sale.party_id === partyId) ||
-      custName === normSelected;
+      partyId && sale.party_id
+        ? sale.party_id === partyId
+        : Boolean(normSelected) && custName === normSelected;
     if (!isMatch) return;
 
     const txDate = sale.date || sale.created_at || new Date().toISOString();

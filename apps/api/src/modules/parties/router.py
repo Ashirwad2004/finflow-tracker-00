@@ -3,11 +3,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, status
 
 from src.api.deps import get_tenant_context
-from .schemas import (
-    PartyCreateRequest,
-    PartyUpdateRequest,
-    PartyResponse,
-)
+from .schemas import PartyCreateRequest, PartyUpdateRequest
 from .service import PartyService
 
 logger = logging.getLogger(__name__)

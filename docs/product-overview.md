@@ -85,7 +85,7 @@ FinFlow is built with modern, industry-standard technologies:
 
 ```
 finflow-tracker/
-├── backend/                  # Optional FastAPI Python service
+├── apps/api/                  # Optional FastAPI Python service
 │   ├── src/
 │   │   ├── api/v1/           # Versioned API routes
 │   │   ├── core/             # Settings, security, AI, and rate limiting
@@ -99,14 +99,14 @@ finflow-tracker/
 │   ├── features-guide.md     # Detailed user-facing feature guide
 │   ├── database-schema.md    # Detailed database table schemas and RLS
 │   └── developer-setup.md    # Local setup and deployment manual
-├── frontend/                 # React/Vite frontend workspace
+├── apps/web/                 # React/Vite frontend workspace
 │   ├── src/                  # Application source
 │   ├── public/               # Static assets and service worker
 │   ├── vite.config.ts        # Dev server (port 8080) and API proxy
 │   └── package.json
 ├── package.json              # Root workspace scripts
 ├── docker-compose.yml        # Frontend and backend containers
-├── run-backend.py            # Cross-platform FastAPI runner
+├── scripts/api.py            # Cross-platform FastAPI runner
 └── supabase/                 # Supabase configuration and migrations
     ├── functions/            # Deno Edge Functions
     └── migrations/           # Database source of truth
@@ -115,7 +115,7 @@ finflow-tracker/
 The frontend source is organized as follows:
 
 ```
-frontend/src/
+apps/web/src/
 │   ├── components/
 │   │   ├── layout/           # AppLayout, Sidebars, Header, Navigation
 │   │   ├── shared/           # AssistantGate, ThemeToggle, Dialogs

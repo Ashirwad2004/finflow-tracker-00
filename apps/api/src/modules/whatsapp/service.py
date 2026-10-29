@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timezone
 import time
 from typing import Dict, Any, Optional, List
-import uuid
 from uuid import uuid4
 
 from src.core.config import settings

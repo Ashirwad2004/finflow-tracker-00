@@ -29,19 +29,17 @@ jobs:
       - name: Install Root Dependencies
         run: npm ci
 
-      - name: Install Frontend Dependencies
-        working-directory: apps/web
-        run: npm ci
-
       - name: Run ESLint Checks
         run: npm run lint
 
       - name: Run TypeScript Type Checks
-        working-directory: apps/web
-        run: npx tsc --noEmit --project tsconfig.json
+        run: npm run typecheck
 
       - name: Run Frontend Unit Tests
         run: npm run test:frontend
+
+      - name: Verify build tooling
+        run: npm run test:tooling
 
       - name: Build Production Frontend Bundle
         working-directory: apps/web
@@ -67,7 +65,7 @@ jobs:
         working-directory: apps/api
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Verify Python Syntax & Compilation
         working-directory: apps/api

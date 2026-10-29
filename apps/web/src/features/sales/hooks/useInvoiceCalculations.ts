@@ -1,5 +1,8 @@
 import { useMemo } from "react";
 import { SalesSettings } from "@/core/hooks/use-sales-settings";
+import { calculateInvoiceValues } from "./invoiceMutation/calculateInvoiceValues";
+import { calculateInvoiceDue } from "../services/calc";
+import { nonNegativeNumber, roundMoney } from "@/core/utils/money";
 
 interface UseInvoiceCalculationsOptions {
     watchItems: any[];
@@ -33,60 +36,31 @@ export function useInvoiceCalculations({
     // 1. Check if item-wise tax is enabled
     const isItemWiseTax = !!(salesSettings?.enableItemWiseTax || salesSettings?.showItemTaxRateOnBill);
 
-    // 2. Subtotal from line items
-    const subtotal = useMemo(() => {
-        return (watchItems || []).reduce((sum, item) => {
-            const qty = Number(item.quantity) || 0;
-            const price = Number(item.price) || 0;
-            const discPercent = Number(item.discount) || 0;
-            const itemTotal = qty * price * (1 - discPercent / 100);
-            return sum + itemTotal;
-        }, 0);
-    }, [watchItems]);
-
-    // 3. Overall discount
-    const overallDiscountPercent = Number(watchOverallDiscount) || 0;
-    const overallDiscountAmount = (subtotal * overallDiscountPercent) / 100;
-    const taxableAmount = Math.max(0, subtotal - overallDiscountAmount);
-
-    // 4. Tax amount and effective tax rate
-    const { taxAmount, taxRate } = useMemo(() => {
-        let calculatedTaxAmount = 0;
-        let calculatedTaxRate = Number(watchTaxRate) || 0;
-
-        if (isItemWiseTax) {
-            const discountFactor = subtotal > 0 ? taxableAmount / subtotal : 1;
-            calculatedTaxAmount = (watchItems || []).reduce((sum, item) => {
-                const qty = Number(item.quantity) || 0;
-                const price = Number(item.price) || 0;
-                const discPercent = Number(item.discount) || 0;
-                const lineTaxable = qty * price * (1 - discPercent / 100) * discountFactor;
-                const itemTaxRate = Number(item.tax_rate ?? salesSettings?.defaultTaxRate ?? 0);
-                return sum + (lineTaxable * itemTaxRate) / 100;
-            }, 0);
-
-            calculatedTaxRate = taxableAmount > 0 ? (calculatedTaxAmount / taxableAmount) * 100 : 0;
-        } else {
-            calculatedTaxAmount = (taxableAmount * calculatedTaxRate) / 100;
-        }
-
-        return { taxAmount: calculatedTaxAmount, taxRate: calculatedTaxRate };
-    }, [isItemWiseTax, subtotal, taxableAmount, watchItems, watchTaxRate, salesSettings?.defaultTaxRate]);
-
-    // 5. Total amount with roundoff
-    const rawTotal = taxableAmount + taxAmount;
-    const roundedTotal = salesSettings?.roundOffTotal ? Math.round(rawTotal) : rawTotal;
-    const roundOffDiff = salesSettings?.roundOffTotal ? roundedTotal - rawTotal : 0;
-    const totalAmount = roundedTotal;
-
-    const effectiveInvoiceTotal = isQuickBilling ? (Number(watchQuickTotalAmount) || 0) : roundedTotal;
+    // Use the same calculations for live totals, preview, and persisted invoices.
+    const { totals } = useMemo(() => calculateInvoiceValues({
+        items: watchItems || [],
+        tax_rate: Number(watchTaxRate),
+        overall_discount: Number(watchOverallDiscount),
+        quick_total_amount: Number(watchQuickTotalAmount),
+    }, salesSettings, isQuickBilling, isItemWiseTax), [
+        watchItems, watchTaxRate, watchOverallDiscount, watchQuickTotalAmount,
+        salesSettings, isQuickBilling, isItemWiseTax,
+    ]);
+    const {
+        subtotal, overallDiscountAmount, taxableAmount, taxAmount,
+        rawTotal, roundedTotal, roundOffDiff, totalAmount,
+        effectiveTaxRate: taxRate,
+    } = totals;
+    const overallDiscountPercent = Math.min(100, nonNegativeNumber(watchOverallDiscount));
+    const effectiveInvoiceTotal = totalAmount;
 
     // 6. Current balance due on this document
     const currentInvoiceDue = useMemo(() => {
-        const paidVal = Number(watchAmountPaid) || 0;
-        if (watchStatus === "paid") return 0;
-        if (watchStatus === "pending") return effectiveInvoiceTotal;
-        return Math.max(0, effectiveInvoiceTotal - paidVal);
+        return calculateInvoiceDue(
+            effectiveInvoiceTotal,
+            watchStatus === "paid" || watchStatus === "pending" ? watchStatus : "partial",
+            Number(watchAmountPaid)
+        );
     }, [watchStatus, watchAmountPaid, effectiveInvoiceTotal]);
 
     // 7. Party prior outstanding balance
@@ -137,47 +111,12 @@ export function useInvoiceCalculations({
         profile: any,
         invoiceToEdit: any
     ) => {
-        const calculatedOverallDiscount = (subtotal * (Number(values.overall_discount) || 0)) / 100;
-
-        let processedDraftItems: any[] = [];
-        if (isQuickBilling) {
-            const totalVal = Number(values.quick_total_amount) || 0;
-            const taxR = Number(values.tax_rate) || 0;
-            const priceVal = totalVal / (1 + taxR / 100);
-            processedDraftItems = [
-                {
-                    description: values.quick_item_name?.trim() || "General Sale",
-                    quantity: 1,
-                    price: priceVal,
-                    discount: 0,
-                    tax_rate: taxR,
-                    total: priceVal,
-                    hsn_code: "",
-                },
-            ];
-        } else {
-            const valid = (values.items || []).filter(
-                (it: any) => it.description && it.description.trim() !== ""
-            );
-            const list = valid.length > 0 ? valid : values.items || [];
-            processedDraftItems = list.map((item: any) => {
-                const q = Number(item.quantity) || 1;
-                const p = Number(item.price) || 0;
-                const d = Number(item.discount) || 0;
-                return {
-                    ...item,
-                    description: item.description || "Item",
-                    quantity: q,
-                    price: p,
-                    discount: d,
-                    tax_rate:
-                        item.tax_rate !== undefined
-                            ? Number(item.tax_rate)
-                            : (salesSettings?.defaultTaxRate ?? 0),
-                    total: q * p * (1 - d / 100),
-                };
-            });
-        }
+        const calculation = calculateInvoiceValues(values, salesSettings, isQuickBilling, isItemWiseTax);
+        const draftDue = calculateInvoiceDue(calculation.calcTotalAmount, values.status, values.amount_paid);
+        const draftPaid = values.status === "paid" ? calculation.calcTotalAmount
+            : values.status === "pending" ? 0
+            : roundMoney(Math.min(calculation.calcTotalAmount, nonNegativeNumber(values.amount_paid)));
+        const closingDue = roundMoney(partyPreviousBalance + draftDue);
 
         return {
             id: invoiceToEdit?.id,
@@ -196,17 +135,17 @@ export function useInvoiceCalculations({
             date: values.date,
             due_date: values.due_date,
             status: values.status,
-            amount_paid: Number(values.amount_paid) || 0,
-            balance_due: currentInvoiceDue,
-            items: processedDraftItems,
-            subtotal,
-            discount_amount: calculatedOverallDiscount,
-            tax_rate: Number(values.tax_rate) || 0,
-            tax_amount: taxAmount,
-            total_amount: totalAmount,
+            amount_paid: draftPaid,
+            balance_due: draftDue,
+            items: calculation.processedItems,
+            subtotal: calculation.calcSubtotal,
+            discount_amount: calculation.calcOverallDiscountAmount,
+            tax_rate: calculation.calcTaxRate,
+            tax_amount: calculation.calcTaxAmount,
+            total_amount: calculation.calcTotalAmount,
             previous_balance: partyPreviousBalance,
-            total_due_balance: partyClosingDue,
-            party_pending_balance: partyClosingDue,
+            total_due_balance: closingDue,
+            party_pending_balance: closingDue,
             notes: values.notes,
             profile,
         };

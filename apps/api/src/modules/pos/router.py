@@ -1,8 +1,8 @@
 import logging
-from typing import Dict, Any
+from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.api.deps import get_current_user
+from src.api.deps import get_current_user, resolve_tenant_context as _resolve_tenant_context
 from src.core.supabase import supabase_client
 from .schemas import (
     POSSaleCreateRequest,
@@ -18,36 +18,6 @@ from .service import POSService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pos", tags=["Point of Sale (POS)"])
-
-
-def _resolve_tenant_context(user_info: dict) -> tuple[str, str]:
-    """
-    Resolves the store_id (tenant owner) and cashier_id (authenticated user).
-    If the user is a salesman, store_id points to the salesman's assigned store.
-    """
-    user_id = user_info.get("user_id")
-    email = user_info.get("email")
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
-
-    store_id = user_id
-    if supabase_client and email:
-        try:
-            sm_res: Any = (
-                supabase_client.table("store_salesmen")
-                .select("store_id, is_active")
-                .eq("salesman_email", email.lower())
-                .maybe_single()
-                .execute()
-            )
-            sm_data = getattr(sm_res, "data", None)
-            if isinstance(sm_data, dict):
-                if sm_data.get("is_active") is not False and sm_data.get("store_id"):
-                    store_id = str(sm_data["store_id"])
-        except Exception:
-            pass
-
-    return store_id, user_id
 
 
 @router.get("/health")

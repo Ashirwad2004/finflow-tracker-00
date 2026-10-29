@@ -1,11 +1,14 @@
 import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Check, X, AlertTriangle, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { SectionHeading } from "./shared/SectionHeading";
+import { EASE_DRAW, Pull, Reveal } from "@/features/landing/motion";
 
 export const ComparisonTable: React.FC = () => {
   const navigate = useNavigate();
+  const reduced = useReducedMotion();
 
   const comparisonRows = [
     {
@@ -73,18 +76,42 @@ export const ComparisonTable: React.FC = () => {
         {/* Section Header */}
         <SectionHeading
           label="Compared"
-          figure="9 jobs"
+          figure="8 jobs"
           title="Paper khata, Excel, or this"
-          description="The same nine jobs, done three ways. Honest about where a spreadsheet still holds up and where it quietly costs you money."
+          description="The same eight jobs, done three ways. Honest about where a spreadsheet still holds up and where it quietly costs you money."
           className="mb-14"
         />
 
         {/* Comparison Table Container */}
-        <div className="border border-[hsl(var(--lp-rule-strong))] bg-card overflow-hidden">
+        <Reveal
+          move="lift"
+          className="overflow-hidden border border-[hsl(var(--lp-rule-strong))] bg-card"
+        >
+          {/* Said out loud rather than leaving a cut-off column to be
+              discovered. Inside the card, so the section's spacing above is
+              unchanged on the widths where the table fits whole. */}
+          <p className="border-b border-[hsl(var(--lp-rule))] bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground md:hidden">
+            Swipe the table sideways to read all four columns.
+          </p>
+
+          {/* On a phone this is four columns of prose. Without a floor on the
+              table's width it squeezed each one to about 80px and the
+              `overflow-x-auto` never had anything to scroll, so the whole
+              comparison was unreadable on the device most shop owners open the
+              page on. The table now keeps a readable width and scrolls. */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
+            <table className="w-full min-w-[46rem] text-left text-xs sm:text-sm">
+              {/* The header is ruled in before the rows are written under it,
+                  which is the order the table is actually made in. It was the
+                  one still part of a table whose every row moves. */}
               <thead>
-                <tr className="border-b border-border">
+                <motion.tr
+                  className="border-b border-border"
+                  initial={reduced ? undefined : { opacity: 0, y: -10 }}
+                  whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.5 }}
+                  transition={{ duration: 0.45, ease: EASE_DRAW }}
+                >
                   <th className="p-4 sm:p-5 w-1/4 bg-muted/50 font-bold text-foreground">
                     Business Feature
                   </th>
@@ -100,11 +127,28 @@ export const ComparisonTable: React.FC = () => {
                       <span>RupeeBill (Free)</span>
                     </div>
                   </th>
-                </tr>
+                </motion.tr>
               </thead>
               <tbody className="divide-y divide-border/60">
+                {/*
+                  The rows arrive top to bottom, one job at a time, which is
+                  how the table is read. The stagger is short (45ms) because
+                  eight rows at a comfortable individual pace would take long
+                  enough to be irritating rather than legible.
+                */}
                 {comparisonRows.map((row, idx) => (
-                  <tr key={idx} className={row.highlight ? "bg-muted/10" : ""}>
+                  <motion.tr
+                    key={idx}
+                    className={row.highlight ? "bg-muted/10" : ""}
+                    initial={reduced ? undefined : { opacity: 0, x: -18 }}
+                    whileInView={reduced ? undefined : { opacity: 1, x: 0 }}
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{
+                      duration: 0.5,
+                      ease: EASE_DRAW,
+                      delay: idx * 0.045,
+                    }}
+                  >
                     <td className="p-4 sm:p-5 font-bold text-foreground">
                       {row.feature}
                     </td>
@@ -126,7 +170,7 @@ export const ComparisonTable: React.FC = () => {
                         <span className="text-[hsl(var(--lp-green))] font-semibold">{row.rupeebill}</span>
                       </div>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
@@ -140,14 +184,16 @@ export const ComparisonTable: React.FC = () => {
                 <strong>Zero Lock-In Guarantee:</strong> Export all your items, customers, and invoices to Excel anytime with 1 click.
               </span>
             </div>
-            <Button
-              onClick={() => navigate("/auth")}
-              className="lp-btn rounded-none h-11 shrink-0 px-7 text-xs sm:text-sm"
-            >
-              Switch to RupeeBill
-            </Button>
+            <Pull className="shrink-0">
+              <Button
+                onClick={() => navigate("/auth")}
+                className="lp-btn h-11 shrink-0 rounded-none px-7 text-xs sm:text-sm"
+              >
+                Switch to RupeeBill
+              </Button>
+            </Pull>
           </div>
-        </div>
+        </Reveal>
 
       </div>
     </section>

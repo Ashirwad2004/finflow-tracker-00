@@ -2,11 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from .repository import InventoryRepository
-from .schemas import (
-    InventoryAdjustmentRequest,
-    InventoryMovementItem,
-    InventoryValuationSummary,
-)
+from .schemas import InventoryAdjustmentRequest
 
 logger = logging.getLogger(__name__)
 

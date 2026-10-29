@@ -16,14 +16,14 @@
 
 | Path | Purpose |
 |---|---|
-| `frontend/src/App.tsx` | Route definitions & `MerchantRoute` paywall |
-| `frontend/src/core/hooks/useSubscription.ts` | Central subscription & trial hook (`canAccessApp`) |
-| `frontend/src/core/contexts/BusinessContext.tsx` | Personal vs Business mode toggle |
-| `frontend/src/core/offline/syncService.ts` | Offline sync & payload field whitelist |
-| `frontend/src/components/layout/AppSidebar.tsx` | Main navigation & trial countdown chip |
-| `frontend/src/components/shared/calculator.tsx` | Statutory GST Studio & CA calculator |
-| `frontend/src/features/business/` | Sales, Purchases, Inventory, Parties, Invoicing |
-| `backend/src/api/v1/endpoints/payments.py` | Razorpay orders, HMAC-SHA256 verification |
+| `apps/web/src/app/routes.tsx` | Route definitions & `MerchantRoute` paywall |
+| `apps/web/src/core/hooks/useSubscription.ts` | Central subscription & trial hook (`canAccessApp`) |
+| `apps/web/src/core/contexts/BusinessContext.tsx` | Personal vs Business mode toggle |
+| `apps/web/src/core/offline/syncService.ts` | Offline sync & payload field whitelist |
+| `apps/web/src/components/layout/AppSidebar.tsx` | Main navigation & trial countdown chip |
+| `apps/web/src/components/shared/calculator.tsx` | Statutory GST Studio & CA calculator |
+| `apps/web/src/features/{sales,purchases,inventory,parties}/` | Sales, Purchases, Inventory, Parties, Invoicing |
+| `apps/api/src/modules/payments/router.py` | Razorpay orders, HMAC-SHA256 verification |
 | `supabase/migrations/` | Database schema migrations (single source of truth) |
 
 ---
@@ -31,9 +31,9 @@
 ## 3. Subscription & Free Trial Rules
 
 - **Trial**: 15-day free trial activated on email verification (`trial_claims` anti-abuse by `normalized_email`).
-- **Paid Plan**: ₹299/month (`plan = 'premium'`). Gated via `MerchantRoute`.
+- **Paid Plan**: ₹299 per six-month license (`plan = 'premium'`). Gated via `MerchantRoute`.
 - **Access Rule**: `canAccessApp = isPaidSubscriber || isTrialActive || isAdmin || isSalesman`.
-- **Razorpay Flow**: `POST /api/v1/payments/create-subscription-order` (29900 paise) -> checkout modal -> `POST /api/v1/payments/verify-payment` (HMAC verify) -> upserts `subscription_status` for 30 days.
+- **Razorpay Flow**: `POST /api/v1/payments/create-subscription-order` (29900 paise) -> checkout modal -> `POST /api/v1/payments/verify-payment` (HMAC verify) -> upserts `subscription_status` for 183 days.
 
 ---
 

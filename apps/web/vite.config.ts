@@ -1,9 +1,8 @@
 import { defineConfig, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/ - Force dev server reload & CSS cache invalidate: 2
+// Development and production builds share the same workspace aliases.
 export default defineConfig(({ mode }) => ({
   server: {
     host: true,
@@ -27,7 +26,6 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(), 
-    mode === "development" && componentTagger(),
     {
       name: 'utf8-charset-middleware',
       configureServer(server: ViteDevServer) {
@@ -53,7 +51,6 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@rupaybill/api-types": path.resolve(__dirname, "../../packages/api-types/src/index.ts"),
-      "@rupeebill/api-types": path.resolve(__dirname, "../../packages/api-types/src/index.ts"),
     },
   },
   build: {

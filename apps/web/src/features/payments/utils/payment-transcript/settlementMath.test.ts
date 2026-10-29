@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   calculateBillSettlement,
   autoAllocateFIFO,
+  validatePaymentAllocations,
 } from "./settlementMath.ts";
 import {
   parsePaymentTranscript,
@@ -64,6 +65,33 @@ describe("Bill Settlement Math", () => {
     assert.equal(res.allocations["b1"], 100);
     assert.equal(res.totalAllocated, 100);
     assert.equal(res.unallocatedAmount, 150);
+  });
+
+  it("rejects allocations exceeding the receipt amount before bills are changed", () => {
+    assert.throws(() => validatePaymentAllocations([
+      { id: "a", balanceDue: 100 }, { id: "b", balanceDue: 100 },
+    ], { a: 60, b: 50 }, 100), /exceeds the payment amount/);
+  });
+
+  it("rejects excess, stale, and non-finite allocations", () => {
+    const bills = [{ id: "a", balanceDue: 50 }];
+    assert.throws(() => validatePaymentAllocations(bills, { a: 51 }, 100), /outstanding balance/);
+    assert.throws(() => validatePaymentAllocations(bills, { stale: 1 }, 100), /no longer available/);
+    assert.throws(() => validatePaymentAllocations(bills, { a: NaN }, 100), /finite/);
+    assert.throws(() => validatePaymentAllocations(bills, {}, Infinity), /greater than zero/);
+    assert.throws(() => validatePaymentAllocations(bills, {}, 0.001), /greater than zero/);
+  });
+
+  it("conserves the payment between allocated bills and the advance in cents", () => {
+    const payment = validatePaymentAllocations([
+      { id: "a", balanceDue: 0.1 }, { id: "b", balanceDue: 0.2 },
+    ], { a: 0.1, b: 0.2 }, 0.35);
+    assert.equal(payment.totalAllocated, 0.3);
+    assert.equal(payment.advanceAmount, 0.05);
+    const fifo = autoAllocateFIFO([{ id: "a", balanceDue: 10.075 }], 10.08);
+    assert.equal(fifo.totalAllocated, 10.08);
+    assert.equal(fifo.unallocatedAmount, 0);
+    assert.equal(calculateBillSettlement(0.3, 0.1, 0.2).newBalanceDue, 0);
   });
 });
 

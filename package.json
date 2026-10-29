@@ -8,29 +8,28 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=apps/web\" \"python run-backend.py\"",
+    "dev": "concurrently --kill-others \"npm run web:dev\" \"npm run api:dev\"",
     "web:dev": "npm run dev --workspace=apps/web",
     "frontend:dev": "npm run dev --workspace=apps/web",
-    "api:dev": "python run-backend.py",
+    "api:dev": "python scripts/api.py dev",
+    "backend:dev": "npm run api:dev",
     "test:web": "npm run test --workspace=apps/web",
     "test:frontend": "npm run test --workspace=apps/web",
-    "test:api": "python run-tests.py",
-    "test:backend": "python run-tests.py",
-    "test": "npm run test:web && npm run test:backend",
+    "test:api": "python scripts/api.py test",
+    "test:backend": "npm run test:api",
+    "test:tooling": "node --test apps/web/scripts/*.test.js",
+    "test": "npm run test:web && npm run test:api && npm run test:tooling",
     "build": "npm run build --workspace=apps/web",
     "lint": "npm run lint --workspace=apps/web",
-    "typecheck": "npm run typecheck --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/web && tsc --noEmit -p packages/api-types/tsconfig.json",
     "types:generate": "npm run generate --workspace=packages/api-types",
     "preview": "npm run preview --workspace=apps/web",
     "server": "node apps/web/server.js",
-    "docker:build": "docker-compose build",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down"
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
-  },
-  "dependencies": {
-    "eslint": "^9.32.0"
   }
 }
